@@ -119,26 +119,39 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 
 // AgentInfo untuk daftar agent.
 type AgentInfo struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	OS         string     `json:"os"`
-	EnrolledAt time.Time  `json:"enrolled_at"`
-	LastSeenAt *time.Time `json:"last_seen_at"`
-	Revoked    bool       `json:"revoked"`
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	OS            string         `json:"os"`
+	EnrolledAt    time.Time      `json:"enrolled_at"`
+	LastSeenAt    *time.Time     `json:"last_seen_at"`
+	Revoked       bool           `json:"revoked"`
+	ConfigVersion int            `json:"config_version"`
+	Sources       []agent.Source `json:"sources,omitempty"`
 }
 
 func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked FROM agents ORDER BY enrolled_at DESC`)
+		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, config
+		 FROM agents ORDER BY enrolled_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("enroll: list agents: %w", err)
 	}
 	defer rows.Close()
 	out := make([]AgentInfo, 0, 16)
 	for rows.Next() {
-		var a AgentInfo
-		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked); err != nil {
+		var (
+			a   AgentInfo
+			raw *string
+		)
+		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &raw); err != nil {
 			return nil, err
+		}
+		if raw != nil {
+			var cfg agent.Config
+			if json.Unmarshal([]byte(*raw), &cfg) == nil {
+				a.ConfigVersion = cfg.Version
+				a.Sources = cfg.Sources
+			}
 		}
 		out = append(out, a)
 	}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Sidebar, { type View } from './components/Sidebar'
 import Dashboard from './dashboard/Dashboard'
+import Agents from './agents/Agents'
 import Users from './users/Users'
 import Settings from './settings/Settings'
 import Login from './components/Login'
@@ -33,7 +34,9 @@ export default function App() {
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-200">
       <Sidebar me={me} view={view} onNavigate={setView} onLogout={() => setMe(null)} />
       <main className="flex-1 overflow-y-auto">
-        {view === 'users' && me.role === 'admin' ? (
+        {view === 'agents' ? (
+          <Agents me={me} />
+        ) : view === 'users' && me.role === 'admin' ? (
           <Users />
         ) : view === 'settings' ? (
           <Settings />

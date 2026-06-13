@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"encoding/json"
 	"regexp"
 	"strconv"
 	"time"
@@ -45,7 +46,35 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if raw.Dataset == "sshd" && normalizeSSHD(raw.Message, e) {
 		return e, true
 	}
+	if raw.Dataset == "fim" && normalizeFIM(raw.Message, e) {
+		return e, true
+	}
 	return e, false
+}
+
+// normalizeFIM mem-parse payload JSON FIM dari agent ({path,action,sha256,size,mode})
+// menjadi field file.* DCS. action: created/modified/deleted.
+func normalizeFIM(msg string, e *Event) bool {
+	var c struct {
+		Path   string `json:"path"`
+		Action string `json:"action"`
+		SHA256 string `json:"sha256"`
+		Mode   string `json:"mode"`
+	}
+	if err := json.Unmarshal([]byte(msg), &c); err != nil || c.Path == "" || c.Action == "" {
+		return false
+	}
+	e.Event.Category = "file"
+	e.Event.Action = "file_" + c.Action
+	e.Event.Outcome = "success"
+	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode}
+	// Perubahan/penghapusan lebih berisiko daripada pembuatan berkas baru.
+	if c.Action == "created" {
+		e.Event.Severity = SeverityLow
+	} else {
+		e.Event.Severity = SeverityMedium
+	}
+	return true
 }
 
 func normalizeSSHD(msg string, e *Event) bool {

@@ -33,6 +33,7 @@ func main() {
 	enrollName := flag.String("name", "", "nama agent (mode -enroll)")
 	enrollManager := flag.String("manager", "http://localhost:8080", "URL manager untuk enroll")
 	outDir := flag.String("out", "", "direktori output sertifikat (default CERT_DIR)")
+	serviceCmd := flag.String("service", "", "kontrol Windows Service: install|uninstall|start|stop (Windows saja)")
 	flag.Parse()
 
 	if *enrollMode {
@@ -46,13 +47,34 @@ func main() {
 		return
 	}
 
+	// Kontrol service (install/uninstall/start/stop) — implementasi per-OS.
+	if *serviceCmd != "" {
+		if err := controlService(*serviceCmd); err != nil {
+			log.Fatalf("agent: service %s: %v", *serviceCmd, err)
+		}
+		return
+	}
+
+	// Bila dijalankan oleh Service Control Manager Windows, jalankan sebagai service
+	// native (runService menyiapkan ctx & lapor status). Selain itu jalan di konsol.
+	if runningAsService() {
+		runService()
+		return
+	}
+
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	runAgent(ctx, stopSignals)
+}
+
+// runAgent menjalankan loop kolektor agent hingga ctx dibatalkan. onConfigChange
+// dipanggil saat manager mendorong config versi baru (memicu shutdown agar
+// supervisor — systemd/SCM — me-restart agent dengan config baru).
+func runAgent(ctx context.Context, onConfigChange func()) {
 	gatewayURL := getenv("GATEWAY_URL", "https://localhost:8443")
 	certDir := getenv("CERT_DIR", "deploy/certs")
 	host := getenv("HOST_NAME", hostname())
 	fromStart := os.Getenv("FROM_START") == "1"
-
-	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopSignals()
 
 	shipper, err := agent.NewShipper(gatewayURL, mtls.Paths(certDir))
 	if err != nil {
@@ -78,7 +100,7 @@ func main() {
 	}
 
 	// Pantau perubahan config; versi baru -> shutdown agar service-manager restart & terapkan.
-	go watchConfig(ctx, shipper, configVersion, stopSignals)
+	go watchConfig(ctx, shipper, configVersion, onConfigChange)
 	// Kirim ulang batch yang ter-buffer (store-and-forward) + heartbeat.
 	go drainBuffer(ctx, shipper, buf)
 	go heartbeatLoop(ctx, shipper)

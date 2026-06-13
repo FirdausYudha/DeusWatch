@@ -19,6 +19,8 @@ type Line struct {
 //   - "file"        : tail berkas (lintas-OS); Path = path berkas
 //   - "journald"    : systemd journal (Linux saja); Path = unit (opsional)
 //   - "wineventlog" : Windows Event Log (Windows saja); Path = nama channel
+//   - "fim"         : File Integrity Monitoring (lintas-OS); Path = berkas/direktori
+//                     (beberapa dipisah koma) — lihat fim.go
 //
 // Kolektor native dipilih saat KOMPILASI lewat build tag (lihat collect_*_*.go),
 // sehingga tiap OS punya implementasi sendiri — mirip arsitektur agent Wazuh.
@@ -48,6 +50,8 @@ func runSource(ctx context.Context, s Source, fromStart bool, out chan<- Line) e
 	switch s.Type {
 	case "", "file":
 		return followFileSource(ctx, s, fromStart, out)
+	case "fim":
+		return collectFIM(ctx, s, out)
 	case "journald":
 		return collectJournald(ctx, s, out) // impl per-OS (build tag)
 	case "wineventlog":

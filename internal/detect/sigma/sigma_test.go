@@ -53,6 +53,29 @@ func TestRealRuleFileSSHRoot(t *testing.T) {
 	t.Logf("OK: rule Sigma asli ter-parse & cocok; MITRE %s/%s", tech, tactic)
 }
 
+func TestRealRuleFIMChange(t *testing.T) {
+	data, err := os.ReadFile("../../../rules/sigma/fim_file_change.yml")
+	if err != nil {
+		t.Fatalf("baca rule: %v", err)
+	}
+	r := mustParse(t, string(data))
+
+	modified := FlattenEvent(&ingest.Event{
+		Event: ingest.EventFields{Category: "file", Action: "file_modified"},
+		File:  &ingest.File{Path: "/etc/passwd"},
+	})
+	if ok, err := r.Matches(modified); err != nil || !ok {
+		t.Fatalf("file_modified harus cocok (ok=%v err=%v)", ok, err)
+	}
+	created := FlattenEvent(&ingest.Event{
+		Event: ingest.EventFields{Category: "file", Action: "file_created"},
+		File:  &ingest.File{Path: "/tmp/new"},
+	})
+	if ok, _ := r.Matches(created); ok {
+		t.Fatal("file_created tidak boleh memicu (hanya modified/deleted)")
+	}
+}
+
 func TestModifierContains(t *testing.T) {
 	r := mustParse(t, `
 title: Reverse shell via netcat

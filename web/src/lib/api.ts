@@ -209,3 +209,51 @@ export async function createUser(username: string, password: string, role: strin
     throw new Error((await res.text()) || `HTTP ${res.status}`)
   }
 }
+
+// ── Agents (enrollment, config push, revoke) ──────────────
+
+export type AgentSource = { dataset: string; type: string; path: string }
+
+export type AgentInfo = {
+  id: string
+  name: string
+  os: string
+  enrolled_at: string
+  last_seen_at: string | null
+  revoked: boolean
+  config_version: number
+  sources?: AgentSource[]
+}
+
+// Agent dianggap online bila heartbeat terakhir < 90 detik lalu (interval 30s + toleransi).
+export function agentOnline(a: AgentInfo): boolean {
+  if (a.revoked || !a.last_seen_at) return false
+  return Date.now() - new Date(a.last_seen_at).getTime() < 90_000
+}
+
+export async function fetchAgents(): Promise<AgentInfo[]> {
+  const res = await authFetch('/api/agents')
+  if (!res.ok) throw new Error(`agents: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function createEnrollToken(): Promise<{ token: string; expires_at: string }> {
+  const res = await authFetch('/api/agents/tokens', { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function revokeAgent(id: string): Promise<void> {
+  const res = await authFetch(`/api/agents/${id}/revoke`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function setAgentConfig(id: string, sources: AgentSource[]): Promise<{ version: number }> {
+  const res = await authFetch(`/api/agents/${id}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sources }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}

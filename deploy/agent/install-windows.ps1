@@ -1,4 +1,4 @@
-# Install agent DeusWatch di Windows sebagai Scheduled Task (run saat startup, SYSTEM).
+# Install agent DeusWatch di Windows sebagai Windows Service NATIVE (auto-start, SYSTEM).
 # Jalankan sebagai Administrator.
 #   .\install-windows.ps1 -Binary .\deuswatch-agent-windows-amd64.exe -GatewayUrl https://manager:8443
 param(
@@ -16,13 +16,12 @@ Copy-Item $Binary "$dest\deuswatch-agent.exe" -Force
 [Environment]::SetEnvironmentVariable("GATEWAY_URL", $GatewayUrl, "Machine")
 [Environment]::SetEnvironmentVariable("CERT_DIR", $CertDir, "Machine")
 
-$action = New-ScheduledTaskAction -Execute "$dest\deuswatch-agent.exe"
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+# Pasang sebagai Windows Service native (agent mendaftarkan dirinya ke SCM,
+# lengkap dengan recovery action restart-on-failure — termasuk saat config push naik).
+& "$dest\deuswatch-agent.exe" -service install
 
-Register-ScheduledTask -TaskName "DeusWatchAgent" -Action $action -Trigger $trigger `
-    -Principal $principal -Settings $settings -Force | Out-Null
-
-Write-Host "Agent terpasang sebagai Scheduled Task 'DeusWatchAgent'."
-Write-Host "Letakkan sertifikat di $CertDir, lalu: Start-ScheduledTask -TaskName DeusWatchAgent"
+Write-Host ""
+Write-Host "Agent terpasang sebagai Windows Service 'DeusWatchAgent'."
+Write-Host "Letakkan sertifikat di $CertDir, lalu jalankan:"
+Write-Host "  & '$dest\deuswatch-agent.exe' -service start"
+Write-Host "Uninstall: & '$dest\deuswatch-agent.exe' -service uninstall"

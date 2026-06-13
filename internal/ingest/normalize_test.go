@@ -38,6 +38,38 @@ func TestNormalizeSSHDAccepted(t *testing.T) {
 	}
 }
 
+func TestNormalizeFIM(t *testing.T) {
+	e, ok := Normalize(RawLog{
+		Dataset: "fim", Host: "web01",
+		Message: `{"path":"/etc/passwd","action":"modified","sha256":"abc123","mode":"-rw-r--r--"}`,
+	})
+	if !ok {
+		t.Fatal("payload FIM seharusnya dikenali")
+	}
+	if e.Event.Category != "file" || e.Event.Action != "file_modified" {
+		t.Fatalf("event FIM salah: %+v", e.Event)
+	}
+	if e.Event.Severity != SeverityMedium {
+		t.Fatalf("severity modified harus medium, dapat %v", e.Event.Severity)
+	}
+	if e.File == nil || e.File.Path != "/etc/passwd" || e.File.HashSHA256 != "abc123" {
+		t.Fatalf("file fields salah: %+v", e.File)
+	}
+}
+
+func TestNormalizeFIMCreatedLowSeverity(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "fim", Message: `{"path":"/tmp/new","action":"created","sha256":"x"}`})
+	if !ok || e.Event.Severity != SeverityLow {
+		t.Fatalf("created harus low: ok=%v sev=%v", ok, e.Event.Severity)
+	}
+}
+
+func TestNormalizeFIMBadPayload(t *testing.T) {
+	if _, ok := Normalize(RawLog{Dataset: "fim", Message: "not json"}); ok {
+		t.Fatal("payload FIM rusak tidak boleh ditandai dikenali")
+	}
+}
+
 func TestNormalizeUnknownKeepsOriginal(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "Server listening on 0.0.0.0 port 22."})
 	if ok {

@@ -69,5 +69,6 @@ Ini menggantikan detektor brute-force hardcoded dengan rule berformat Sigma.
 | `ssh_breakin_attempt.yml` | pesan sshd "POSSIBLE BREAK-IN ATTEMPT" (T1595) | keyword |
 | `sshd_invalid_user.yml` | upaya login untuk user tak dikenal (T1110.003) | keyword |
 | `sshd_failed_root.yml` | kegagalan SSH menargetkan root (T1110) | field match (multi-selection) |
+| `fim_file_change.yml` | berkas FIM diubah/dihapus (T1565.001/T1070.004) | field match (multi-selection) |
 | `agg/ssh_bruteforce.yml` | brute force: >5 kegagalan/IP per 1m (T1110) | **agregasi (SQL)** |
 | `agg/ssh_invalid_user_burst.yml` | >10 "invalid user"/IP per 5m (T1110.003) | **agregasi (SQL)** |
