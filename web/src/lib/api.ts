@@ -266,3 +266,71 @@ export async function setAgentConfig(id: string, sources: AgentSource[]): Promis
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
 }
+
+// ── Response engine (aksi blokir, approval workflow) ──────
+
+export type ResponseStatus = 'recommended' | 'approved' | 'executed' | 'dismissed' | 'failed'
+
+export type ResponseAction = {
+  id: string
+  created_at: string
+  source_ip: string
+  action: string
+  reason: string
+  rule_id: string
+  ban_seconds: number
+  offense_count: number
+  source: string
+  status: ResponseStatus
+  responder: string
+  decided_by: string
+  decided_at: string | null
+  executed_at: string | null
+  error: string
+}
+
+export async function fetchResponses(status = ''): Promise<ResponseAction[]> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  const res = await authFetch(`/api/responses${q}`)
+  if (!res.ok) throw new Error(`responses: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function approveResponse(id: string): Promise<void> {
+  const res = await authFetch(`/api/responses/${id}/approve`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function dismissResponse(id: string): Promise<void> {
+  const res = await authFetch(`/api/responses/${id}/dismiss`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+// ── Report ────────────────────────────────────────────────
+
+export type ReportCount = { label: string; count: number }
+
+export type SecurityReport = {
+  generated: string
+  since: string
+  window_hours: number
+  total_events: number
+  total_alerts: number
+  by_severity: ReportCount[] | null
+  top_source_ips: ReportCount[] | null
+  top_rules: ReportCount[] | null
+  top_techniques: ReportCount[] | null
+  by_verdict: ReportCount[] | null
+}
+
+export async function fetchReport(hours = 24): Promise<SecurityReport> {
+  const res = await authFetch(`/api/report?hours=${hours}`)
+  if (!res.ok) throw new Error(`report: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function fetchReportMarkdown(hours = 24): Promise<string> {
+  const res = await authFetch(`/api/report?hours=${hours}&format=md`)
+  if (!res.ok) throw new Error(`report: HTTP ${res.status}`)
+  return res.text()
+}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import Sidebar, { type View } from './components/Sidebar'
 import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
+import Response from './response/Response'
+import Report from './report/Report'
 import Users from './users/Users'
 import Settings from './settings/Settings'
 import Login from './components/Login'
@@ -36,6 +38,10 @@ export default function App() {
       <main className="flex-1 overflow-y-auto">
         {view === 'agents' ? (
           <Agents me={me} />
+        ) : view === 'response' ? (
+          <Response me={me} />
+        ) : view === 'report' ? (
+          <Report />
         ) : view === 'users' && me.role === 'admin' ? (
           <Users />
         ) : view === 'settings' ? (
