@@ -129,3 +129,45 @@ detection:
 		t.Fatal("kondisi agregasi seharusnya ditolak (diarahkan ke jalur SQL)")
 	}
 }
+
+func TestKeywordSelection(t *testing.T) {
+	r := mustParse(t, `
+title: Break-in
+level: low
+detection:
+  keywords:
+    - 'POSSIBLE BREAK-IN ATTEMPT'
+  condition: keywords
+tags: [attack.t1595]`)
+
+	hit := FlattenEvent(&ingest.Event{Event: ingest.EventFields{
+		Dataset:  "sshd",
+		Original: "Address 1.2.3.4 maps to evil.example, but this does not map back - POSSIBLE BREAK-IN ATTEMPT!",
+	}})
+	if ok, err := r.Matches(hit); err != nil || !ok {
+		t.Fatalf("rule keyword harus cocok: ok=%v err=%v", ok, err)
+	}
+	miss := FlattenEvent(&ingest.Event{Event: ingest.EventFields{Dataset: "sshd", Original: "Accepted password for root"}})
+	if ok, _ := r.Matches(miss); ok {
+		t.Fatal("baris log biasa tidak boleh cocok keyword")
+	}
+}
+
+func TestFieldAlias(t *testing.T) {
+	r := mustParse(t, `
+title: Alias test
+level: low
+detection:
+  selection:
+    User: root
+    src_ip: 203.0.113.10
+  condition: selection`)
+
+	ev := FlattenEvent(&ingest.Event{
+		User:   &ingest.User{Name: "root"},
+		Source: &ingest.Endpoint{IP: "203.0.113.10"},
+	})
+	if ok, err := r.Matches(ev); err != nil || !ok {
+		t.Fatalf("alias User/src_ip harus resolve ke DCS: ok=%v err=%v", ok, err)
+	}
+}

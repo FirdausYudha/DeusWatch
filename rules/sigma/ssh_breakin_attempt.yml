@@ -1,0 +1,21 @@
+title: SSH Possible Break-in Attempt (reverse DNS mismatch)
+id: 4c1a7d92-8b6e-4f3a-bc21-5e9d0a7f2c11
+status: experimental
+description: >
+  sshd mencatat "POSSIBLE BREAK-IN ATTEMPT" saat reverse DNS sumber tidak cocok —
+  sinyal umum pemindaian/percobaan akses otomatis. Contoh rule berbasis keyword
+  (cocok substring di baris log mentah), pola umum rule Sigma Linux komunitas.
+references:
+  - https://attack.mitre.org/techniques/T1595/
+author: DeusWatch
+level: low
+logsource:
+  product: linux
+  service: sshd
+detection:
+  keywords:
+    - 'POSSIBLE BREAK-IN ATTEMPT'
+  condition: keywords
+tags:
+  - attack.t1595
+  - attack.reconnaissance

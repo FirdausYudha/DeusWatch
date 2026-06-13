@@ -1,6 +1,38 @@
 package sigma
 
-import "deuswatch/internal/ingest"
+import (
+	"strings"
+
+	"deuswatch/internal/ingest"
+)
+
+// fieldAliases memetakan nama field umum (gaya rule komunitas / produk) ke key
+// DCS/ECS. Inilah inti "processing pipeline": menyelaraskan taksonomi field rule
+// ke taksonomi DeusWatch. Tambah entri di sini saat mengadopsi rule baru.
+var fieldAliases = map[string]string{
+	"user":          "user.name",
+	"username":      "user.name",
+	"src_ip":        "source.ip",
+	"sourceip":      "source.ip",
+	"srcip":         "source.ip",
+	"src_port":      "source.port",
+	"dst_ip":        "destination.ip",
+	"destinationip": "destination.ip",
+	"commandline":   "process.command_line",
+	"cmdline":       "process.command_line",
+	"image":         "process.name",
+	"computer":      "host.name",
+	"hostname":      "host.name",
+}
+
+// resolveField mengembalikan key DCS untuk sebuah nama field rule. Pencocokan
+// alias bersifat case-insensitive; nama yang sudah ECS / tak dikenal dikembalikan apa adanya.
+func resolveField(name string) string {
+	if v, ok := fieldAliases[strings.ToLower(name)]; ok {
+		return v
+	}
+	return name
+}
 
 // FlattenEvent meratakan Event DCS menjadi map ber-key ECS dotted, bentuk yang
 // dievaluasi rule Sigma. Inilah lapisan PEMETAAN FIELD yang menjadi biaya nyata

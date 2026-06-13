@@ -6,9 +6,10 @@
 // agregasi (mis. brute-force "count() > N") TIDAK didukung di sini dan diarahkan
 // ke jalur SQL (model Zircolite/pySigma).
 //
-// Didukung: selection berupa map field->nilai/daftar; modifier contains/
-// startswith/endswith/re; kondisi and/or/not + tanda kurung + "N of them" /
-// "all of <prefix>*". Tidak didukung: selection list/keywords, pipa agregasi.
+// Didukung: selection map field->nilai/daftar; selection keyword (daftar string
+// dicocokkan substring ke event); modifier contains/startswith/endswith/re;
+// kondisi and/or/not + tanda kurung + "N of them" / "all of <prefix>*"; alias
+// field via taksonomi (lihat mapping.go). Tidak didukung: pipa agregasi (jalur SQL).
 package sigma
 
 import (
@@ -34,8 +35,11 @@ type Rule struct {
 	selections map[string]selection
 }
 
+// selection berupa map field->nilai (fields), ATAU daftar keyword (keywords)
+// yang dicocokkan sebagai substring terhadap isi event (mis. event.original).
 type selection struct {
-	fields []fieldCond
+	fields   []fieldCond
+	keywords []string
 }
 
 type fieldCond struct {
@@ -78,18 +82,21 @@ func ParseRule(data []byte) (*Rule, error) {
 		if name == "condition" {
 			continue
 		}
-		m, ok := v.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("sigma: selection %q bukan map (list/keywords belum didukung)", name)
+		switch val := v.(type) {
+		case map[string]any: // selection field->nilai
+			var sel selection
+			for fk, fv := range val {
+				parts := strings.Split(fk, "|")
+				sel.fields = append(sel.fields, fieldCond{
+					name: parts[0], modifiers: parts[1:], values: toStringSlice(fv),
+				})
+			}
+			r.selections[name] = sel
+		case []any: // selection keyword (cocok substring di event)
+			r.selections[name] = selection{keywords: toStringSlice(val)}
+		default:
+			return nil, fmt.Errorf("sigma: selection %q tidak didukung (bukan map/keywords)", name)
 		}
-		var sel selection
-		for fk, fv := range m {
-			parts := strings.Split(fk, "|")
-			sel.fields = append(sel.fields, fieldCond{
-				name: parts[0], modifiers: parts[1:], values: toStringSlice(fv),
-			})
-		}
-		r.selections[name] = sel
 	}
 	return r, nil
 }
@@ -151,6 +158,9 @@ func (r *Rule) Severity() ingest.Severity {
 // ── pencocokan selection ──────────────────────────────────
 
 func (s selection) match(event map[string]any) bool {
+	if len(s.keywords) > 0 {
+		return matchKeywords(s.keywords, event)
+	}
 	for _, fc := range s.fields { // semua field harus cocok (AND)
 		if !fc.match(event) {
 			return false
@@ -159,8 +169,34 @@ func (s selection) match(event map[string]any) bool {
 	return len(s.fields) > 0
 }
 
+// matchKeywords cocok bila salah satu keyword muncul (substring, case-insensitive)
+// di gabungan nilai string event (terutama event.original = baris log mentah).
+func matchKeywords(keywords []string, event map[string]any) bool {
+	hay := haystack(event)
+	for _, kw := range keywords {
+		if strings.Contains(hay, strings.ToLower(kw)) {
+			return true
+		}
+	}
+	return false
+}
+
+func haystack(event map[string]any) string {
+	var b strings.Builder
+	for _, v := range event {
+		if s, ok := v.(string); ok {
+			b.WriteString(strings.ToLower(s))
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
 func (fc fieldCond) match(event map[string]any) bool {
 	raw, ok := event[fc.name]
+	if !ok { // coba alias taksonomi (mis. "User" -> "user.name")
+		raw, ok = event[resolveField(fc.name)]
+	}
 	if !ok {
 		return false
 	}
