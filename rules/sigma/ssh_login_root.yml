@@ -1,0 +1,21 @@
+title: SSH Login as Root
+id: 9b8e2f1a-0c4d-4a2b-9f3e-1d7c6b5a4e30
+status: experimental
+description: Mendeteksi login SSH berhasil sebagai akun root.
+references:
+  - https://attack.mitre.org/techniques/T1078/003/
+author: DeusWatch
+level: medium
+logsource:
+  product: linux
+  service: sshd
+detection:
+  selection:
+    event.dataset: sshd
+    event.action: ssh_login
+    event.outcome: success
+    user.name: root
+  condition: selection
+tags:
+  - attack.t1078.003
+  - attack.persistence
