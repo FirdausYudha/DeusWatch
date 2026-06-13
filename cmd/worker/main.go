@@ -11,6 +11,7 @@ import (
 
 	"deuswatch/internal/bus"
 	"deuswatch/internal/detect"
+	"deuswatch/internal/enrich"
 	"deuswatch/internal/store"
 	"deuswatch/internal/worker"
 )
@@ -43,8 +44,11 @@ func main() {
 	}
 	log.Printf("worker: %d rule Sigma dimuat dari %q", sigmaDet.RuleCount(), sigmaDir)
 
+	// Enrichment CTI: cache TTL di Postgres + provider (mock untuk dev).
+	enricher := enrich.NewEnricher(enrich.NewDemoProvider(), enrich.NewCache(st.Pool()), enrich.DefaultTTL)
+
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
-		worker.Handler(ctx, st, bruteForce, sigmaDet))
+		worker.Handler(ctx, st, enricher, bruteForce, sigmaDet))
 	if err != nil {
 		log.Fatalf("worker: consume: %v", err)
 	}

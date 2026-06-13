@@ -10,6 +10,7 @@ import (
 
 	"deuswatch/internal/bus"
 	"deuswatch/internal/detect"
+	"deuswatch/internal/enrich"
 	"deuswatch/internal/ingest"
 )
 
@@ -18,9 +19,10 @@ type EventSink interface {
 	InsertEvent(ctx context.Context, e *ingest.Event) error
 }
 
-// Handler mengembalikan bus.Handler untuk subject logs.normalized: persist event,
-// jalankan setiap detektor, persist alert apa pun yang terpicu.
-func Handler(ctx context.Context, sink EventSink, detectors ...detect.Detector) bus.Handler {
+// Handler mengembalikan bus.Handler untuk subject logs.normalized: enrich event
+// (bila enricher disetel), persist, jalankan detektor, persist alert yang terpicu.
+// enricher boleh nil (lewati enrichment).
+func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -33,6 +35,12 @@ func Handler(ctx context.Context, sink EventSink, detectors ...detect.Detector) 
 
 		ic, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
+
+		if enricher != nil {
+			if err := enricher.EnrichEvent(ic, &e); err != nil {
+				log.Printf("worker: enrichment gagal: %v", err) // lanjut; status=failed
+			}
+		}
 
 		if err := sink.InsertEvent(ic, &e); err != nil {
 			return err // dikembalikan -> Nak -> redeliver

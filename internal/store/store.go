@@ -39,33 +39,45 @@ const insertEventSQL = `
 INSERT INTO events (
 	time, event_category, event_action, event_outcome, event_severity,
 	event_dataset, event_original,
-	source_ip, source_port, host_name, host_os_type, agent_id, agent_version,
+	source_ip, source_port, source_geo_country_iso,
+	host_name, host_os_type, agent_id, agent_version,
 	user_name, rule_id, rule_name,
 	threat_technique_id, threat_technique_name, threat_tactic_name,
-	dw_label, dw_severity_original, dw_enrichment_status
+	threat_indicator_ip, threat_indicator_confidence, threat_feed_name, threat_indicator_last_seen,
+	dw_label, dw_severity_original, dw_severity_escalated_by,
+	dw_enrichment_status, dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
-	$8::inet, $9, $10, $11, $12, $13,
-	$14, $15, $16,
-	$17, $18, $19,
-	$20, $21, $22
+	$8::inet, $9, $10,
+	$11, $12, $13, $14,
+	$15, $16, $17,
+	$18, $19, $20,
+	$21::inet, $22, $23, $24,
+	$25, $26, $27,
+	$28, $29, $30
 )`
 
 // InsertEvent menulis satu event DCS ke hypertable events. Field yang belum diisi
-// (enrichment/LLM) dibiarkan NULL/default — Fase 1 hanya mengisi inti + deteksi.
+// dibiarkan NULL/default.
 func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	var (
-		srcIP, srcPort                  any = nil, nil
-		hostName, hostOS                any = nil, nil
-		agentID, agentVer               any = nil, nil
-		userName                        any = nil
-		ruleID, ruleName                any = nil, nil
-		techID, techName, tacticName    any = nil, nil, nil
+		srcIP, srcPort, srcGeoCountry any = nil, nil, nil
+		hostName, hostOS              any = nil, nil
+		agentID, agentVer             any = nil, nil
+		userName                      any = nil
+		ruleID, ruleName              any = nil, nil
+		techID, techName, tacticName  any = nil, nil, nil
+		tiIP, tiConf, tiLastSeen      any = nil, nil, nil
+		threatFeed                    any = nil
+		dwAbuse, dwOTX, dwEscalatedBy any = nil, nil, nil
 	)
 	if e.Source != nil {
 		srcIP = strOrNil(e.Source.IP)
 		srcPort = portOrNil(e.Source.Port)
+		if e.Source.Geo != nil {
+			srcGeoCountry = strOrNil(e.Source.Geo.CountryISOCode)
+		}
 	}
 	if e.Host != nil {
 		hostName = strOrNil(e.Host.Name)
@@ -86,17 +98,34 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		techID = strOrNil(e.Threat.Technique.ID)
 		techName = strOrNil(e.Threat.Technique.Name)
 		tacticName = strOrNil(e.Threat.TacticName)
+		threatFeed = strOrNil(e.Threat.FeedName)
+		if e.Threat.Indicator != nil {
+			tiIP = strOrNil(e.Threat.Indicator.IP)
+			tiConf = int16(e.Threat.Indicator.Confidence)
+			if e.Threat.Indicator.LastSeen != nil {
+				tiLastSeen = *e.Threat.Indicator.LastSeen
+			}
+		}
 	}
+	if e.DeusWatch.Enrichment.AbuseConfidence != nil {
+		dwAbuse = int16(*e.DeusWatch.Enrichment.AbuseConfidence)
+	}
+	if e.DeusWatch.Enrichment.OTXPulseCount != nil {
+		dwOTX = int(*e.DeusWatch.Enrichment.OTXPulseCount)
+	}
+	dwEscalatedBy = strOrNil(e.DeusWatch.Severity.EscalatedBy)
 
 	_, err := s.pool.Exec(ctx, insertEventSQL,
 		e.Timestamp, strOrNil(e.Event.Category), strOrNil(e.Event.Action),
 		strOrNil(e.Event.Outcome), int16(e.Event.Severity),
 		strOrNil(e.Event.Dataset), strOrNil(e.Event.Original),
-		srcIP, srcPort, hostName, hostOS, agentID, agentVer,
+		srcIP, srcPort, srcGeoCountry,
+		hostName, hostOS, agentID, agentVer,
 		userName, ruleID, ruleName,
 		techID, techName, tacticName,
-		strOrNil(e.DeusWatch.Label), int16(e.DeusWatch.Severity.Original),
-		strOrNil(string(e.DeusWatch.Enrichment.Status)),
+		tiIP, tiConf, threatFeed, tiLastSeen,
+		strOrNil(e.DeusWatch.Label), int16(e.DeusWatch.Severity.Original), dwEscalatedBy,
+		strOrNil(string(e.DeusWatch.Enrichment.Status)), dwAbuse, dwOTX,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)
