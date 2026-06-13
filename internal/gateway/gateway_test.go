@@ -47,7 +47,7 @@ func TestGatewayMTLSIngest(t *testing.T) {
 
 	pub := &fakePublisher{}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/logs", LogsHandler(pub))
+	mux.HandleFunc("/v1/logs", LogsHandler(pub, nil))
 
 	ts := httptest.NewUnstartedServer(mux)
 	ts.TLS = srvCfg

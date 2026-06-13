@@ -57,7 +57,7 @@ func TestAgentTailAndShipOverMTLS(t *testing.T) {
 	}
 	pub := &capturePub{}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/logs", gateway.LogsHandler(pub))
+	mux.HandleFunc("/v1/logs", gateway.LogsHandler(pub, nil))
 	ts := httptest.NewUnstartedServer(mux)
 	ts.TLS = srvCfg
 	ts.StartTLS()

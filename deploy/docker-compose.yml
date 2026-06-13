@@ -52,6 +52,10 @@ services:
       # Admin awal di-seed saat tabel users kosong. GANTI untuk produksi.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-deuswatch-admin}"
+      # CA untuk menerbitkan sertifikat agent saat enrollment (mount read-only).
+      CERT_DIR: "/certs"
+    volumes:
+      - ./certs:/certs:ro
     ports:
       - "8080:8080"
     depends_on:

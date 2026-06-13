@@ -20,6 +20,7 @@ const (
 	PermApproveRemediation Permission = "approve_remediation"
 	PermManageRules        Permission = "manage_rules"
 	PermManageUsers        Permission = "manage_users"
+	PermManageAgents       Permission = "manage_agents"
 	PermManageSettings     Permission = "manage_settings"
 	PermExecuteBlock       Permission = "execute_block"
 )
@@ -40,6 +41,7 @@ var rolePermissions = map[Role]map[Permission]bool{
 		PermApproveRemediation: true,
 		PermManageRules:        true,
 		PermManageUsers:        true,
+		PermManageAgents:       true,
 		PermManageSettings:     true,
 		PermExecuteBlock:       true,
 	},

@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"deuswatch/internal/bus"
+	"deuswatch/internal/enroll"
 	"deuswatch/internal/gateway"
 	"deuswatch/internal/mtls"
+	"deuswatch/internal/store"
 )
 
 func main() {
@@ -35,8 +37,20 @@ func main() {
 	}
 	defer b.Close()
 
+	// Cek revocation agent (opsional): butuh akses DB.
+	var revoked gateway.RevokedFunc
+	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
+		if st, err := store.Connect(ctx, dsn); err != nil {
+			log.Printf("gateway: store tak tersedia — cek revocation nonaktif: %v", err)
+		} else {
+			defer st.Close()
+			revoked = enroll.NewStore(st.Pool(), nil).IsRevoked
+			log.Printf("gateway: cek revocation agent aktif")
+		}
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b))
+	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))

@@ -6,10 +6,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +27,24 @@ import (
 )
 
 func main() {
+	enrollMode := flag.Bool("enroll", false, "tukar token enrollment jadi sertifikat lalu keluar")
+	enrollToken := flag.String("token", "", "token enrollment (mode -enroll)")
+	enrollName := flag.String("name", "", "nama agent (mode -enroll)")
+	enrollManager := flag.String("manager", "http://localhost:8080", "URL manager untuk enroll")
+	outDir := flag.String("out", "", "direktori output sertifikat (default CERT_DIR)")
+	flag.Parse()
+
+	if *enrollMode {
+		dir := *outDir
+		if dir == "" {
+			dir = getenv("CERT_DIR", "deploy/certs")
+		}
+		if err := doEnroll(*enrollManager, *enrollToken, *enrollName, dir); err != nil {
+			log.Fatalf("agent: enroll gagal: %v", err)
+		}
+		return
+	}
+
 	gatewayURL := getenv("GATEWAY_URL", "https://localhost:8443")
 	certDir := getenv("CERT_DIR", "deploy/certs")
 	host := getenv("HOST_NAME", hostname())
@@ -91,6 +117,48 @@ func resolveSources() []agent.Source {
 		return []agent.Source{{Dataset: getenv("DATASET", "file"), Type: "file", Path: lf}}
 	}
 	return agent.DefaultSources()
+}
+
+// doEnroll menukar token enrollment menjadi sertifikat client unik dan
+// menyimpannya (ca.crt, client.crt, client.key) ke dir.
+func doEnroll(manager, token, name, dir string) error {
+	if token == "" || name == "" {
+		return fmt.Errorf("-token dan -name wajib")
+	}
+	body, _ := json.Marshal(map[string]string{"token": token, "name": name, "os": runtime.GOOS})
+	resp, err := http.Post(strings.TrimRight(manager, "/")+"/api/enroll", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("manager menolak (%d): %s", resp.StatusCode, strings.TrimSpace(string(b)))
+	}
+	var bundle struct {
+		AgentID    string `json:"agent_id"`
+		CACert     string `json:"ca_cert"`
+		ClientCert string `json:"client_cert"`
+		ClientKey  string `json:"client_key"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&bundle); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	p := mtls.Paths(dir)
+	if err := os.WriteFile(p.CACert, []byte(bundle.CACert), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(p.ClientCert, []byte(bundle.ClientCert), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(p.ClientKey, []byte(bundle.ClientKey), 0o600); err != nil {
+		return err
+	}
+	log.Printf("agent: enrolled sebagai %q (id=%s); sertifikat tersimpan di %s", name, bundle.AgentID, dir)
+	return nil
 }
 
 func getenv(key, fallback string) string {

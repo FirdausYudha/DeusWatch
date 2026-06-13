@@ -19,10 +19,14 @@ type Publisher interface {
 	Publish(ctx context.Context, subject string, data []byte) error
 }
 
+// RevokedFunc melaporkan apakah agent (by CN sertifikat) sudah dicabut. nil = skip.
+type RevokedFunc func(ctx context.Context, agentName string) (bool, error)
+
 // LogsHandler menerima batch RawLog (JSON array) dari agent, menormalkan tiap
 // entri ke DCS, dan menerbitkannya ke logs.normalized. Identitas agent diambil
 // dari Common Name sertifikat client (lebih tepercaya daripada nilai kiriman).
-func LogsHandler(pub Publisher) http.HandlerFunc {
+// Bila revoked != nil, koneksi dari agent yang dicabut ditolak (403).
+func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -46,6 +50,14 @@ func LogsHandler(pub Publisher) http.HandlerFunc {
 		}
 
 		ctx := r.Context()
+
+		// Tolak agent yang dicabut (revoked) — walau sertifikatnya masih sah secara kripto.
+		if revoked != nil && certCN != "" {
+			if rev, err := revoked(ctx, certCN); err == nil && rev {
+				http.Error(w, "agent dicabut", http.StatusForbidden)
+				return
+			}
+		}
 		accepted := 0
 		for _, raw := range raws {
 			if raw.Message == "" {

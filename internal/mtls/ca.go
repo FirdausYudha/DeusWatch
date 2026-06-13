@@ -135,6 +135,69 @@ func writeKeyPEM(path string, key *ecdsa.PrivateKey) error {
 	return os.WriteFile(path, buf, 0o600) // kunci privat: hanya pemilik
 }
 
+// CA adalah Certificate Authority termuat dari disk, untuk menerbitkan
+// sertifikat client per-agent saat enrollment (design doc bagian 4 & 12).
+type CA struct {
+	cert *x509.Certificate
+	key  *ecdsa.PrivateKey
+}
+
+// LoadCA memuat CA (ca.crt + ca.key) dari direktori sertifikat.
+func LoadCA(dir string) (*CA, error) {
+	p := Paths(dir)
+	certPEM, err := os.ReadFile(p.CACert)
+	if err != nil {
+		return nil, fmt.Errorf("mtls: baca ca.crt: %w", err)
+	}
+	keyPEM, err := os.ReadFile(p.CAKey)
+	if err != nil {
+		return nil, fmt.Errorf("mtls: baca ca.key: %w", err)
+	}
+	cb, _ := pem.Decode(certPEM)
+	if cb == nil {
+		return nil, fmt.Errorf("mtls: ca.crt bukan PEM valid")
+	}
+	cert, err := x509.ParseCertificate(cb.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("mtls: parse ca.crt: %w", err)
+	}
+	kb, _ := pem.Decode(keyPEM)
+	if kb == nil {
+		return nil, fmt.Errorf("mtls: ca.key bukan PEM valid")
+	}
+	keyAny, err := x509.ParsePKCS8PrivateKey(kb.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("mtls: parse ca.key: %w", err)
+	}
+	key, ok := keyAny.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("mtls: ca.key bukan ECDSA")
+	}
+	return &CA{cert: cert, key: key}, nil
+}
+
+// IssueClient menerbitkan sertifikat client baru ber-CommonName commonName,
+// ditandatangani CA. Mengembalikan PEM cert + key dan nomor serial (untuk audit/revoke).
+func (ca *CA) IssueClient(commonName string, validFor time.Duration) (certPEM, keyPEM []byte, serial string, err error) {
+	leaf, err := issueLeaf(&keyPair{cert: ca.cert, key: ca.key}, commonName, nil, nil,
+		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, validFor)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(leaf.key)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leaf.der})
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyBytes})
+	return certPEM, keyPEM, leaf.cert.SerialNumber.String(), nil
+}
+
+// CACertPEM mengembalikan sertifikat CA dalam PEM (untuk dikirim ke agent saat enroll).
+func (ca *CA) CACertPEM() []byte {
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.cert.Raw})
+}
+
 // GenerateBundle membuat CA + sertifikat server + sertifikat client lalu
 // menuliskannya sebagai berkas PEM ke opt.Dir. Aman dipanggil ulang (overwrite).
 func GenerateBundle(opt Options) (CertPaths, error) {

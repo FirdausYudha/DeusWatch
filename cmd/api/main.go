@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"deuswatch/internal/auth"
+	"deuswatch/internal/enroll"
+	"deuswatch/internal/mtls"
 	"deuswatch/internal/store"
 )
 
@@ -63,6 +65,17 @@ func main() {
 		mux.Handle("/api/2fa/setup", authStore.Middleware(authStore.Setup2FAHandler()))
 		mux.Handle("/api/2fa/enable", authStore.Middleware(authStore.Enable2FAHandler()))
 		mux.Handle("/api/2fa/disable", authStore.Middleware(authStore.Disable2FAHandler()))
+
+		// Enrollment agent (butuh CA untuk menerbitkan sertifikat unik per-agent).
+		if ca, err := mtls.LoadCA(getenv("CERT_DIR", "deploy/certs")); err != nil {
+			log.Printf("api: CA tidak termuat — enrollment nonaktif: %v", err)
+		} else {
+			enrollStore := enroll.NewStore(st.Pool(), ca)
+			mux.HandleFunc("/api/enroll", enrollStore.EnrollHandler()) // PUBLIK (pakai token)
+			mux.Handle("/api/agents/tokens", protect(auth.PermManageAgents, enrollStore.TokenHandler()))
+			mux.Handle("/api/agents", protect(auth.PermViewDashboard, enrollStore.AgentsHandler()))
+			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
+		}
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
