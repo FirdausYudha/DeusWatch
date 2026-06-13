@@ -1,0 +1,50 @@
+# ── Binaries ──────────────────────────────────────────────
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# ── Go ────────────────────────────────────────────────────
+*.test
+*.out
+go.work
+go.work.sum
+vendor/
+
+# ── Web (React + Vite) ────────────────────────────────────
+node_modules/
+web/dist/
+web/.vite/
+*.local
+
+# ── Secrets & sertifikat — JANGAN PERNAH di-commit ────────
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+deploy/certs/*
+!deploy/certs/.gitkeep
+!deploy/certs/*.sh
+.env
+.env.*
+!.env.example
+
+# ── Data volume (Postgres / NATS) ─────────────────────────
+/data/
+*.db
+*.sqlite
+
+# ── Editor / OS ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ── Claude Code local settings ────────────────────────────
+.claude/settings.local.json

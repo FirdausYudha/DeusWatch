@@ -1,0 +1,10 @@
+# GitHub menampilkan tombol "Sponsor" otomatis dari berkas ini.
+# Isi placeholder di bawah dengan username/URL asli sebelum repo dipublikasikan.
+
+# Ko-fi (audiens internasional — PayPal, withdraw ke rekening Indonesia)
+ko_fi: # TODO: username Ko-fi, contoh: deuswatch
+
+# Saweria (audiens Indonesia — QRIS/GoPay/OVO) bukan platform bawaan GitHub,
+# jadi masuk lewat "custom" sebagai URL penuh.
+custom:
+  - "https://saweria.co/" # TODO: lengkapi dengan username Saweria
