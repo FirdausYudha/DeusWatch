@@ -1,0 +1,15 @@
+# Perkecil build context Docker — hanya kode Go yang diperlukan.
+.git/
+.github/
+.claude/
+web/
+docs/
+deploy/
+migrations/
+rules/
+*.md
+.env
+.env.*
+!.env.example
+.gitignore
+.gitattributes

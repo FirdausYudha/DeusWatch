@@ -1,0 +1,62 @@
+# DeusWatch — docker-compose mode noob: satu perintah untuk menyalakan stack fondasi.
+#   docker compose -f deploy/docker-compose.yml up --build
+#
+# Berisi: PostgreSQL+TimescaleDB, NATS JetStream, dan service Go (api) hello-world
+# yang membuktikan konektivitas ke keduanya lewat /readyz.
+name: deuswatch
+
+services:
+  db:
+    # TODO(fondasi): pin ke versi eksak sebelum rilis (mis. 2.17.2-pg16).
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: deuswatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deuswatch_dev}
+      POSTGRES_DB: deuswatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deuswatch -d deuswatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.10-alpine
+    # -js: aktifkan JetStream, -sd: direktori penyimpanan, -m: port monitoring (healthz).
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "4222:4222" # client
+      - "8222:8222" # monitoring / healthz
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    environment:
+      HTTP_ADDR: ":8080"
+      POSTGRES_ADDR: "db:5432"
+      NATS_ADDR: "nats:4222"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  nats_data:
