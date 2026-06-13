@@ -108,6 +108,18 @@ services:
       RESPONDER: "${RESPONDER:-dryrun}"
       RESPONSE_LIVE: "${RESPONSE_LIVE:-0}"
       RESPONSE_AUTO_APPROVE: "${RESPONSE_AUTO_APPROVE:-0}"
+      # Notifikasi (opsional): aktif bila salah satu saluran diisi.
+      NOTIFY_MIN_SEVERITY: "${NOTIFY_MIN_SEVERITY:-high}"
+      NOTIFY_THROTTLE: "${NOTIFY_THROTTLE:-10m}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+      WEBHOOK_URL: "${WEBHOOK_URL:-}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      SMTP_TO: "${SMTP_TO:-}"
     depends_on:
       db:
         condition: service_healthy

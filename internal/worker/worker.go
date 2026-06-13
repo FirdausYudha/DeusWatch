@@ -12,8 +12,11 @@ import (
 	"deuswatch/internal/detect"
 	"deuswatch/internal/enrich"
 	"deuswatch/internal/ingest"
-	"deuswatch/internal/respond"
 )
+
+// AlertHook dipanggil untuk tiap alert yang terpicu & tersimpan (mis. rekomendasi
+// respons + notifikasi). Boleh nil. Worker tetap tak tahu detail respond/notify.
+type AlertHook func(ctx context.Context, alert *ingest.Event)
 
 // EventSink menulis event DCS (dipenuhi oleh *store.Store).
 type EventSink interface {
@@ -22,9 +25,8 @@ type EventSink interface {
 
 // Handler mengembalikan bus.Handler untuk subject logs.normalized: enrich event
 // (bila enricher disetel), persist, jalankan detektor, persist alert yang terpicu,
-// dan (bila engine disetel) buat rekomendasi respons untuk tiap alert.
-// enricher & engine boleh nil (lewati tahap itu).
-func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, engine *respond.Engine, detectors ...detect.Detector) bus.Handler {
+// lalu memanggil onAlert untuk tiap alert. enricher & onAlert boleh nil.
+func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -57,10 +59,8 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, eng
 			}
 			log.Printf("worker: ALERT %s dari %s (rule=%s)",
 				alert.DeusWatch.Label, alertSourceIP(alert), ruleID(alert))
-			if engine != nil {
-				if _, err := engine.Recommend(ic, alert); err != nil {
-					log.Printf("worker: rekomendasi respons gagal: %v", err)
-				}
+			if onAlert != nil {
+				onAlert(ic, alert)
 			}
 		}
 		return nil

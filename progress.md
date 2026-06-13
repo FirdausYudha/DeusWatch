@@ -90,6 +90,7 @@ Install agent: `deploy/agent/` (systemd `install-linux.sh`, Windows `install-win
 - **Image di-pin**: timescaledb `2.17.2-pg16`, nats `2.10.22-alpine`. Mengubah pin pada volume lama yang dibuat versi lain bisa bentrok — pakai volume fresh.
 - **CI**: `.github/workflows/ci.yml` (vet/build/test dgn services pg+nats, govulncheck, gosec, web tsc+build). gosec mengecualikan rule yang melekat domain (lihat workflow).
 - **Response engine**: `RESPONDER=dryrun|nftables|crowdsec|mikrotik|none` (default dryrun). nftables/crowdsec/mikrotik DIBUNGKUS dry-run kecuali `RESPONSE_LIVE=1`. `RESPONSE_AUTO_APPROVE=1` eksekusi tanpa approval. Approve/dismiss via `POST /api/responses/{id}/approve|dismiss`.
+- **Notifikasi**: aktif bila salah satu saluran diisi — `TELEGRAM_BOT_TOKEN`+`TELEGRAM_CHAT_ID`, `WEBHOOK_URL`, atau `SMTP_HOST`+`SMTP_FROM`+`SMTP_TO`(+`SMTP_USER`/`SMTP_PASS`). Ambang `NOTIFY_MIN_SEVERITY` (default high), dedup `NOTIFY_THROTTLE` (default 10m, per rule+IP). Worker memanggilnya via `worker.AlertHook` (bersama response engine).
 - **Enrichment CTI nyata**: set `ABUSEIPDB_API_KEY` / `OTX_API_KEY` / `GEOIP_ENABLED=1` di env worker (tanpa itu pakai provider mock). Ambang eskalasi: `ABUSE_ESCALATE_THRESHOLD` (default 90), `OTX_ESCALATE_THRESHOLD` (default 5).
 - **bin/ & dist/ & deploy/certs/ di-gitignore** — rebuild biner & regen cert di PC baru.
 - Saat ubah kode service, **rebuild biner** sebelum demo (beberapa bug demo karena biner stale).

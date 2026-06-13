@@ -16,6 +16,7 @@ import (
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/enrich"
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/notify"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
 	"deuswatch/internal/worker"
@@ -82,15 +83,25 @@ func main() {
 		log.Printf("worker: response engine nonaktif (RESPONDER=none)")
 	}
 
+	// Notifikasi (Fase 2): Telegram/email/webhook + dedup/throttle.
+	dispatcher, notifyOn := notify.DispatcherFromEnv()
+	if notifyOn {
+		log.Printf("worker: notifikasi aktif (sinks=%v)", dispatcher.SinkNames())
+	} else {
+		log.Printf("worker: notifikasi nonaktif (set TELEGRAM_*/WEBHOOK_URL/SMTP_* untuk aktif)")
+	}
+
+	onAlert := makeAlertHook(engine, dispatcher)
+
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
-		worker.Handler(ctx, st, enricher, engine, bruteForce, sigmaDet))
+		worker.Handler(ctx, st, enricher, onAlert, bruteForce, sigmaDet))
 	if err != nil {
 		log.Fatalf("worker: consume: %v", err)
 	}
 	defer stop()
 
 	if aggRunner.RuleCount() > 0 {
-		go runAggregation(ctx, aggRunner, st, engine)
+		go runAggregation(ctx, aggRunner, st, onAlert)
 	}
 
 	log.Printf("DeusWatch worker (detect) siap — mengonsumsi %q", bus.SubjectLogsNormalized)
@@ -100,9 +111,29 @@ func main() {
 
 // runAggregation menjalankan runner agregasi tiap aggInterval, menyimpan alert
 // yang terpicu. Berhenti saat ctx dibatalkan.
+// makeAlertHook menggabungkan response engine + dispatcher notifikasi menjadi satu
+// worker.AlertHook (nil bila keduanya nonaktif).
+func makeAlertHook(engine *respond.Engine, dispatcher *notify.Dispatcher) worker.AlertHook {
+	if engine == nil && !dispatcher.Enabled() {
+		return nil
+	}
+	return func(ctx context.Context, alert *ingest.Event) {
+		if engine != nil {
+			if _, err := engine.Recommend(ctx, alert); err != nil {
+				log.Printf("worker: rekomendasi respons gagal: %v", err)
+			}
+		}
+		if dispatcher.Enabled() {
+			if err := dispatcher.Dispatch(ctx, notify.FromEvent(alert)); err != nil {
+				log.Printf("worker: notifikasi gagal: %v", err)
+			}
+		}
+	}
+}
+
 func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink interface {
 	InsertEvent(context.Context, *ingest.Event) error
-}, engine *respond.Engine) {
+}, onAlert worker.AlertHook) {
 	t := time.NewTicker(aggInterval)
 	defer t.Stop()
 	for {
@@ -122,10 +153,8 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				}
 				log.Printf("worker: ALERT(agg) %s rule=%s grup=%s",
 					a.DeusWatch.Label, a.Rule.ID, aggGroup(a))
-				if engine != nil {
-					if _, err := engine.Recommend(rc, a); err != nil {
-						log.Printf("worker: rekomendasi respons (agg) gagal: %v", err)
-					}
+				if onAlert != nil {
+					onAlert(rc, a)
 				}
 			}
 			cancel()
