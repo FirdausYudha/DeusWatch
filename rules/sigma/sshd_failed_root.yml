@@ -1,0 +1,23 @@
+title: Failed SSH Login as root
+id: a3e8c0f7-5b14-4d62-8e90-1c7a2f6b9d35
+status: experimental
+description: >
+  Kegagalan autentikasi SSH yang menargetkan akun root secara langsung — login root
+  jarak jauh umumnya dilarang, sehingga upaya ini patut dicurigai. Contoh field match
+  yang menggabungkan beberapa selection lewat condition.
+author: DeusWatch
+level: medium
+logsource:
+  product: linux
+  service: sshd
+detection:
+  selection:
+    event.dataset: sshd
+    event.action: ssh_login
+    event.outcome: failure
+  target_root:
+    user.name: root
+  condition: selection and target_root
+tags:
+  - attack.t1110
+  - attack.credential_access

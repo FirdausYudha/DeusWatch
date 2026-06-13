@@ -1,7 +1,7 @@
 # ADR 0001 — Strategi Engine Deteksi Sigma
 
-- Status: **Diusulkan** (hasil spike, menunggu keputusan)
-- Tanggal: 2026-06-13
+- Status: **Diterima** (Hybrid D); jalur agregasi diimplementasikan in-Go (lihat Addendum)
+- Tanggal: 2026-06-13 (addendum 2026-06-14)
 - Konteks: design doc bagian 3 (memilih Sigma), bagian 6 (subset rule Fase 1), bagian 10 (dry-run terhadap histori)
 
 ## Konteks & masalah
@@ -70,3 +70,25 @@ jalur SQL. Semua ter-cover test.
 1. Spike kecil: jalankan satu rule agregasi via pySigma→SQL terhadap TimescaleDB.
 2. Evaluasi fork Go terpilih dengan 10–20 rule komunitas single-event nyata + pipeline DCS.
 3. Putuskan struktur penyimpanan rule (`rules/sigma/`) + loader + versioning (bagian 10).
+
+## Addendum (2026-06-14) — implementasi jalur agregasi
+
+Jalur agregasi (poin 2 keputusan) **diimplementasikan in-Go di runtime**, bukan
+pySigma di build-time. Alasan: mempertahankan single-binary tanpa dependensi Python,
+dan ruang lingkup agregasi Fase 1 (`count() [by field] <op> N` + `timeframe`) cukup
+sempit untuk di-compile sendiri dengan andal.
+
+- `internal/detect/sigma/aggregate.go`: `ParseAggRule` + `CompileSQL` — meng-compile
+  rule agregasi Sigma menjadi satu query parameterized terhadap hypertable `events`.
+  Selection di-compile ke fragmen `WHERE` (peta `fieldColumns` = cermin SQL dari
+  `FlattenEvent`); nilai literal **selalu** lewat argumen (anti-injeksi).
+- `internal/detect/aggregate.go`: `AggregateRunner` menjalankan rule periodik
+  (worker, default tiap 30s), cooldown per (rule, grup), plus `DryRun` untuk uji
+  histori (design doc bagian 10).
+- Detektor brute-force hardcoded kini punya padanan rule Sigma
+  (`rules/sigma/agg/ssh_bruteforce.yml`) — masih jalan berdampingan; pelensiunan
+  detektor lama dilakukan setelah jalur SQL terbukti di produksi.
+
+Sisa keputusan tetap berlaku: real-time single-event masih memakai evaluator interim
+`internal/detect/sigma` (adopsi fork Go matang belum dikerjakan); pySigma tetap opsi
+untuk mengonversi rule komunitas kompleks ke depan.

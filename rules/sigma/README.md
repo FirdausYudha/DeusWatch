@@ -35,8 +35,26 @@ case-insensitive — lihat `internal/detect/sigma/mapping.go`):
 - **Keyword**: `selection: [ 'string1', 'string2' ]` → cocok substring di isi event
   (terutama `event.original`). Cocok untuk rule Linux berbasis pesan log.
 - **Condition**: `and` / `or` / `not`, tanda kurung, `N of them`, `all of <prefix>*`.
-- **TIDAK didukung**: agregasi (`| count() by ... > N`) → diarahkan ke jalur SQL
-  (mis. brute-force ditangani detektor stateful / pySigma→SQL ke depan).
+
+## Rule AGREGASI (jalur SQL)
+
+Rule dengan kondisi ber-pipa — `selection | count() [by <field>] <op> N` — tidak bisa
+dijawab satu event; ia di-**compile ke SQL** dan dijalankan periodik oleh worker
+terhadap hypertable `events` (model Zircolite/pySigma, [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md)).
+Ini menggantikan detektor brute-force hardcoded dengan rule berformat Sigma.
+
+- Letakkan di sub-folder `rules/sigma/agg/` (dimuat rekursif satu level; bisa juga
+  di root — pemisahan single-event vs agregasi otomatis dari ada/tidaknya `|`).
+- **Pipa didukung**: `count()` dengan `by <field>` opsional, operator `> >= < <=`.
+- **`timeframe`** (mis. `1m`, `5m`, `1h`, `1d`) = jendela waktu; default 5m.
+- **Kiri pipa**: ekspresi boolean atas selection (`and`/`or`/`not`/kurung + nama
+  selection). `N of them` **tidak** didukung di sisi kiri pipa.
+- Setiap field yang dipakai harus punya kolom DCS yang dipetakan
+  (`fieldColumns` di `internal/detect/sigma/aggregate.go` — cermin SQL dari
+  `FlattenEvent`). Nilai literal selalu lewat argumen ber-parameter (anti-injeksi).
+- Tiap grup yang melewati ambang memicu satu alert; ada **cooldown** per (rule, grup)
+  agar serangan panjang tidak membanjiri alert. Tersedia juga **dry-run** terhadap
+  histori (`AggregateRunner.DryRun`).
 
 ## MITRE & severity otomatis
 
@@ -49,3 +67,7 @@ case-insensitive — lihat `internal/detect/sigma/mapping.go`):
 |---|---|---|
 | `ssh_login_root.yml` | login SSH sukses sebagai root (T1078.003) | field match |
 | `ssh_breakin_attempt.yml` | pesan sshd "POSSIBLE BREAK-IN ATTEMPT" (T1595) | keyword |
+| `sshd_invalid_user.yml` | upaya login untuk user tak dikenal (T1110.003) | keyword |
+| `sshd_failed_root.yml` | kegagalan SSH menargetkan root (T1110) | field match (multi-selection) |
+| `agg/ssh_bruteforce.yml` | brute force: >5 kegagalan/IP per 1m (T1110) | **agregasi (SQL)** |
+| `agg/ssh_invalid_user_burst.yml` | >10 "invalid user"/IP per 5m (T1110.003) | **agregasi (SQL)** |

@@ -74,12 +74,22 @@ func ParseRule(data []byte) (*Rule, error) {
 		return nil, fmt.Errorf("sigma: kondisi agregasi (|) tidak didukung di sini — gunakan jalur SQL")
 	}
 
-	r := &Rule{
-		ID: raw.ID, Title: raw.Title, Level: raw.Level, Tags: raw.Tags,
-		LogSource: raw.LogSource, condition: cond, selections: map[string]selection{},
+	sels, err := parseSelections(raw.Detection)
+	if err != nil {
+		return nil, err
 	}
-	for name, v := range raw.Detection {
-		if name == "condition" {
+	return &Rule{
+		ID: raw.ID, Title: raw.Title, Level: raw.Level, Tags: raw.Tags,
+		LogSource: raw.LogSource, condition: cond, selections: sels,
+	}, nil
+}
+
+// parseSelections mengubah blok detection (kecuali "condition"/"timeframe") menjadi
+// map nama->selection. Dipakai ParseRule dan ParseAggRule.
+func parseSelections(detection map[string]any) (map[string]selection, error) {
+	out := map[string]selection{}
+	for name, v := range detection {
+		if name == "condition" || name == "timeframe" {
 			continue
 		}
 		switch val := v.(type) {
@@ -91,14 +101,14 @@ func ParseRule(data []byte) (*Rule, error) {
 					name: parts[0], modifiers: parts[1:], values: toStringSlice(fv),
 				})
 			}
-			r.selections[name] = sel
+			out[name] = sel
 		case []any: // selection keyword (cocok substring di event)
-			r.selections[name] = selection{keywords: toStringSlice(val)}
+			out[name] = selection{keywords: toStringSlice(val)}
 		default:
 			return nil, fmt.Errorf("sigma: selection %q tidak didukung (bukan map/keywords)", name)
 		}
 	}
-	return r, nil
+	return out, nil
 }
 
 // Matches mengevaluasi rule terhadap event yang sudah diratakan (ECS dotted keys).
@@ -119,8 +129,15 @@ func (r *Rule) selectionNames() []string {
 }
 
 // MITRE mengekstrak technique ID & nama tactic dari tag (attack.tXXXX / attack.<tactic>).
-func (r *Rule) MITRE() (techniqueID, tactic string) {
-	for _, t := range r.Tags {
+func (r *Rule) MITRE() (techniqueID, tactic string) { return mitreFromTags(r.Tags) }
+
+// Severity memetakan level Sigma ke ingest.Severity DCS.
+func (r *Rule) Severity() ingest.Severity { return severityFromLevel(r.Level) }
+
+// mitreFromTags & severityFromLevel dipakai bersama oleh Rule (single-event) dan
+// AggRule (agregasi) — lihat aggregate.go.
+func mitreFromTags(tags []string) (techniqueID, tactic string) {
+	for _, t := range tags {
 		low := strings.ToLower(t)
 		if !strings.HasPrefix(low, "attack.") {
 			continue
@@ -139,9 +156,8 @@ func (r *Rule) MITRE() (techniqueID, tactic string) {
 	return techniqueID, tactic
 }
 
-// Severity memetakan level Sigma ke ingest.Severity DCS.
-func (r *Rule) Severity() ingest.Severity {
-	switch strings.ToLower(r.Level) {
+func severityFromLevel(level string) ingest.Severity {
+	switch strings.ToLower(level) {
 	case "critical":
 		return ingest.SeverityCritical
 	case "high":

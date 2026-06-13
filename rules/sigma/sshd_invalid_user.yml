@@ -1,0 +1,21 @@
+title: SSH Login Attempt for Invalid User
+id: 6b2f4c81-3d9a-4e27-9a1c-7e5b0d83f2a9
+status: experimental
+description: >
+  sshd menolak login untuk user yang tidak ada di sistem ("invalid user") — sinyal
+  enumerasi/percobaan akun. Single-event (keyword); volume tinggi dari satu IP
+  ditangkap rule agregasi terpisah.
+references:
+  - https://attack.mitre.org/techniques/T1110/003/
+author: DeusWatch
+level: low
+logsource:
+  product: linux
+  service: sshd
+detection:
+  keywords:
+    - 'invalid user'
+  condition: keywords
+tags:
+  - attack.t1110.003
+  - attack.credential_access

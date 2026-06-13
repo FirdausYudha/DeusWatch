@@ -1,0 +1,22 @@
+title: SSH Invalid-User Enumeration Burst (aggregation)
+id: 1d7e9a52-4c33-4b8e-bb19-8f0c2a6d3e44
+status: experimental
+description: >
+  Lonjakan upaya login SSH untuk user yang tidak ada ("Failed ... for invalid user")
+  dari satu IP — tanda enumerasi akun / spraying otomatis. Rule AGREGASI jalur SQL,
+  cocok substring pada baris log mentah lalu hitung per source.ip.
+references:
+  - https://attack.mitre.org/techniques/T1110/003/
+author: DeusWatch
+level: medium
+logsource:
+  product: linux
+  service: sshd
+detection:
+  keywords:
+    - 'invalid user'
+  timeframe: 5m
+  condition: keywords | count() by source.ip > 10
+tags:
+  - attack.t1110.003
+  - attack.credential_access
