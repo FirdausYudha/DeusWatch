@@ -75,13 +75,13 @@ export type Stats = {
 }
 
 export async function fetchAlerts(limit = 20): Promise<EventRow[]> {
-  const res = await fetch(`/api/alerts?limit=${limit}`, { cache: 'no-store' })
+  const res = await authFetch(`/api/alerts?limit=${limit}`)
   if (!res.ok) throw new Error(`alerts: HTTP ${res.status}`)
   return res.json()
 }
 
 export async function fetchStats(): Promise<Stats> {
-  const res = await fetch('/api/stats', { cache: 'no-store' })
+  const res = await authFetch('/api/stats')
   if (!res.ok) throw new Error(`stats: HTTP ${res.status}`)
   return res.json()
 }
@@ -92,4 +92,59 @@ export const SEVERITY: Record<number, { label: string; cls: string }> = {
   2: { label: 'medium', cls: 'text-amber-300 bg-amber-500/15' },
   3: { label: 'high', cls: 'text-orange-300 bg-orange-500/15' },
   4: { label: 'critical', cls: 'text-rose-300 bg-rose-500/15' },
+}
+
+// ── Auth (token sesi) ─────────────────────────────────────
+
+const TOKEN_KEY = 'deuswatch_token'
+
+export type Me = { username: string; role: string }
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+function setToken(t: string) {
+  localStorage.setItem(TOKEN_KEY, t)
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
+// authFetch menambah header Bearer dan membersihkan token pada 401.
+async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = getToken()
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(url, { ...init, headers, cache: 'no-store' })
+  if (res.status === 401) clearToken()
+  return res
+}
+
+export async function login(username: string, password: string): Promise<Me> {
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!res.ok) throw new Error('Username atau password salah')
+  const data = await res.json()
+  setToken(data.token)
+  return { username: data.username, role: data.role }
+}
+
+export async function fetchMe(): Promise<Me> {
+  const res = await authFetch('/api/me')
+  if (!res.ok) throw new Error(`me: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await authFetch('/api/logout', { method: 'POST' })
+  } catch {
+    // abaikan
+  }
+  clearToken()
 }

@@ -49,6 +49,9 @@ services:
       POSTGRES_ADDR: "db:5432"
       NATS_ADDR: "nats:4222"
       DATABASE_URL: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
+      # Admin awal di-seed saat tabel users kosong. GANTI untuk produksi.
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-deuswatch-admin}"
     ports:
       - "8080:8080"
     depends_on:

@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"deuswatch/internal/auth"
 	"deuswatch/internal/store"
 )
 
@@ -42,9 +43,29 @@ func main() {
 	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/healthz", healthzHandler)
 	mux.HandleFunc("/readyz", readyzHandler)
-	mux.HandleFunc("/api/events", eventsHandler(st))
-	mux.HandleFunc("/api/alerts", alertsHandler(st))
-	mux.HandleFunc("/api/stats", statsHandler(st))
+
+	if st != nil {
+		authStore := auth.NewStore(st.Pool())
+		seedAdmin(authStore)
+
+		// Publik (tanpa token).
+		mux.HandleFunc("/api/login", authStore.LoginHandler())
+
+		// Terproteksi: wajib sesi valid + permission.
+		protect := func(p auth.Permission, h http.HandlerFunc) http.Handler {
+			return authStore.Middleware(auth.RequirePermission(p, h))
+		}
+		mux.Handle("/api/me", authStore.Middleware(auth.MeHandler()))
+		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
+		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
+		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
+		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
+	} else {
+		// Tanpa DB: endpoint membalas 503.
+		mux.HandleFunc("/api/events", eventsHandler(nil))
+		mux.HandleFunc("/api/alerts", alertsHandler(nil))
+		mux.HandleFunc("/api/stats", statsHandler(nil))
+	}
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -63,6 +84,26 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// seedAdmin membuat user admin awal bila belum ada user.
+func seedAdmin(authStore *auth.Store) {
+	user := getenv("ADMIN_USERNAME", "admin")
+	pass := os.Getenv("ADMIN_PASSWORD")
+	if pass == "" {
+		pass = "deuswatch-admin"
+		log.Printf("api: ADMIN_PASSWORD kosong — pakai default dev (GANTI untuk produksi!)")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	created, err := authStore.EnsureAdmin(ctx, user, pass)
+	if err != nil {
+		log.Printf("api: seed admin gagal: %v", err)
+		return
+	}
+	if created {
+		log.Printf("api: user admin awal %q dibuat", user)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

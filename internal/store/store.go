@@ -32,6 +32,9 @@ func Connect(ctx context.Context, dsn string) (*Store, error) {
 // Close menutup pool.
 func (s *Store) Close() { s.pool.Close() }
 
+// Pool mengembalikan pool koneksi (dipakai paket auth agar berbagi pool yang sama).
+func (s *Store) Pool() *pgxpool.Pool { return s.pool }
+
 const insertEventSQL = `
 INSERT INTO events (
 	time, event_category, event_action, event_outcome, event_severity,
