@@ -1,13 +1,14 @@
 # DeusWatch — Progress & Handoff
 
 > Catatan progres untuk lanjut di mesin lain. Sumber kebenaran desain: [DeusWatch.md](DeusWatch.md).
-> Terakhir diperbarui: 2026-06-13.
+> Terakhir diperbarui: 2026-06-14.
 
 ## Ringkasan status
 
-Platform deteksi keamanan **jalan end-to-end**. 22 commit di `main`
-(github.com/FirdausYudha/DeusWatch). Stack: Go (agent/gateway/worker/api),
-PostgreSQL+TimescaleDB, NATS JetStream, React+Vite+Tailwind.
+Platform deteksi keamanan **jalan end-to-end**, Fase 1–3 selesai. Stack: Go
+(agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS JetStream, React+Vite+Tailwind.
+Diverifikasi live: pipeline event→deteksi(Sigma single+agregasi)→enrich→alert→
+respons(dry-run)→LLM triase→report.
 
 ```
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI
@@ -21,13 +22,18 @@ agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect)
 | Schema DCS | `internal/ingest/schema.go` + hypertable TimescaleDB (chunk/hari, kompresi, retensi) | ✅ |
 | Pipeline | `internal/bus` (NATS), `internal/store` (pgx), `internal/worker` | ✅ |
 | Ingest | gateway mTLS + normalisasi sshd → DCS; agent tail → kirim | ✅ |
-| Deteksi | brute-force SSH (agregasi) + **Sigma engine** (field/keyword/alias/MITRE), `rules/sigma/` | ✅ (interim evaluator; lihat ADR) |
-| Enrichment CTI | `internal/enrich` + cache TTL Postgres (`cti_indicators`) + eskalasi severity; provider mock | ✅ (klien AbuseIPDB/OTX nyata = TODO) |
-| Auth | login, sesi, **RBAC** (viewer/analyst/admin), **audit log append-only**, manajemen user, **TOTP 2FA** | ✅ + UI |
-| Web UI | Login, Dashboard (stats/alert/health live), Users (admin), Settings (2FA) | ✅ |
-| **Agent (fokus terakhir)** | **enrollment per-agent** (token sekali-pakai→cert unik+revoke), **config push** terpusat, **heartbeat + buffer offline** (store-and-forward), kolektor per-OS (build tag: Linux file/journald, Windows Event Log), cross-compile | ✅ |
+| Deteksi | Sigma single-event (field/keyword/alias/MITRE) + **jalur agregasi Sigma→SQL** (compile ke query TimescaleDB, runner periodik+cooldown+dry-run), `rules/sigma/` (+`agg/`) | ✅ |
+| Enrichment CTI | `internal/enrich` + cache TTL Postgres + **klien nyata AbuseIPDB/OTX + GeoIP** (ip-api) + eskalasi configurable + **community blocklist** | ✅ + tampil di UI |
+| **Response engine** (Fase 2) | `internal/respond`: nftables/CrowdSec/Mikrotik + dry-run + **ban progresif** + approval workflow (API) | ✅ |
+| **Notifikasi** (Fase 2) | `internal/notify`: Telegram/email/webhook + dedup/throttle | ✅ |
+| **LLM worker** (Fase 3) | `internal/llm`: triase alert→vonis (Claude SDK / heuristik) → `deuswatch.llm.*` | ✅ + UI |
+| **Report** (Fase 3) | `internal/report` + `GET /api/report` (JSON/Markdown) | ✅ |
+| Auth | login, sesi, **RBAC**, **audit log append-only**, manajemen user, **TOTP 2FA** | ✅ + UI |
+| Web UI | Login, Dashboard (stats/alert/threat-intel/LLM live), **Agents**, Users, Settings | ✅ |
+| Agent | enrollment per-agent, config push, heartbeat+buffer offline, **FIM**, **Windows Service native**, kolektor per-OS, cross-compile | ✅ |
+| Infra | **runner migrasi otomatis** (embed), **CI** (vet/test/govulncheck/gosec/web), image di-pin, gateway+worker di compose | ✅ |
 
-Total ~26 test (unit + integrasi + e2e) lulus. Keputusan Sigma: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
+Semua test (unit + integrasi + e2e) lulus; gosec & govulncheck bersih. ADR Sigma: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
 
 ## Prasyarat di PC baru
 
@@ -99,31 +105,32 @@ Install agent: `deploy/agent/` (systemd `install-linux.sh`, Windows `install-win
 - Saat ubah kode service, **rebuild biner** sebelum demo (beberapa bug demo karena biner stale).
 - `gateway` butuh `STORE_DSN` untuk revocation/config-push/heartbeat (opsional; tanpa DB fitur itu nonaktif).
 - Detektor `detect-worker`… durable NATS pakai DeliverNew (tak replay backlog).
-- Engine Sigma saat ini = prototipe internal (interim) di balik antarmuka `detect.Detector`.
+- Engine Sigma single-event = evaluator interim; jalur agregasi = compiler in-Go ke SQL (ADR 0001 addendum).
+- Mengubah pin image TimescaleDB pada volume lama yang dibuat versi lain → bentrok (`$libdir`); pakai volume fresh.
 
-## Belum dikerjakan (roadmap berikutnya)
+## Roadmap utama (Fase 1–3) — SELESAI ✅
 
-- **Sigma**: jalur pySigma→SQL untuk rule agregasi + dry-run histori; evaluasi adopsi fork Go matang; lebih banyak rule + perluas dataset (process/file/web).
-- **Enrichment**: klien AbuseIPDB/OTX + GeoIP nyata; aturan eskalasi configurable dari UI; tampilkan enrichment di UI alert.
-- **Agent**: FIM (file integrity), native Windows Service (kini Scheduled Task), canary deploy config, drift indicator di UI; halaman Agents di UI (saat ini hanya API).
-- **Response engine** (Fase 2): nftables/Mikrotik/CrowdSec LAPI + dry-run + ban progresif.
-- **Notifikasi** (Fase 2): Telegram/email/webhook + dedup/throttle.
-- **Infra**: runner migrasi otomatis, CI (govulncheck/gosec/test), pin versi image, jalankan gateway/worker di compose.
-- **LLM worker** (Fase 3), report, community blocklist.
+Tujuh item roadmap berikut sudah diimplementasikan, diuji, dan diverifikasi end-to-end:
+Sigma agregasi→SQL+rule baru (#4); FIM+Windows Service native+halaman Agents (#5);
+klien CTI nyata+GeoIP+UI (#6); response engine+ban progresif (#7); infra migrasi/CI/
+compose (#8); notifikasi (#9); LLM worker+report+blocklist (#10).
+
+## Ide lanjutan (opsional)
+
+- Sigma: adopsi fork Go matang untuk single-event; perluas dataset (process/web); aturan eskalasi & ban dari UI.
+- UI: halaman Response/Actions (approve/dismiss dari UI), halaman Report, drift indicator agent.
+- Agent: canary deploy config, FIM real-time (fsnotify) sebagai ganti polling.
+- pgvector untuk RAG/LLM (kolom embedding disiapkan di schema).
 
 ## Peta commit (terbaru → lama, sebagian)
 
 ```
-88394ce heartbeat + buffer offline (#3)
-07f2771 config push terpusat (#2)
-d77aa3b enrollment per-agent (#1)
-3b12943 kolektor multi-source per-OS + cross-compile + installer
-1066763 CTI enrichment + cache TTL + eskalasi severity
-53fb6f2 UI 2FA (Settings)
-7ce72db TOTP 2FA
-ac1cb69 manajemen user + RBAC enforcement
-96ec0ab login + sesi + middleware + UI login
-25fa519 fondasi auth (Argon2id, RBAC, migrasi)
-6b35f83 spike Sigma + ADR
-... (init s/d API/UI/pipeline) — lihat `git log`
+(#10) feat(llm): worker LLM + report + community blocklist (Fase 3)
+(#9)  feat(notify): Telegram/email/webhook + dedup/throttle
+(#8)  feat(infra): runner migrasi otomatis + CI + gateway/worker di compose
+(#7)  feat(respond): response engine + blokir + approval + ban progresif
+(#6)  feat(enrich): klien AbuseIPDB/OTX + GeoIP nyata + tampil di UI
+(#5)  feat(agent): FIM + Windows Service native + halaman Agents UI
+(#4)  feat(detect): jalur agregasi Sigma->SQL + rule baru
+... (Fase 1: auth/agent/enrich/UI/pipeline/fondasi) — lihat `git log`
 ```
