@@ -105,6 +105,9 @@ func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string
 		Durable:       durable,
 		FilterSubject: filterSubject,
 		AckPolicy:     jetstream.AckExplicitPolicy,
+		// Mulai dari pesan baru saat consumer pertama dibuat (hindari replay backlog
+		// lama); durable tetap melanjutkan dari ack terakhir saat restart.
+		DeliverPolicy: jetstream.DeliverNewPolicy,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bus: consumer %s: %w", durable, err)

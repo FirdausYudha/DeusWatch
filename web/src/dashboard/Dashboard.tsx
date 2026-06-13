@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { fetchHealth, type DepState, type Health } from '../lib/api'
+import {
+  fetchHealth, fetchStats, fetchAlerts,
+  SEVERITY, type DepState, type Health, type Stats, type EventRow,
+} from '../lib/api'
 
 type DotState = 'good' | 'bad' | 'unknown'
 
 function Dot({ state }: { state: DotState }) {
-  const color =
-    state === 'good' ? 'bg-emerald-400' : state === 'bad' ? 'bg-rose-400' : 'bg-amber-400'
+  const color = state === 'good' ? 'bg-emerald-400' : state === 'bad' ? 'bg-rose-400' : 'bg-amber-400'
   const glow = state === 'good' ? 'shadow-[0_0_10px_2px] shadow-emerald-400/40' : ''
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color} ${glow}`} />
 }
@@ -14,25 +16,41 @@ function depDot(s: DepState): DotState {
   return s === 'reachable' ? 'good' : s === 'unreachable' ? 'bad' : 'unknown'
 }
 
-// Placeholder widget Fase 1 (design doc bagian 6: time-series, top-N, counter, pie).
-const WIDGETS = [
-  { title: 'Events over time', kind: 'Time-series' },
-  { title: 'Top attacker IPs', kind: 'Top-N table' },
-  { title: 'Alerts (24 jam)', kind: 'Counter' },
-  { title: 'Severity breakdown', kind: 'Pie' },
-]
+function SeverityBadge({ sev }: { sev: number }) {
+  const m = SEVERITY[sev] ?? SEVERITY[0]
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${m.cls}`}>{m.label}</span>
+}
+
+function StatCard({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
+      <div className={`mt-1 text-3xl font-semibold ${accent ?? 'text-white'}`}>{value}</div>
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const [health, setHealth] = useState<Health | null>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [alerts, setAlerts] = useState<EventRow[]>([])
   const [updated, setUpdated] = useState<Date | null>(null)
 
   useEffect(() => {
     let active = true
     const tick = async () => {
       const h = await fetchHealth()
-      if (!active) return
-      setHealth(h)
-      setUpdated(new Date())
+      if (active) setHealth(h)
+      try {
+        const [s, a] = await Promise.all([fetchStats(), fetchAlerts(15)])
+        if (active) {
+          setStats(s)
+          setAlerts(a)
+        }
+      } catch {
+        // API DB belum siap — biarkan kosong
+      }
+      if (active) setUpdated(new Date())
     }
     void tick()
     const id = setInterval(tick, 5000)
@@ -43,107 +61,123 @@ export default function Dashboard() {
   }, [])
 
   const services: { name: string; sub: string; state: DotState; detail: string }[] = [
-    {
-      name: 'API Server',
-      sub: 'Go · :8080',
-      state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown',
-      detail: health?.api ?? 'memeriksa…',
-    },
-    {
-      name: 'PostgreSQL + TimescaleDB',
-      sub: 'penyimpanan log',
-      state: health ? depDot(health.postgres) : 'unknown',
-      detail: health?.postgres ?? 'memeriksa…',
-    },
-    {
-      name: 'NATS JetStream',
-      sub: 'message bus',
-      state: health ? depDot(health.nats) : 'unknown',
-      detail: health?.nats ?? 'memeriksa…',
-    },
+    { name: 'API Server', sub: 'Go · :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'memeriksa…' },
+    { name: 'PostgreSQL + TimescaleDB', sub: 'penyimpanan log', state: health ? depDot(health.postgres) : 'unknown', detail: health?.postgres ?? 'memeriksa…' },
+    { name: 'NATS JetStream', sub: 'message bus', state: health ? depDot(health.nats) : 'unknown', detail: health?.nats ?? 'memeriksa…' },
   ]
-
   const allReady = health?.ready ?? false
+  const maxSev = Math.max(1, ...(stats?.by_severity ?? []).map((s) => s.count))
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-8">
-      {/* Header */}
       <header className="mb-8 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Status fondasi DeusWatch · pembaruan tiap 5 detik
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Status & deteksi DeusWatch · pembaruan tiap 5 detik</p>
         </div>
-        <div
-          className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
-            allReady
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-              : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-          }`}
-        >
+        <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${allReady ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'}`}>
           <Dot state={allReady ? 'good' : 'unknown'} />
           {allReady ? 'Semua sistem siap' : 'Menunggu dependensi'}
         </div>
       </header>
 
-      {/* System Health */}
+      {/* Counters */}
+      <section className="mb-8 grid gap-3 sm:grid-cols-3">
+        <StatCard label="Total event" value={stats?.total_events ?? '—'} />
+        <StatCard label="Total alert" value={stats?.total_alerts ?? '—'} accent="text-orange-300" />
+        <StatCard label="Alert (24 jam)" value={stats?.alerts_24h ?? '—'} accent="text-rose-300" />
+      </section>
+
+      {/* Top IPs + Severity */}
+      <section className="mb-8 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Top source IP</h2>
+          {stats?.top_source_ips?.length ? (
+            <ul className="space-y-2">
+              {stats.top_source_ips.map((ip) => (
+                <li key={ip.ip} className="flex items-center justify-between text-sm">
+                  <span className="font-mono text-slate-300">{ip.ip}</span>
+                  <span className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{ip.count}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-600">belum ada data</p>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Severity breakdown</h2>
+          {stats?.by_severity?.length ? (
+            <ul className="space-y-2">
+              {stats.by_severity.map((s) => (
+                <li key={s.severity} className="flex items-center gap-3 text-sm">
+                  <span className="w-16"><SeverityBadge sev={s.severity} /></span>
+                  <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+                    <div className="h-full rounded bg-indigo-500" style={{ width: `${(s.count / maxSev) * 100}%` }} />
+                  </div>
+                  <span className="w-8 text-right text-xs text-slate-400">{s.count}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-600">belum ada data</p>
+          )}
+        </div>
+      </section>
+
+      {/* Recent alerts */}
       <section className="mb-8">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          System Health
-        </h2>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Alert terbaru</h2>
+        <div className="overflow-hidden rounded-xl border border-slate-800">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">Waktu</th>
+                <th className="px-4 py-2 font-medium">Source IP</th>
+                <th className="px-4 py-2 font-medium">Rule</th>
+                <th className="px-4 py-2 font-medium">MITRE</th>
+                <th className="px-4 py-2 font-medium">Severity</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+              {alerts.length ? (
+                alerts.map((a, i) => (
+                  <tr key={i} className="hover:bg-slate-800/40">
+                    <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
+                    <td className="px-4 py-2 text-slate-300">{a.rule_name || a.dw_label}</td>
+                    <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
+                    <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-600">
+                    {health?.api === 'down' ? 'API tak terjangkau — jalankan docker compose up' : 'Belum ada alert. Picu brute-force SSH untuk melihatnya di sini.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-slate-600">
+          {updated ? `Terakhir diperbarui ${updated.toLocaleTimeString('id-ID')}` : 'Menghubungi API…'}
+        </p>
+      </section>
+
+      {/* System Health */}
+      <section>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">System Health</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           {services.map((s) => (
-            <div
-              key={s.name}
-              className="rounded-xl border border-slate-800 bg-slate-900/60 p-4"
-            >
+            <div key={s.name} className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-slate-200">{s.name}</span>
                 <Dot state={s.state} />
               </div>
               <div className="mt-1 text-xs text-slate-500">{s.sub}</div>
-              <div
-                className={`mt-3 text-sm font-mono ${
-                  s.state === 'good'
-                    ? 'text-emerald-400'
-                    : s.state === 'bad'
-                      ? 'text-rose-400'
-                      : 'text-amber-400'
-                }`}
-              >
-                {s.detail}
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-slate-600">
-          {updated
-            ? `Terakhir diperbarui ${updated.toLocaleTimeString('id-ID')}`
-            : 'Menghubungi API…'}
-          {health?.api === 'down' && (
-            <span className="ml-1 text-rose-400">
-              — API tak terjangkau. Pastikan{' '}
-              <code className="text-rose-300">docker compose up</code> berjalan.
-            </span>
-          )}
-        </p>
-      </section>
-
-      {/* Widget grid (placeholder Fase 1) */}
-      <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Widget (segera hadir)
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {WIDGETS.map((w) => (
-            <div
-              key={w.title}
-              className="flex h-36 flex-col rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-4"
-            >
-              <span className="text-sm font-medium text-slate-300">{w.title}</span>
-              <span className="text-xs text-slate-600">{w.kind}</span>
-              <div className="mt-auto text-xs text-slate-700">menunggu data log…</div>
+              <div className={`mt-3 font-mono text-sm ${s.state === 'good' ? 'text-emerald-400' : s.state === 'bad' ? 'text-rose-400' : 'text-amber-400'}`}>{s.detail}</div>
             </div>
           ))}
         </div>

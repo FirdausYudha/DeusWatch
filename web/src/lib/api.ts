@@ -42,3 +42,54 @@ function depState(raw?: string): DepState {
   if (!raw) return 'unknown'
   return raw.startsWith('reachable') ? 'reachable' : 'unreachable'
 }
+
+// ── Events / Alerts / Stats ───────────────────────────────
+
+export type EventRow = {
+  time: string
+  event_category: string
+  event_action: string
+  event_outcome: string
+  event_severity: number
+  event_dataset: string
+  source_ip: string
+  host_name: string
+  user_name: string
+  rule_id: string
+  rule_name: string
+  threat_technique_id: string
+  threat_tactic_name: string
+  dw_label: string
+  event_original: string
+}
+
+export type IPCount = { ip: string; count: number }
+export type SeverityCount = { severity: number; count: number }
+
+export type Stats = {
+  total_events: number
+  total_alerts: number
+  alerts_24h: number
+  top_source_ips: IPCount[] | null
+  by_severity: SeverityCount[] | null
+}
+
+export async function fetchAlerts(limit = 20): Promise<EventRow[]> {
+  const res = await fetch(`/api/alerts?limit=${limit}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`alerts: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function fetchStats(): Promise<Stats> {
+  const res = await fetch('/api/stats', { cache: 'no-store' })
+  if (!res.ok) throw new Error(`stats: HTTP ${res.status}`)
+  return res.json()
+}
+
+export const SEVERITY: Record<number, { label: string; cls: string }> = {
+  0: { label: 'info', cls: 'text-slate-400 bg-slate-700/40' },
+  1: { label: 'low', cls: 'text-sky-300 bg-sky-500/15' },
+  2: { label: 'medium', cls: 'text-amber-300 bg-amber-500/15' },
+  3: { label: 'high', cls: 'text-orange-300 bg-orange-500/15' },
+  4: { label: 'critical', cls: 'text-rose-300 bg-rose-500/15' },
+}

@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -27,7 +28,8 @@ func TestPublishConsumeRoundTrip(t *testing.T) {
 	defer b.Close()
 
 	got := make(chan string, 1)
-	stop, err := b.Consume(ctx, StreamLogs, "test-roundtrip", SubjectLogsRaw,
+	durable := fmt.Sprintf("test-roundtrip-%d", time.Now().UnixNano())
+	stop, err := b.Consume(ctx, StreamLogs, durable, SubjectLogsRaw,
 		func(_ string, data []byte) error {
 			select {
 			case got <- string(data):

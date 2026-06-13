@@ -14,6 +14,7 @@ export default defineConfig({
     proxy: {
       '/healthz': API_TARGET,
       '/readyz': API_TARGET,
+      '/api': API_TARGET,
     },
   },
 })

@@ -35,7 +35,7 @@ func main() {
 	defer b.Close()
 
 	det := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig())
-	stop, err := b.Consume(ctx, bus.StreamLogs, "detect-worker", bus.SubjectLogsNormalized,
+	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
 		worker.Handler(ctx, st, det))
 	if err != nil {
 		log.Fatalf("worker: consume: %v", err)
