@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 )
@@ -25,12 +26,18 @@ func (s *Store) LoginHandler() http.HandlerFunc {
 		var req struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
+			TOTP     string `json:"totp"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "body tidak valid", http.StatusBadRequest)
 			return
 		}
-		u, token, err := s.Login(r.Context(), req.Username, req.Password, SessionTTL)
+		u, token, err := s.Login(r.Context(), req.Username, req.Password, req.TOTP, SessionTTL)
+		if errors.Is(err, Err2FARequired) {
+			// Password benar; minta kode 2FA (UI menampilkan field kode).
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "2fa_required"})
+			return
+		}
 		if err != nil {
 			s.Audit(r.Context(), req.Username, "", "login_failed", "", "", ClientIP(r))
 			http.Error(w, "kredensial tidak valid", http.StatusUnauthorized)
@@ -111,6 +118,86 @@ func actorRole(u *User) string {
 		return string(u.Role)
 	}
 	return ""
+}
+
+// Setup2FAHandler menghasilkan secret TOTP baru (BELUM diaktifkan sampai
+// dikonfirmasi via Enable2FAHandler). Self-service untuk akun sendiri.
+func (s *Store) Setup2FAHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := UserFrom(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		secret, otpauthURL, err := GenerateTOTPSecret(u.Username)
+		if err != nil {
+			http.Error(w, "gagal membuat secret", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"secret": secret, "otpauth_url": otpauthURL})
+	}
+}
+
+// Enable2FAHandler mengaktifkan 2FA setelah memverifikasi kode terhadap secret.
+func (s *Store) Enable2FAHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := UserFrom(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			Secret string `json:"secret"`
+			Code   string `json:"code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			return
+		}
+		if req.Secret == "" || !ValidateTOTP(req.Secret, req.Code) {
+			http.Error(w, "kode 2FA tidak valid", http.StatusBadRequest)
+			return
+		}
+		if err := s.SetTOTPSecret(r.Context(), u.ID, req.Secret); err != nil {
+			http.Error(w, "gagal menyimpan", http.StatusInternalServerError)
+			return
+		}
+		s.Audit(r.Context(), u.Username, string(u.Role), "enable_2fa", u.Username, "", ClientIP(r))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "enabled"})
+	}
+}
+
+// Disable2FAHandler menonaktifkan 2FA setelah memverifikasi kode saat ini.
+func (s *Store) Disable2FAHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := UserFrom(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			Code string `json:"code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			return
+		}
+		secret, err := s.totpSecretOf(r.Context(), u.ID)
+		if err != nil || secret == "" {
+			http.Error(w, "2FA tidak aktif", http.StatusBadRequest)
+			return
+		}
+		if !ValidateTOTP(secret, req.Code) {
+			http.Error(w, "kode 2FA tidak valid", http.StatusBadRequest)
+			return
+		}
+		if err := s.ClearTOTPSecret(r.Context(), u.ID); err != nil {
+			http.Error(w, "gagal menyimpan", http.StatusInternalServerError)
+			return
+		}
+		s.Audit(r.Context(), u.Username, string(u.Role), "disable_2fa", u.Username, "", ClientIP(r))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "disabled"})
+	}
 }
 
 // MeHandler mengembalikan identitas user terautentikasi saat ini.

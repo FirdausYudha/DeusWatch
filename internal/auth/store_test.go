@@ -39,7 +39,7 @@ func TestStoreLoginSession(t *testing.T) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 
-	u, token, err := s.Login(ctx, username, "rahasia123", time.Hour)
+	u, token, err := s.Login(ctx, username, "rahasia123", "", time.Hour)
 	if err != nil {
 		t.Fatalf("Login benar seharusnya sukses: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestStoreLoginSession(t *testing.T) {
 	}
 
 	// Password salah -> ErrAuth.
-	if _, _, err := s.Login(ctx, username, "salah", time.Hour); !errors.Is(err, ErrAuth) {
+	if _, _, err := s.Login(ctx, username, "salah", "", time.Hour); !errors.Is(err, ErrAuth) {
 		t.Fatalf("password salah harus ErrAuth, dapat: %v", err)
 	}
 	// Token ngawur -> ErrAuth.

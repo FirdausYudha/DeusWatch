@@ -14,6 +14,10 @@ import (
 // Sengaja generik agar tidak membocorkan apakah username ada (anti user-enumeration).
 var ErrAuth = errors.New("auth: kredensial tidak valid")
 
+// Err2FARequired: password benar tetapi user mengaktifkan 2FA dan kode TOTP
+// belum/ tidak disertakan. Client harus meminta kode lalu coba lagi.
+var Err2FARequired = errors.New("auth: kode 2FA diperlukan")
+
 // User adalah identitas terautentikasi.
 type User struct {
 	ID       string
@@ -102,16 +106,17 @@ func (s *Store) EnsureAdmin(ctx context.Context, username, password string) (cre
 	return true, nil
 }
 
-// Login memverifikasi kredensial lalu membuat sesi; mengembalikan user + token mentah.
-func (s *Store) Login(ctx context.Context, username, password string, ttl time.Duration) (*User, string, error) {
+// Login memverifikasi kredensial (+ kode TOTP bila 2FA aktif) lalu membuat sesi.
+func (s *Store) Login(ctx context.Context, username, password, totpCode string, ttl time.Duration) (*User, string, error) {
 	var (
-		u       User
-		hash    string
-		roleStr string
+		u          User
+		hash       string
+		roleStr    string
+		totpSecret *string
 	)
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, role, disabled FROM users WHERE username=$1`, username).
-		Scan(&u.ID, &u.Username, &hash, &roleStr, &u.Disabled)
+		`SELECT id, username, password_hash, role, disabled, totp_secret FROM users WHERE username=$1`, username).
+		Scan(&u.ID, &u.Username, &hash, &roleStr, &u.Disabled, &totpSecret)
 	if errors.Is(err, pgx.ErrNoRows) {
 		_ = VerifyPassword(password, dummyHash) // samakan waktu
 		return nil, "", ErrAuth
@@ -121,6 +126,15 @@ func (s *Store) Login(ctx context.Context, username, password string, ttl time.D
 	}
 	if u.Disabled || VerifyPassword(password, hash) != nil {
 		return nil, "", ErrAuth
+	}
+	// 2FA: bila secret terpasang, wajib kode TOTP valid.
+	if totpSecret != nil && *totpSecret != "" {
+		if totpCode == "" {
+			return nil, "", Err2FARequired
+		}
+		if !ValidateTOTP(*totpSecret, totpCode) {
+			return nil, "", ErrAuth
+		}
 	}
 	u.Role = Role(roleStr)
 
@@ -166,6 +180,41 @@ func (s *Store) SessionUser(ctx context.Context, rawToken string) (*User, error)
 func (s *Store) Logout(ctx context.Context, rawToken string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE token_hash = $1`, hashToken(rawToken))
 	return err
+}
+
+// HasTOTP melaporkan apakah user (by id) sudah mengaktifkan 2FA.
+func (s *Store) HasTOTP(ctx context.Context, userID string) (bool, error) {
+	var secret *string
+	if err := s.pool.QueryRow(ctx, `SELECT totp_secret FROM users WHERE id=$1`, userID).Scan(&secret); err != nil {
+		return false, err
+	}
+	return secret != nil && *secret != "", nil
+}
+
+// SetTOTPSecret mengaktifkan 2FA dengan menyimpan secret untuk user.
+func (s *Store) SetTOTPSecret(ctx context.Context, userID, secret string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE users SET totp_secret=$1, updated_at=now() WHERE id=$2`, secret, userID)
+	return err
+}
+
+// ClearTOTPSecret menonaktifkan 2FA.
+func (s *Store) ClearTOTPSecret(ctx context.Context, userID string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE users SET totp_secret=NULL, updated_at=now() WHERE id=$1`, userID)
+	return err
+}
+
+// totpSecretOf mengambil secret tersimpan (untuk verifikasi disable).
+func (s *Store) totpSecretOf(ctx context.Context, userID string) (string, error) {
+	var secret *string
+	if err := s.pool.QueryRow(ctx, `SELECT totp_secret FROM users WHERE id=$1`, userID).Scan(&secret); err != nil {
+		return "", err
+	}
+	if secret == nil {
+		return "", nil
+	}
+	return *secret, nil
 }
 
 // Audit menulis satu entri audit append-only (best-effort).

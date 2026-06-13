@@ -58,6 +58,11 @@ func main() {
 		mux.Handle("/api/me", authStore.Middleware(auth.MeHandler()))
 		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
 		mux.Handle("/api/users", protect(auth.PermManageUsers, authStore.UsersHandler()))
+
+		// 2FA self-service (akun sendiri; cukup terautentikasi).
+		mux.Handle("/api/2fa/setup", authStore.Middleware(authStore.Setup2FAHandler()))
+		mux.Handle("/api/2fa/enable", authStore.Middleware(authStore.Enable2FAHandler()))
+		mux.Handle("/api/2fa/disable", authStore.Middleware(authStore.Disable2FAHandler()))
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
