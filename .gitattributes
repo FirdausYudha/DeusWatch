@@ -1,0 +1,8 @@
+# Normalkan line-ending: simpan LF di repo, hindari noise CRLF di Windows.
+* text=auto eol=lf
+
+# Berkas biner (jangan diutak-atik).
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
