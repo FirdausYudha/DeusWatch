@@ -19,8 +19,8 @@ type EventSink interface {
 }
 
 // Handler mengembalikan bus.Handler untuk subject logs.normalized: persist event,
-// jalankan detektor brute-force, persist alert bila terpicu.
-func Handler(ctx context.Context, sink EventSink, det *detect.BruteForceDetector) bus.Handler {
+// jalankan setiap detektor, persist alert apa pun yang terpicu.
+func Handler(ctx context.Context, sink EventSink, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -37,13 +37,31 @@ func Handler(ctx context.Context, sink EventSink, det *detect.BruteForceDetector
 		if err := sink.InsertEvent(ic, &e); err != nil {
 			return err // dikembalikan -> Nak -> redeliver
 		}
-		if alert := det.Inspect(&e); alert != nil {
+		for _, det := range detectors {
+			alert := det.Inspect(&e)
+			if alert == nil {
+				continue
+			}
 			if err := sink.InsertEvent(ic, alert); err != nil {
 				return err
 			}
-			log.Printf("worker: ALERT %s dari %s (rule=%s, %s)",
-				alert.DeusWatch.Label, alert.Source.IP, alert.Rule.ID, alert.Threat.Technique.ID)
+			log.Printf("worker: ALERT %s dari %s (rule=%s)",
+				alert.DeusWatch.Label, alertSourceIP(alert), ruleID(alert))
 		}
 		return nil
 	}
+}
+
+func alertSourceIP(e *ingest.Event) string {
+	if e.Source != nil {
+		return e.Source.IP
+	}
+	return "-"
+}
+
+func ruleID(e *ingest.Event) string {
+	if e.Rule != nil {
+		return e.Rule.ID
+	}
+	return "-"
 }

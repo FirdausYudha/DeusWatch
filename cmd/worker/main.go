@@ -34,9 +34,17 @@ func main() {
 	}
 	defer b.Close()
 
-	det := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig())
+	bruteForce := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig())
+
+	sigmaDir := getenv("RULES_DIR", "rules/sigma")
+	sigmaDet, err := detect.LoadSigmaDir(sigmaDir)
+	if err != nil {
+		log.Fatalf("worker: muat rule Sigma dari %q: %v", sigmaDir, err)
+	}
+	log.Printf("worker: %d rule Sigma dimuat dari %q", sigmaDet.RuleCount(), sigmaDir)
+
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
-		worker.Handler(ctx, st, det))
+		worker.Handler(ctx, st, bruteForce, sigmaDet))
 	if err != nil {
 		log.Fatalf("worker: consume: %v", err)
 	}
