@@ -21,6 +21,24 @@ function SeverityBadge({ sev }: { sev: number }) {
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${m.cls}`}>{m.label}</span>
 }
 
+const VERDICT_BADGE: Record<string, string> = {
+  malicious: 'text-rose-300 bg-rose-500/15',
+  suspicious: 'text-amber-300 bg-amber-500/15',
+  needs_review: 'text-sky-300 bg-sky-500/15',
+  benign: 'text-emerald-300 bg-emerald-500/15',
+}
+
+// LLMVerdict menampilkan vonis triase LLM (jika ada) dengan ringkasan di tooltip.
+function LLMVerdict({ a }: { a: EventRow }) {
+  if (!a.dw_llm_verdict) return <span className="text-slate-600">—</span>
+  const cls = VERDICT_BADGE[a.dw_llm_verdict] ?? 'text-slate-400 bg-slate-700/40'
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`} title={a.dw_llm_summary || undefined}>
+      {a.dw_llm_verdict}
+    </span>
+  )
+}
+
 // ThreatIntel menampilkan ringkasan enrichment CTI/GeoIP untuk satu alert.
 function ThreatIntel({ a }: { a: EventRow }) {
   const abuse = a.dw_enrichment_abuse_confidence
@@ -172,6 +190,7 @@ export default function Dashboard() {
                 <th className="px-4 py-2 font-medium">Rule</th>
                 <th className="px-4 py-2 font-medium">MITRE</th>
                 <th className="px-4 py-2 font-medium">Threat Intel</th>
+                <th className="px-4 py-2 font-medium">LLM</th>
                 <th className="px-4 py-2 font-medium">Severity</th>
               </tr>
             </thead>
@@ -184,12 +203,13 @@ export default function Dashboard() {
                     <td className="px-4 py-2 text-slate-300">{a.rule_name || a.dw_label}</td>
                     <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
                     <td className="px-4 py-2"><ThreatIntel a={a} /></td>
+                    <td className="px-4 py-2"><LLMVerdict a={a} /></td>
                     <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-600">
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-600">
                     {health?.api === 'down' ? 'API tak terjangkau — jalankan docker compose up' : 'Belum ada alert. Picu brute-force SSH untuk melihatnya di sini.'}
                   </td>
                 </tr>

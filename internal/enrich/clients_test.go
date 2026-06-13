@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"deuswatch/internal/blocklist"
 )
 
 func TestAbuseIPDBClientParses(t *testing.T) {
@@ -123,6 +125,52 @@ func TestCompositeAllSourcesFail(t *testing.T) {
 	cp := &CompositeProvider{Abuse: &AbuseIPDBClient{key: "x", base: srv.URL, hc: srv.Client()}}
 	if _, err := cp.Lookup(context.Background(), "8.8.8.8"); err == nil {
 		t.Fatal("semua sumber gagal harus mengembalikan error")
+	}
+}
+
+func TestCompositeBlocklistMarksMalicious(t *testing.T) {
+	bl := blocklist.NewSet()
+	bl.Replace([]string{"45.155.205.99", "185.220.0.0/16"})
+	cp := &CompositeProvider{Blocklist: bl}
+
+	ind, err := cp.Lookup(context.Background(), "185.220.5.5")
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if ind.AbuseConfidence != 100 || ind.FeedName != "blocklist" {
+		t.Fatalf("IP di blocklist harus abuse=100 feed=blocklist: %+v", ind)
+	}
+	// IP bersih tanpa sumber lain → kosong (bukan error).
+	clean, err := cp.Lookup(context.Background(), "8.8.8.8")
+	if err != nil {
+		t.Fatalf("Lookup bersih: %v", err)
+	}
+	if clean.AbuseConfidence != 0 {
+		t.Fatalf("IP bersih tak boleh ditandai: %+v", clean)
+	}
+}
+
+func TestCompositeBlocklistFloorsAbuse(t *testing.T) {
+	// AbuseIPDB skor rendah tak boleh menurunkan floor blocklist (100).
+	abuse := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"data":{"abuseConfidenceScore":5,"countryCode":"RU"}}`))
+	}))
+	defer abuse.Close()
+	bl := blocklist.NewSet()
+	bl.Replace([]string{"45.155.205.99"})
+	cp := &CompositeProvider{
+		Abuse:     &AbuseIPDBClient{key: "x", base: abuse.URL, hc: abuse.Client()},
+		Blocklist: bl,
+	}
+	ind, err := cp.Lookup(context.Background(), "45.155.205.99")
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if ind.AbuseConfidence != 100 {
+		t.Fatalf("floor blocklist harus dipertahankan, dapat %d", ind.AbuseConfidence)
+	}
+	if ind.CountryISO != "RU" {
+		t.Fatalf("country dari abuse harus tetap terisi: %+v", ind)
 	}
 }
 

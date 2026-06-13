@@ -19,6 +19,7 @@ import (
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/migrate"
 	"deuswatch/internal/mtls"
+	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
 	"deuswatch/migrations"
@@ -93,6 +94,7 @@ func main() {
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
+		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
 
 		// Response engine: approval workflow blokir (eksekusi via responder yang sama
 		// dengan worker — RESPONDER/RESPONSE_LIVE). Lihat internal/respond.
@@ -238,6 +240,26 @@ func statsHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, s)
+	}
+}
+
+func reportHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
+		if err != nil || hours <= 0 {
+			hours = 24
+		}
+		rep, err := st.BuildReport(r.Context(), hours)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if r.URL.Query().Get("format") == "md" {
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			_, _ = w.Write([]byte(report.RenderMarkdown(rep)))
+			return
+		}
+		writeJSON(w, http.StatusOK, rep)
 	}
 }
 

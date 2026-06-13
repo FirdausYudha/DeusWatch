@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"deuswatch/internal/blocklist"
 )
 
 const defaultHTTPTimeout = 8 * time.Second
@@ -152,9 +154,10 @@ func (c *GeoClient) Geo(ctx context.Context, ip string) (country, city string, e
 // CompositeProvider menjalankan sub-klien yang dikonfigurasi dan menggabungkan
 // hasilnya. Field nil dilewati.
 type CompositeProvider struct {
-	Abuse *AbuseIPDBClient
-	OTX   *OTXClient
-	Geo   *GeoClient
+	Abuse     *AbuseIPDBClient
+	OTX       *OTXClient
+	Geo       *GeoClient
+	Blocklist *blocklist.Set // daftar blokir komunitas (opsional)
 }
 
 // Lookup memenuhi Provider.
@@ -168,12 +171,20 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 		ok    bool
 		errs  []string
 	)
+	// Daftar blokir komunitas = sinyal malicious kuat (offline, tanpa API).
+	if p.Blocklist != nil && p.Blocklist.Contains(ip) {
+		ind.AbuseConfidence = 100
+		feeds, ok = append(feeds, "blocklist"), true
+	}
 	if p.Abuse != nil {
 		if score, country, err := p.Abuse.Check(ctx, ip); err != nil {
 			log.Printf("enrich: %v", err)
 			errs = append(errs, err.Error())
 		} else {
-			ind.AbuseConfidence, ind.CountryISO = score, country
+			if score > ind.AbuseConfidence { // jangan turunkan floor dari blocklist
+				ind.AbuseConfidence = score
+			}
+			ind.CountryISO = country
 			feeds, ok = append(feeds, "abuseipdb"), true
 		}
 	}
@@ -216,8 +227,9 @@ func ProviderFromEnv() (Provider, bool) {
 	abuseKey := os.Getenv("ABUSEIPDB_API_KEY")
 	otxKey := os.Getenv("OTX_API_KEY")
 	geoOn, _ := strconv.ParseBool(os.Getenv("GEOIP_ENABLED"))
+	blURLs := splitCSV(os.Getenv("BLOCKLIST_URLS"))
 
-	if abuseKey == "" && otxKey == "" && !geoOn {
+	if abuseKey == "" && otxKey == "" && !geoOn && len(blURLs) == 0 {
 		return NewDemoProvider(), false
 	}
 	cp := &CompositeProvider{}
@@ -230,5 +242,35 @@ func ProviderFromEnv() (Provider, bool) {
 	if geoOn {
 		cp.Geo = NewGeoClient()
 	}
+	if len(blURLs) > 0 {
+		if set, err := blocklist.Load(context.Background(), nil, blURLs); err != nil {
+			log.Printf("enrich: blocklist gagal dimuat: %v", err)
+		} else {
+			cp.Blocklist = set
+			log.Printf("enrich: blocklist komunitas dimuat (%d entri)", set.Len())
+			go blocklist.Refresh(context.Background(), nil, blURLs, blocklistRefresh(), set)
+		}
+	}
 	return cp, true
+}
+
+// splitCSV memecah string dipisah koma menjadi token non-kosong yang sudah di-trim.
+func splitCSV(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// blocklistRefresh membaca interval refresh blocklist (BLOCKLIST_REFRESH), default 6 jam.
+func blocklistRefresh() time.Duration {
+	if v := os.Getenv("BLOCKLIST_REFRESH"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 6 * time.Hour
 }

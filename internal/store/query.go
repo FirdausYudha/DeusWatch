@@ -33,6 +33,8 @@ type EventRow struct {
 	OTXPulseCount   *int   `json:"dw_enrichment_otx_pulse_count"`
 	EnrichStatus    string `json:"dw_enrichment_status"`
 	EscalatedBy     string `json:"dw_severity_escalated_by"`
+	LLMVerdict      string `json:"dw_llm_verdict"`
+	LLMSummary      string `json:"dw_llm_summary"`
 }
 
 const selectCols = `
@@ -45,7 +47,8 @@ const selectCols = `
 	COALESCE(dw_label,''), COALESCE(event_original,''),
 	COALESCE(source_geo_country_iso,''), COALESCE(source_geo_city,''), COALESCE(threat_feed_name,''),
 	dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count,
-	COALESCE(dw_enrichment_status,''), COALESCE(dw_severity_escalated_by,'')`
+	COALESCE(dw_enrichment_status,''), COALESCE(dw_severity_escalated_by,''),
+	COALESCE(dw_llm_verdict,''), COALESCE(dw_llm_summary,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -58,6 +61,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.TechniqueID, &e.TacticName, &e.Label, &e.Original,
 			&e.GeoCountry, &e.GeoCity, &e.FeedName,
 			&e.AbuseConfidence, &e.OTXPulseCount, &e.EnrichStatus, &e.EscalatedBy,
+			&e.LLMVerdict, &e.LLMSummary,
 		); err != nil {
 			return nil, err
 		}

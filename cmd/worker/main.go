@@ -16,6 +16,7 @@ import (
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/enrich"
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/llm"
 	"deuswatch/internal/notify"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
@@ -24,6 +25,9 @@ import (
 
 // aggInterval: seberapa sering runner agregasi (jalur SQL Sigma) memindai events.
 const aggInterval = 30 * time.Second
+
+// llmInterval: seberapa sering worker LLM menganalisis alert yang belum bervonis.
+const llmInterval = 20 * time.Second
 
 func main() {
 	natsURL := getenv("NATS_URL", "nats://localhost:4222")
@@ -104,6 +108,14 @@ func main() {
 		go runAggregation(ctx, aggRunner, st, onAlert)
 	}
 
+	// Worker LLM (Fase 3): triase alert -> vonis + ringkasan (deuswatch.llm.*).
+	if analyzer, ok := llm.AnalyzerFromEnv(); ok {
+		log.Printf("worker: LLM analyzer aktif (%s)", analyzer.Name())
+		go runLLM(ctx, st, analyzer)
+	} else {
+		log.Printf("worker: LLM analyzer nonaktif (set ANTHROPIC_API_KEY atau LLM_ENABLED=1)")
+	}
+
 	log.Printf("DeusWatch worker (detect) siap — mengonsumsi %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
 	log.Println("worker: shutdown")
@@ -156,6 +168,43 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				if onAlert != nil {
 					onAlert(rc, a)
 				}
+			}
+			cancel()
+		}
+	}
+}
+
+// runLLM mem-poll alert tanpa vonis LLM lalu menganalisis & menyimpan vonisnya.
+func runLLM(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
+	t := time.NewTicker(llmInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			rc, cancel := context.WithTimeout(ctx, 30*time.Second)
+			alerts, err := st.AlertsForLLM(rc, 10)
+			if err != nil {
+				log.Printf("worker: ambil alert LLM: %v", err)
+				cancel()
+				continue
+			}
+			for _, a := range alerts {
+				res, err := analyzer.Analyze(rc, llm.AlertInput{
+					Rule: a.RuleName, Severity: ingest.Severity(a.Severity), SourceIP: a.SourceIP,
+					Technique: a.Technique, Tactic: a.Tactic, Label: a.Label, Original: a.Original,
+					Country: a.Country, AbuseConfidence: a.AbuseConfidence, OTXPulseCount: a.OTXPulseCount,
+				})
+				if err != nil {
+					log.Printf("worker: analisis LLM %s gagal: %v", a.ID, err)
+					continue
+				}
+				if err := st.SetLLMVerdict(rc, a.ID, string(res.Verdict), res.Summary); err != nil {
+					log.Printf("worker: simpan vonis LLM %s: %v", a.ID, err)
+					continue
+				}
+				log.Printf("worker: LLM %s -> %s", a.ID, res.Verdict)
 			}
 			cancel()
 		}

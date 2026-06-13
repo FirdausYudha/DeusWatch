@@ -68,6 +68,8 @@ export type EventRow = {
   dw_enrichment_otx_pulse_count: number | null
   dw_enrichment_status: string
   dw_severity_escalated_by: string
+  dw_llm_verdict: string
+  dw_llm_summary: string
 }
 
 export type IPCount = { ip: string; count: number }

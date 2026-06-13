@@ -104,6 +104,12 @@ services:
       ABUSEIPDB_API_KEY: "${ABUSEIPDB_API_KEY:-}"
       OTX_API_KEY: "${OTX_API_KEY:-}"
       GEOIP_ENABLED: "${GEOIP_ENABLED:-0}"
+      # Community blocklist (opsional): URL feed IP/CIDR dipisah koma.
+      BLOCKLIST_URLS: "${BLOCKLIST_URLS:-}"
+      # Worker LLM (Fase 3): ANTHROPIC_API_KEY -> Claude; LLM_ENABLED=1 -> heuristik.
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      ANTHROPIC_MODEL: "${ANTHROPIC_MODEL:-claude-opus-4-8}"
+      LLM_ENABLED: "${LLM_ENABLED:-0}"
       # Response engine (opsional): dryrun default; set RESPONDER + RESPONSE_LIVE=1 utk nyata.
       RESPONDER: "${RESPONDER:-dryrun}"
       RESPONSE_LIVE: "${RESPONSE_LIVE:-0}"
