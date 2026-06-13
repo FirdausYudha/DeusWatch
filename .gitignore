@@ -30,6 +30,8 @@ web/.vite/
 deploy/certs/*
 !deploy/certs/.gitkeep
 !deploy/certs/*.sh
+!deploy/certs/*.ps1
+!deploy/certs/README.md
 .env
 .env.*
 !.env.example
