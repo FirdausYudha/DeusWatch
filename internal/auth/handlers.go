@@ -200,14 +200,17 @@ func (s *Store) Disable2FAHandler() http.HandlerFunc {
 	}
 }
 
-// MeHandler mengembalikan identitas user terautentikasi saat ini.
-func MeHandler() http.HandlerFunc {
+// MeHandler mengembalikan identitas user terautentikasi saat ini + status 2FA.
+func (s *Store) MeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFrom(r.Context())
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"username": u.Username, "role": u.Role})
+		enabled, _ := s.HasTOTP(r.Context(), u.ID)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"username": u.Username, "role": u.Role, "twofa_enabled": enabled,
+		})
 	}
 }

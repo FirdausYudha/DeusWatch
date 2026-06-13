@@ -98,7 +98,10 @@ export const SEVERITY: Record<number, { label: string; cls: string }> = {
 
 const TOKEN_KEY = 'deuswatch_token'
 
-export type Me = { username: string; role: string }
+export type Me = { username: string; role: string; twofa_enabled?: boolean }
+
+// Dilempar saat password benar tetapi 2FA aktif dan kode belum/tidak valid.
+export class TwoFactorRequired extends Error {}
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
@@ -122,16 +125,47 @@ async function authFetch(url: string, init: RequestInit = {}): Promise<Response>
   return res
 }
 
-export async function login(username: string, password: string): Promise<Me> {
+export async function login(username: string, password: string, totp?: string): Promise<Me> {
   const res = await fetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, totp }),
   })
-  if (!res.ok) throw new Error('Username atau password salah')
+  if (res.status === 401) {
+    const text = await res.text()
+    if (text.includes('2fa_required')) throw new TwoFactorRequired()
+    throw new Error('Username atau password salah')
+  }
+  if (!res.ok) throw new Error(`login: HTTP ${res.status}`)
   const data = await res.json()
   setToken(data.token)
   return { username: data.username, role: data.role }
+}
+
+// ── 2FA (self-service) ────────────────────────────────────
+
+export async function setup2FA(): Promise<{ secret: string; otpauth_url: string }> {
+  const res = await authFetch('/api/2fa/setup', { method: 'POST' })
+  if (!res.ok) throw new Error(`2fa setup: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function enable2FA(secret: string, code: string): Promise<void> {
+  const res = await authFetch('/api/2fa/enable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret, code }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function disable2FA(code: string): Promise<void> {
+  const res = await authFetch('/api/2fa/disable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 export async function fetchMe(): Promise<Me> {

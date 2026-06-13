@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { login, type Me } from '../lib/api'
+import { login, TwoFactorRequired, type Me } from '../lib/api'
 
 export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [totp, setTotp] = useState('')
+  const [need2fa, setNeed2fa] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -12,9 +14,14 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
     setBusy(true)
     setError('')
     try {
-      onSuccess(await login(username, password))
+      onSuccess(await login(username, password, need2fa ? totp : undefined))
     } catch (err) {
-      setError((err as Error).message)
+      if (err instanceof TwoFactorRequired) {
+        setNeed2fa(true)
+        setError('')
+      } else {
+        setError((err as Error).message)
+      }
     } finally {
       setBusy(false)
     }
@@ -39,25 +46,37 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Username"
             autoFocus
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            disabled={need2fa}
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 disabled:opacity-60"
           />
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            disabled={need2fa}
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 disabled:opacity-60"
           />
+          {need2fa && (
+            <input
+              value={totp}
+              onChange={(e) => setTotp(e.target.value)}
+              placeholder="Kode 2FA (6 digit)"
+              inputMode="numeric"
+              autoFocus
+              className="w-full rounded-lg border border-indigo-700 bg-slate-800 px-3 py-2 text-sm tracking-widest outline-none focus:border-indigo-500"
+            />
+          )}
         </div>
 
         {error && <p className="text-sm text-rose-400">{error}</p>}
 
         <button
           type="submit"
-          disabled={busy || !username || !password}
+          disabled={busy || !username || !password || (need2fa && !totp)}
           className="w-full rounded-lg bg-indigo-500 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
         >
-          {busy ? 'Masuk…' : 'Masuk'}
+          {busy ? 'Masuk…' : need2fa ? 'Verifikasi' : 'Masuk'}
         </button>
       </form>
     </div>

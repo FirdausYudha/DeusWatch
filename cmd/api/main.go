@@ -55,7 +55,7 @@ func main() {
 		protect := func(p auth.Permission, h http.HandlerFunc) http.Handler {
 			return authStore.Middleware(auth.RequirePermission(p, h))
 		}
-		mux.Handle("/api/me", authStore.Middleware(auth.MeHandler()))
+		mux.Handle("/api/me", authStore.Middleware(authStore.MeHandler()))
 		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
 		mux.Handle("/api/users", protect(auth.PermManageUsers, authStore.UsersHandler()))
 

@@ -1,6 +1,6 @@
 import { logout, type Me } from '../lib/api'
 
-export type View = 'dashboard' | 'users'
+export type View = 'dashboard' | 'users' | 'settings'
 
 type NavItem = { id: string; label: string; icon: string; view?: View; adminOnly?: boolean }
 
@@ -10,7 +10,7 @@ const NAV: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: '▤' },
   { id: 'rules', label: 'Rules', icon: '⌘' },
   { id: 'users', label: 'Users', icon: '◉', view: 'users', adminOnly: true },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
+  { id: 'settings', label: 'Settings', icon: '⚙', view: 'settings' },
 ]
 
 export default function Sidebar({
