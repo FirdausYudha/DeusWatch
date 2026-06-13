@@ -46,7 +46,7 @@ func TestPipelineEndToEnd(t *testing.T) {
 	durable := fmt.Sprintf("test-pipeline-%d", nonce)
 
 	det := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig()) // threshold 5
-	stop, err := b.Consume(ctx, bus.StreamLogs, durable, bus.SubjectLogsNormalized, Handler(ctx, st, nil, det))
+	stop, err := b.Consume(ctx, bus.StreamLogs, durable, bus.SubjectLogsNormalized, Handler(ctx, st, nil, nil, det))
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
 	}

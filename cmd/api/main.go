@@ -18,6 +18,7 @@ import (
 	"deuswatch/internal/auth"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/mtls"
+	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
 )
 
@@ -80,6 +81,14 @@ func main() {
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
+
+		// Response engine: approval workflow blokir (eksekusi via responder yang sama
+		// dengan worker — RESPONDER/RESPONSE_LIVE). Lihat internal/respond.
+		respStore := respond.NewStore(st.Pool())
+		respEngine := respond.NewEngine(respStore, respond.ResponderFromEnv(), respond.DefaultBanPolicy(), false)
+		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
+		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
+		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
 	} else {
 		// Tanpa DB: endpoint membalas 503.
 		mux.HandleFunc("/api/events", eventsHandler(nil))
@@ -218,6 +227,46 @@ func statsHandler(st *store.Store) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, s)
 	}
+}
+
+func responsesHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		list, err := s.List(r.Context(), r.URL.Query().Get("status"), queryLimit(r, 100, 500))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	}
+}
+
+func approveResponseHandler(e *respond.Engine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := e.Approve(r.Context(), id, currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "approved", "id": id})
+	}
+}
+
+func dismissResponseHandler(e *respond.Engine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := e.Dismiss(r.Context(), id, currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "dismissed", "id": id})
+	}
+}
+
+func currentUsername(r *http.Request) string {
+	if u, ok := auth.UserFrom(r.Context()); ok {
+		return u.Username
+	}
+	return ""
 }
 
 func queryLimit(r *http.Request, def, max int) int {

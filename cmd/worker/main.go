@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/enrich"
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
 	"deuswatch/internal/worker"
 )
@@ -68,15 +70,27 @@ func main() {
 	}
 	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), enrich.DefaultTTL, enrich.EscalationFromEnv())
 
+	// Response engine (Fase 2): rekomendasi blokir + approval + ban progresif.
+	// Responder dipilih via RESPONDER (default dry-run); RESPONSE_AUTO_APPROVE=1
+	// mengeksekusi tanpa approval manual.
+	var engine *respond.Engine
+	if responder := respond.ResponderFromEnv(); responder != nil {
+		autoApprove, _ := strconv.ParseBool(os.Getenv("RESPONSE_AUTO_APPROVE"))
+		engine = respond.NewEngine(respond.NewStore(st.Pool()), responder, respond.DefaultBanPolicy(), autoApprove)
+		log.Printf("worker: response engine aktif (responder=%s, auto_approve=%v)", responder.Name(), autoApprove)
+	} else {
+		log.Printf("worker: response engine nonaktif (RESPONDER=none)")
+	}
+
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
-		worker.Handler(ctx, st, enricher, bruteForce, sigmaDet))
+		worker.Handler(ctx, st, enricher, engine, bruteForce, sigmaDet))
 	if err != nil {
 		log.Fatalf("worker: consume: %v", err)
 	}
 	defer stop()
 
 	if aggRunner.RuleCount() > 0 {
-		go runAggregation(ctx, aggRunner, st)
+		go runAggregation(ctx, aggRunner, st, engine)
 	}
 
 	log.Printf("DeusWatch worker (detect) siap — mengonsumsi %q", bus.SubjectLogsNormalized)
@@ -88,7 +102,7 @@ func main() {
 // yang terpicu. Berhenti saat ctx dibatalkan.
 func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink interface {
 	InsertEvent(context.Context, *ingest.Event) error
-}) {
+}, engine *respond.Engine) {
 	t := time.NewTicker(aggInterval)
 	defer t.Stop()
 	for {
@@ -108,6 +122,11 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				}
 				log.Printf("worker: ALERT(agg) %s rule=%s grup=%s",
 					a.DeusWatch.Label, a.Rule.ID, aggGroup(a))
+				if engine != nil {
+					if _, err := engine.Recommend(rc, a); err != nil {
+						log.Printf("worker: rekomendasi respons (agg) gagal: %v", err)
+					}
+				}
 			}
 			cancel()
 		}

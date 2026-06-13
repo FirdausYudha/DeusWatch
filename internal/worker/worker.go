@@ -12,6 +12,7 @@ import (
 	"deuswatch/internal/detect"
 	"deuswatch/internal/enrich"
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/respond"
 )
 
 // EventSink menulis event DCS (dipenuhi oleh *store.Store).
@@ -20,9 +21,10 @@ type EventSink interface {
 }
 
 // Handler mengembalikan bus.Handler untuk subject logs.normalized: enrich event
-// (bila enricher disetel), persist, jalankan detektor, persist alert yang terpicu.
-// enricher boleh nil (lewati enrichment).
-func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, detectors ...detect.Detector) bus.Handler {
+// (bila enricher disetel), persist, jalankan detektor, persist alert yang terpicu,
+// dan (bila engine disetel) buat rekomendasi respons untuk tiap alert.
+// enricher & engine boleh nil (lewati tahap itu).
+func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, engine *respond.Engine, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -55,6 +57,11 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, det
 			}
 			log.Printf("worker: ALERT %s dari %s (rule=%s)",
 				alert.DeusWatch.Label, alertSourceIP(alert), ruleID(alert))
+			if engine != nil {
+				if _, err := engine.Recommend(ic, alert); err != nil {
+					log.Printf("worker: rekomendasi respons gagal: %v", err)
+				}
+			}
 		}
 		return nil
 	}
