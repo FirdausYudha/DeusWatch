@@ -57,6 +57,7 @@ func main() {
 		}
 		mux.Handle("/api/me", authStore.Middleware(auth.MeHandler()))
 		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
+		mux.Handle("/api/users", protect(auth.PermManageUsers, authStore.UsersHandler()))
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))

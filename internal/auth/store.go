@@ -33,6 +33,36 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 // dummyHash dipakai untuk menyamakan waktu saat username tidak ditemukan.
 var dummyHash, _ = HashPassword("deuswatch-timing-equalizer")
 
+// UserInfo adalah ringkasan user untuk API (tanpa hash password).
+type UserInfo struct {
+	ID        string    `json:"id"`
+	Username  string    `json:"username"`
+	Role      Role      `json:"role"`
+	Disabled  bool      `json:"disabled"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ListUsers mengembalikan semua user (tanpa hash), terurut waktu buat.
+func (s *Store) ListUsers(ctx context.Context) ([]UserInfo, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, username, role, disabled, created_at FROM users ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list users: %w", err)
+	}
+	defer rows.Close()
+	out := make([]UserInfo, 0, 8)
+	for rows.Next() {
+		var u UserInfo
+		var roleStr string
+		if err := rows.Scan(&u.ID, &u.Username, &roleStr, &u.Disabled, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		u.Role = Role(roleStr)
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 // UserCount mengembalikan jumlah user.
 func (s *Store) UserCount(ctx context.Context) (int64, error) {
 	var n int64

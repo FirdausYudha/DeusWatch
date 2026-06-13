@@ -53,6 +53,66 @@ func (s *Store) LogoutHandler() http.HandlerFunc {
 	}
 }
 
+// UsersHandler: GET = daftar user, POST = buat user. WAJIB dibungkus
+// Middleware + RequirePermission(PermManageUsers) — hanya admin.
+func (s *Store) UsersHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			users, err := s.ListUsers(r.Context())
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, users)
+
+		case http.MethodPost:
+			var req struct {
+				Username string `json:"username"`
+				Password string `json:"password"`
+				Role     string `json:"role"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "body tidak valid", http.StatusBadRequest)
+				return
+			}
+			role, err := ParseRole(req.Role)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if len(req.Username) < 3 || len(req.Password) < 8 {
+				http.Error(w, "username minimal 3 & password minimal 8 karakter", http.StatusBadRequest)
+				return
+			}
+			if err := s.CreateUser(r.Context(), req.Username, req.Password, role); err != nil {
+				http.Error(w, "gagal membuat user (username sudah dipakai?)", http.StatusBadRequest)
+				return
+			}
+			actor, _ := UserFrom(r.Context())
+			s.Audit(r.Context(), actorName(actor), actorRole(actor), "create_user", req.Username, "role="+req.Role, ClientIP(r))
+			writeJSON(w, http.StatusCreated, map[string]string{"username": req.Username, "role": req.Role})
+
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+func actorName(u *User) string {
+	if u != nil {
+		return u.Username
+	}
+	return "unknown"
+}
+
+func actorRole(u *User) string {
+	if u != nil {
+		return string(u.Role)
+	}
+	return ""
+}
+
 // MeHandler mengembalikan identitas user terautentikasi saat ini.
 func MeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
