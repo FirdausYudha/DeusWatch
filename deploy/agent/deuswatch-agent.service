@@ -1,0 +1,22 @@
+[Unit]
+Description=DeusWatch Agent
+Documentation=https://github.com/FirdausYudha/DeusWatch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/deuswatch/agent.env
+ExecStart=/usr/local/bin/deuswatch-agent
+Restart=always
+RestartSec=5
+# Baca /var/log secara read-only tanpa root penuh (hardening).
+DynamicUser=yes
+SupplementaryGroups=adm systemd-journal
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/deuswatch
+
+[Install]
+WantedBy=multi-user.target
