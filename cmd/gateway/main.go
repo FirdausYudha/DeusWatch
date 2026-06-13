@@ -37,20 +37,24 @@ func main() {
 	}
 	defer b.Close()
 
-	// Cek revocation agent (opsional): butuh akses DB.
+	// Revocation + config push (opsional): butuh akses DB.
 	var revoked gateway.RevokedFunc
+	var cfgFunc gateway.ConfigFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
-			log.Printf("gateway: store tak tersedia — cek revocation nonaktif: %v", err)
+			log.Printf("gateway: store tak tersedia — revocation & config push nonaktif: %v", err)
 		} else {
 			defer st.Close()
-			revoked = enroll.NewStore(st.Pool(), nil).IsRevoked
-			log.Printf("gateway: cek revocation agent aktif")
+			es := enroll.NewStore(st.Pool(), nil)
+			revoked = es.IsRevoked
+			cfgFunc = es.GetConfigByName
+			log.Printf("gateway: revocation & config push aktif")
 		}
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
+	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))

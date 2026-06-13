@@ -22,6 +22,39 @@ type Publisher interface {
 // RevokedFunc melaporkan apakah agent (by CN sertifikat) sudah dicabut. nil = skip.
 type RevokedFunc func(ctx context.Context, agentName string) (bool, error)
 
+// ConfigFunc mengembalikan JSON config push untuk agent (by CN). nil/len 0 = belum ada.
+type ConfigFunc func(ctx context.Context, agentName string) ([]byte, error)
+
+// ConfigHandler menyajikan config push milik agent (diidentifikasi dari CN
+// sertifikat mTLS). 204 bila belum ada config.
+func ConfigHandler(cfg ConfigFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if cfg == nil {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		var cn string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			cn = r.TLS.PeerCertificates[0].Subject.CommonName
+		}
+		if cn == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		raw, err := cfg(r.Context(), cn)
+		if err != nil {
+			http.Error(w, "gagal ambil config", http.StatusInternalServerError)
+			return
+		}
+		if len(raw) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(raw)
+	}
+}
+
 // LogsHandler menerima batch RawLog (JSON array) dari agent, menormalkan tiap
 // entri ke DCS, dan menerbitkannya ke logs.normalized. Identitas agent diambil
 // dari Common Name sertifikat client (lebih tepercaya daripada nilai kiriman).

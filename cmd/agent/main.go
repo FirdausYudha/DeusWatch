@@ -58,10 +58,21 @@ func main() {
 		log.Fatalf("agent: shipper (sertifikat di %q?): %v", certDir, err)
 	}
 
+	// Sumber: config push dari manager bila ada, selain itu default per-OS / LOG_FILE.
 	sources := resolveSources()
+	var configVersion int
+	if cfg, err := shipper.FetchConfig(ctx); err != nil {
+		log.Printf("agent: gagal ambil config push (pakai default): %v", err)
+	} else if cfg != nil && len(cfg.Sources) > 0 {
+		sources, configVersion = cfg.Sources, cfg.Version
+		log.Printf("agent: config push v%d diterapkan dari manager", cfg.Version)
+	}
 	if len(sources) == 0 {
 		log.Fatalf("agent: tidak ada source log — set LOG_FILE atau jalankan di OS yang didukung")
 	}
+
+	// Pantau perubahan config; versi baru -> shutdown agar service-manager restart & terapkan.
+	go watchConfig(ctx, shipper, configVersion, stopSignals)
 
 	lines := make(chan agent.Line, 256)
 	go func() {
@@ -117,6 +128,29 @@ func resolveSources() []agent.Source {
 		return []agent.Source{{Dataset: getenv("DATASET", "file"), Type: "file", Path: lf}}
 	}
 	return agent.DefaultSources()
+}
+
+// watchConfig mem-poll config push; bila versi naik, memicu shutdown agar
+// service-manager me-restart agent dengan config baru (apply atomik sederhana).
+func watchConfig(ctx context.Context, shipper *agent.Shipper, current int, stop func()) {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			cfg, err := shipper.FetchConfig(ctx)
+			if err != nil || cfg == nil {
+				continue
+			}
+			if cfg.Version > current {
+				log.Printf("agent: config baru v%d terdeteksi — restart untuk menerapkan", cfg.Version)
+				stop()
+				return
+			}
+		}
+	}
 }
 
 // doEnroll menukar token enrollment menjadi sertifikat client unik dan

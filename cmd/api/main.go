@@ -75,6 +75,7 @@ func main() {
 			mux.Handle("/api/agents/tokens", protect(auth.PermManageAgents, enrollStore.TokenHandler()))
 			mux.Handle("/api/agents", protect(auth.PermViewDashboard, enrollStore.AgentsHandler()))
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
+			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
 		}
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))

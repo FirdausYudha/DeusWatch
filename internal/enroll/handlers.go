@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"deuswatch/internal/agent"
 )
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -67,6 +69,40 @@ func (s *Store) AgentsHandler() http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, agents)
+	}
+}
+
+// SetConfigHandler (admin): menetapkan desired sources untuk agent (config push).
+func (s *Store) SetConfigHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			http.Error(w, "id wajib", http.StatusBadRequest)
+			return
+		}
+		var req struct {
+			Sources []agent.Source `json:"sources"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			return
+		}
+		if len(req.Sources) == 0 {
+			http.Error(w, "sources tidak boleh kosong", http.StatusBadRequest)
+			return
+		}
+		for _, src := range req.Sources {
+			if src.Dataset == "" || src.Type == "" {
+				http.Error(w, "tiap source wajib punya dataset & type", http.StatusBadRequest)
+				return
+			}
+		}
+		version, err := s.SetConfig(r.Context(), id, req.Sources)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "version": version})
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"deuswatch/internal/agent"
 	"deuswatch/internal/mtls"
 )
 
@@ -173,6 +175,46 @@ func (s *Store) IsRevoked(ctx context.Context, name string) (bool, error) {
 func (s *Store) MarkSeen(ctx context.Context, name string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
 	return err
+}
+
+// SetConfig menetapkan desired sources untuk agent (config push) dan menaikkan
+// versi. Mengembalikan versi baru.
+func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source) (int, error) {
+	var raw *string
+	err := s.pool.QueryRow(ctx, `SELECT config FROM agents WHERE id = $1`, id).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("enroll: agent tidak ditemukan")
+	}
+	if err != nil {
+		return 0, fmt.Errorf("enroll: baca config: %w", err)
+	}
+	var cur agent.Config
+	if raw != nil {
+		_ = json.Unmarshal([]byte(*raw), &cur)
+	}
+	cfg := agent.Config{Version: cur.Version + 1, Sources: sources}
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE agents SET config = $1 WHERE id = $2`, b, id); err != nil {
+		return 0, fmt.Errorf("enroll: simpan config: %w", err)
+	}
+	return cfg.Version, nil
+}
+
+// GetConfigByName mengembalikan JSON config untuk agent ber-CN name (nil bila
+// belum ditetapkan atau agent dicabut).
+func (s *Store) GetConfigByName(ctx context.Context, name string) ([]byte, error) {
+	var raw *string
+	err := s.pool.QueryRow(ctx, `SELECT config FROM agents WHERE name = $1 AND NOT revoked`, name).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) || raw == nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return []byte(*raw), nil
 }
 
 func nilIfEmpty(s string) any {
