@@ -25,6 +25,19 @@ type RevokedFunc func(ctx context.Context, agentName string) (bool, error)
 // ConfigFunc mengembalikan JSON config push untuk agent (by CN). nil/len 0 = belum ada.
 type ConfigFunc func(ctx context.Context, agentName string) ([]byte, error)
 
+// SeenFunc menandai agent (by CN) baru saja terlihat (heartbeat). nil = skip.
+type SeenFunc func(ctx context.Context, agentName string) error
+
+// HeartbeatHandler menandai last_seen agent (diidentifikasi dari CN mTLS).
+func HeartbeatHandler(seen SeenFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && seen != nil {
+			_ = seen(r.Context(), r.TLS.PeerCertificates[0].Subject.CommonName)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // ConfigHandler menyajikan config push milik agent (diidentifikasi dari CN
 // sertifikat mTLS). 204 bila belum ada config.
 func ConfigHandler(cfg ConfigFunc) http.HandlerFunc {

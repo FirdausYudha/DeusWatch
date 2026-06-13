@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -58,6 +59,11 @@ func main() {
 		log.Fatalf("agent: shipper (sertifikat di %q?): %v", certDir, err)
 	}
 
+	buf, err := agent.NewBuffer(getenv("BUFFER_DIR", "agent-buffer"), 1000)
+	if err != nil {
+		log.Fatalf("agent: buffer: %v", err)
+	}
+
 	// Sumber: config push dari manager bila ada, selain itu default per-OS / LOG_FILE.
 	sources := resolveSources()
 	var configVersion int
@@ -73,6 +79,9 @@ func main() {
 
 	// Pantau perubahan config; versi baru -> shutdown agar service-manager restart & terapkan.
 	go watchConfig(ctx, shipper, configVersion, stopSignals)
+	// Kirim ulang batch yang ter-buffer (store-and-forward) + heartbeat.
+	go drainBuffer(ctx, shipper, buf)
+	go heartbeatLoop(ctx, shipper)
 
 	lines := make(chan agent.Line, 256)
 	go func() {
@@ -90,10 +99,16 @@ func main() {
 		if len(batch) == 0 {
 			return
 		}
-		if err := shipper.Send(ctx, batch); err != nil {
-			log.Printf("agent: gagal kirim %d baris: %v", len(batch), err)
-		} else {
-			log.Printf("agent: terkirim %d baris", len(batch))
+		if body, err := json.Marshal(batch); err == nil {
+			if serr := shipper.SendRaw(ctx, body); serr != nil {
+				if berr := buf.Save(body); berr == nil {
+					log.Printf("agent: manager offline — %d baris di-buffer (%v)", len(batch), serr)
+				} else {
+					log.Printf("agent: gagal kirim & buffer: %v / %v", serr, berr)
+				}
+			} else {
+				log.Printf("agent: terkirim %d baris", len(batch))
+			}
 		}
 		batch = batch[:0]
 	}
@@ -148,6 +163,51 @@ func watchConfig(ctx context.Context, shipper *agent.Shipper, current int, stop 
 				log.Printf("agent: config baru v%d terdeteksi — restart untuk menerapkan", cfg.Version)
 				stop()
 				return
+			}
+		}
+	}
+}
+
+// drainBuffer mengirim ulang batch yang ter-buffer di disk saat manager kembali online.
+func drainBuffer(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer) {
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			files, err := buf.Pending()
+			if err != nil {
+				continue
+			}
+			for _, f := range files {
+				body, rerr := os.ReadFile(f)
+				if rerr != nil {
+					_ = buf.Remove(f)
+					continue
+				}
+				if serr := shipper.SendRaw(ctx, body); serr != nil {
+					break // manager masih offline; coba lagi nanti
+				}
+				_ = buf.Remove(f)
+				log.Printf("agent: buffer terkirim ulang (%s)", filepath.Base(f))
+			}
+		}
+	}
+}
+
+// heartbeatLoop mengirim heartbeat berkala ke manager.
+func heartbeatLoop(ctx context.Context, shipper *agent.Shipper) {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := shipper.Heartbeat(ctx); err != nil {
+				log.Printf("agent: heartbeat gagal: %v", err)
 			}
 		}
 	}

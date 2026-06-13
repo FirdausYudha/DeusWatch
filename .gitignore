@@ -41,6 +41,9 @@ deploy/certs/*
 *.db
 *.sqlite
 
+# ── Buffer store-and-forward agent ────────────────────────
+/agent-buffer/
+
 # ── Editor / OS ───────────────────────────────────────────
 .DS_Store
 Thumbs.db
