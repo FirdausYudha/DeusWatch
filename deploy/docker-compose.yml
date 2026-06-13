@@ -7,8 +7,7 @@ name: deuswatch
 
 services:
   db:
-    # TODO(fondasi): pin ke versi eksak sebelum rilis (mis. 2.17.2-pg16).
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:2.17.2-pg16
     environment:
       POSTGRES_USER: deuswatch
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deuswatch_dev}
@@ -25,7 +24,7 @@ services:
     restart: unless-stopped
 
   nats:
-    image: nats:2.10-alpine
+    image: nats:2.10.22-alpine
     # -js: aktifkan JetStream, -sd: direktori penyimpanan, -m: port monitoring (healthz).
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
@@ -43,7 +42,9 @@ services:
   api:
     build:
       context: ..
-      dockerfile: deploy/Dockerfile.api
+      dockerfile: deploy/Dockerfile
+      args:
+        CMD: api
     environment:
       HTTP_ADDR: ":8080"
       POSTGRES_ADDR: "db:5432"
@@ -58,6 +59,55 @@ services:
       - ./certs:/certs:ro
     ports:
       - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Ingest gateway (mTLS). Butuh sertifikat server di ./certs (jalankan certgen).
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        CMD: gateway
+    environment:
+      GATEWAY_ADDR: ":8443"
+      CERT_DIR: "/certs"
+      NATS_URL: "nats://nats:4222"
+      STORE_DSN: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "8443:8443"
+    depends_on:
+      db:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Worker deteksi: enrich + Sigma (single-event & agregasi) + response engine.
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        CMD: worker
+    environment:
+      NATS_URL: "nats://nats:4222"
+      STORE_DSN: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
+      RULES_DIR: "/rules/sigma"
+      # Enrichment CTI nyata (opsional): set kunci API & GeoIP.
+      ABUSEIPDB_API_KEY: "${ABUSEIPDB_API_KEY:-}"
+      OTX_API_KEY: "${OTX_API_KEY:-}"
+      GEOIP_ENABLED: "${GEOIP_ENABLED:-0}"
+      # Response engine (opsional): dryrun default; set RESPONDER + RESPONSE_LIVE=1 utk nyata.
+      RESPONDER: "${RESPONDER:-dryrun}"
+      RESPONSE_LIVE: "${RESPONSE_LIVE:-0}"
+      RESPONSE_AUTO_APPROVE: "${RESPONSE_AUTO_APPROVE:-0}"
     depends_on:
       db:
         condition: service_healthy

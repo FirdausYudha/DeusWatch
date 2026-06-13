@@ -1,12 +1,12 @@
-# Perkecil build context Docker — hanya kode Go yang diperlukan.
+# Perkecil build context Docker — kode Go + aset yang dibutuhkan biner.
+# CATATAN: migrations/ WAJIB ada (disematkan via go:embed di package migrations);
+# rules/ dipakai image worker. Jangan kecualikan keduanya.
 .git/
 .github/
 .claude/
 web/
 docs/
 deploy/
-migrations/
-rules/
 *.md
 .env
 .env.*

@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go build, vet & test
+    runs-on: ubuntu-latest
+    # Layanan untuk tes integrasi (Postgres+TimescaleDB & NATS JetStream).
+    services:
+      db:
+        image: timescale/timescaledb:2.17.2-pg16
+        env:
+          POSTGRES_USER: deuswatch
+          POSTGRES_PASSWORD: deuswatch_dev
+          POSTGRES_DB: deuswatch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U deuswatch -d deuswatch"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+      nats:
+        image: nats:2.10.22-alpine
+        ports:
+          - 4222:4222
+    env:
+      STORE_DSN: postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable
+      DATABASE_URL: postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable
+      NATS_URL: nats://localhost:4222
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: go vet
+        run: go vet ./...
+      - name: build
+        run: go build ./...
+      - name: migrate (apply schema for integration tests)
+        run: go run ./cmd/migrate
+      - name: test
+        run: go test -race ./...
+
+  govulncheck:
+    name: Vulnerability scan (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
+
+  gosec:
+    name: Static security analysis (gosec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+        # Dikecualikan karena melekat pada domain alat ini (bukan kerentanan):
+        #   G204 jalankan nft/cscli/Get-WinEvent  G304 buka berkas log/konfig sesuai input
+        #   G301/G306 izin berkas cert/buffer      G706 log data operasional
+        #   G115 konversi int terbatas (severity 0..4, dst.)
+        # gosec tetap menjaga: kredensial hardcoded, SQLi, kripto lemah, dll.
+      - run: gosec -exclude-dir=web -exclude=G204,G304,G306,G301,G706,G115 ./...
+
+  web:
+    name: Web build & type-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build

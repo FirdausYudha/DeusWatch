@@ -107,7 +107,7 @@ func installService() error {
 	defer m.Disconnect()
 
 	if s, err := m.OpenService(serviceName); err == nil {
-		s.Close()
+		_ = s.Close()
 		return fmt.Errorf("service %q sudah terpasang", serviceName)
 	}
 

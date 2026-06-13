@@ -17,9 +17,11 @@ import (
 
 	"deuswatch/internal/auth"
 	"deuswatch/internal/enroll"
+	"deuswatch/internal/migrate"
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
+	"deuswatch/migrations"
 )
 
 const version = "0.1.0-foundation"
@@ -38,6 +40,16 @@ func main() {
 			st = s
 			defer s.Close()
 			log.Printf("api: store tersambung")
+			// Runner migrasi otomatis (idempotent) — kecuali RUN_MIGRATIONS=0.
+			if run, _ := strconv.ParseBool(getenv("RUN_MIGRATIONS", "1")); run {
+				if n, merr := migrate.Apply(ctx, s.Pool(), migrations.FS); merr != nil {
+					log.Printf("api: migrasi gagal: %v", merr)
+				} else if n > 0 {
+					log.Printf("api: %d migrasi diterapkan", n)
+				} else {
+					log.Printf("api: skema database mutakhir")
+				}
+			}
 		}
 		cancel()
 	}

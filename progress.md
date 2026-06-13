@@ -41,19 +41,16 @@ Total ~26 test (unit + integrasi + e2e) lulus. Keputusan Sigma: [docs/adr/0001-s
 git clone https://github.com/FirdausYudha/DeusWatch.git
 cd DeusWatch
 
-# 1. Nyalakan infra (db + nats + api)
+# 1. Nyalakan stack penuh (db + nats + api + gateway + worker)
 docker compose -f deploy/docker-compose.yml up -d --build
 
-# 2. Terapkan SEMUA migrasi (BELUM ada runner otomatis — jalankan manual, urut)
-for f in migrations/0000{1,2,3,4,5,6}_*.up.sql; do
-  docker compose -f deploy/docker-compose.yml exec -T db \
-    psql -U deuswatch -d deuswatch -v ON_ERROR_STOP=1 < "$f"
-done
-# (PowerShell: Get-Content -Raw <file> | docker compose ... exec -T db psql ... )
+# 2. Migrasi OTOMATIS saat api start (runner in-house, idempotent).
+#    Manual bila perlu: DATABASE_URL=... go run ./cmd/migrate
+#    Nonaktifkan auto: RUN_MIGRATIONS=0
 
 # 3. Generate sertifikat mTLS (dibutuhkan gateway/agent + enrollment di api)
 go run ./cmd/certgen --out deploy/certs
-docker compose -f deploy/docker-compose.yml restart api   # agar api memuat CA
+docker compose -f deploy/docker-compose.yml restart api gateway   # agar memuat CA/cert
 
 # 4. Web UI
 cd web && npm install && npm run dev      # http://localhost:5173
@@ -61,10 +58,11 @@ cd web && npm install && npm run dev      # http://localhost:5173
 
 **Login dev:** `admin` / `deuswatch-admin` (di-seed otomatis; ganti via env `ADMIN_PASSWORD`).
 
-## Menjalankan pipeline penuh (gateway + worker + agent lokal)
+## Menjalankan pipeline penuh (agent lokal)
 
-gateway/worker/agent **belum** di docker-compose — jalankan sebagai biner lokal.
-Set env lalu jalankan (contoh PowerShell di `bin/`):
+gateway/worker kini **sudah di docker-compose** (langkah 1 menyalakannya). Hanya
+**agent** yang dijalankan di endpoint terpisah. Untuk menjalankan biner secara lokal
+(dev), set env lalu jalankan (contoh PowerShell di `bin/`):
 
 ```
 NATS_URL=nats://localhost:4222
@@ -88,7 +86,9 @@ Install agent: `deploy/agent/` (systemd `install-linux.sh`, Windows `install-win
 
 ## Catatan/gotcha penting
 
-- **Migrasi manual** — belum ada runner (golang-migrate belum diwire). DB fresh wajib jalankan 6 migrasi.
+- **Migrasi otomatis** — runner in-house (`internal/migrate` + embed di package `migrations`); api menerapkannya saat start (idempotent). Standalone: `cmd/migrate`. `RUN_MIGRATIONS=0` untuk nonaktif.
+- **Image di-pin**: timescaledb `2.17.2-pg16`, nats `2.10.22-alpine`. Mengubah pin pada volume lama yang dibuat versi lain bisa bentrok — pakai volume fresh.
+- **CI**: `.github/workflows/ci.yml` (vet/build/test dgn services pg+nats, govulncheck, gosec, web tsc+build). gosec mengecualikan rule yang melekat domain (lihat workflow).
 - **Response engine**: `RESPONDER=dryrun|nftables|crowdsec|mikrotik|none` (default dryrun). nftables/crowdsec/mikrotik DIBUNGKUS dry-run kecuali `RESPONSE_LIVE=1`. `RESPONSE_AUTO_APPROVE=1` eksekusi tanpa approval. Approve/dismiss via `POST /api/responses/{id}/approve|dismiss`.
 - **Enrichment CTI nyata**: set `ABUSEIPDB_API_KEY` / `OTX_API_KEY` / `GEOIP_ENABLED=1` di env worker (tanpa itu pakai provider mock). Ambang eskalasi: `ABUSE_ESCALATE_THRESHOLD` (default 90), `OTX_ESCALATE_THRESHOLD` (default 5).
 - **bin/ & dist/ & deploy/certs/ di-gitignore** — rebuild biner & regen cert di PC baru.
