@@ -148,3 +148,30 @@ export async function logout(): Promise<void> {
   }
   clearToken()
 }
+
+// ── Manajemen user (admin) ────────────────────────────────
+
+export type UserInfo = {
+  id: string
+  username: string
+  role: string
+  disabled: boolean
+  created_at: string
+}
+
+export async function fetchUsers(): Promise<UserInfo[]> {
+  const res = await authFetch('/api/users')
+  if (!res.ok) throw new Error(`users: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function createUser(username: string, password: string, role: string): Promise<void> {
+  const res = await authFetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password, role }),
+  })
+  if (!res.ok) {
+    throw new Error((await res.text()) || `HTTP ${res.status}`)
+  }
+}

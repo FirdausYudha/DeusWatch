@@ -1,18 +1,29 @@
 import { logout, type Me } from '../lib/api'
 
-type NavItem = { label: string; icon: string; active?: boolean }
+export type View = 'dashboard' | 'users'
 
-// Navigasi sesuai design doc bagian 5 (web/src/*). Hanya Dashboard yang aktif di
-// fondasi; sisanya placeholder "soon".
+type NavItem = { id: string; label: string; icon: string; view?: View; adminOnly?: boolean }
+
 const NAV: NavItem[] = [
-  { label: 'Dashboard', icon: '▣', active: true },
-  { label: 'Alerts', icon: '◆' },
-  { label: 'Agents', icon: '▤' },
-  { label: 'Rules', icon: '⌘' },
-  { label: 'Settings', icon: '⚙' },
+  { id: 'dashboard', label: 'Dashboard', icon: '▣', view: 'dashboard' },
+  { id: 'alerts', label: 'Alerts', icon: '◆' },
+  { id: 'agents', label: 'Agents', icon: '▤' },
+  { id: 'rules', label: 'Rules', icon: '⌘' },
+  { id: 'users', label: 'Users', icon: '◉', view: 'users', adminOnly: true },
+  { id: 'settings', label: 'Settings', icon: '⚙' },
 ]
 
-export default function Sidebar({ me, onLogout }: { me: Me; onLogout: () => void }) {
+export default function Sidebar({
+  me,
+  view,
+  onNavigate,
+  onLogout,
+}: {
+  me: Me
+  view: View
+  onNavigate: (v: View) => void
+  onLogout: () => void
+}) {
   const handleLogout = async () => {
     await logout()
     onLogout()
@@ -31,24 +42,34 @@ export default function Sidebar({ me, onLogout }: { me: Me; onLogout: () => void
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-2">
-        {NAV.map((n) => (
-          <a
-            key={n.label}
-            className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-              n.active
-                ? 'bg-indigo-500/10 font-medium text-indigo-300'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-            }`}
-          >
-            <span className="w-5 text-center text-slate-500">{n.icon}</span>
-            {n.label}
-            {!n.active && (
-              <span className="ml-auto rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-500">
-                soon
-              </span>
-            )}
-          </a>
-        ))}
+        {NAV.map((n) => {
+          if (n.adminOnly && me.role !== 'admin') return null
+          const clickable = !!n.view
+          const active = clickable && n.view === view
+          return (
+            <button
+              key={n.id}
+              data-view={n.view}
+              onClick={clickable ? () => onNavigate(n.view!) : undefined}
+              disabled={!clickable}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                active
+                  ? 'bg-indigo-500/10 font-medium text-indigo-300'
+                  : clickable
+                    ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    : 'cursor-default text-slate-500'
+              }`}
+            >
+              <span className="w-5 text-center text-slate-500">{n.icon}</span>
+              {n.label}
+              {!clickable && (
+                <span className="ml-auto rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-500">
+                  soon
+                </span>
+              )}
+            </button>
+          )
+        })}
       </nav>
 
       <div className="border-t border-slate-800 px-3 py-3">

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
-import Sidebar from './components/Sidebar'
+import Sidebar, { type View } from './components/Sidebar'
 import Dashboard from './dashboard/Dashboard'
+import Users from './users/Users'
 import Login from './components/Login'
 import { fetchMe, getToken, type Me } from './lib/api'
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [checked, setChecked] = useState(false)
+  const [view, setView] = useState<View>('dashboard')
 
   useEffect(() => {
     if (!getToken()) {
@@ -28,9 +30,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-200">
-      <Sidebar me={me} onLogout={() => setMe(null)} />
+      <Sidebar me={me} view={view} onNavigate={setView} onLogout={() => setMe(null)} />
       <main className="flex-1 overflow-y-auto">
-        <Dashboard />
+        {view === 'users' && me.role === 'admin' ? <Users /> : <Dashboard />}
       </main>
     </div>
   )
