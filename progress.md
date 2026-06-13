@@ -45,7 +45,7 @@ cd DeusWatch
 docker compose -f deploy/docker-compose.yml up -d --build
 
 # 2. Terapkan SEMUA migrasi (BELUM ada runner otomatis — jalankan manual, urut)
-for f in migrations/0000{1,2,3,4}_*.up.sql; do
+for f in migrations/0000{1,2,3,4,5}_*.up.sql; do
   docker compose -f deploy/docker-compose.yml exec -T db \
     psql -U deuswatch -d deuswatch -v ON_ERROR_STOP=1 < "$f"
 done
@@ -88,7 +88,8 @@ Install agent: `deploy/agent/` (systemd `install-linux.sh`, Windows `install-win
 
 ## Catatan/gotcha penting
 
-- **Migrasi manual** — belum ada runner (golang-migrate belum diwire). DB fresh wajib jalankan 4 migrasi.
+- **Migrasi manual** — belum ada runner (golang-migrate belum diwire). DB fresh wajib jalankan 5 migrasi.
+- **Enrichment CTI nyata**: set `ABUSEIPDB_API_KEY` / `OTX_API_KEY` / `GEOIP_ENABLED=1` di env worker (tanpa itu pakai provider mock). Ambang eskalasi: `ABUSE_ESCALATE_THRESHOLD` (default 90), `OTX_ESCALATE_THRESHOLD` (default 5).
 - **bin/ & dist/ & deploy/certs/ di-gitignore** — rebuild biner & regen cert di PC baru.
 - Saat ubah kode service, **rebuild biner** sebelum demo (beberapa bug demo karena biner stale).
 - `gateway` butuh `STORE_DSN` untuk revocation/config-push/heartbeat (opsional; tanpa DB fitur itu nonaktif).

@@ -17,7 +17,7 @@ func TestApplyEscalation(t *testing.T) {
 		Event:  ingest.EventFields{Severity: ingest.SeverityLow},
 		Source: &ingest.Endpoint{IP: "45.155.205.99"},
 	}
-	applyToEvent(ev, Indicator{AbuseConfidence: 95, OTXPulseCount: 8, CountryISO: "RU", FeedName: "mock"})
+	applyToEvent(ev, Indicator{AbuseConfidence: 95, OTXPulseCount: 8, CountryISO: "RU", FeedName: "mock"}, DefaultEscalationRules())
 
 	if ev.Event.Severity != ingest.SeverityHigh { // low +1 (abuse) +1 (otx) = high
 		t.Fatalf("severity tereskalasi salah: %v (mau high)", ev.Event.Severity)
@@ -47,9 +47,21 @@ func TestNoEscalationBenign(t *testing.T) {
 		Event:  ingest.EventFields{Severity: ingest.SeverityMedium},
 		Source: &ingest.Endpoint{IP: "10.0.0.5"},
 	}
-	applyToEvent(ev, Indicator{AbuseConfidence: 5, OTXPulseCount: 0})
+	applyToEvent(ev, Indicator{AbuseConfidence: 5, OTXPulseCount: 0}, DefaultEscalationRules())
 	if ev.Event.Severity != ingest.SeverityMedium || ev.DeusWatch.Severity.EscalatedBy != "" {
 		t.Fatal("IP benign tidak boleh mengeskalasi severity")
+	}
+}
+
+func TestCustomEscalationThreshold(t *testing.T) {
+	ev := &ingest.Event{
+		Event:  ingest.EventFields{Severity: ingest.SeverityLow},
+		Source: &ingest.Endpoint{IP: "1.2.3.4"},
+	}
+	// Ambang lebih ketat: abuse>=50 memicu eskalasi; otx>=100 tidak.
+	applyToEvent(ev, Indicator{AbuseConfidence: 60, OTXPulseCount: 3}, EscalationRules{AbuseThreshold: 50, OTXThreshold: 100})
+	if ev.Event.Severity != ingest.SeverityMedium { // low +1 (abuse saja)
+		t.Fatalf("severity salah: %v (mau medium)", ev.Event.Severity)
 	}
 }
 
@@ -78,7 +90,7 @@ func TestEnricherCacheHit(t *testing.T) {
 	defer pool.Exec(ctx, `DELETE FROM cti_indicators WHERE ip=$1::inet`, ip)
 
 	provider := &MockProvider{Default: Indicator{AbuseConfidence: 77, OTXPulseCount: 3, CountryISO: "NL", FeedName: "mock"}}
-	e := NewEnricher(provider, NewCache(pool), time.Hour)
+	e := NewEnricher(provider, NewCache(pool), time.Hour, DefaultEscalationRules())
 
 	ind1, err := e.lookup(ctx, ip)
 	if err != nil {

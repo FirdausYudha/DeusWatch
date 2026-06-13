@@ -58,8 +58,15 @@ func main() {
 	aggRunner := detect.NewAggregateRunner(st, aggRules, 0)
 	log.Printf("worker: %d rule Sigma agregasi dimuat (jalur SQL)", aggRunner.RuleCount())
 
-	// Enrichment CTI: cache TTL di Postgres + provider (mock untuk dev).
-	enricher := enrich.NewEnricher(enrich.NewDemoProvider(), enrich.NewCache(st.Pool()), enrich.DefaultTTL)
+	// Enrichment CTI: cache TTL di Postgres + provider nyata bila dikonfigurasi
+	// (ABUSEIPDB_API_KEY / OTX_API_KEY / GEOIP_ENABLED), selain itu mock untuk dev.
+	provider, real := enrich.ProviderFromEnv()
+	if real {
+		log.Printf("worker: provider CTI nyata aktif")
+	} else {
+		log.Printf("worker: provider CTI mock (set ABUSEIPDB_API_KEY/OTX_API_KEY/GEOIP_ENABLED untuk nyata)")
+	}
+	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), enrich.DefaultTTL, enrich.EscalationFromEnv())
 
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
 		worker.Handler(ctx, st, enricher, bruteForce, sigmaDet))

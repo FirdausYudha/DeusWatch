@@ -25,6 +25,14 @@ type EventRow struct {
 	TacticName  string    `json:"threat_tactic_name"`
 	Label       string    `json:"dw_label"`
 	Original    string    `json:"event_original"`
+	// Enrichment CTI / GeoIP (untuk tampilan alert).
+	GeoCountry      string `json:"source_geo_country_iso"`
+	GeoCity         string `json:"source_geo_city"`
+	FeedName        string `json:"threat_feed_name"`
+	AbuseConfidence *int   `json:"dw_enrichment_abuse_confidence"`
+	OTXPulseCount   *int   `json:"dw_enrichment_otx_pulse_count"`
+	EnrichStatus    string `json:"dw_enrichment_status"`
+	EscalatedBy     string `json:"dw_severity_escalated_by"`
 }
 
 const selectCols = `
@@ -34,7 +42,10 @@ const selectCols = `
 	COALESCE(host(source_ip),''), COALESCE(host_name,''), COALESCE(user_name,''),
 	COALESCE(rule_id,''), COALESCE(rule_name,''),
 	COALESCE(threat_technique_id,''), COALESCE(threat_tactic_name,''),
-	COALESCE(dw_label,''), COALESCE(event_original,'')`
+	COALESCE(dw_label,''), COALESCE(event_original,''),
+	COALESCE(source_geo_country_iso,''), COALESCE(source_geo_city,''), COALESCE(threat_feed_name,''),
+	dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count,
+	COALESCE(dw_enrichment_status,''), COALESCE(dw_severity_escalated_by,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -45,6 +56,8 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.Time, &e.Category, &e.Action, &e.Outcome, &e.Severity, &e.Dataset,
 			&e.SourceIP, &e.HostName, &e.UserName, &e.RuleID, &e.RuleName,
 			&e.TechniqueID, &e.TacticName, &e.Label, &e.Original,
+			&e.GeoCountry, &e.GeoCity, &e.FeedName,
+			&e.AbuseConfidence, &e.OTXPulseCount, &e.EnrichStatus, &e.EscalatedBy,
 		); err != nil {
 			return nil, err
 		}

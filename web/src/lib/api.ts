@@ -61,6 +61,13 @@ export type EventRow = {
   threat_tactic_name: string
   dw_label: string
   event_original: string
+  source_geo_country_iso: string
+  source_geo_city: string
+  threat_feed_name: string
+  dw_enrichment_abuse_confidence: number | null
+  dw_enrichment_otx_pulse_count: number | null
+  dw_enrichment_status: string
+  dw_severity_escalated_by: string
 }
 
 export type IPCount = { ip: string; count: number }

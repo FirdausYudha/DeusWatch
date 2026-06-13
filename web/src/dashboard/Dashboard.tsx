@@ -21,6 +21,40 @@ function SeverityBadge({ sev }: { sev: number }) {
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${m.cls}`}>{m.label}</span>
 }
 
+// ThreatIntel menampilkan ringkasan enrichment CTI/GeoIP untuk satu alert.
+function ThreatIntel({ a }: { a: EventRow }) {
+  const abuse = a.dw_enrichment_abuse_confidence
+  const otx = a.dw_enrichment_otx_pulse_count
+  if (a.dw_enrichment_status !== 'enriched' && abuse == null) {
+    return <span className="text-slate-600">—</span>
+  }
+  const abuseCls = abuse == null ? '' : abuse >= 90 ? 'text-rose-300 bg-rose-500/15' : abuse >= 50 ? 'text-amber-300 bg-amber-500/15' : 'text-slate-400 bg-slate-700/40'
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {a.source_geo_country_iso && (
+        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300" title={a.source_geo_city || undefined}>
+          {a.source_geo_country_iso}
+        </span>
+      )}
+      {abuse != null && (
+        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${abuseCls}`} title="AbuseIPDB confidence">
+          abuse {abuse}
+        </span>
+      )}
+      {otx != null && otx > 0 && (
+        <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-xs font-medium text-violet-300" title="OTX pulses">
+          otx {otx}
+        </span>
+      )}
+      {a.dw_severity_escalated_by && (
+        <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-xs font-medium text-orange-300" title={`Eskalasi: ${a.dw_severity_escalated_by}`}>
+          ↑
+        </span>
+      )}
+    </div>
+  )
+}
+
 function StatCard({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
@@ -137,6 +171,7 @@ export default function Dashboard() {
                 <th className="px-4 py-2 font-medium">Source IP</th>
                 <th className="px-4 py-2 font-medium">Rule</th>
                 <th className="px-4 py-2 font-medium">MITRE</th>
+                <th className="px-4 py-2 font-medium">Threat Intel</th>
                 <th className="px-4 py-2 font-medium">Severity</th>
               </tr>
             </thead>
@@ -148,12 +183,13 @@ export default function Dashboard() {
                     <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
                     <td className="px-4 py-2 text-slate-300">{a.rule_name || a.dw_label}</td>
                     <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
+                    <td className="px-4 py-2"><ThreatIntel a={a} /></td>
                     <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-600">
+                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-600">
                     {health?.api === 'down' ? 'API tak terjangkau — jalankan docker compose up' : 'Belum ada alert. Picu brute-force SSH untuk melihatnya di sini.'}
                   </td>
                 </tr>

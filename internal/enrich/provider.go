@@ -16,7 +16,8 @@ type Indicator struct {
 	AbuseConfidence int    // 0..100
 	OTXPulseCount   int    // jumlah pulse OTX
 	CountryISO      string // kode negara ISO (GeoIP)
-	FeedName        string // sumber, mis. "abuseipdb" / "mock"
+	City            string // kota (GeoIP, opsional)
+	FeedName        string // sumber, mis. "abuseipdb,otx" / "mock"
 }
 
 // Provider melakukan lookup CTI untuk satu IP.

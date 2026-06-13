@@ -45,7 +45,8 @@ INSERT INTO events (
 	threat_technique_id, threat_technique_name, threat_tactic_name,
 	threat_indicator_ip, threat_indicator_confidence, threat_feed_name, threat_indicator_last_seen,
 	dw_label, dw_severity_original, dw_severity_escalated_by,
-	dw_enrichment_status, dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count
+	dw_enrichment_status, dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count,
+	source_geo_city
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -55,7 +56,8 @@ INSERT INTO events (
 	$18, $19, $20,
 	$21::inet, $22, $23, $24,
 	$25, $26, $27,
-	$28, $29, $30
+	$28, $29, $30,
+	$31
 )`
 
 // InsertEvent menulis satu event DCS ke hypertable events. Field yang belum diisi
@@ -63,6 +65,7 @@ INSERT INTO events (
 func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	var (
 		srcIP, srcPort, srcGeoCountry any = nil, nil, nil
+		srcGeoCity                    any = nil
 		hostName, hostOS              any = nil, nil
 		agentID, agentVer             any = nil, nil
 		userName                      any = nil
@@ -77,6 +80,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		srcPort = portOrNil(e.Source.Port)
 		if e.Source.Geo != nil {
 			srcGeoCountry = strOrNil(e.Source.Geo.CountryISOCode)
+			srcGeoCity = strOrNil(e.Source.Geo.CityName)
 		}
 	}
 	if e.Host != nil {
@@ -126,6 +130,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		tiIP, tiConf, threatFeed, tiLastSeen,
 		strOrNil(e.DeusWatch.Label), int16(e.DeusWatch.Severity.Original), dwEscalatedBy,
 		strOrNil(string(e.DeusWatch.Enrichment.Status)), dwAbuse, dwOTX,
+		srcGeoCity,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

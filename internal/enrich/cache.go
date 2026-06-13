@@ -20,12 +20,12 @@ func NewCache(pool *pgxpool.Pool) *Cache { return &Cache{pool: pool} }
 // Get mengembalikan indikator untuk ip bila ada DAN belum kedaluwarsa (TTL aktif).
 func (c *Cache) Get(ctx context.Context, ip string) (Indicator, bool, error) {
 	var ind Indicator
-	var country, feed *string
+	var country, city, feed *string
 	err := c.pool.QueryRow(ctx, `
-		SELECT abuse_confidence, otx_pulse_count, country_iso, feed_name
+		SELECT abuse_confidence, otx_pulse_count, country_iso, city, feed_name
 		FROM cti_indicators
 		WHERE ip = $1::inet AND expires_at > now()`, ip).
-		Scan(&ind.AbuseConfidence, &ind.OTXPulseCount, &country, &feed)
+		Scan(&ind.AbuseConfidence, &ind.OTXPulseCount, &country, &city, &feed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Indicator{}, false, nil
 	}
@@ -34,6 +34,9 @@ func (c *Cache) Get(ctx context.Context, ip string) (Indicator, bool, error) {
 	}
 	if country != nil {
 		ind.CountryISO = *country
+	}
+	if city != nil {
+		ind.City = *city
 	}
 	if feed != nil {
 		ind.FeedName = *feed
@@ -45,17 +48,18 @@ func (c *Cache) Get(ctx context.Context, ip string) (Indicator, bool, error) {
 // dua worker yang lookup IP sama secara bersamaan tidak pernah bertabrakan.
 func (c *Cache) Put(ctx context.Context, ip string, ind Indicator, ttl time.Duration) error {
 	_, err := c.pool.Exec(ctx, `
-		INSERT INTO cti_indicators (ip, abuse_confidence, otx_pulse_count, country_iso, feed_name, checked_at, expires_at)
-		VALUES ($1::inet, $2, $3, $4, $5, now(), $6)
+		INSERT INTO cti_indicators (ip, abuse_confidence, otx_pulse_count, country_iso, city, feed_name, checked_at, expires_at)
+		VALUES ($1::inet, $2, $3, $4, $5, $6, now(), $7)
 		ON CONFLICT (ip) DO UPDATE SET
 			abuse_confidence = EXCLUDED.abuse_confidence,
 			otx_pulse_count  = EXCLUDED.otx_pulse_count,
 			country_iso      = EXCLUDED.country_iso,
+			city             = EXCLUDED.city,
 			feed_name        = EXCLUDED.feed_name,
 			checked_at       = now(),
 			expires_at       = EXCLUDED.expires_at`,
-		ip, ind.AbuseConfidence, ind.OTXPulseCount, nilIfEmpty(ind.CountryISO), nilIfEmpty(ind.FeedName),
-		time.Now().Add(ttl))
+		ip, ind.AbuseConfidence, ind.OTXPulseCount, nilIfEmpty(ind.CountryISO), nilIfEmpty(ind.City),
+		nilIfEmpty(ind.FeedName), time.Now().Add(ttl))
 	if err != nil {
 		return fmt.Errorf("enrich: cache put: %w", err)
 	}
