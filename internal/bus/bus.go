@@ -1,8 +1,8 @@
-// Package bus membungkus NATS JetStream sebagai message bus DeusWatch.
+// Package bus wraps NATS JetStream as the DeusWatch message bus.
 //
-// Alur pipeline (design doc bagian 2): logs.raw -> logs.normalized ->
-// logs.enriched -> alerts. JetStream hanya buffer streaming yang persisten;
-// sumber kebenaran tetap PostgreSQL (tidak ada cache, tidak ada tabrakan cache).
+// Pipeline flow (design doc section 2): logs.raw -> logs.normalized ->
+// logs.enriched -> alerts. JetStream is only a persistent streaming buffer;
+// the source of truth remains PostgreSQL (no cache, no cache collisions).
 package bus
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// Subject pipeline.
+// Pipeline subjects.
 const (
 	SubjectLogsRaw        = "logs.raw"
 	SubjectLogsNormalized = "logs.normalized"
@@ -22,19 +22,19 @@ const (
 	SubjectAlerts         = "alerts"
 )
 
-// Nama stream.
+// Stream names.
 const (
 	StreamLogs   = "LOGS"
 	StreamAlerts = "ALERTS"
 )
 
-// Bus membungkus koneksi NATS + handle JetStream.
+// Bus wraps the NATS connection + JetStream handle.
 type Bus struct {
 	nc *nats.Conn
 	js jetstream.JetStream
 }
 
-// Connect membuka koneksi ke NATS lalu memastikan stream DeusWatch ada.
+// Connect opens a connection to NATS then ensures the DeusWatch streams exist.
 func Connect(ctx context.Context, url string) (*Bus, error) {
 	if url == "" {
 		url = nats.DefaultURL
@@ -64,15 +64,15 @@ func (b *Bus) ensureStreams(ctx context.Context) error {
 	configs := []jetstream.StreamConfig{
 		{
 			Name:        StreamLogs,
-			Description: "Pipeline log DeusWatch (raw -> normalized -> enriched)",
+			Description: "DeusWatch log pipeline (raw -> normalized -> enriched)",
 			Subjects:    []string{"logs.>"},
 			Storage:     jetstream.FileStorage,
 			Retention:   jetstream.LimitsPolicy,
-			MaxAge:      24 * time.Hour, // buffer; sumber kebenaran ada di Postgres
+			MaxAge:      24 * time.Hour, // buffer; the source of truth is in Postgres
 		},
 		{
 			Name:        StreamAlerts,
-			Description: "Alert DeusWatch",
+			Description: "DeusWatch alerts",
 			Subjects:    []string{SubjectAlerts},
 			Storage:     jetstream.FileStorage,
 			Retention:   jetstream.LimitsPolicy,
@@ -87,7 +87,7 @@ func (b *Bus) ensureStreams(ctx context.Context) error {
 	return nil
 }
 
-// Publish menerbitkan payload ke subject dan menunggu ack JetStream (sinkron).
+// Publish publishes the payload to the subject and waits for the JetStream ack (synchronous).
 func (b *Bus) Publish(ctx context.Context, subject string, data []byte) error {
 	if _, err := b.js.Publish(ctx, subject, data); err != nil {
 		return fmt.Errorf("bus: publish %s: %w", subject, err)
@@ -95,18 +95,18 @@ func (b *Bus) Publish(ctx context.Context, subject string, data []byte) error {
 	return nil
 }
 
-// Handler memproses satu pesan. Mengembalikan error akan men-Nak pesan (redeliver).
+// Handler processes a single message. Returning an error Naks the message (redeliver).
 type Handler func(subject string, data []byte) error
 
-// Consume membuat consumer durable pada stream untuk filterSubject, lalu memanggil
-// handler tiap pesan. Mengembalikan fungsi stop untuk menghentikan konsumsi.
+// Consume creates a durable consumer on the stream for filterSubject, then calls the
+// handler for each message. Returns a stop function to halt consumption.
 func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string, h Handler) (func(), error) {
 	cons, err := b.js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
 		Durable:       durable,
 		FilterSubject: filterSubject,
 		AckPolicy:     jetstream.AckExplicitPolicy,
-		// Mulai dari pesan baru saat consumer pertama dibuat (hindari replay backlog
-		// lama); durable tetap melanjutkan dari ack terakhir saat restart.
+		// Start from new messages when the consumer is first created (avoid replaying an
+		// old backlog); a durable still resumes from the last ack on restart.
 		DeliverPolicy: jetstream.DeliverNewPolicy,
 	})
 	if err != nil {
@@ -125,7 +125,7 @@ func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string
 	return cc.Stop, nil
 }
 
-// Close menutup koneksi dengan rapi (drain pesan tertunda lebih dulu).
+// Close closes the connection gracefully (drains pending messages first).
 func (b *Bus) Close() {
 	if b.nc != nil {
 		_ = b.nc.Drain()

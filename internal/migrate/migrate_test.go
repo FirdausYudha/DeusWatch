@@ -26,7 +26,7 @@ func TestVersionOf(t *testing.T) {
 	}
 	for in, want := range cases {
 		if got := versionOf(in); got != want {
-			t.Errorf("versionOf(%q)=%q, mau %q", in, got, want)
+			t.Errorf("versionOf(%q)=%q, want %q", in, got, want)
 		}
 	}
 }
@@ -37,42 +37,42 @@ func TestUpFilesSortedAndFiltered(t *testing.T) {
 		t.Fatalf("upFiles: %v", err)
 	}
 	if len(files) < 6 {
-		t.Fatalf("harap >=6 migrasi up, dapat %d", len(files))
+		t.Fatalf("expected >=6 up migrations, got %d", len(files))
 	}
 	for i := 1; i < len(files); i++ {
 		if files[i-1] > files[i] {
-			t.Fatalf("berkas tak terurut: %v", files)
+			t.Fatalf("files not sorted: %v", files)
 		}
 	}
 	for _, f := range files {
 		if len(f) < 7 || f[len(f)-7:] != ".up.sql" {
-			t.Fatalf("berkas non-up bocor: %q", f)
+			t.Fatalf("non-up file leaked: %q", f)
 		}
 	}
 }
 
-// TestApplyIdempotent: terhadap DB nyata, Apply kedua tak menerapkan apa-apa.
+// TestApplyIdempotent: against a real DB, the second Apply applies nothing.
 func TestApplyIdempotent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	pool, err := pgxpool.New(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 
 	if _, err := Apply(ctx, pool, migrations.FS); err != nil {
-		t.Fatalf("Apply pertama: %v", err)
+		t.Fatalf("first Apply: %v", err)
 	}
 	n, err := Apply(ctx, pool, migrations.FS)
 	if err != nil {
-		t.Fatalf("Apply kedua: %v", err)
+		t.Fatalf("second Apply: %v", err)
 	}
 	if n != 0 {
-		t.Fatalf("Apply kedua menerapkan %d migrasi, mau 0 (idempotent)", n)
+		t.Fatalf("second Apply applied %d migrations, want 0 (idempotent)", n)
 	}
 }

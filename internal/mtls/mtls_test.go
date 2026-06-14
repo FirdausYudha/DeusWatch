@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-// TestMTLSHandshake membuktikan dua hal sekaligus di atas bundel sertifikat
-// yang baru di-generate:
-//   - client dengan sertifikat sah BERHASIL menembus server mTLS;
-//   - client TANPA sertifikat DITOLAK pada saat handshake.
+// TestMTLSHandshake proves two things at once over a freshly generated certificate
+// bundle:
+//   - a client with a valid certificate SUCCEEDS in reaching the mTLS server;
+//   - a client WITHOUT a certificate is REJECTED during the handshake.
 func TestMTLSHandshake(t *testing.T) {
 	dir := t.TempDir()
 	paths, err := GenerateBundle(Options{
@@ -38,7 +38,7 @@ func TestMTLSHandshake(t *testing.T) {
 	ts.StartTLS()
 	defer ts.Close()
 
-	// Kasus 1 — client dengan sertifikat sah harus tembus.
+	// Case 1 — a client with a valid certificate must get through.
 	cliCfg, err := ClientConfig(paths)
 	if err != nil {
 		t.Fatalf("ClientConfig: %v", err)
@@ -46,17 +46,17 @@ func TestMTLSHandshake(t *testing.T) {
 	authedClient := &http.Client{Transport: &http.Transport{TLSClientConfig: cliCfg}}
 	resp, err := authedClient.Get(ts.URL)
 	if err != nil {
-		t.Fatalf("client sah seharusnya tembus, tapi gagal: %v", err)
+		t.Fatalf("valid client should get through, but failed: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if string(body) != "ok" {
-		t.Fatalf("body tak terduga: %q", body)
+		t.Fatalf("unexpected body: %q", body)
 	}
-	t.Log("OK: client dengan sertifikat sah berhasil terhubung")
+	t.Log("OK: client with a valid certificate connected successfully")
 
-	// Kasus 2 — client TANPA sertifikat (mempercayai server, tapi tak menyodorkan
-	// identitas) harus ditolak server pada handshake.
+	// Case 2 — a client WITHOUT a certificate (trusts the server but presents no
+	// identity) must be rejected by the server during the handshake.
 	pool, err := caPool(paths.CACert)
 	if err != nil {
 		t.Fatalf("caPool: %v", err)
@@ -64,8 +64,8 @@ func TestMTLSHandshake(t *testing.T) {
 	noCertCfg := &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS13}
 	anonClient := &http.Client{Transport: &http.Transport{TLSClientConfig: noCertCfg}}
 	if _, err := anonClient.Get(ts.URL); err == nil {
-		t.Fatal("client TANPA sertifikat seharusnya DITOLAK, tapi malah tembus")
+		t.Fatal("client WITHOUT a certificate should be REJECTED, but got through")
 	} else {
-		t.Logf("OK: client tanpa sertifikat ditolak sebagaimana mestinya (%v)", err)
+		t.Logf("OK: client without a certificate was rejected as expected (%v)", err)
 	}
 }

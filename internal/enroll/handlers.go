@@ -14,7 +14,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// TokenHandler (admin): membuat token enrollment sekali-pakai.
+// TokenHandler (admin): creates a single-use enrollment token.
 func (s *Store) TokenHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -30,8 +30,8 @@ func (s *Store) TokenHandler() http.HandlerFunc {
 	}
 }
 
-// EnrollHandler (PUBLIK): menukar token jadi sertifikat client unik.
-// Catatan: di produksi endpoint ini harus di belakang TLS.
+// EnrollHandler (PUBLIC): exchanges a token for a unique client certificate.
+// Note: in production this endpoint must sit behind TLS.
 func (s *Store) EnrollHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -44,12 +44,12 @@ func (s *Store) EnrollHandler() http.HandlerFunc {
 			OS    string `json:"os"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
 		bundle, err := s.Enroll(r.Context(), req.Token, req.Name, req.OS)
 		if errors.Is(err, ErrToken) {
-			http.Error(w, "token tidak valid / kedaluwarsa / sudah dipakai", http.StatusUnauthorized)
+			http.Error(w, "invalid / expired / already-used token", http.StatusUnauthorized)
 			return
 		}
 		if err != nil {
@@ -60,7 +60,7 @@ func (s *Store) EnrollHandler() http.HandlerFunc {
 	}
 }
 
-// AgentsHandler: daftar agent terdaftar.
+// AgentsHandler: lists registered agents.
 func (s *Store) AgentsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		agents, err := s.ListAgents(r.Context())
@@ -72,28 +72,28 @@ func (s *Store) AgentsHandler() http.HandlerFunc {
 	}
 }
 
-// SetConfigHandler (admin): menetapkan desired sources untuk agent (config push).
+// SetConfigHandler (admin): sets the desired sources for an agent (config push).
 func (s *Store) SetConfigHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if id == "" {
-			http.Error(w, "id wajib", http.StatusBadRequest)
+			http.Error(w, "id is required", http.StatusBadRequest)
 			return
 		}
 		var req struct {
 			Sources []agent.Source `json:"sources"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
 		if len(req.Sources) == 0 {
-			http.Error(w, "sources tidak boleh kosong", http.StatusBadRequest)
+			http.Error(w, "sources must not be empty", http.StatusBadRequest)
 			return
 		}
 		for _, src := range req.Sources {
 			if src.Dataset == "" || src.Type == "" {
-				http.Error(w, "tiap source wajib punya dataset & type", http.StatusBadRequest)
+				http.Error(w, "each source must have a dataset & type", http.StatusBadRequest)
 				return
 			}
 		}
@@ -106,12 +106,12 @@ func (s *Store) SetConfigHandler() http.HandlerFunc {
 	}
 }
 
-// RevokeHandler (admin): mencabut agent berdasarkan id (path value).
+// RevokeHandler (admin): revokes an agent by id (path value).
 func (s *Store) RevokeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if id == "" {
-			http.Error(w, "id wajib", http.StatusBadRequest)
+			http.Error(w, "id is required", http.StatusBadRequest)
 			return
 		}
 		if err := s.Revoke(r.Context(), id); err != nil {

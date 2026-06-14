@@ -1,9 +1,9 @@
-// Package mtls menyediakan pembuatan sertifikat dan konfigurasi TLS untuk
-// komunikasi mutual-TLS (mTLS) DeusWatch.
+// Package mtls provides certificate generation and TLS configuration for
+// DeusWatch mutual-TLS (mTLS) communication.
 //
-// Seluruh komunikasi agent–server WAJIB mTLS (design doc bagian 4): tidak ada
-// jalur plaintext. Generator berbasis crypto/x509 stdlib agar lintas-OS
-// (Linux/Windows/macOS) tanpa ketergantungan pada biner openssl eksternal.
+// All agent–server communication MUST use mTLS (design doc section 4): there is no
+// plaintext path. The generator is based on the stdlib crypto/x509 so it is cross-OS
+// (Linux/Windows/macOS) without depending on an external openssl binary.
 package mtls
 
 import (
@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-// CertPaths menunjuk lokasi berkas PEM standar di sebuah direktori sertifikat.
+// CertPaths points to the standard PEM file locations within a certificate directory.
 type CertPaths struct {
 	CACert     string
 	CAKey      string
@@ -31,7 +31,7 @@ type CertPaths struct {
 	ClientKey  string
 }
 
-// Paths mengembalikan lokasi berkas PEM standar di dalam dir.
+// Paths returns the standard PEM file locations inside dir.
 func Paths(dir string) CertPaths {
 	return CertPaths{
 		CACert:     filepath.Join(dir, "ca.crt"),
@@ -43,12 +43,12 @@ func Paths(dir string) CertPaths {
 	}
 }
 
-// Options mengatur pembuatan bundel sertifikat.
+// Options controls certificate bundle generation.
 type Options struct {
-	Dir       string        // direktori output
-	ServerDNS []string      // SAN DNS untuk sertifikat server
-	ServerIPs []net.IP      // SAN IP untuk sertifikat server
-	ValidFor  time.Duration // masa berlaku sertifikat daun (server & client)
+	Dir       string        // output directory
+	ServerDNS []string      // SAN DNS for the server certificate
+	ServerIPs []net.IP      // SAN IP for the server certificate
+	ValidFor  time.Duration // leaf certificate validity (server & client)
 }
 
 type keyPair struct {
@@ -61,7 +61,7 @@ func newSerial() (*big.Int, error) {
 	return rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 }
 
-// generateCA membuat CA self-signed baru.
+// generateCA creates a new self-signed CA.
 func generateCA(commonName string, validFor time.Duration) (*keyPair, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -79,12 +79,12 @@ func generateCA(commonName string, validFor time.Duration) (*keyPair, error) {
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		MaxPathLenZero:        true, // hanya boleh menerbitkan sertifikat daun, bukan intermediate CA
+		MaxPathLenZero:        true, // may only issue leaf certs, not intermediate CAs
 	}
 	return finalize(tmpl, tmpl, key, key)
 }
 
-// issueLeaf menerbitkan sertifikat daun (server/client) yang ditandatangani CA.
+// issueLeaf issues a CA-signed leaf certificate (server/client).
 func issueLeaf(ca *keyPair, commonName string, dnsNames []string, ips []net.IP, eku []x509.ExtKeyUsage, validFor time.Duration) (*keyPair, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -107,8 +107,8 @@ func issueLeaf(ca *keyPair, commonName string, dnsNames []string, ips []net.IP, 
 	return finalize(tmpl, ca.cert, key, ca.key)
 }
 
-// finalize membuat sertifikat dari template, menandatanganinya dengan signerKey,
-// lalu mem-parse hasilnya kembali.
+// finalize creates a certificate from the template, signs it with signerKey,
+// then parses the result back.
 func finalize(tmpl, parent *x509.Certificate, subjectKey *ecdsa.PrivateKey, signerKey *ecdsa.PrivateKey) (*keyPair, error) {
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, parent, &subjectKey.PublicKey, signerKey)
 	if err != nil {
@@ -132,30 +132,30 @@ func writeKeyPEM(path string, key *ecdsa.PrivateKey) error {
 		return err
 	}
 	buf := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: b})
-	return os.WriteFile(path, buf, 0o600) // kunci privat: hanya pemilik
+	return os.WriteFile(path, buf, 0o600) // private key: owner only
 }
 
-// CA adalah Certificate Authority termuat dari disk, untuk menerbitkan
-// sertifikat client per-agent saat enrollment (design doc bagian 4 & 12).
+// CA is a Certificate Authority loaded from disk, used to issue per-agent client
+// certificates during enrollment (design doc sections 4 & 12).
 type CA struct {
 	cert *x509.Certificate
 	key  *ecdsa.PrivateKey
 }
 
-// LoadCA memuat CA (ca.crt + ca.key) dari direktori sertifikat.
+// LoadCA loads the CA (ca.crt + ca.key) from the certificate directory.
 func LoadCA(dir string) (*CA, error) {
 	p := Paths(dir)
 	certPEM, err := os.ReadFile(p.CACert)
 	if err != nil {
-		return nil, fmt.Errorf("mtls: baca ca.crt: %w", err)
+		return nil, fmt.Errorf("mtls: read ca.crt: %w", err)
 	}
 	keyPEM, err := os.ReadFile(p.CAKey)
 	if err != nil {
-		return nil, fmt.Errorf("mtls: baca ca.key: %w", err)
+		return nil, fmt.Errorf("mtls: read ca.key: %w", err)
 	}
 	cb, _ := pem.Decode(certPEM)
 	if cb == nil {
-		return nil, fmt.Errorf("mtls: ca.crt bukan PEM valid")
+		return nil, fmt.Errorf("mtls: ca.crt is not valid PEM")
 	}
 	cert, err := x509.ParseCertificate(cb.Bytes)
 	if err != nil {
@@ -163,7 +163,7 @@ func LoadCA(dir string) (*CA, error) {
 	}
 	kb, _ := pem.Decode(keyPEM)
 	if kb == nil {
-		return nil, fmt.Errorf("mtls: ca.key bukan PEM valid")
+		return nil, fmt.Errorf("mtls: ca.key is not valid PEM")
 	}
 	keyAny, err := x509.ParsePKCS8PrivateKey(kb.Bytes)
 	if err != nil {
@@ -171,13 +171,13 @@ func LoadCA(dir string) (*CA, error) {
 	}
 	key, ok := keyAny.(*ecdsa.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("mtls: ca.key bukan ECDSA")
+		return nil, fmt.Errorf("mtls: ca.key is not ECDSA")
 	}
 	return &CA{cert: cert, key: key}, nil
 }
 
-// IssueClient menerbitkan sertifikat client baru ber-CommonName commonName,
-// ditandatangani CA. Mengembalikan PEM cert + key dan nomor serial (untuk audit/revoke).
+// IssueClient issues a new client certificate with CommonName commonName, signed by
+// the CA. Returns the cert + key PEM and the serial number (for audit/revoke).
 func (ca *CA) IssueClient(commonName string, validFor time.Duration) (certPEM, keyPEM []byte, serial string, err error) {
 	leaf, err := issueLeaf(&keyPair{cert: ca.cert, key: ca.key}, commonName, nil, nil,
 		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, validFor)
@@ -193,16 +193,16 @@ func (ca *CA) IssueClient(commonName string, validFor time.Duration) (certPEM, k
 	return certPEM, keyPEM, leaf.cert.SerialNumber.String(), nil
 }
 
-// CACertPEM mengembalikan sertifikat CA dalam PEM (untuk dikirim ke agent saat enroll).
+// CACertPEM returns the CA certificate in PEM (to send to the agent at enroll time).
 func (ca *CA) CACertPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.cert.Raw})
 }
 
-// GenerateBundle membuat CA + sertifikat server + sertifikat client lalu
-// menuliskannya sebagai berkas PEM ke opt.Dir. Aman dipanggil ulang (overwrite).
+// GenerateBundle creates a CA + server certificate + client certificate and writes
+// them as PEM files to opt.Dir. Safe to call again (overwrites).
 func GenerateBundle(opt Options) (CertPaths, error) {
 	if opt.ValidFor == 0 {
-		opt.ValidFor = 825 * 24 * time.Hour // ~27 bulan, batas umum sertifikat TLS
+		opt.ValidFor = 825 * 24 * time.Hour // ~27 months, common TLS certificate limit
 	}
 	paths := Paths(opt.Dir)
 	if err := os.MkdirAll(opt.Dir, 0o755); err != nil {
@@ -237,7 +237,7 @@ func GenerateBundle(opt Options) (CertPaths, error) {
 	}
 	for _, w := range writes {
 		if err := w.fn(); err != nil {
-			return paths, fmt.Errorf("tulis %s: %w", w.what, err)
+			return paths, fmt.Errorf("write %s: %w", w.what, err)
 		}
 	}
 	return paths, nil

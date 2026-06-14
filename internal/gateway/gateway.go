@@ -1,5 +1,5 @@
-// Package gateway adalah ingest gateway DeusWatch: menerima log mentah dari agent
-// (lewat mTLS), memvalidasi, menormalkan ke DCS, lalu menerbitkannya ke NATS.
+// Package gateway is the DeusWatch ingest gateway: it receives raw logs from agents
+// (over mTLS), validates them, normalizes them to DCS, then publishes them to NATS.
 package gateway
 
 import (
@@ -14,21 +14,21 @@ import (
 
 const maxBodyBytes = 8 << 20 // 8 MiB per batch
 
-// Publisher menerbitkan payload ke subject (dipenuhi *bus.Bus).
+// Publisher publishes a payload to a subject (satisfied by *bus.Bus).
 type Publisher interface {
 	Publish(ctx context.Context, subject string, data []byte) error
 }
 
-// RevokedFunc melaporkan apakah agent (by CN sertifikat) sudah dicabut. nil = skip.
+// RevokedFunc reports whether an agent (by certificate CN) has been revoked. nil = skip.
 type RevokedFunc func(ctx context.Context, agentName string) (bool, error)
 
-// ConfigFunc mengembalikan JSON config push untuk agent (by CN). nil/len 0 = belum ada.
+// ConfigFunc returns the push-config JSON for an agent (by CN). nil/len 0 = none yet.
 type ConfigFunc func(ctx context.Context, agentName string) ([]byte, error)
 
-// SeenFunc menandai agent (by CN) baru saja terlihat (heartbeat). nil = skip.
+// SeenFunc marks an agent (by CN) as just seen (heartbeat). nil = skip.
 type SeenFunc func(ctx context.Context, agentName string) error
 
-// HeartbeatHandler menandai last_seen agent (diidentifikasi dari CN mTLS).
+// HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN).
 func HeartbeatHandler(seen SeenFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && seen != nil {
@@ -38,8 +38,8 @@ func HeartbeatHandler(seen SeenFunc) http.HandlerFunc {
 	}
 }
 
-// ConfigHandler menyajikan config push milik agent (diidentifikasi dari CN
-// sertifikat mTLS). 204 bila belum ada config.
+// ConfigHandler serves the agent's push-config (identified by the mTLS certificate
+// CN). 204 when no config exists yet.
 func ConfigHandler(cfg ConfigFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cfg == nil {
@@ -56,7 +56,7 @@ func ConfigHandler(cfg ConfigFunc) http.HandlerFunc {
 		}
 		raw, err := cfg(r.Context(), cn)
 		if err != nil {
-			http.Error(w, "gagal ambil config", http.StatusInternalServerError)
+			http.Error(w, "failed to fetch config", http.StatusInternalServerError)
 			return
 		}
 		if len(raw) == 0 {
@@ -68,10 +68,10 @@ func ConfigHandler(cfg ConfigFunc) http.HandlerFunc {
 	}
 }
 
-// LogsHandler menerima batch RawLog (JSON array) dari agent, menormalkan tiap
-// entri ke DCS, dan menerbitkannya ke logs.normalized. Identitas agent diambil
-// dari Common Name sertifikat client (lebih tepercaya daripada nilai kiriman).
-// Bila revoked != nil, koneksi dari agent yang dicabut ditolak (403).
+// LogsHandler receives a RawLog batch (JSON array) from an agent, normalizes each
+// entry to DCS, and publishes them to logs.normalized. The agent identity is taken
+// from the client certificate's Common Name (more trustworthy than the submitted value).
+// If revoked != nil, connections from revoked agents are rejected (403).
 func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -80,16 +80,16 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 		}
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 		if err != nil {
-			http.Error(w, "gagal baca body", http.StatusBadRequest)
+			http.Error(w, "failed to read body", http.StatusBadRequest)
 			return
 		}
 		var raws []ingest.RawLog
 		if err := json.Unmarshal(body, &raws); err != nil {
-			http.Error(w, "JSON tidak valid (harap array RawLog)", http.StatusBadRequest)
+			http.Error(w, "invalid JSON (expected a RawLog array)", http.StatusBadRequest)
 			return
 		}
 
-		// Identitas dari sertifikat mTLS (mengikat log ke agent yang terautentikasi).
+		// Identity from the mTLS certificate (binds logs to the authenticated agent).
 		var certCN string
 		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
 			certCN = r.TLS.PeerCertificates[0].Subject.CommonName
@@ -97,17 +97,17 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 
 		ctx := r.Context()
 
-		// Tolak agent yang dicabut (revoked) — walau sertifikatnya masih sah secara kripto.
+		// Reject revoked agents — even if their certificate is still cryptographically valid.
 		if revoked != nil && certCN != "" {
 			if rev, err := revoked(ctx, certCN); err == nil && rev {
-				http.Error(w, "agent dicabut", http.StatusForbidden)
+				http.Error(w, "agent revoked", http.StatusForbidden)
 				return
 			}
 		}
 		accepted := 0
 		for _, raw := range raws {
 			if raw.Message == "" {
-				continue // validasi: pesan wajib
+				continue // validation: message is required
 			}
 			if certCN != "" {
 				raw.AgentID = certCN
@@ -118,7 +118,7 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 				continue
 			}
 			if err := pub.Publish(ctx, bus.SubjectLogsNormalized, data); err != nil {
-				http.Error(w, "publish gagal", http.StatusServiceUnavailable)
+				http.Error(w, "publish failed", http.StatusServiceUnavailable)
 				return
 			}
 			accepted++

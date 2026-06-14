@@ -15,15 +15,15 @@ func natsURL() string {
 	return "nats://localhost:4222"
 }
 
-// TestPublishConsumeRoundTrip membuktikan publish -> JetStream -> consume bekerja
-// melawan NATS yang sedang berjalan. Di-skip bila NATS tak tersedia (unit-only run).
+// TestPublishConsumeRoundTrip proves publish -> JetStream -> consume works against a
+// running NATS. Skipped when NATS is unavailable (unit-only run).
 func TestPublishConsumeRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	b, err := Connect(ctx, natsURL())
 	if err != nil {
-		t.Skipf("NATS tidak tersedia di %s — lewati: %v", natsURL(), err)
+		t.Skipf("NATS unavailable at %s — skipping: %v", natsURL(), err)
 	}
 	defer b.Close()
 
@@ -50,10 +50,10 @@ func TestPublishConsumeRoundTrip(t *testing.T) {
 	select {
 	case msg := <-got:
 		if msg != payload {
-			t.Fatalf("payload tak cocok: got %q want %q", msg, payload)
+			t.Fatalf("payload mismatch: got %q want %q", msg, payload)
 		}
-		t.Logf("OK: round-trip JetStream berhasil")
+		t.Logf("OK: JetStream round-trip succeeded")
 	case <-time.After(8 * time.Second):
-		t.Fatal("timeout: pesan tidak diterima consumer")
+		t.Fatal("timeout: message not received by consumer")
 	}
 }

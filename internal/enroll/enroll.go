@@ -1,6 +1,6 @@
-// Package enroll menangani registrasi agent: token enrollment sekali-pakai,
-// penerbitan sertifikat client unik per-agent, daftar & pencabutan (design doc
-// bagian 4 & 12).
+// Package enroll handles agent registration: single-use enrollment tokens,
+// issuing a unique per-agent client certificate, listing & revocation (design doc
+// sections 4 & 12).
 package enroll
 
 import (
@@ -20,15 +20,15 @@ import (
 	"deuswatch/internal/mtls"
 )
 
-// TTL default.
+// Default TTLs.
 const (
 	TokenTTL  = 1 * time.Hour
 	ClientTTL = 825 * 24 * time.Hour
 )
 
-var ErrToken = errors.New("enroll: token tidak valid / kedaluwarsa / sudah dipakai")
+var ErrToken = errors.New("enroll: invalid / expired / already-used token")
 
-// Store mengelola agent & token enrollment, menerbitkan cert via CA.
+// Store manages agents & enrollment tokens, issuing certs via the CA.
 type Store struct {
 	pool *pgxpool.Pool
 	ca   *mtls.CA
@@ -43,8 +43,8 @@ func hashToken(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// CreateToken membuat token enrollment sekali-pakai. Mengembalikan token MENTAH
-// (hanya hash disimpan).
+// CreateToken creates a single-use enrollment token. Returns the RAW token
+// (only the hash is stored).
 func (s *Store) CreateToken(ctx context.Context, createdBy string) (raw string, expires time.Time, err error) {
 	b := make([]byte, 24)
 	if _, err = rand.Read(b); err != nil {
@@ -56,12 +56,12 @@ func (s *Store) CreateToken(ctx context.Context, createdBy string) (raw string, 
 		`INSERT INTO agent_enroll_tokens (token_hash, created_by, expires_at) VALUES ($1,$2,$3)`,
 		hashToken(raw), createdBy, expires)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("enroll: simpan token: %w", err)
+		return "", time.Time{}, fmt.Errorf("enroll: store token: %w", err)
 	}
 	return raw, expires, nil
 }
 
-// Bundle adalah materi yang dikembalikan ke agent saat enroll.
+// Bundle is the material returned to the agent at enroll time.
 type Bundle struct {
 	AgentID    string `json:"agent_id"`
 	Name       string `json:"name"`
@@ -70,11 +70,11 @@ type Bundle struct {
 	ClientKey  string `json:"client_key"`
 }
 
-// Enroll memvalidasi token (sekali-pakai), menerbitkan sertifikat client unik,
-// dan mendaftarkan agent. Dijalankan dalam transaksi agar token & agent atomik.
+// Enroll validates the token (single-use), issues a unique client certificate,
+// and registers the agent. Runs in a transaction so token & agent are atomic.
 func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle, error) {
 	if name == "" {
-		return nil, fmt.Errorf("enroll: nama agent wajib")
+		return nil, fmt.Errorf("enroll: agent name is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -82,12 +82,12 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 	}
 	defer tx.Rollback(ctx)
 
-	// Klaim token: hanya yang belum dipakai & belum kedaluwarsa.
+	// Claim the token: only if unused & not expired.
 	ct, err := tx.Exec(ctx,
 		`UPDATE agent_enroll_tokens SET used_at = now()
 		 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`, hashToken(rawToken))
 	if err != nil {
-		return nil, fmt.Errorf("enroll: klaim token: %w", err)
+		return nil, fmt.Errorf("enroll: claim token: %w", err)
 	}
 	if ct.RowsAffected() != 1 {
 		return nil, ErrToken
@@ -95,7 +95,7 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 
 	certPEM, keyPEM, serial, err := s.ca.IssueClient(name, ClientTTL)
 	if err != nil {
-		return nil, fmt.Errorf("enroll: terbitkan cert: %w", err)
+		return nil, fmt.Errorf("enroll: issue cert: %w", err)
 	}
 
 	var agentID string
@@ -103,7 +103,7 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 		`INSERT INTO agents (name, os, cert_serial) VALUES ($1,$2,$3) RETURNING id`,
 		name, nilIfEmpty(os), serial).Scan(&agentID)
 	if err != nil {
-		return nil, fmt.Errorf("enroll: daftar agent (nama dipakai?): %w", err)
+		return nil, fmt.Errorf("enroll: register agent (name taken?): %w", err)
 	}
 	_, _ = tx.Exec(ctx, `UPDATE agent_enroll_tokens SET used_by_agent = $1 WHERE token_hash = $2`,
 		agentID, hashToken(rawToken))
@@ -117,7 +117,7 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 	}, nil
 }
 
-// AgentInfo untuk daftar agent.
+// AgentInfo for the agent list.
 type AgentInfo struct {
 	ID            string         `json:"id"`
 	Name          string         `json:"name"`
@@ -158,25 +158,25 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	return out, rows.Err()
 }
 
-// Revoke menandai agent dicabut (gateway akan menolak koneksinya).
+// Revoke marks an agent as revoked (the gateway will reject its connection).
 func (s *Store) Revoke(ctx context.Context, id string) error {
 	ct, err := s.pool.Exec(ctx, `UPDATE agents SET revoked = true WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("enroll: revoke: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("enroll: agent tidak ditemukan")
+		return fmt.Errorf("enroll: agent not found")
 	}
 	return nil
 }
 
-// IsRevoked melaporkan apakah agent dengan name (CN sertifikat) dicabut atau tak
-// dikenal. Dipakai gateway untuk menolak koneksi.
+// IsRevoked reports whether the agent with name (certificate CN) is revoked or
+// unknown. Used by the gateway to reject connections.
 func (s *Store) IsRevoked(ctx context.Context, name string) (bool, error) {
 	var revoked bool
 	err := s.pool.QueryRow(ctx, `SELECT revoked FROM agents WHERE name = $1`, name).Scan(&revoked)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil // agent tak terdaftar (mis. cert lama/bersama) — jangan blokir di sini
+		return false, nil // agent not registered (e.g. old/shared cert) — don't block here
 	}
 	if err != nil {
 		return false, err
@@ -184,22 +184,22 @@ func (s *Store) IsRevoked(ctx context.Context, name string) (bool, error) {
 	return revoked, nil
 }
 
-// MarkSeen memperbarui last_seen_at agent (dipakai heartbeat / ingest).
+// MarkSeen updates the agent's last_seen_at (used by heartbeat / ingest).
 func (s *Store) MarkSeen(ctx context.Context, name string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
 	return err
 }
 
-// SetConfig menetapkan desired sources untuk agent (config push) dan menaikkan
-// versi. Mengembalikan versi baru.
+// SetConfig sets the desired sources for an agent (config push) and bumps the
+// version. Returns the new version.
 func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source) (int, error) {
 	var raw *string
 	err := s.pool.QueryRow(ctx, `SELECT config FROM agents WHERE id = $1`, id).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, fmt.Errorf("enroll: agent tidak ditemukan")
+		return 0, fmt.Errorf("enroll: agent not found")
 	}
 	if err != nil {
-		return 0, fmt.Errorf("enroll: baca config: %w", err)
+		return 0, fmt.Errorf("enroll: read config: %w", err)
 	}
 	var cur agent.Config
 	if raw != nil {
@@ -211,13 +211,13 @@ func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source
 		return 0, err
 	}
 	if _, err := s.pool.Exec(ctx, `UPDATE agents SET config = $1 WHERE id = $2`, b, id); err != nil {
-		return 0, fmt.Errorf("enroll: simpan config: %w", err)
+		return 0, fmt.Errorf("enroll: store config: %w", err)
 	}
 	return cfg.Version, nil
 }
 
-// GetConfigByName mengembalikan JSON config untuk agent ber-CN name (nil bila
-// belum ditetapkan atau agent dicabut).
+// GetConfigByName returns the config JSON for the agent with CN name (nil if not
+// yet set or the agent is revoked).
 func (s *Store) GetConfigByName(ctx context.Context, name string) ([]byte, error) {
 	var raw *string
 	err := s.pool.QueryRow(ctx, `SELECT config FROM agents WHERE name = $1 AND NOT revoked`, name).Scan(&raw)

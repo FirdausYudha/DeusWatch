@@ -28,9 +28,9 @@ func (f *fakePublisher) Publish(_ context.Context, _ string, data []byte) error 
 	return nil
 }
 
-// TestGatewayMTLSIngest membuktikan rantai 5.3: agent ber-sertifikat POST log
-// mentah lewat mTLS -> gateway normalisasi ke DCS -> publish; dan client tanpa
-// sertifikat ditolak. Self-contained (tanpa NATS/Postgres).
+// TestGatewayMTLSIngest proves the 5.3 chain: a certificated agent POSTs raw logs
+// over mTLS -> gateway normalizes to DCS -> publish; and a client without a
+// certificate is rejected. Self-contained (no NATS/Postgres).
 func TestGatewayMTLSIngest(t *testing.T) {
 	dir := t.TempDir()
 	paths, err := mtls.GenerateBundle(mtls.Options{
@@ -54,7 +54,7 @@ func TestGatewayMTLSIngest(t *testing.T) {
 	ts.StartTLS()
 	defer ts.Close()
 
-	// Client mTLS sah.
+	// Valid mTLS client.
 	cliCfg, err := mtls.ClientConfig(paths)
 	if err != nil {
 		t.Fatalf("ClientConfig: %v", err)
@@ -68,21 +68,21 @@ func TestGatewayMTLSIngest(t *testing.T) {
 	body, _ := json.Marshal(batch)
 	resp, err := client.Post(ts.URL+"/v1/logs", "application/json", strings.NewReader(string(body)))
 	if err != nil {
-		t.Fatalf("POST sah gagal: %v", err)
+		t.Fatalf("valid POST failed: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status=%d, mau 200", resp.StatusCode)
+		t.Fatalf("status=%d, want 200", resp.StatusCode)
 	}
 	var out struct {
 		Accepted int `json:"accepted"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&out)
 	if out.Accepted != 2 {
-		t.Fatalf("accepted=%d, mau 2", out.Accepted)
+		t.Fatalf("accepted=%d, want 2", out.Accepted)
 	}
 	if len(pub.msgs) != 2 {
-		t.Fatalf("published=%d, mau 2", len(pub.msgs))
+		t.Fatalf("published=%d, want 2", len(pub.msgs))
 	}
 
 	var e0 ingest.Event
@@ -90,19 +90,19 @@ func TestGatewayMTLSIngest(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if e0.Event.Outcome != "failure" || e0.Source == nil || e0.Source.IP != "203.0.113.10" || e0.User == nil || e0.User.Name != "root" {
-		t.Fatalf("normalisasi sshd salah: %+v", e0)
+		t.Fatalf("wrong sshd normalization: %+v", e0)
 	}
 	if e0.Agent == nil || e0.Agent.ID != "deuswatch-agent" {
-		t.Fatalf("agent id seharusnya dari CN sertifikat: %+v", e0.Agent)
+		t.Fatalf("agent id should come from the certificate CN: %+v", e0.Agent)
 	}
-	t.Logf("OK: 2 log via mTLS -> DCS (failed login dari %s user %s, agent %s)",
+	t.Logf("OK: 2 logs via mTLS -> DCS (failed login from %s user %s, agent %s)",
 		e0.Source.IP, e0.User.Name, e0.Agent.ID)
 
-	// Negatif: client tanpa sertifikat ditolak gateway.
+	// Negative: a client without a certificate is rejected by the gateway.
 	anon := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{
 		RootCAs: cliCfg.RootCAs, MinVersion: tls.VersionTLS13,
 	}}}
 	if _, err := anon.Post(ts.URL+"/v1/logs", "application/json", strings.NewReader("[]")); err == nil {
-		t.Fatal("client tanpa sertifikat seharusnya DITOLAK")
+		t.Fatal("a client without a certificate should be REJECTED")
 	}
 }

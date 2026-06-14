@@ -28,14 +28,14 @@ func TestEnrollFlow(t *testing.T) {
 
 	pool, err := pgxpool.New(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 
-	// CA sementara.
+	// Temporary CA.
 	dir := t.TempDir()
 	if _, err := mtls.GenerateBundle(mtls.Options{Dir: dir, ValidFor: time.Hour}); err != nil {
 		t.Fatalf("GenerateBundle: %v", err)
@@ -60,10 +60,10 @@ func TestEnrollFlow(t *testing.T) {
 		t.Fatalf("Enroll: %v", err)
 	}
 
-	// Sertifikat client harus ter-tandatangan oleh CA & CN = nama agent.
+	// The client certificate must be CA-signed & CN = agent name.
 	cb, _ := pem.Decode([]byte(bundle.ClientCert))
 	if cb == nil {
-		t.Fatal("client cert bukan PEM")
+		t.Fatal("client cert is not PEM")
 	}
 	cert, err := x509.ParseCertificate(cb.Bytes)
 	if err != nil {
@@ -71,29 +71,29 @@ func TestEnrollFlow(t *testing.T) {
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM([]byte(bundle.CACert)) {
-		t.Fatal("CA cert tidak ter-load")
+		t.Fatal("CA cert did not load")
 	}
 	if _, err := cert.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}); err != nil {
-		t.Fatalf("cert tidak terverifikasi terhadap CA: %v", err)
+		t.Fatalf("cert did not verify against the CA: %v", err)
 	}
 	if cert.Subject.CommonName != name {
-		t.Fatalf("CN cert = %q, mau %q", cert.Subject.CommonName, name)
+		t.Fatalf("cert CN = %q, want %q", cert.Subject.CommonName, name)
 	}
 
-	// Token sekali-pakai: enroll kedua dengan token sama harus gagal.
+	// Single-use token: a second enroll with the same token must fail.
 	if _, err := s.Enroll(ctx, raw, name+"-2", "linux"); !errors.Is(err, ErrToken) {
-		t.Fatalf("token harus sekali-pakai, dapat: %v", err)
+		t.Fatalf("token must be single-use, got: %v", err)
 	}
 
 	// Revocation.
 	if rev, _ := s.IsRevoked(ctx, name); rev {
-		t.Fatal("agent belum dicabut, IsRevoked harus false")
+		t.Fatal("agent not yet revoked, IsRevoked must be false")
 	}
 	if err := s.Revoke(ctx, bundle.AgentID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
 	if rev, _ := s.IsRevoked(ctx, name); !rev {
-		t.Fatal("setelah Revoke, IsRevoked harus true")
+		t.Fatal("after Revoke, IsRevoked must be true")
 	}
-	t.Logf("OK: enroll -> cert unik CN=%s ter-tandatangan CA; token sekali-pakai; revoke bekerja", name)
+	t.Logf("OK: enroll -> unique CA-signed cert CN=%s; single-use token; revoke works", name)
 }
