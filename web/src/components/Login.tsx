@@ -34,7 +34,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
     try {
       if (mode === 'register') {
         if (password !== confirm) {
-          throw new Error('Konfirmasi password tidak cocok')
+          throw new Error('Password confirmation does not match')
         }
         onSuccess(await register(username, password))
       } else {
@@ -69,7 +69,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
           </div>
           <div className="leading-tight">
             <div className="font-semibold tracking-tight text-white">DeusWatch</div>
-            <div className="text-xs text-slate-500">{isRegister ? 'Buat akun baru' : 'Masuk untuk melanjutkan'}</div>
+            <div className="text-xs text-slate-500">{isRegister ? 'Create a new account' : 'Sign in to continue'}</div>
           </div>
         </div>
 
@@ -82,7 +82,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
                 mode === 'login' ? 'bg-slate-800 font-medium text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Masuk
+              Sign in
             </button>
             <button
               type="button"
@@ -91,7 +91,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
                 mode === 'register' ? 'bg-slate-800 font-medium text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Daftar
+              Sign up
             </button>
           </div>
         )}
@@ -118,7 +118,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Konfirmasi password"
+              placeholder="Confirm password"
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
             />
           )}
@@ -126,7 +126,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
             <input
               value={totp}
               onChange={(e) => setTotp(e.target.value)}
-              placeholder="Kode 2FA (6 digit)"
+              placeholder="2FA code (6 digits)"
               inputMode="numeric"
               autoFocus
               className="w-full rounded-lg border border-indigo-700 bg-slate-800 px-3 py-2 text-sm tracking-widest outline-none focus:border-indigo-500"
@@ -141,11 +141,11 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
           disabled={!canSubmit}
           className="w-full rounded-lg bg-indigo-500 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
         >
-          {busy ? 'Memproses…' : need2fa ? 'Verifikasi' : isRegister ? 'Daftar' : 'Masuk'}
+          {busy ? 'Processing…' : need2fa ? 'Verify' : isRegister ? 'Sign up' : 'Sign in'}
         </button>
 
         {isRegister && (
-          <p className="text-center text-xs text-slate-600">Akun baru mendapat peran viewer (read-only).</p>
+          <p className="text-center text-xs text-slate-600">New accounts get the viewer role (read-only).</p>
         )}
       </form>
     </div>

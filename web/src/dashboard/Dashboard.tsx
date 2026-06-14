@@ -28,7 +28,7 @@ const VERDICT_BADGE: Record<string, string> = {
   benign: 'text-emerald-300 bg-emerald-500/15',
 }
 
-// LLMVerdict menampilkan vonis triase LLM (jika ada) dengan ringkasan di tooltip.
+// LLMVerdict shows the LLM triage verdict (if any) with the summary in a tooltip.
 function LLMVerdict({ a }: { a: EventRow }) {
   if (!a.dw_llm_verdict) return <span className="text-slate-600">—</span>
   const cls = VERDICT_BADGE[a.dw_llm_verdict] ?? 'text-slate-400 bg-slate-700/40'
@@ -39,7 +39,7 @@ function LLMVerdict({ a }: { a: EventRow }) {
   )
 }
 
-// ThreatIntel menampilkan ringkasan enrichment CTI/GeoIP untuk satu alert.
+// ThreatIntel shows the CTI/GeoIP enrichment summary for one alert.
 function ThreatIntel({ a }: { a: EventRow }) {
   const abuse = a.dw_enrichment_abuse_confidence
   const otx = a.dw_enrichment_otx_pulse_count
@@ -65,7 +65,7 @@ function ThreatIntel({ a }: { a: EventRow }) {
         </span>
       )}
       {a.dw_severity_escalated_by && (
-        <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-xs font-medium text-orange-300" title={`Eskalasi: ${a.dw_severity_escalated_by}`}>
+        <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-xs font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>
           ↑
         </span>
       )}
@@ -100,7 +100,7 @@ export default function Dashboard() {
           setAlerts(a)
         }
       } catch {
-        // API DB belum siap — biarkan kosong
+        // API/DB not ready yet — leave empty
       }
       if (active) setUpdated(new Date())
     }
@@ -113,9 +113,9 @@ export default function Dashboard() {
   }, [])
 
   const services: { name: string; sub: string; state: DotState; detail: string }[] = [
-    { name: 'API Server', sub: 'Go · :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'memeriksa…' },
-    { name: 'PostgreSQL + TimescaleDB', sub: 'penyimpanan log', state: health ? depDot(health.postgres) : 'unknown', detail: health?.postgres ?? 'memeriksa…' },
-    { name: 'NATS JetStream', sub: 'message bus', state: health ? depDot(health.nats) : 'unknown', detail: health?.nats ?? 'memeriksa…' },
+    { name: 'API Server', sub: 'Go · :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'checking…' },
+    { name: 'PostgreSQL + TimescaleDB', sub: 'log storage', state: health ? depDot(health.postgres) : 'unknown', detail: health?.postgres ?? 'checking…' },
+    { name: 'NATS JetStream', sub: 'message bus', state: health ? depDot(health.nats) : 'unknown', detail: health?.nats ?? 'checking…' },
   ]
   const allReady = health?.ready ?? false
   const maxSev = Math.max(1, ...(stats?.by_severity ?? []).map((s) => s.count))
@@ -125,11 +125,11 @@ export default function Dashboard() {
       <header className="mb-8 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-500">Status & deteksi DeusWatch · pembaruan tiap 5 detik</p>
+          <p className="mt-1 text-sm text-slate-500">DeusWatch status & detection · updates every 5s</p>
         </div>
         <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${allReady ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'}`}>
           <Dot state={allReady ? 'good' : 'unknown'} />
-          {allReady ? 'Semua sistem siap' : 'Menunggu dependensi'}
+          {allReady ? 'All systems ready' : 'Waiting for dependencies'}
         </div>
       </header>
 
@@ -137,7 +137,7 @@ export default function Dashboard() {
       <section className="mb-8 grid gap-3 sm:grid-cols-3">
         <StatCard label="Total event" value={stats?.total_events ?? '—'} />
         <StatCard label="Total alert" value={stats?.total_alerts ?? '—'} accent="text-orange-300" />
-        <StatCard label="Alert (24 jam)" value={stats?.alerts_24h ?? '—'} accent="text-rose-300" />
+        <StatCard label="Alerts (24h)" value={stats?.alerts_24h ?? '—'} accent="text-rose-300" />
       </section>
 
       {/* Top IPs + Severity */}
@@ -154,7 +154,7 @@ export default function Dashboard() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-600">belum ada data</p>
+            <p className="text-sm text-slate-600">no data yet</p>
           )}
         </div>
 
@@ -173,19 +173,19 @@ export default function Dashboard() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-600">belum ada data</p>
+            <p className="text-sm text-slate-600">no data yet</p>
           )}
         </div>
       </section>
 
       {/* Recent alerts */}
       <section className="mb-8">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Alert terbaru</h2>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Recent alerts</h2>
         <div className="overflow-hidden rounded-xl border border-slate-800">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
               <tr>
-                <th className="px-4 py-2 font-medium">Waktu</th>
+                <th className="px-4 py-2 font-medium">Time</th>
                 <th className="px-4 py-2 font-medium">Source IP</th>
                 <th className="px-4 py-2 font-medium">Rule</th>
                 <th className="px-4 py-2 font-medium">MITRE</th>
@@ -198,7 +198,7 @@ export default function Dashboard() {
               {alerts.length ? (
                 alerts.map((a, i) => (
                   <tr key={i} className="hover:bg-slate-800/40">
-                    <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('id-ID')}</td>
+                    <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('en-US')}</td>
                     <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
                     <td className="px-4 py-2 text-slate-300">{a.rule_name || a.dw_label}</td>
                     <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
@@ -210,7 +210,7 @@ export default function Dashboard() {
               ) : (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-600">
-                    {health?.api === 'down' ? 'API tak terjangkau — jalankan docker compose up' : 'Belum ada alert. Picu brute-force SSH untuk melihatnya di sini.'}
+                    {health?.api === 'down' ? 'API unreachable — run docker compose up' : 'No alerts yet. Trigger an SSH brute-force to see them here.'}
                   </td>
                 </tr>
               )}
@@ -218,7 +218,7 @@ export default function Dashboard() {
           </table>
         </div>
         <p className="mt-3 text-xs text-slate-600">
-          {updated ? `Terakhir diperbarui ${updated.toLocaleTimeString('id-ID')}` : 'Menghubungi API…'}
+          {updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Connecting to API…'}
         </p>
       </section>
 

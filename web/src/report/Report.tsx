@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { fetchReport, fetchReportMarkdown, type SecurityReport, type ReportCount } from '../lib/api'
 
 const WINDOWS: { label: string; hours: number }[] = [
-  { label: '24 jam', hours: 24 },
-  { label: '7 hari', hours: 168 },
-  { label: '30 hari', hours: 720 },
+  { label: '24h', hours: 24 },
+  { label: '7d', hours: 168 },
+  { label: '30d', hours: 720 },
 ]
 
 function StatCard({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
@@ -25,7 +25,7 @@ function BarList({ title, rows }: { title: string; rows: ReportCount[] | null })
         <ul className="space-y-2">
           {rows.map((r, i) => (
             <li key={i} className="flex items-center gap-3 text-sm">
-              <span className="w-44 truncate text-slate-300" title={r.label}>{r.label || '(kosong)'}</span>
+              <span className="w-44 truncate text-slate-300" title={r.label}>{r.label || '(empty)'}</span>
               <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
                 <div className="h-full rounded bg-indigo-500" style={{ width: `${(r.count / max) * 100}%` }} />
               </div>
@@ -34,7 +34,7 @@ function BarList({ title, rows }: { title: string; rows: ReportCount[] | null })
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-slate-600">belum ada data</p>
+        <p className="text-sm text-slate-600">no data yet</p>
       )}
     </div>
   )
@@ -75,15 +75,15 @@ export default function Report() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Report</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Ringkasan keamanan
-            {report && <span className="ml-1 text-slate-600">· dibuat {new Date(report.generated).toLocaleString('id-ID')}</span>}
+            Security summary
+            {report && <span className="ml-1 text-slate-600">· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
           </p>
         </div>
         <button
           onClick={download}
           className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
         >
-          Unduh Markdown
+          Download Markdown
         </button>
       </header>
 
@@ -101,19 +101,19 @@ export default function Report() {
             {wnd.label}
           </button>
         ))}
-        {loading && <span className="self-center text-xs text-slate-600">memuat…</span>}
+        {loading && <span className="self-center text-xs text-slate-600">loading…</span>}
       </div>
 
       {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2">
-        <StatCard label="Total event" value={report?.total_events ?? '—'} />
-        <StatCard label="Total alert" value={report?.total_alerts ?? '—'} accent="text-orange-300" />
+        <StatCard label="Total events" value={report?.total_events ?? '—'} />
+        <StatCard label="Total alerts" value={report?.total_alerts ?? '—'} accent="text-orange-300" />
       </section>
 
       <section className="grid gap-3 lg:grid-cols-2">
         <BarList title="Severity" rows={report?.by_severity ?? null} />
-        <BarList title="Vonis LLM" rows={report?.by_verdict ?? null} />
+        <BarList title="LLM verdict" rows={report?.by_verdict ?? null} />
         <BarList title="Top source IP" rows={report?.top_source_ips ?? null} />
         <BarList title="Top rule" rows={report?.top_rules ?? null} />
         <BarList title="Top MITRE technique" rows={report?.top_techniques ?? null} />

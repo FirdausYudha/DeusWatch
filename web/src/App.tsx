@@ -26,7 +26,7 @@ export default function App() {
   }, [])
 
   if (!checked) {
-    return <div className="grid h-screen place-items-center bg-slate-950 text-slate-500">Memuat…</div>
+    return <div className="grid h-screen place-items-center bg-slate-950 text-slate-500">Loading…</div>
   }
   if (!me) {
     return <Login onSuccess={setMe} />

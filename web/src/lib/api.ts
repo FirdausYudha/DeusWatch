@@ -1,5 +1,5 @@
-// Klien kecil untuk endpoint kesehatan API DeusWatch.
-// Dev server (Vite) mem-proxy /healthz & /readyz ke API :8080 — lihat vite.config.ts.
+// Small client for the DeusWatch API.
+// The dev server (Vite) proxies /healthz, /readyz & /api to the API on :8080 — see vite.config.ts.
 
 export type DepState = 'reachable' | 'unreachable' | 'unknown'
 
@@ -21,7 +21,7 @@ export async function fetchHealth(): Promise<Health> {
   }
 
   try {
-    // /readyz mengembalikan 200 saat ready, 503 saat belum — keduanya berisi JSON.
+    // /readyz returns 200 when ready, 503 otherwise — both carry JSON.
     const res = await fetch('/readyz', { cache: 'no-store' })
     const data = (await res.json()) as {
       status?: string
@@ -32,7 +32,7 @@ export async function fetchHealth(): Promise<Health> {
     health.postgres = depState(deps.postgres)
     health.nats = depState(deps.nats)
   } catch {
-    // Error jaringan (mis. API mati) — biarkan dependensi 'unknown'.
+    // Network error (e.g. API down) — leave dependencies as 'unknown'.
   }
 
   return health
@@ -103,13 +103,13 @@ export const SEVERITY: Record<number, { label: string; cls: string }> = {
   4: { label: 'critical', cls: 'text-rose-300 bg-rose-500/15' },
 }
 
-// ── Auth (token sesi) ─────────────────────────────────────
+// ── Auth (session token) ──────────────────────────────────
 
 const TOKEN_KEY = 'deuswatch_token'
 
 export type Me = { username: string; role: string; twofa_enabled?: boolean }
 
-// Dilempar saat password benar tetapi 2FA aktif dan kode belum/tidak valid.
+// Thrown when the password is correct but 2FA is enabled and the code is missing/invalid.
 export class TwoFactorRequired extends Error {}
 
 export function getToken(): string | null {
@@ -124,7 +124,7 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-// authFetch menambah header Bearer dan membersihkan token pada 401.
+// authFetch adds the Bearer header and clears the token on 401.
 async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken()
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) }
@@ -143,7 +143,7 @@ export async function login(username: string, password: string, totp?: string): 
   if (res.status === 401) {
     const text = await res.text()
     if (text.includes('2fa_required')) throw new TwoFactorRequired()
-    throw new Error('Username atau password salah')
+    throw new Error('Incorrect username or password')
   }
   if (!res.ok) throw new Error(`login: HTTP ${res.status}`)
   const data = await res.json()
@@ -159,7 +159,7 @@ export async function register(username: string, password: string): Promise<Me> 
   })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   const data = await res.json()
-  if (!data.token) throw new Error('Akun dibuat — silakan masuk')
+  if (!data.token) throw new Error('Account created — please sign in')
   setToken(data.token)
   return { username: data.username, role: data.role }
 }
@@ -210,12 +210,12 @@ export async function logout(): Promise<void> {
   try {
     await authFetch('/api/logout', { method: 'POST' })
   } catch {
-    // abaikan
+    // ignore
   }
   clearToken()
 }
 
-// ── Manajemen user (admin) ────────────────────────────────
+// ── User management (admin) ───────────────────────────────
 
 export type UserInfo = {
   id: string
@@ -257,7 +257,7 @@ export type AgentInfo = {
   sources?: AgentSource[]
 }
 
-// Agent dianggap online bila heartbeat terakhir < 90 detik lalu (interval 30s + toleransi).
+// An agent is considered online if its last heartbeat was < 90s ago (30s interval + tolerance).
 export function agentOnline(a: AgentInfo): boolean {
   if (a.revoked || !a.last_seen_at) return false
   return Date.now() - new Date(a.last_seen_at).getTime() < 90_000

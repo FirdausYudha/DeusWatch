@@ -34,7 +34,7 @@ export default function Settings() {
       await enable2FA(setup!.secret, code)
       setSetup(null)
       setCode('')
-      setMsg('2FA berhasil diaktifkan.')
+      setMsg('2FA enabled successfully.')
       refresh()
     } catch (e) {
       setError((e as Error).message)
@@ -50,7 +50,7 @@ export default function Settings() {
     try {
       await disable2FA(code)
       setCode('')
-      setMsg('2FA dinonaktifkan.')
+      setMsg('2FA disabled.')
       refresh()
     } catch (e) {
       setError((e as Error).message)
@@ -63,18 +63,18 @@ export default function Settings() {
     <div className="mx-auto max-w-3xl px-8 py-8">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Keamanan akun</p>
+        <p className="mt-1 text-sm text-slate-500">Account security</p>
       </header>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-slate-200">Autentikasi Dua Faktor (TOTP)</h2>
+          <h2 className="text-sm font-medium text-slate-200">Two-Factor Authentication (TOTP)</h2>
           <span
             className={`rounded px-2 py-0.5 text-xs font-medium ${
               enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700/40 text-slate-400'
             }`}
           >
-            {enabled === null ? '…' : enabled ? 'Aktif' : 'Nonaktif'}
+            {enabled === null ? '…' : enabled ? 'Enabled' : 'Disabled'}
           </span>
         </div>
 
@@ -83,14 +83,14 @@ export default function Settings() {
             onClick={startSetup}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400"
           >
-            Aktifkan 2FA
+            Enable 2FA
           </button>
         )}
 
         {enabled === false && setup && (
           <form onSubmit={confirmEnable} className="space-y-3">
             <p className="text-sm text-slate-400">
-              Tambahkan ke aplikasi authenticator (scan / tempel URL), lalu masukkan kode 6 digit:
+              Add to your authenticator app (scan / paste the URL), then enter the 6-digit code:
             </p>
             <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-xs">
               <div className="text-slate-500">Secret</div>
@@ -101,7 +101,7 @@ export default function Settings() {
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Kode 6 digit"
+              placeholder="6-digit code"
               inputMode="numeric"
               className="w-44 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm tracking-widest outline-none focus:border-indigo-500"
             />
@@ -110,18 +110,18 @@ export default function Settings() {
               disabled={busy || !code}
               className="ml-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
             >
-              Konfirmasi
+              Confirm
             </button>
           </form>
         )}
 
         {enabled === true && (
           <form onSubmit={doDisable} className="space-y-3">
-            <p className="text-sm text-slate-400">Masukkan kode 2FA saat ini untuk menonaktifkan:</p>
+            <p className="text-sm text-slate-400">Enter your current 2FA code to disable it:</p>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Kode 6 digit"
+              placeholder="6-digit code"
               inputMode="numeric"
               className="w-44 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm tracking-widest outline-none focus:border-indigo-500"
             />
@@ -130,7 +130,7 @@ export default function Settings() {
               disabled={busy || !code}
               className="ml-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
             >
-              Nonaktifkan
+              Disable
             </button>
           </form>
         )}

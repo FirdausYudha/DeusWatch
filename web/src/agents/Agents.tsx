@@ -10,19 +10,19 @@ import {
 } from '../lib/api'
 
 function relative(ts: string | null): string {
-  if (!ts) return 'belum pernah'
+  if (!ts) return 'never'
   const diff = Date.now() - new Date(ts).getTime()
   const s = Math.floor(diff / 1000)
-  if (s < 60) return `${s}d lalu`
+  if (s < 60) return `${s}s ago`
   const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m lalu`
+  if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}j lalu`
-  return new Date(ts).toLocaleString('id-ID')
+  if (h < 24) return `${h}h ago`
+  return new Date(ts).toLocaleString('en-US')
 }
 
 function StatusBadge({ a }: { a: AgentInfo }) {
-  if (a.revoked) return <span className="rounded px-1.5 py-0.5 text-xs font-medium text-rose-300 bg-rose-500/15">dicabut</span>
+  if (a.revoked) return <span className="rounded px-1.5 py-0.5 text-xs font-medium text-rose-300 bg-rose-500/15">revoked</span>
   if (agentOnline(a)) return <span className="rounded px-1.5 py-0.5 text-xs font-medium text-emerald-300 bg-emerald-500/15">online</span>
   return <span className="rounded px-1.5 py-0.5 text-xs font-medium text-slate-400 bg-slate-700/40">offline</span>
 }
@@ -60,7 +60,7 @@ export default function Agents({ me }: { me: Me }) {
   }
 
   const doRevoke = async (a: AgentInfo) => {
-    if (!confirm(`Cabut agent "${a.name}"? Koneksinya akan ditolak gateway.`)) return
+    if (!confirm(`Revoke agent "${a.name}"? Its connection will be rejected by the gateway.`)) return
     setError('')
     try {
       await revokeAgent(a.id)
@@ -75,7 +75,7 @@ export default function Agents({ me }: { me: Me }) {
       <header className="mb-8 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Agents</h1>
-          <p className="mt-1 text-sm text-slate-500">Agent terdaftar, status heartbeat & config push</p>
+          <p className="mt-1 text-sm text-slate-500">Registered agents, heartbeat status &amp; config push</p>
         </div>
         {isAdmin && (
           <button
@@ -83,18 +83,18 @@ export default function Agents({ me }: { me: Me }) {
             disabled={busy}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
           >
-            {busy ? 'Membuat…' : 'Buat token enrollment'}
+            {busy ? 'Creating…' : 'Create enrollment token'}
           </button>
         )}
       </header>
 
       {token && (
         <section className="mb-6 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-5">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Token enrollment (sekali-pakai, 1 jam)</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-indigo-300">Enrollment token (one-time, 1 hour)</h2>
           <code className="block break-all rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-emerald-300">{token}</code>
           <p className="mt-2 text-xs text-slate-500">
-            Di host agent jalankan:&nbsp;
-            <code className="text-slate-300">deuswatch-agent -enroll -token {token.slice(0, 8)}… -name &lt;nama&gt; -manager http://host:8080</code>
+            On the agent host, run:&nbsp;
+            <code className="text-slate-300">deuswatch-agent -enroll -token {token.slice(0, 8)}… -name &lt;name&gt; -manager http://host:8080</code>
           </p>
         </section>
       )}
@@ -105,19 +105,19 @@ export default function Agents({ me }: { me: Me }) {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Nama</th>
+              <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">OS</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Heartbeat</th>
               <th className="px-4 py-2 font-medium">Config</th>
-              {isAdmin && <th className="px-4 py-2 font-medium">Aksi</th>}
+              {isAdmin && <th className="px-4 py-2 font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-900/40">
             {agents.length === 0 && (
               <tr>
                 <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-slate-500">
-                  Belum ada agent. Buat token enrollment lalu daftarkan agent.
+                  No agents yet. Create an enrollment token, then register an agent.
                 </td>
               </tr>
             )}
@@ -130,7 +130,7 @@ export default function Agents({ me }: { me: Me }) {
                 <td className="px-4 py-2 text-slate-400">
                   v{a.config_version}
                   {a.sources && a.sources.length > 0 && (
-                    <span className="ml-1 text-slate-600">({a.sources.length} source)</span>
+                    <span className="ml-1 text-slate-600">({a.sources.length} source{a.sources.length > 1 ? 's' : ''})</span>
                   )}
                 </td>
                 {isAdmin && (
@@ -147,7 +147,7 @@ export default function Agents({ me }: { me: Me }) {
                           onClick={() => doRevoke(a)}
                           className="rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10"
                         >
-                          Cabut
+                          Revoke
                         </button>
                       )}
                     </div>
@@ -191,7 +191,7 @@ function ConfigEditor({
     setError('')
     try {
       const sources = JSON.parse(text)
-      if (!Array.isArray(sources)) throw new Error('sources harus berupa array')
+      if (!Array.isArray(sources)) throw new Error('sources must be an array')
       await setAgentConfig(agent.id, sources)
       onSaved()
     } catch (e) {
@@ -209,9 +209,9 @@ function ConfigEditor({
       >
         <h2 className="mb-1 text-lg font-semibold text-white">Config push — {agent.name}</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Daftar source (JSON). Field: <code className="text-slate-300">dataset</code>,{' '}
+          Source list (JSON). Fields: <code className="text-slate-300">dataset</code>,{' '}
           <code className="text-slate-300">type</code> (file/journald/wineventlog/fim),{' '}
-          <code className="text-slate-300">path</code>. Menyimpan akan menaikkan versi & memicu agent restart.
+          <code className="text-slate-300">path</code>. Saving bumps the version and triggers an agent restart.
         </p>
         <textarea
           value={text}
@@ -224,14 +224,14 @@ function ConfigEditor({
         {error && <p className="mt-2 text-sm text-rose-400">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">
-            Batal
+            Cancel
           </button>
           <button
             onClick={save}
             disabled={busy}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
           >
-            {busy ? 'Menyimpan…' : 'Simpan & push'}
+            {busy ? 'Saving…' : 'Save & push'}
           </button>
         </div>
       </div>

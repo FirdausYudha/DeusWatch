@@ -43,11 +43,11 @@ export default function Users() {
     <div className="mx-auto max-w-4xl px-8 py-8">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Users</h1>
-        <p className="mt-1 text-sm text-slate-500">Kelola akun & peran (admin)</p>
+        <p className="mt-1 text-sm text-slate-500">Manage accounts & roles (admin)</p>
       </header>
 
       <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Tambah user</h2>
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Add user</h2>
         <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
           <input
             value={username}
@@ -76,7 +76,7 @@ export default function Users() {
             disabled={busy || !username || !password}
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
           >
-            {busy ? 'Menyimpan…' : 'Tambah'}
+            {busy ? 'Saving…' : 'Add'}
           </button>
         </form>
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
@@ -89,7 +89,7 @@ export default function Users() {
               <th className="px-4 py-2 font-medium">Username</th>
               <th className="px-4 py-2 font-medium">Role</th>
               <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Dibuat</th>
+              <th className="px-4 py-2 font-medium">Created</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-900/40">
@@ -101,8 +101,8 @@ export default function Users() {
                     {u.role}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-slate-400">{u.disabled ? 'nonaktif' : 'aktif'}</td>
-                <td className="px-4 py-2 text-slate-400">{new Date(u.created_at).toLocaleString('id-ID')}</td>
+                <td className="px-4 py-2 text-slate-400">{u.disabled ? 'disabled' : 'active'}</td>
+                <td className="px-4 py-2 text-slate-400">{new Date(u.created_at).toLocaleString('en-US')}</td>
               </tr>
             ))}
           </tbody>

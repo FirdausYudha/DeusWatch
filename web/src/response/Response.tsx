@@ -17,19 +17,19 @@ const STATUS_BADGE: Record<ResponseStatus, string> = {
 }
 
 const FILTERS: { label: string; value: string }[] = [
-  { label: 'Semua', value: '' },
-  { label: 'Direkomendasikan', value: 'recommended' },
-  { label: 'Dieksekusi', value: 'executed' },
-  { label: 'Ditolak', value: 'dismissed' },
-  { label: 'Gagal', value: 'failed' },
+  { label: 'All', value: '' },
+  { label: 'Recommended', value: 'recommended' },
+  { label: 'Executed', value: 'executed' },
+  { label: 'Dismissed', value: 'dismissed' },
+  { label: 'Failed', value: 'failed' },
 ]
 
 function banLabel(seconds: number): string {
-  if (seconds <= 0) return 'permanen'
-  if (seconds % 86400 === 0) return `${seconds / 86400}h`
-  if (seconds % 3600 === 0) return `${seconds / 3600}j`
+  if (seconds <= 0) return 'permanent'
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`
   if (seconds % 60 === 0) return `${seconds / 60}m`
-  return `${seconds}d`
+  return `${seconds}s`
 }
 
 export default function Response({ me }: { me: Me }) {
@@ -52,7 +52,7 @@ export default function Response({ me }: { me: Me }) {
   }, [filter])
 
   const act = async (a: ResponseAction, kind: 'approve' | 'dismiss') => {
-    if (kind === 'approve' && !confirm(`Setujui blokir ${a.source_ip} (${banLabel(a.ban_seconds)})?`)) return
+    if (kind === 'approve' && !confirm(`Approve block of ${a.source_ip} (${banLabel(a.ban_seconds)})?`)) return
     setBusy(a.id)
     setError('')
     try {
@@ -73,8 +73,8 @@ export default function Response({ me }: { me: Me }) {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Response</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Rekomendasi blokir &amp; approval · ban progresif
-          {pending > 0 && <span className="ml-2 text-amber-300">{pending} menunggu persetujuan</span>}
+          Block recommendations &amp; approval · progressive ban
+          {pending > 0 && <span className="ml-2 text-amber-300">{pending} awaiting approval</span>}
         </p>
       </header>
 
@@ -100,26 +100,26 @@ export default function Response({ me }: { me: Me }) {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Waktu</th>
+              <th className="px-4 py-2 font-medium">Time</th>
               <th className="px-4 py-2 font-medium">Source IP</th>
-              <th className="px-4 py-2 font-medium">Alasan</th>
+              <th className="px-4 py-2 font-medium">Reason</th>
               <th className="px-4 py-2 font-medium">Ban</th>
-              <th className="px-4 py-2 font-medium">Pelanggaran</th>
+              <th className="px-4 py-2 font-medium">Offenses</th>
               <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Aksi</th>
+              <th className="px-4 py-2 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-900/40">
             {actions.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                  Belum ada aksi respons. Alert dengan source IP akan memunculkan rekomendasi blokir.
+                  No response actions yet. Alerts with a source IP will produce block recommendations.
                 </td>
               </tr>
             )}
             {actions.map((a) => (
               <tr key={a.id} className="hover:bg-slate-800/40">
-                <td className="px-4 py-2 text-slate-400">{new Date(a.created_at).toLocaleString('id-ID')}</td>
+                <td className="px-4 py-2 text-slate-400">{new Date(a.created_at).toLocaleString('en-US')}</td>
                 <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip}</td>
                 <td className="px-4 py-2 text-slate-300">{a.reason || a.rule_id || '—'}</td>
                 <td className="px-4 py-2 text-slate-400">{banLabel(a.ban_seconds)}</td>
@@ -139,18 +139,18 @@ export default function Response({ me }: { me: Me }) {
                         disabled={busy === a.id}
                         className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
                       >
-                        Setujui
+                        Approve
                       </button>
                       <button
                         onClick={() => act(a, 'dismiss')}
                         disabled={busy === a.id}
                         className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                       >
-                        Tolak
+                        Dismiss
                       </button>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-600">{a.decided_by ? `oleh ${a.decided_by}` : '—'}</span>
+                    <span className="text-xs text-slate-600">{a.decided_by ? `by ${a.decided_by}` : '—'}</span>
                   )}
                 </td>
               </tr>
@@ -159,7 +159,7 @@ export default function Response({ me }: { me: Me }) {
         </table>
       </div>
       {!canApprove && (
-        <p className="mt-3 text-xs text-slate-600">Peran kamu hanya dapat melihat; approve/tolak butuh analyst atau admin.</p>
+        <p className="mt-3 text-xs text-slate-600">Your role is view-only; approving/dismissing requires analyst or admin.</p>
       )}
     </div>
   )

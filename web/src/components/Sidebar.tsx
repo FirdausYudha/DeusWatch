@@ -83,7 +83,7 @@ export default function Sidebar({
             onClick={handleLogout}
             className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
           >
-            Keluar
+            Logout
           </button>
         </div>
         <div className="px-2 pt-2 text-xs text-slate-600">
