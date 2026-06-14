@@ -1,5 +1,5 @@
-// Command migrate menerapkan migrasi SQL DeusWatch ke database (runner in-house).
-// Berguna untuk CI / setup manual; API juga menjalankannya otomatis saat start.
+// Command migrate applies the DeusWatch SQL migrations to the database (in-house
+// runner). Useful for CI / manual setup; the API also runs it automatically at start.
 //
 //	DATABASE_URL=postgres://... go run ./cmd/migrate
 package main
@@ -22,7 +22,7 @@ func main() {
 		dsn = os.Getenv("STORE_DSN")
 	}
 	if dsn == "" {
-		log.Fatal("migrate: set DATABASE_URL atau STORE_DSN")
+		log.Fatal("migrate: set DATABASE_URL or STORE_DSN")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -30,7 +30,7 @@ func main() {
 
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		log.Fatalf("migrate: koneksi: %v", err)
+		log.Fatalf("migrate: connect: %v", err)
 	}
 	defer pool.Close()
 
@@ -39,8 +39,8 @@ func main() {
 		log.Fatalf("migrate: %v", err)
 	}
 	if n == 0 {
-		log.Println("migrate: tak ada migrasi baru (database mutakhir)")
+		log.Println("migrate: no new migrations (database is up to date)")
 	} else {
-		log.Printf("migrate: %d migrasi diterapkan", n)
+		log.Printf("migrate: %d migrations applied", n)
 	}
 }

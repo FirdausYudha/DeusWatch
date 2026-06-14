@@ -1,5 +1,5 @@
-// Command gateway adalah ingest gateway DeusWatch (mTLS wajib). Menerima log
-// mentah dari agent, menormalkan ke DCS, dan menerbitkannya ke NATS.
+// Command gateway is the DeusWatch ingest gateway (mTLS required). It receives raw
+// logs from agents, normalizes them to DCS, and publishes them to NATS.
 package main
 
 import (
@@ -28,7 +28,7 @@ func main() {
 
 	tlsCfg, err := mtls.ServerConfig(mtls.Paths(certDir))
 	if err != nil {
-		log.Fatalf("gateway: muat sertifikat dari %q (jalankan certgen dulu?): %v", certDir, err)
+		log.Fatalf("gateway: load certs from %q (run certgen first?): %v", certDir, err)
 	}
 
 	b, err := bus.Connect(ctx, natsURL)
@@ -37,20 +37,20 @@ func main() {
 	}
 	defer b.Close()
 
-	// Revocation + config push (opsional): butuh akses DB.
+	// Revocation + config push (optional): needs DB access.
 	var revoked gateway.RevokedFunc
 	var cfgFunc gateway.ConfigFunc
 	var seenFunc gateway.SeenFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
-			log.Printf("gateway: store tak tersedia — revocation/config/heartbeat nonaktif: %v", err)
+			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
 		} else {
 			defer st.Close()
 			es := enroll.NewStore(st.Pool(), nil)
 			revoked = es.IsRevoked
 			cfgFunc = es.GetConfigByName
 			seenFunc = es.MarkSeen
-			log.Printf("gateway: revocation, config push & heartbeat aktif")
+			log.Printf("gateway: revocation, config push & heartbeat enabled")
 		}
 	}
 
@@ -72,7 +72,7 @@ func main() {
 
 	go func() {
 		log.Printf("DeusWatch gateway (mTLS) listening on %s", addr)
-		// Sertifikat sudah ada di TLSConfig, argumen file dikosongkan.
+		// Certificates are already in TLSConfig, so the file arguments are empty.
 		if err := srv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway: serve: %v", err)
 		}

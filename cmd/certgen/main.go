@@ -1,6 +1,5 @@
-// Command certgen membuat bundel sertifikat mTLS (CA + server + client) untuk
-// DeusWatch. Dipakai installer/pengembang untuk meng-generate sertifikat
-// self-signed secara otomatis.
+// Command certgen creates an mTLS certificate bundle (CA + server + client) for
+// DeusWatch. Used by installers/developers to auto-generate self-signed certs.
 //
 //	go run ./cmd/certgen --out deploy/certs
 package main
@@ -17,17 +16,17 @@ import (
 )
 
 func main() {
-	out := flag.String("out", "deploy/certs", "direktori output sertifikat")
-	dns := flag.String("dns", "localhost,gateway,api", "SAN DNS server (pisah koma)")
-	ips := flag.String("ip", "127.0.0.1,::1", "SAN IP server (pisah koma)")
-	days := flag.Int("days", 825, "masa berlaku sertifikat daun (hari)")
-	force := flag.Bool("force", false, "regenerate walau sertifikat sudah ada")
+	out := flag.String("out", "deploy/certs", "certificate output directory")
+	dns := flag.String("dns", "localhost,gateway,api", "server SAN DNS (comma-separated)")
+	ips := flag.String("ip", "127.0.0.1,::1", "server SAN IPs (comma-separated)")
+	days := flag.Int("days", 825, "leaf certificate validity (days)")
+	force := flag.Bool("force", false, "regenerate even if certificates already exist")
 	flag.Parse()
 
-	// Idempotent: lewati bila CA sudah ada (dipakai init container compose).
+	// Idempotent: skip if the CA already exists (used by the compose init container).
 	if !*force {
 		if _, err := os.Stat(mtls.Paths(*out).CACert); err == nil {
-			log.Printf("certgen: sertifikat sudah ada di %q — dilewati (pakai -force untuk regenerate)", *out)
+			log.Printf("certgen: certificates already exist in %q — skipped (use -force to regenerate)", *out)
 			return
 		}
 	}
@@ -42,11 +41,11 @@ func main() {
 		log.Fatalf("certgen: %v", err)
 	}
 
-	log.Printf("Bundel sertifikat mTLS dibuat di %q:", *out)
+	log.Printf("mTLS certificate bundle created in %q:", *out)
 	log.Printf("  CA     : %s (+ ca.key)", paths.CACert)
 	log.Printf("  Server : %s (+ server.key)", paths.ServerCert)
 	log.Printf("  Client : %s (+ client.key)", paths.ClientCert)
-	log.Printf("Masa berlaku daun: %d hari. JANGAN commit berkas ini (sudah di-gitignore).", *days)
+	log.Printf("Leaf validity: %d days. DO NOT commit these files (already gitignored).", *days)
 }
 
 func splitNonEmpty(csv string) []string {
@@ -65,7 +64,7 @@ func parseIPs(csv string) []net.IP {
 		if ip := net.ParseIP(s); ip != nil {
 			out = append(out, ip)
 		} else {
-			log.Fatalf("certgen: IP tidak valid: %q", s)
+			log.Fatalf("certgen: invalid IP: %q", s)
 		}
 	}
 	return out

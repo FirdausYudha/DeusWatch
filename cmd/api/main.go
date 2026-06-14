@@ -1,7 +1,7 @@
-// Command api adalah API server DeusWatch.
+// Command api is the DeusWatch API server.
 //
-// Menyajikan healthcheck (liveness/readiness) dan endpoint baca data Fase 1
-// (events, alerts, stats) dari PostgreSQL+TimescaleDB untuk Web UI.
+// It serves health checks (liveness/readiness) and the Phase 1 data-read endpoints
+// (events, alerts, stats) from PostgreSQL+TimescaleDB for the Web UI.
 package main
 
 import (
@@ -30,25 +30,25 @@ const version = "0.1.0-foundation"
 func main() {
 	addr := getenv("HTTP_ADDR", ":8080")
 
-	// Koneksi store opsional: bila DB belum siap, endpoint /api/* membalas 503,
-	// tetapi liveness tetap hidup.
+	// The store connection is optional: if the DB is not ready, /api/* endpoints reply
+	// 503, but liveness stays up.
 	var st *store.Store
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if s, err := store.Connect(ctx, dsn); err != nil {
-			log.Printf("api: store tak tersedia (lanjut tanpa DB): %v", err)
+			log.Printf("api: store unavailable (continuing without DB): %v", err)
 		} else {
 			st = s
 			defer s.Close()
-			log.Printf("api: store tersambung")
-			// Runner migrasi otomatis (idempotent) — kecuali RUN_MIGRATIONS=0.
+			log.Printf("api: store connected")
+			// Automatic migration runner (idempotent) — unless RUN_MIGRATIONS=0.
 			if run, _ := strconv.ParseBool(getenv("RUN_MIGRATIONS", "1")); run {
 				if n, merr := migrate.Apply(ctx, s.Pool(), migrations.FS); merr != nil {
-					log.Printf("api: migrasi gagal: %v", merr)
+					log.Printf("api: migration failed: %v", merr)
 				} else if n > 0 {
-					log.Printf("api: %d migrasi diterapkan", n)
+					log.Printf("api: %d migrations applied", n)
 				} else {
-					log.Printf("api: skema database mutakhir")
+					log.Printf("api: database schema up to date")
 				}
 			}
 		}
@@ -64,20 +64,20 @@ func main() {
 		authStore := auth.NewStore(st.Pool())
 		seedAdmin(authStore)
 
-		// Publik (tanpa token).
+		// Public (no token).
 		mux.HandleFunc("/api/login", authStore.LoginHandler())
 
-		// Registrasi mandiri (opsional, default aktif): akun baru = role viewer.
+		// Self-registration (optional, enabled by default): new accounts = viewer role.
 		registrationEnabled, _ := strconv.ParseBool(getenv("REGISTRATION_ENABLED", "1"))
 		mux.HandleFunc("/api/auth/config", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]bool{"registration_enabled": registrationEnabled})
 		})
 		if registrationEnabled {
 			mux.HandleFunc("/api/register", authStore.RegisterHandler())
-			log.Printf("api: registrasi mandiri AKTIF (set REGISTRATION_ENABLED=0 untuk menonaktifkan)")
+			log.Printf("api: self-registration ENABLED (set REGISTRATION_ENABLED=0 to disable)")
 		}
 
-		// Terproteksi: wajib sesi valid + permission.
+		// Protected: requires a valid session + permission.
 		protect := func(p auth.Permission, h http.HandlerFunc) http.Handler {
 			return authStore.Middleware(auth.RequirePermission(p, h))
 		}
@@ -85,17 +85,17 @@ func main() {
 		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
 		mux.Handle("/api/users", protect(auth.PermManageUsers, authStore.UsersHandler()))
 
-		// 2FA self-service (akun sendiri; cukup terautentikasi).
+		// 2FA self-service (own account; authenticated is enough).
 		mux.Handle("/api/2fa/setup", authStore.Middleware(authStore.Setup2FAHandler()))
 		mux.Handle("/api/2fa/enable", authStore.Middleware(authStore.Enable2FAHandler()))
 		mux.Handle("/api/2fa/disable", authStore.Middleware(authStore.Disable2FAHandler()))
 
-		// Enrollment agent (butuh CA untuk menerbitkan sertifikat unik per-agent).
+		// Agent enrollment (needs the CA to issue a per-agent unique certificate).
 		if ca, err := mtls.LoadCA(getenv("CERT_DIR", "deploy/certs")); err != nil {
-			log.Printf("api: CA tidak termuat — enrollment nonaktif: %v", err)
+			log.Printf("api: CA not loaded — enrollment disabled: %v", err)
 		} else {
 			enrollStore := enroll.NewStore(st.Pool(), ca)
-			mux.HandleFunc("/api/enroll", enrollStore.EnrollHandler()) // PUBLIK (pakai token)
+			mux.HandleFunc("/api/enroll", enrollStore.EnrollHandler()) // PUBLIC (uses a token)
 			mux.Handle("/api/agents/tokens", protect(auth.PermManageAgents, enrollStore.TokenHandler()))
 			mux.Handle("/api/agents", protect(auth.PermViewDashboard, enrollStore.AgentsHandler()))
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
@@ -106,15 +106,15 @@ func main() {
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
 		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
 
-		// Response engine: approval workflow blokir (eksekusi via responder yang sama
-		// dengan worker — RESPONDER/RESPONSE_LIVE). Lihat internal/respond.
+		// Response engine: the block approval workflow (executed via the same responder
+		// as the worker — RESPONDER/RESPONSE_LIVE). See internal/respond.
 		respStore := respond.NewStore(st.Pool())
 		respEngine := respond.NewEngine(respStore, respond.ResponderFromEnv(), respond.DefaultBanPolicy(), false)
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
 	} else {
-		// Tanpa DB: endpoint membalas 503.
+		// Without a DB: endpoints reply 503.
 		mux.HandleFunc("/api/events", eventsHandler(nil))
 		mux.HandleFunc("/api/alerts", alertsHandler(nil))
 		mux.HandleFunc("/api/stats", statsHandler(nil))
@@ -139,23 +139,23 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
-// seedAdmin membuat user admin awal bila belum ada user.
+// seedAdmin creates the initial admin user if there are no users yet.
 func seedAdmin(authStore *auth.Store) {
 	user := getenv("ADMIN_USERNAME", "admin")
 	pass := os.Getenv("ADMIN_PASSWORD")
 	if pass == "" {
-		pass = "deuswatch-admin"
-		log.Printf("api: ADMIN_PASSWORD kosong — pakai default dev (GANTI untuk produksi!)")
+		pass = "thewatcher"
+		log.Printf("api: ADMIN_PASSWORD empty — using the dev default (CHANGE it for production!)")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	created, err := authStore.EnsureAdmin(ctx, user, pass)
 	if err != nil {
-		log.Printf("api: seed admin gagal: %v", err)
+		log.Printf("api: seed admin failed: %v", err)
 		return
 	}
 	if created {
-		log.Printf("api: user admin awal %q dibuat", user)
+		log.Printf("api: initial admin user %q created", user)
 	}
 }
 
@@ -182,7 +182,7 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "alive"})
 }
 
-// readyzHandler = readiness (Postgres & NATS reachable). Tahap fondasi: TCP dial.
+// readyzHandler = readiness (Postgres & NATS reachable). Foundation stage: TCP dial.
 func readyzHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
@@ -211,7 +211,7 @@ func readyzHandler(w http.ResponseWriter, r *http.Request) {
 func eventsHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if st == nil {
-			http.Error(w, "database tidak tersedia", http.StatusServiceUnavailable)
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		rows, err := st.RecentEvents(r.Context(), queryLimit(r, 50, 500))
@@ -226,7 +226,7 @@ func eventsHandler(st *store.Store) http.HandlerFunc {
 func alertsHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if st == nil {
-			http.Error(w, "database tidak tersedia", http.StatusServiceUnavailable)
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		rows, err := st.RecentAlerts(r.Context(), queryLimit(r, 50, 500))
@@ -241,7 +241,7 @@ func alertsHandler(st *store.Store) http.HandlerFunc {
 func statsHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if st == nil {
-			http.Error(w, "database tidak tersedia", http.StatusServiceUnavailable)
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		s, err := st.Stats(r.Context())

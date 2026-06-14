@@ -1,5 +1,5 @@
-// Command worker menjalankan worker DeusWatch. Fase 1: mode deteksi (brute-force
-// SSH). Mode lain (enrich/respond/llm) menyusul dan dipilih via flag.
+// Command worker runs the DeusWatch worker. Phase 1: detection mode (SSH brute force).
+// Other modes (enrich/respond/llm) are integrated and selected via env.
 package main
 
 import (
@@ -23,10 +23,10 @@ import (
 	"deuswatch/internal/worker"
 )
 
-// aggInterval: seberapa sering runner agregasi (jalur SQL Sigma) memindai events.
+// aggInterval: how often the aggregation runner (Sigma SQL path) scans events.
 const aggInterval = 30 * time.Second
 
-// llmInterval: seberapa sering worker LLM menganalisis alert yang belum bervonis.
+// llmInterval: how often the LLM worker analyzes alerts without a verdict.
 const llmInterval = 20 * time.Second
 
 func main() {
@@ -53,46 +53,46 @@ func main() {
 	sigmaDir := getenv("RULES_DIR", "rules/sigma")
 	sigmaDet, err := detect.LoadSigmaDir(sigmaDir)
 	if err != nil {
-		log.Fatalf("worker: muat rule Sigma dari %q: %v", sigmaDir, err)
+		log.Fatalf("worker: load Sigma rules from %q: %v", sigmaDir, err)
 	}
-	log.Printf("worker: %d rule Sigma single-event dimuat dari %q", sigmaDet.RuleCount(), sigmaDir)
+	log.Printf("worker: %d single-event Sigma rules loaded from %q", sigmaDet.RuleCount(), sigmaDir)
 
-	// Jalur SQL agregasi (Sigma | count() by ... > N) — ADR 0001.
+	// Aggregation SQL path (Sigma | count() by ... > N) — ADR 0001.
 	aggRules, err := sigma.LoadAggDir(sigmaDir)
 	if err != nil {
-		log.Fatalf("worker: muat rule agregasi dari %q: %v", sigmaDir, err)
+		log.Fatalf("worker: load aggregation rules from %q: %v", sigmaDir, err)
 	}
 	aggRunner := detect.NewAggregateRunner(st, aggRules, 0)
-	log.Printf("worker: %d rule Sigma agregasi dimuat (jalur SQL)", aggRunner.RuleCount())
+	log.Printf("worker: %d aggregation Sigma rules loaded (SQL path)", aggRunner.RuleCount())
 
-	// Enrichment CTI: cache TTL di Postgres + provider nyata bila dikonfigurasi
-	// (ABUSEIPDB_API_KEY / OTX_API_KEY / GEOIP_ENABLED), selain itu mock untuk dev.
+	// CTI enrichment: TTL cache in Postgres + real provider when configured
+	// (ABUSEIPDB_API_KEY / OTX_API_KEY / GEOIP_ENABLED), otherwise mock for dev.
 	provider, real := enrich.ProviderFromEnv()
 	if real {
-		log.Printf("worker: provider CTI nyata aktif")
+		log.Printf("worker: real CTI provider active")
 	} else {
-		log.Printf("worker: provider CTI mock (set ABUSEIPDB_API_KEY/OTX_API_KEY/GEOIP_ENABLED untuk nyata)")
+		log.Printf("worker: mock CTI provider (set ABUSEIPDB_API_KEY/OTX_API_KEY/GEOIP_ENABLED for real)")
 	}
 	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), enrich.DefaultTTL, enrich.EscalationFromEnv())
 
-	// Response engine (Fase 2): rekomendasi blokir + approval + ban progresif.
-	// Responder dipilih via RESPONDER (default dry-run); RESPONSE_AUTO_APPROVE=1
-	// mengeksekusi tanpa approval manual.
+	// Response engine (Phase 2): block recommendations + approval + progressive ban.
+	// The responder is selected via RESPONDER (default dry-run); RESPONSE_AUTO_APPROVE=1
+	// executes without manual approval.
 	var engine *respond.Engine
 	if responder := respond.ResponderFromEnv(); responder != nil {
 		autoApprove, _ := strconv.ParseBool(os.Getenv("RESPONSE_AUTO_APPROVE"))
 		engine = respond.NewEngine(respond.NewStore(st.Pool()), responder, respond.DefaultBanPolicy(), autoApprove)
-		log.Printf("worker: response engine aktif (responder=%s, auto_approve=%v)", responder.Name(), autoApprove)
+		log.Printf("worker: response engine active (responder=%s, auto_approve=%v)", responder.Name(), autoApprove)
 	} else {
-		log.Printf("worker: response engine nonaktif (RESPONDER=none)")
+		log.Printf("worker: response engine disabled (RESPONDER=none)")
 	}
 
-	// Notifikasi (Fase 2): Telegram/email/webhook + dedup/throttle.
+	// Notifications (Phase 2): Telegram/email/webhook + dedup/throttle.
 	dispatcher, notifyOn := notify.DispatcherFromEnv()
 	if notifyOn {
-		log.Printf("worker: notifikasi aktif (sinks=%v)", dispatcher.SinkNames())
+		log.Printf("worker: notifications active (sinks=%v)", dispatcher.SinkNames())
 	} else {
-		log.Printf("worker: notifikasi nonaktif (set TELEGRAM_*/WEBHOOK_URL/SMTP_* untuk aktif)")
+		log.Printf("worker: notifications disabled (set TELEGRAM_*/WEBHOOK_URL/SMTP_* to enable)")
 	}
 
 	onAlert := makeAlertHook(engine, dispatcher)
@@ -108,23 +108,21 @@ func main() {
 		go runAggregation(ctx, aggRunner, st, onAlert)
 	}
 
-	// Worker LLM (Fase 3): triase alert -> vonis + ringkasan (deuswatch.llm.*).
+	// LLM worker (Phase 3): triage alerts -> verdict + summary (deuswatch.llm.*).
 	if analyzer, ok := llm.AnalyzerFromEnv(); ok {
-		log.Printf("worker: LLM analyzer aktif (%s)", analyzer.Name())
+		log.Printf("worker: LLM analyzer active (%s)", analyzer.Name())
 		go runLLM(ctx, st, analyzer)
 	} else {
-		log.Printf("worker: LLM analyzer nonaktif (set ANTHROPIC_API_KEY atau LLM_ENABLED=1)")
+		log.Printf("worker: LLM analyzer disabled (set ANTHROPIC_API_KEY or LLM_ENABLED=1)")
 	}
 
-	log.Printf("DeusWatch worker (detect) siap — mengonsumsi %q", bus.SubjectLogsNormalized)
+	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
 	log.Println("worker: shutdown")
 }
 
-// runAggregation menjalankan runner agregasi tiap aggInterval, menyimpan alert
-// yang terpicu. Berhenti saat ctx dibatalkan.
-// makeAlertHook menggabungkan response engine + dispatcher notifikasi menjadi satu
-// worker.AlertHook (nil bila keduanya nonaktif).
+// makeAlertHook combines the response engine + notification dispatcher into a single
+// worker.AlertHook (nil if both are disabled).
 func makeAlertHook(engine *respond.Engine, dispatcher *notify.Dispatcher) worker.AlertHook {
 	if engine == nil && !dispatcher.Enabled() {
 		return nil
@@ -132,17 +130,19 @@ func makeAlertHook(engine *respond.Engine, dispatcher *notify.Dispatcher) worker
 	return func(ctx context.Context, alert *ingest.Event) {
 		if engine != nil {
 			if _, err := engine.Recommend(ctx, alert); err != nil {
-				log.Printf("worker: rekomendasi respons gagal: %v", err)
+				log.Printf("worker: response recommendation failed: %v", err)
 			}
 		}
 		if dispatcher.Enabled() {
 			if err := dispatcher.Dispatch(ctx, notify.FromEvent(alert)); err != nil {
-				log.Printf("worker: notifikasi gagal: %v", err)
+				log.Printf("worker: notification failed: %v", err)
 			}
 		}
 	}
 }
 
+// runAggregation runs the aggregation runner every aggInterval, storing fired alerts.
+// Stops when ctx is cancelled.
 func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink interface {
 	InsertEvent(context.Context, *ingest.Event) error
 }, onAlert worker.AlertHook) {
@@ -156,14 +156,14 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 			rc, cancel := context.WithTimeout(ctx, 10*time.Second)
 			alerts, err := runner.RunOnce(rc, time.Now())
 			if err != nil {
-				log.Printf("worker: agregasi: %v", err)
+				log.Printf("worker: aggregation: %v", err)
 			}
 			for _, a := range alerts {
 				if err := sink.InsertEvent(rc, a); err != nil {
-					log.Printf("worker: simpan alert agregasi: %v", err)
+					log.Printf("worker: store aggregation alert: %v", err)
 					continue
 				}
-				log.Printf("worker: ALERT(agg) %s rule=%s grup=%s",
+				log.Printf("worker: ALERT(agg) %s rule=%s group=%s",
 					a.DeusWatch.Label, a.Rule.ID, aggGroup(a))
 				if onAlert != nil {
 					onAlert(rc, a)
@@ -174,7 +174,7 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 	}
 }
 
-// runLLM mem-poll alert tanpa vonis LLM lalu menganalisis & menyimpan vonisnya.
+// runLLM polls alerts without an LLM verdict, then analyzes & stores the verdict.
 func runLLM(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
 	t := time.NewTicker(llmInterval)
 	defer t.Stop()
@@ -186,7 +186,7 @@ func runLLM(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
 			rc, cancel := context.WithTimeout(ctx, 30*time.Second)
 			alerts, err := st.AlertsForLLM(rc, 10)
 			if err != nil {
-				log.Printf("worker: ambil alert LLM: %v", err)
+				log.Printf("worker: fetch LLM alerts: %v", err)
 				cancel()
 				continue
 			}
@@ -197,11 +197,11 @@ func runLLM(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
 					Country: a.Country, AbuseConfidence: a.AbuseConfidence, OTXPulseCount: a.OTXPulseCount,
 				})
 				if err != nil {
-					log.Printf("worker: analisis LLM %s gagal: %v", a.ID, err)
+					log.Printf("worker: LLM analysis %s failed: %v", a.ID, err)
 					continue
 				}
 				if err := st.SetLLMVerdict(rc, a.ID, string(res.Verdict), res.Summary); err != nil {
-					log.Printf("worker: simpan vonis LLM %s: %v", a.ID, err)
+					log.Printf("worker: store LLM verdict %s: %v", a.ID, err)
 					continue
 				}
 				log.Printf("worker: LLM %s -> %s", a.ID, res.Verdict)
