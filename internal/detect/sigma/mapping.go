@@ -6,9 +6,9 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// fieldAliases memetakan nama field umum (gaya rule komunitas / produk) ke key
-// DCS/ECS. Inilah inti "processing pipeline": menyelaraskan taksonomi field rule
-// ke taksonomi DeusWatch. Tambah entri di sini saat mengadopsi rule baru.
+// fieldAliases maps common field names (community-rule / product style) to DCS/ECS
+// keys. This is the heart of the "processing pipeline": aligning the rule's field
+// taxonomy to DeusWatch's. Add an entry here when adopting a new rule.
 var fieldAliases = map[string]string{
 	"user":          "user.name",
 	"username":      "user.name",
@@ -25,8 +25,8 @@ var fieldAliases = map[string]string{
 	"hostname":      "host.name",
 }
 
-// resolveField mengembalikan key DCS untuk sebuah nama field rule. Pencocokan
-// alias bersifat case-insensitive; nama yang sudah ECS / tak dikenal dikembalikan apa adanya.
+// resolveField returns the DCS key for a rule field name. Alias matching is
+// case-insensitive; names that are already ECS / unknown are returned as-is.
 func resolveField(name string) string {
 	if v, ok := fieldAliases[strings.ToLower(name)]; ok {
 		return v
@@ -34,10 +34,10 @@ func resolveField(name string) string {
 	return name
 }
 
-// FlattenEvent meratakan Event DCS menjadi map ber-key ECS dotted, bentuk yang
-// dievaluasi rule Sigma. Inilah lapisan PEMETAAN FIELD yang menjadi biaya nyata
-// memakai rule Sigma komunitas (lihat ADR): rule harus ditulis/diselaraskan ke
-// taksonomi field ini. Hanya field non-kosong yang dimasukkan.
+// FlattenEvent flattens a DCS Event into a dotted-ECS-keyed map, the form Sigma rules
+// evaluate against. This is the FIELD-MAPPING layer that is the real cost of using
+// community Sigma rules (see ADR): rules must be written/aligned to this field
+// taxonomy. Only non-empty fields are included.
 func FlattenEvent(e *ingest.Event) map[string]any {
 	m := map[string]any{}
 	put := func(k, v string) {

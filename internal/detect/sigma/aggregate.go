@@ -1,18 +1,18 @@
 package sigma
 
-// Jalur AGREGASI Sigma → SQL (model Zircolite/pySigma, lihat ADR 0001).
+// The Sigma → SQL AGGREGATION path (Zircolite/pySigma model, see ADR 0001).
 //
-// Rule single-event (sigma.go) dievaluasi per-event di memori. Rule AGREGASI —
-// kondisi ber-pipa seperti `selection | count() by source.ip > 5` — tidak bisa
-// dijawab satu event; ia butuh state/korelasi. Di sini kita meng-compile rule
-// agregasi menjadi satu query SQL terhadap hypertable `events` TimescaleDB, lalu
-// runner periodik menjalankannya (lihat internal/detect/aggregate.go). Inilah
-// generalisasi detektor brute-force hardcoded ke rule yang ditulis dalam Sigma.
+// Single-event rules (sigma.go) are evaluated per-event in memory. AGGREGATION rules —
+// piped conditions like `selection | count() by source.ip > 5` — cannot be answered by
+// one event; they need state/correlation. Here we compile an aggregation rule into a
+// single SQL query against the TimescaleDB `events` hypertable, and a periodic runner
+// executes it (see internal/detect/aggregate.go). This is the generalization of the
+// hardcoded brute-force detector to rules written in Sigma.
 //
-// Didukung: pre-pipe = ekspresi boolean atas selection (and/or/not + kurung +
-// nama selection); pipa `count() [by <field>] <op> <N>` dengan op > >= < <=;
-// `timeframe` (mis. 5m, 1h) sebagai jendela waktu. Tidak didukung: count(field)
-// distinct, sum()/min()/max(), "N of them" di sisi kiri pipa.
+// Supported: pre-pipe = a boolean expression over selections (and/or/not + parens +
+// selection names); the pipe `count() [by <field>] <op> <N>` with op > >= < <=;
+// `timeframe` (e.g. 5m, 1h) as the time window. Not supported: count(field) distinct,
+// sum()/min()/max(), "N of them" on the left of the pipe.
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// AggRule adalah rule Sigma agregasi yang sudah di-compile ke SQL.
+// AggRule is an aggregation Sigma rule compiled to SQL.
 type AggRule struct {
 	ID        string
 	Title     string
@@ -34,20 +34,20 @@ type AggRule struct {
 	Tags      []string
 	LogSource map[string]string
 
-	GroupByField string        // field ECS untuk "by" (kosong = agregasi global)
-	Op           string        // operator perbandingan: > >= < <=
-	Threshold    int           // ambang count
-	Window       time.Duration // timeframe (default 5m bila tak diset)
+	GroupByField string        // ECS field for "by" (empty = global aggregation)
+	Op           string        // comparison operator: > >= < <=
+	Threshold    int           // count threshold
+	Window       time.Duration // timeframe (default 5m if unset)
 
-	whereSQL  string // fragmen WHERE hasil compile selection (tanpa filter waktu)
+	whereSQL  string // WHERE fragment compiled from the selection (no time filter)
 	whereArgs []any
 }
 
-// MITRE & Severity sama seperti Rule single-event.
+// MITRE & Severity are the same as for a single-event Rule.
 func (r *AggRule) MITRE() (techniqueID, tactic string) { return mitreFromTags(r.Tags) }
 func (r *AggRule) Severity() ingest.Severity           { return severityFromLevel(r.Level) }
 
-// detectionTimeframe membaca detection.timeframe (mis. "5m"); default 5 menit.
+// detectionTimeframe reads detection.timeframe (e.g. "5m"); default 5 minutes.
 func detectionTimeframe(detection map[string]any) (time.Duration, error) {
 	tf, ok := detection["timeframe"]
 	if !ok {
@@ -56,16 +56,16 @@ func detectionTimeframe(detection map[string]any) (time.Duration, error) {
 	s := toStr(tf)
 	d, err := parseSigmaDuration(s)
 	if err != nil {
-		return 0, fmt.Errorf("sigma: timeframe %q tidak valid: %w", s, err)
+		return 0, fmt.Errorf("sigma: invalid timeframe %q: %w", s, err)
 	}
 	return d, nil
 }
 
-// parseSigmaDuration menerima format Sigma "30s","5m","1h","1d" (selain itu coba time.ParseDuration).
+// parseSigmaDuration accepts the Sigma format "30s","5m","1h","1d" (otherwise tries time.ParseDuration).
 func parseSigmaDuration(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return 0, fmt.Errorf("kosong")
+		return 0, fmt.Errorf("empty")
 	}
 	if strings.HasSuffix(s, "d") {
 		n, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
@@ -79,7 +79,7 @@ func parseSigmaDuration(s string) (time.Duration, error) {
 
 var aggPipeRe = regexp.MustCompile(`^count\(\s*\)\s*(?:by\s+([A-Za-z0-9_.]+)\s+)?(>=|<=|>|<)\s*(\d+)$`)
 
-// isAggregation melaporkan apakah YAML rule memiliki kondisi agregasi (mengandung "|").
+// isAggregation reports whether the YAML rule has an aggregation condition (contains "|").
 func isAggregation(data []byte) bool {
 	var raw struct {
 		Detection map[string]any `yaml:"detection"`
@@ -91,7 +91,7 @@ func isAggregation(data []byte) bool {
 	return strings.Contains(cond, "|")
 }
 
-// ParseAggRule mem-parse + meng-compile rule Sigma agregasi dari YAML.
+// ParseAggRule parses + compiles an aggregation Sigma rule from YAML.
 func ParseAggRule(data []byte) (*AggRule, error) {
 	var raw struct {
 		ID        string            `yaml:"id"`
@@ -106,18 +106,18 @@ func ParseAggRule(data []byte) (*AggRule, error) {
 	}
 	condRaw, ok := raw.Detection["condition"].(string)
 	if !ok {
-		return nil, fmt.Errorf("sigma: detection.condition wajib berupa string")
+		return nil, fmt.Errorf("sigma: detection.condition must be a string")
 	}
 	parts := strings.SplitN(condRaw, "|", 2)
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("sigma: bukan rule agregasi (tak ada '|')")
+		return nil, fmt.Errorf("sigma: not an aggregation rule (no '|')")
 	}
 	left := strings.TrimSpace(parts[0])
 	pipe := strings.TrimSpace(parts[1])
 
 	m := aggPipeRe.FindStringSubmatch(pipe)
 	if m == nil {
-		return nil, fmt.Errorf("sigma: agregasi %q tidak didukung (hanya 'count() [by field] <op> N')", pipe)
+		return nil, fmt.Errorf("sigma: aggregation %q not supported (only 'count() [by field] <op> N')", pipe)
 	}
 	threshold, _ := strconv.Atoi(m[3])
 	window, err := detectionTimeframe(raw.Detection)
@@ -140,15 +140,15 @@ func ParseAggRule(data []byte) (*AggRule, error) {
 	r.whereSQL, r.whereArgs = where, args
 	if r.GroupByField != "" {
 		if _, ok := columnFor(r.GroupByField); !ok {
-			return nil, fmt.Errorf("sigma: field 'by %s' tak punya kolom DCS yang dipetakan", r.GroupByField)
+			return nil, fmt.Errorf("sigma: field 'by %s' has no mapped DCS column", r.GroupByField)
 		}
 	}
 	return r, nil
 }
 
-// CompileSQL menghasilkan query lengkap + argumen untuk dijalankan terhadap tabel
-// events. Hasil query mengembalikan kolom (grp, n, last_seen) untuk tiap grup yang
-// melewati ambang. Argumen waktu (interval) ditambahkan sebagai argumen terakhir.
+// CompileSQL produces the full query + arguments to run against the events table. The
+// query returns columns (grp, n, last_seen) for each group that crosses the threshold.
+// The time argument (interval) is appended as the last argument.
 func (r *AggRule) CompileSQL() (query string, args []any) {
 	args = append(args, r.whereArgs...)
 	args = append(args, fmt.Sprintf("%d seconds", int(r.Window.Seconds())))
@@ -165,15 +165,15 @@ func (r *AggRule) CompileSQL() (query string, args []any) {
 	fmt.Fprintf(&b, "SELECT %s AS grp, count(*) AS n, max(time) AS last_seen\nFROM events\n", grpSelect)
 	fmt.Fprintf(&b, "WHERE (%s) AND time > now() - %s::interval", r.whereSQL, winPlaceholder)
 	b.WriteString(groupBy)
-	// op & threshold aman: op dari whitelist regex, threshold integer.
+	// op & threshold are safe: op from the regex whitelist, threshold an integer.
 	fmt.Fprintf(&b, "\nHAVING count(*) %s %d\nORDER BY n DESC", r.Op, r.Threshold)
 	return b.String(), args
 }
 
-// ── kompilasi kondisi (selection boolean) ke SQL ──────────
+// ── compile the (boolean selection) condition to SQL ──────
 
-// compileCondition mengubah ekspresi pre-pipe (and/or/not/kurung + nama selection)
-// menjadi fragmen WHERE SQL + argumen ber-urut.
+// compileCondition turns the pre-pipe expression (and/or/not/parens + selection names)
+// into a WHERE SQL fragment + ordered arguments.
 func compileCondition(cond string, sels map[string]selection) (string, []any, error) {
 	c := &sqlCond{toks: tokenize(cond), sels: sels}
 	sql, err := c.parseOr()
@@ -181,7 +181,7 @@ func compileCondition(cond string, sels map[string]selection) (string, []any, er
 		return "", nil, err
 	}
 	if c.pos != len(c.toks) {
-		return "", nil, fmt.Errorf("sigma: token kondisi tersisa: %v", c.toks[c.pos:])
+		return "", nil, fmt.Errorf("sigma: leftover condition tokens: %v", c.toks[c.pos:])
 	}
 	return sql, c.args, nil
 }
@@ -254,23 +254,23 @@ func (c *sqlCond) parsePrimary() (string, error) {
 			return "", err
 		}
 		if c.take() != ")" {
-			return "", fmt.Errorf("sigma: tanda kurung tutup hilang")
+			return "", fmt.Errorf("sigma: missing closing parenthesis")
 		}
 		return v, nil
 	case t == "all" || t == "any" || isNumber(t):
-		return "", fmt.Errorf("sigma: ekspresi '%s of ...' tidak didukung di kiri pipa agregasi", t)
+		return "", fmt.Errorf("sigma: '%s of ...' expression is not supported on the left of an aggregation pipe", t)
 	case t == "":
-		return "", fmt.Errorf("sigma: kondisi tidak lengkap")
+		return "", fmt.Errorf("sigma: incomplete condition")
 	default:
 		sel, ok := c.sels[t]
 		if !ok {
-			return "", fmt.Errorf("sigma: selection tak dikenal: %q", t)
+			return "", fmt.Errorf("sigma: unknown selection: %q", t)
 		}
 		return sel.sql(&c.args)
 	}
 }
 
-// ── selection → fragmen SQL ───────────────────────────────
+// ── selection → SQL fragment ──────────────────────────────
 
 func (s selection) sql(args *[]any) (string, error) {
 	if len(s.keywords) > 0 {
@@ -282,7 +282,7 @@ func (s selection) sql(args *[]any) (string, error) {
 		return "(" + strings.Join(parts, " OR ") + ")", nil
 	}
 	if len(s.fields) == 0 {
-		return "", fmt.Errorf("sigma: selection kosong")
+		return "", fmt.Errorf("sigma: empty selection")
 	}
 	parts := make([]string, 0, len(s.fields))
 	for _, fc := range s.fields {
@@ -298,7 +298,7 @@ func (s selection) sql(args *[]any) (string, error) {
 func (fc fieldCond) sql(args *[]any) (string, error) {
 	col, ok := columnFor(fc.name)
 	if !ok {
-		return "", fmt.Errorf("sigma: field %q tak punya kolom DCS yang dipetakan (jalur SQL)", fc.name)
+		return "", fmt.Errorf("sigma: field %q has no mapped DCS column (SQL path)", fc.name)
 	}
 	mod := ""
 	if len(fc.modifiers) > 0 {
@@ -318,14 +318,14 @@ func (fc fieldCond) sql(args *[]any) (string, error) {
 	return "(" + strings.Join(ors, " OR ") + ")", nil
 }
 
-// ── pemetaan field ECS → kolom SQL ────────────────────────
+// ── ECS field → SQL column mapping ────────────────────────
 
 type column struct {
-	expr string // ekspresi kolom SQL (mis. "source_ip", "event_severity")
-	inet bool   // kolom bertipe inet (perlu cast / host())
+	expr string // SQL column expression (e.g. "source_ip", "event_severity")
+	inet bool   // inet-typed column (needs cast / host())
 }
 
-// selectExpr mengembalikan ekspresi untuk klausa SELECT grup (inet → host()).
+// selectExpr returns the expression for the group SELECT clause (inet → host()).
 func (c column) selectExpr() string {
 	if c.inet {
 		return "host(" + c.expr + ")"
@@ -333,14 +333,14 @@ func (c column) selectExpr() string {
 	return c.expr
 }
 
-// compare menghasilkan satu predikat SQL untuk kolom ini terhadap nilai v dengan
-// modifier mod (contains/startswith/endswith/re/"" = eq). Nilai literal selalu
-// lewat argumen ber-parameter (tak pernah di-interpolasi).
+// compare produces one SQL predicate for this column against value v with modifier mod
+// (contains/startswith/endswith/re/"" = eq). Literal values always go through
+// parameterized arguments (never interpolated).
 func (c column) compare(mod, v string, args *[]any) (string, error) {
 	add := func(val any) string { *args = append(*args, val); return fmt.Sprintf("$%d", len(*args)) }
 	lhs := c.expr
 	if c.inet && mod != "" {
-		lhs = "host(" + c.expr + ")" // pattern match di teks IP
+		lhs = "host(" + c.expr + ")" // pattern match against the IP text
 	}
 	switch mod {
 	case "":
@@ -357,12 +357,12 @@ func (c column) compare(mod, v string, args *[]any) (string, error) {
 	case "re":
 		return fmt.Sprintf("%s ~ %s", lhs, add(v)), nil
 	default:
-		return "", fmt.Errorf("sigma: modifier %q di luar subset jalur SQL", mod)
+		return "", fmt.Errorf("sigma: modifier %q outside the SQL-path subset", mod)
 	}
 }
 
-// fieldColumns memetakan field ECS dotted ke kolom hypertable events. Ini cermin
-// SQL dari FlattenEvent (mapping.go) — keduanya WAJIB selaras dengan schema.go.
+// fieldColumns maps dotted ECS fields to events-hypertable columns. This is the SQL
+// mirror of FlattenEvent (mapping.go) — both MUST stay in sync with schema.go.
 var fieldColumns = map[string]column{
 	"event.category":       {expr: "event_category"},
 	"event.action":         {expr: "event_action"},
@@ -386,7 +386,7 @@ var fieldColumns = map[string]column{
 	"network.transport":    {expr: "network_transport"},
 }
 
-// columnFor me-resolve nama field rule (lewat alias taksonomi) ke kolom SQL.
+// columnFor resolves a rule field name (via the taxonomy alias) to a SQL column.
 func columnFor(field string) (column, bool) {
 	c, ok := fieldColumns[field]
 	if ok {

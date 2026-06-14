@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 )
 
-// Ruleset adalah kumpulan rule Sigma yang sudah di-parse.
+// Ruleset is a collection of parsed Sigma rules.
 type Ruleset []*Rule
 
-// ruleFiles mengumpulkan path *.yml / *.yaml di dir (rekursif). Direktori yang
-// tidak ada menghasilkan daftar kosong (bukan error).
+// ruleFiles gathers *.yml / *.yaml paths in dir (recursive one level). A directory
+// that does not exist yields an empty list (not an error).
 func ruleFiles(dir string) ([]string, error) {
 	var files []string
 	for _, pat := range []string{"*.yml", "*.yaml"} {
@@ -28,9 +28,9 @@ func ruleFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-// LoadDir memuat rule Sigma SINGLE-EVENT dari dir (rekursif satu level) sebagai
-// Ruleset. Berkas dengan kondisi agregasi ('|') dilewati di sini — muat lewat
-// LoadAggDir. Direktori yang tidak ada menghasilkan Ruleset kosong (bukan error).
+// LoadDir loads SINGLE-EVENT Sigma rules from dir (recursive one level) as a Ruleset.
+// Files with an aggregation condition ('|') are skipped here — load them via
+// LoadAggDir. A directory that does not exist yields an empty Ruleset (not an error).
 func LoadDir(dir string) (Ruleset, error) {
 	files, err := ruleFiles(dir)
 	if err != nil {
@@ -40,10 +40,10 @@ func LoadDir(dir string) (Ruleset, error) {
 	for _, f := range files {
 		data, err := os.ReadFile(f)
 		if err != nil {
-			return nil, fmt.Errorf("sigma: baca %s: %w", f, err)
+			return nil, fmt.Errorf("sigma: read %s: %w", f, err)
 		}
 		if isAggregation(data) {
-			continue // rule agregasi → jalur SQL (LoadAggDir)
+			continue // aggregation rule → SQL path (LoadAggDir)
 		}
 		r, err := ParseRule(data)
 		if err != nil {
@@ -54,8 +54,8 @@ func LoadDir(dir string) (Ruleset, error) {
 	return rs, nil
 }
 
-// LoadAggDir memuat rule Sigma AGREGASI dari dir (rekursif satu level). Berkas
-// single-event dilewati. Direktori yang tidak ada → daftar kosong (bukan error).
+// LoadAggDir loads AGGREGATION Sigma rules from dir (recursive one level). Single-event
+// files are skipped. A directory that does not exist → an empty list (not an error).
 func LoadAggDir(dir string) ([]*AggRule, error) {
 	files, err := ruleFiles(dir)
 	if err != nil {
@@ -65,21 +65,21 @@ func LoadAggDir(dir string) ([]*AggRule, error) {
 	for _, f := range files {
 		data, err := os.ReadFile(f)
 		if err != nil {
-			return nil, fmt.Errorf("sigma: baca %s: %w", f, err)
+			return nil, fmt.Errorf("sigma: read %s: %w", f, err)
 		}
 		if !isAggregation(data) {
 			continue
 		}
 		r, err := ParseAggRule(data)
 		if err != nil {
-			return nil, fmt.Errorf("sigma: parse agregasi %s: %w", f, err)
+			return nil, fmt.Errorf("sigma: parse aggregation %s: %w", f, err)
 		}
 		out = append(out, r)
 	}
 	return out, nil
 }
 
-// Match mengembalikan rule yang cocok dengan event (event sudah diratakan).
+// Match returns the rules that match the event (the event is already flattened).
 func (rs Ruleset) Match(event map[string]any) []*Rule {
 	var hits []*Rule
 	for _, r := range rs {

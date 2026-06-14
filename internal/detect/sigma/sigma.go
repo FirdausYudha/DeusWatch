@@ -1,15 +1,15 @@
-// Package sigma adalah PROTOTIPE SPIKE evaluator Sigma untuk DeusWatch.
+// Package sigma is a SPIKE PROTOTYPE Sigma evaluator for DeusWatch.
 //
-// Tujuannya membuktikan kelayakan & memahami biaya: parse rule Sigma, cocokkan
-// terhadap event DCS, ekstrak tag MITRE. Ini SUBSET sengaja (lihat docs/adr/
-// 0001-sigma-detection-engine.md) — bukan implementasi Sigma penuh. Korelasi/
-// agregasi (mis. brute-force "count() > N") TIDAK didukung di sini dan diarahkan
-// ke jalur SQL (model Zircolite/pySigma).
+// Its purpose is to prove feasibility & understand the cost: parse a Sigma rule, match
+// against DCS events, extract MITRE tags. This is a deliberate SUBSET (see docs/adr/
+// 0001-sigma-detection-engine.md) — not a full Sigma implementation. Correlation/
+// aggregation (e.g. brute-force "count() > N") is NOT supported here and is routed
+// to the SQL path (Zircolite/pySigma model).
 //
-// Didukung: selection map field->nilai/daftar; selection keyword (daftar string
-// dicocokkan substring ke event); modifier contains/startswith/endswith/re;
-// kondisi and/or/not + tanda kurung + "N of them" / "all of <prefix>*"; alias
-// field via taksonomi (lihat mapping.go). Tidak didukung: pipa agregasi (jalur SQL).
+// Supported: a selection map field->value/list; a keyword selection (a list of strings
+// substring-matched against the event); the contains/startswith/endswith/re modifiers;
+// and/or/not conditions + parentheses + "N of them" / "all of <prefix>*"; field aliases
+// via the taxonomy (see mapping.go). Not supported: the aggregation pipe (SQL path).
 package sigma
 
 import (
@@ -23,7 +23,7 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// Rule adalah rule Sigma yang sudah di-parse (subset).
+// Rule is a parsed Sigma rule (subset).
 type Rule struct {
 	ID        string
 	Title     string
@@ -35,8 +35,8 @@ type Rule struct {
 	selections map[string]selection
 }
 
-// selection berupa map field->nilai (fields), ATAU daftar keyword (keywords)
-// yang dicocokkan sebagai substring terhadap isi event (mis. event.original).
+// selection is either a map field->value (fields) OR a list of keywords (keywords)
+// substring-matched against the event content (e.g. event.original).
 type selection struct {
 	fields   []fieldCond
 	keywords []string
@@ -45,10 +45,10 @@ type selection struct {
 type fieldCond struct {
 	name      string
 	modifiers []string
-	values    []string // dicocokkan secara OR
+	values    []string // matched as OR
 }
 
-// ParseRule mem-parse satu rule Sigma dari YAML.
+// ParseRule parses a single Sigma rule from YAML.
 func ParseRule(data []byte) (*Rule, error) {
 	var raw struct {
 		ID        string            `yaml:"id"`
@@ -64,14 +64,14 @@ func ParseRule(data []byte) (*Rule, error) {
 
 	condRaw, ok := raw.Detection["condition"]
 	if !ok {
-		return nil, fmt.Errorf("sigma: detection.condition wajib ada")
+		return nil, fmt.Errorf("sigma: detection.condition is required")
 	}
 	cond, ok := condRaw.(string)
 	if !ok {
-		return nil, fmt.Errorf("sigma: condition berupa daftar belum didukung (subset)")
+		return nil, fmt.Errorf("sigma: a list-form condition is not supported yet (subset)")
 	}
 	if strings.Contains(cond, "|") {
-		return nil, fmt.Errorf("sigma: kondisi agregasi (|) tidak didukung di sini — gunakan jalur SQL")
+		return nil, fmt.Errorf("sigma: aggregation condition (|) is not supported here — use the SQL path")
 	}
 
 	sels, err := parseSelections(raw.Detection)
@@ -84,8 +84,8 @@ func ParseRule(data []byte) (*Rule, error) {
 	}, nil
 }
 
-// parseSelections mengubah blok detection (kecuali "condition"/"timeframe") menjadi
-// map nama->selection. Dipakai ParseRule dan ParseAggRule.
+// parseSelections turns the detection block (except "condition"/"timeframe") into a
+// name->selection map. Used by ParseRule and ParseAggRule.
 func parseSelections(detection map[string]any) (map[string]selection, error) {
 	out := map[string]selection{}
 	for name, v := range detection {
@@ -93,7 +93,7 @@ func parseSelections(detection map[string]any) (map[string]selection, error) {
 			continue
 		}
 		switch val := v.(type) {
-		case map[string]any: // selection field->nilai
+		case map[string]any: // field->value selection
 			var sel selection
 			for fk, fv := range val {
 				parts := strings.Split(fk, "|")
@@ -102,16 +102,16 @@ func parseSelections(detection map[string]any) (map[string]selection, error) {
 				})
 			}
 			out[name] = sel
-		case []any: // selection keyword (cocok substring di event)
+		case []any: // keyword selection (substring match in the event)
 			out[name] = selection{keywords: toStringSlice(val)}
 		default:
-			return nil, fmt.Errorf("sigma: selection %q tidak didukung (bukan map/keywords)", name)
+			return nil, fmt.Errorf("sigma: selection %q not supported (not a map/keywords)", name)
 		}
 	}
 	return out, nil
 }
 
-// Matches mengevaluasi rule terhadap event yang sudah diratakan (ECS dotted keys).
+// Matches evaluates the rule against an already-flattened event (dotted ECS keys).
 func (r *Rule) Matches(event map[string]any) (bool, error) {
 	results := make(map[string]bool, len(r.selections))
 	for name, sel := range r.selections {
@@ -128,14 +128,14 @@ func (r *Rule) selectionNames() []string {
 	return names
 }
 
-// MITRE mengekstrak technique ID & nama tactic dari tag (attack.tXXXX / attack.<tactic>).
+// MITRE extracts the technique ID & tactic name from tags (attack.tXXXX / attack.<tactic>).
 func (r *Rule) MITRE() (techniqueID, tactic string) { return mitreFromTags(r.Tags) }
 
-// Severity memetakan level Sigma ke ingest.Severity DCS.
+// Severity maps the Sigma level to a DCS ingest.Severity.
 func (r *Rule) Severity() ingest.Severity { return severityFromLevel(r.Level) }
 
-// mitreFromTags & severityFromLevel dipakai bersama oleh Rule (single-event) dan
-// AggRule (agregasi) — lihat aggregate.go.
+// mitreFromTags & severityFromLevel are shared by Rule (single-event) and AggRule
+// (aggregation) — see aggregate.go.
 func mitreFromTags(tags []string) (techniqueID, tactic string) {
 	for _, t := range tags {
 		low := strings.ToLower(t)
@@ -171,13 +171,13 @@ func severityFromLevel(level string) ingest.Severity {
 	}
 }
 
-// ── pencocokan selection ──────────────────────────────────
+// ── selection matching ────────────────────────────────────
 
 func (s selection) match(event map[string]any) bool {
 	if len(s.keywords) > 0 {
 		return matchKeywords(s.keywords, event)
 	}
-	for _, fc := range s.fields { // semua field harus cocok (AND)
+	for _, fc := range s.fields { // all fields must match (AND)
 		if !fc.match(event) {
 			return false
 		}
@@ -185,8 +185,8 @@ func (s selection) match(event map[string]any) bool {
 	return len(s.fields) > 0
 }
 
-// matchKeywords cocok bila salah satu keyword muncul (substring, case-insensitive)
-// di gabungan nilai string event (terutama event.original = baris log mentah).
+// matchKeywords matches if any keyword appears (substring, case-insensitive) in the
+// joined string values of the event (mainly event.original = the raw log line).
 func matchKeywords(keywords []string, event map[string]any) bool {
 	hay := haystack(event)
 	for _, kw := range keywords {
@@ -210,14 +210,14 @@ func haystack(event map[string]any) string {
 
 func (fc fieldCond) match(event map[string]any) bool {
 	raw, ok := event[fc.name]
-	if !ok { // coba alias taksonomi (mis. "User" -> "user.name")
+	if !ok { // try the taxonomy alias (e.g. "User" -> "user.name")
 		raw, ok = event[resolveField(fc.name)]
 	}
 	if !ok {
 		return false
 	}
 	got := toStr(raw)
-	for _, exp := range fc.values { // daftar nilai = OR
+	for _, exp := range fc.values { // value list = OR
 		if matchValue(got, fc.modifiers, exp) {
 			return true
 		}
@@ -241,11 +241,11 @@ func matchValue(got string, modifiers []string, expected string) bool {
 		re, err := regexp.Compile(expected)
 		return err == nil && re.MatchString(got)
 	default:
-		return false // modifier di luar subset
+		return false // modifier outside the subset
 	}
 }
 
-// ── parser kondisi (subset) ───────────────────────────────
+// ── condition parser (subset) ─────────────────────────────
 
 type condParser struct {
 	toks  []string
@@ -266,7 +266,7 @@ func (p *condParser) eval() (bool, error) {
 		return false, err
 	}
 	if p.pos != len(p.toks) {
-		return false, fmt.Errorf("sigma: token kondisi tersisa: %v", p.toks[p.pos:])
+		return false, fmt.Errorf("sigma: leftover condition tokens: %v", p.toks[p.pos:])
 	}
 	return v, nil
 }
@@ -334,12 +334,12 @@ func (p *condParser) parsePrimary() (bool, error) {
 			return false, err
 		}
 		if p.take() != ")" {
-			return false, fmt.Errorf("sigma: tanda kurung tutup hilang")
+			return false, fmt.Errorf("sigma: missing closing parenthesis")
 		}
 		return v, nil
 	case t == "all" || t == "any" || isNumber(t):
 		if p.take() != "of" {
-			return false, fmt.Errorf("sigma: harap 'of' setelah %q", t)
+			return false, fmt.Errorf("sigma: expected 'of' after %q", t)
 		}
 		target := p.take()
 		names := p.resolveTargets(target)
@@ -358,11 +358,11 @@ func (p *condParser) parsePrimary() (bool, error) {
 		}
 		return matched >= need, nil
 	case t == "":
-		return false, fmt.Errorf("sigma: kondisi tidak lengkap")
+		return false, fmt.Errorf("sigma: incomplete condition")
 	default:
 		v, ok := p.sel[t]
 		if !ok {
-			return false, fmt.Errorf("sigma: selection tak dikenal: %q", t)
+			return false, fmt.Errorf("sigma: unknown selection: %q", t)
 		}
 		return v, nil
 	}
@@ -385,7 +385,7 @@ func (p *condParser) resolveTargets(target string) []string {
 	return []string{target}
 }
 
-// ── util ──────────────────────────────────────────────────
+// ── utils ─────────────────────────────────────────────────
 
 func isNumber(s string) bool {
 	_, err := strconv.Atoi(s)
