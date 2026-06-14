@@ -17,19 +17,19 @@ func dsn() string {
 	return "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable"
 }
 
-// TestStoreLifecycle memverifikasi SQL response_actions terhadap Postgres nyata
-// (di-skip bila DB tak tersedia).
+// TestStoreLifecycle verifies the response_actions SQL against a real Postgres
+// (skipped if the DB is unavailable).
 func TestStoreLifecycle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	pool, err := pgxpool.New(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 
 	ip := fmt.Sprintf("198.51.%d.%d", time.Now().UnixNano()%256, (time.Now().UnixNano()/256)%256)
@@ -45,9 +45,9 @@ func TestStoreLifecycle(t *testing.T) {
 		t.Fatalf("Insert: %v", err)
 	}
 
-	// Offenses awal 0 (belum ada executed).
+	// Offenses initially 0 (none executed yet).
 	if n, _ := s.Offenses(ctx, ip); n != 0 {
-		t.Fatalf("offenses awal %d, mau 0", n)
+		t.Fatalf("initial offenses %d, want 0", n)
 	}
 
 	// Get.
@@ -56,7 +56,7 @@ func TestStoreLifecycle(t *testing.T) {
 		t.Fatalf("Get: %v", err)
 	}
 	if got.SourceIP != ip || got.BanSeconds != 600 || got.Status != StatusRecommended {
-		t.Fatalf("get tak sesuai: %+v", got)
+		t.Fatalf("get mismatch: %+v", got)
 	}
 
 	// Approve (set status) + executed.
@@ -68,15 +68,15 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 	got, _ = s.Get(ctx, id)
 	if got.Status != StatusExecuted || got.Responder != "nftables" || got.DecidedBy != "alice" {
-		t.Fatalf("setelah eksekusi: %+v", got)
+		t.Fatalf("after execution: %+v", got)
 	}
 	if got.ExecutedAt == nil {
-		t.Fatal("executed_at harus terisi")
+		t.Fatal("executed_at should be set")
 	}
 
-	// Sekarang offenses = 1 (satu executed).
+	// Now offenses = 1 (one executed).
 	if n, _ := s.Offenses(ctx, ip); n != 1 {
-		t.Fatalf("offenses setelah executed %d, mau 1", n)
+		t.Fatalf("offenses after executed %d, want 1", n)
 	}
 
 	// List by status.
@@ -91,6 +91,6 @@ func TestStoreLifecycle(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("aksi executed tak muncul di List(executed)")
+		t.Fatal("the executed action did not appear in List(executed)")
 	}
 }

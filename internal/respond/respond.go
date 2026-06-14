@@ -1,10 +1,10 @@
-// Package respond adalah response engine DeusWatch (Fase 2): mengubah alert menjadi
-// rekomendasi blokir, menerapkannya lewat backend firewall (nftables/Mikrotik/
-// CrowdSec) di balik antarmuka Responder, dengan approval workflow & ban progresif.
+// Package respond is the DeusWatch response engine (Phase 2): it turns alerts into
+// block recommendations and applies them via a firewall backend (nftables/Mikrotik/
+// CrowdSec) behind the Responder interface, with an approval workflow & progressive ban.
 //
-// Alur: alert (source IP) -> Engine.Recommend -> baris 'recommended' di
-// response_actions. Analyst/admin approve -> Engine.Execute -> Responder.Block ->
-// 'executed'. Durasi ban naik bertahap mengikuti riwayat IP (BanPolicy).
+// Flow: alert (source IP) -> Engine.Recommend -> a 'recommended' row in
+// response_actions. An analyst/admin approves -> Engine.Execute -> Responder.Block ->
+// 'executed'. The ban duration grows with the IP's history (BanPolicy).
 package respond
 
 import (
@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Status siklus hidup aksi (cermin deuswatch.remediation.status).
+// Status is an action's lifecycle status (mirrors deuswatch.remediation.status).
 type Status string
 
 const (
@@ -23,7 +23,7 @@ const (
 	StatusFailed      Status = "failed"
 )
 
-// Action adalah satu rekomendasi/aksi respons.
+// Action is one response recommendation/action.
 type Action struct {
 	ID           string     `json:"id"`
 	CreatedAt    time.Time  `json:"created_at"`
@@ -31,7 +31,7 @@ type Action struct {
 	ActionType   string     `json:"action"` // "block"
 	Reason       string     `json:"reason"`
 	RuleID       string     `json:"rule_id"`
-	BanSeconds   int        `json:"ban_seconds"` // 0 = permanen
+	BanSeconds   int        `json:"ban_seconds"` // 0 = permanent
 	OffenseCount int        `json:"offense_count"`
 	Source       string     `json:"source"` // playbook | llm
 	Status       Status     `json:"status"`
@@ -42,24 +42,24 @@ type Action struct {
 	Error        string     `json:"error"`
 }
 
-// BanDuration mengembalikan durasi ban sebagai time.Duration (0 = permanen).
+// BanDuration returns the ban duration as a time.Duration (0 = permanent).
 func (a Action) BanDuration() time.Duration { return time.Duration(a.BanSeconds) * time.Second }
 
-// Responder menerapkan aksi blokir ke sebuah backend firewall/IPS.
-// d == 0 berarti blokir permanen.
+// Responder applies a block action to a firewall/IPS backend.
+// d == 0 means a permanent block.
 type Responder interface {
 	Name() string
 	Block(ctx context.Context, ip string, d time.Duration) error
 	Unblock(ctx context.Context, ip string) error
 }
 
-// BanPolicy menentukan durasi ban progresif berdasarkan jumlah pelanggaran.
+// BanPolicy determines the progressive ban duration based on the offense count.
 type BanPolicy struct {
-	Durations []time.Duration // durasi untuk pelanggaran ke-1, ke-2, ...
-	Permanent bool            // true: pelanggaran melebihi daftar -> permanen (0)
+	Durations []time.Duration // durations for the 1st, 2nd, ... offense
+	Permanent bool            // true: an offense beyond the list -> permanent (0)
 }
 
-// DefaultBanPolicy: 10m, 1h, 24h, lalu permanen.
+// DefaultBanPolicy: 10m, 1h, 24h, then permanent.
 func DefaultBanPolicy() BanPolicy {
 	return BanPolicy{
 		Durations: []time.Duration{10 * time.Minute, time.Hour, 24 * time.Hour},
@@ -67,8 +67,8 @@ func DefaultBanPolicy() BanPolicy {
 	}
 }
 
-// Duration mengembalikan durasi ban untuk pelanggaran ke-offense (1-based).
-// 0 berarti permanen.
+// Duration returns the ban duration for the offense-th offense (1-based).
+// 0 means permanent.
 func (p BanPolicy) Duration(offense int) time.Duration {
 	if len(p.Durations) == 0 {
 		return 0
@@ -80,7 +80,7 @@ func (p BanPolicy) Duration(offense int) time.Duration {
 		return p.Durations[offense-1]
 	}
 	if p.Permanent {
-		return 0 // permanen
+		return 0 // permanent
 	}
-	return p.Durations[len(p.Durations)-1] // mentok di durasi terpanjang
+	return p.Durations[len(p.Durations)-1] // cap at the longest duration
 }

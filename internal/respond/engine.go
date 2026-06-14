@@ -7,7 +7,7 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// ActionStore adalah persistensi yang dibutuhkan Engine (dipenuhi *Store; di-stub di test).
+// ActionStore is the persistence the Engine needs (satisfied by *Store; stubbed in tests).
 type ActionStore interface {
 	Insert(ctx context.Context, a *Action) (string, error)
 	Offenses(ctx context.Context, ip string) (int, error)
@@ -16,15 +16,15 @@ type ActionStore interface {
 	SetExecuted(ctx context.Context, id, responder string, execErr error) error
 }
 
-// Engine mengubah alert menjadi rekomendasi blokir & mengeksekusinya setelah approval.
+// Engine turns alerts into block recommendations & executes them after approval.
 type Engine struct {
 	store       ActionStore
-	responder   Responder // boleh nil (eksekusi dinonaktifkan)
+	responder   Responder // may be nil (execution disabled)
 	policy      BanPolicy
 	autoApprove bool
 }
 
-// NewEngine membuat engine. autoApprove=true langsung mengeksekusi tanpa approval manual.
+// NewEngine creates an engine. autoApprove=true executes immediately without manual approval.
 func NewEngine(store ActionStore, responder Responder, policy BanPolicy, autoApprove bool) *Engine {
 	if len(policy.Durations) == 0 {
 		policy = DefaultBanPolicy()
@@ -32,9 +32,9 @@ func NewEngine(store ActionStore, responder Responder, policy BanPolicy, autoApp
 	return &Engine{store: store, responder: responder, policy: policy, autoApprove: autoApprove}
 }
 
-// Recommend membuat rekomendasi blokir dari sebuah alert (butuh source IP). Durasi
-// ban dihitung progresif dari riwayat IP. Bila autoApprove aktif & ada responder,
-// langsung dieksekusi. Mengembalikan nil,nil bila event tak relevan (tanpa IP).
+// Recommend creates a block recommendation from an alert (needs a source IP). The ban
+// duration is computed progressively from the IP's history. If autoApprove is on & a
+// responder exists, it executes immediately. Returns nil,nil for irrelevant events (no IP).
 func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, error) {
 	if ev == nil || ev.Source == nil || ev.Source.IP == "" {
 		return nil, nil
@@ -66,13 +66,13 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 
 	if e.autoApprove && e.responder != nil {
 		if err := e.execute(ctx, a, "auto"); err != nil {
-			log.Printf("respond: auto-eksekusi %s gagal: %v", a.SourceIP, err)
+			log.Printf("respond: auto-execute %s failed: %v", a.SourceIP, err)
 		}
 	}
 	return a, nil
 }
 
-// Approve menyetujui aksi lalu mengeksekusinya.
+// Approve approves an action then executes it.
 func (e *Engine) Approve(ctx context.Context, id, by string) error {
 	a, err := e.store.Get(ctx, id)
 	if err != nil {
@@ -87,7 +87,7 @@ func (e *Engine) Approve(ctx context.Context, id, by string) error {
 	return e.execute(ctx, a, by)
 }
 
-// Dismiss menolak rekomendasi (tak dieksekusi).
+// Dismiss dismisses a recommendation (not executed).
 func (e *Engine) Dismiss(ctx context.Context, id, by string) error {
 	a, err := e.store.Get(ctx, id)
 	if err != nil {
@@ -99,7 +99,7 @@ func (e *Engine) Dismiss(ctx context.Context, id, by string) error {
 	return e.store.SetStatus(ctx, id, StatusDismissed, by)
 }
 
-// execute menjalankan blokir via responder & mencatat hasilnya.
+// execute runs the block via the responder & records the result.
 func (e *Engine) execute(ctx context.Context, a *Action, _ string) error {
 	if e.responder == nil {
 		return e.store.SetExecuted(ctx, a.ID, "", errNoResponder)
@@ -123,11 +123,11 @@ func reasonFor(ev *ingest.Event) string {
 
 type statusError struct{ s Status }
 
-func (e statusError) Error() string { return "respond: aksi sudah " + string(e.s) + " (bukan recommended)" }
+func (e statusError) Error() string { return "respond: action is already " + string(e.s) + " (not recommended)" }
 func errStatus(s Status) error      { return statusError{s} }
 
 type simpleError string
 
 func (e simpleError) Error() string { return string(e) }
 
-const errNoResponder = simpleError("respond: tidak ada responder dikonfigurasi (RESPONDER=none)")
+const errNoResponder = simpleError("respond: no responder configured (RESPONDER=none)")

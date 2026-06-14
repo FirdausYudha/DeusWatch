@@ -10,14 +10,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Store memetakan response_actions ke Postgres. Memenuhi ActionStore.
+// Store maps response_actions to Postgres. It satisfies ActionStore.
 type Store struct {
 	pool *pgxpool.Pool
 }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// Insert menyimpan aksi baru (status awal) dan mengembalikan id-nya.
+// Insert stores a new action (initial status) and returns its id.
 func (s *Store) Insert(ctx context.Context, a *Action) (string, error) {
 	var id string
 	err := s.pool.QueryRow(ctx, `
@@ -33,8 +33,8 @@ func (s *Store) Insert(ctx context.Context, a *Action) (string, error) {
 	return id, nil
 }
 
-// Offenses menghitung berapa kali IP ini SUDAH diblok (status executed) — dipakai
-// untuk ban progresif.
+// Offenses counts how many times this IP has ALREADY been blocked (status executed) —
+// used for the progressive ban.
 func (s *Store) Offenses(ctx context.Context, ip string) (int, error) {
 	var n int
 	err := s.pool.QueryRow(ctx,
@@ -61,11 +61,11 @@ func scanAction(row pgx.Row) (*Action, error) {
 	return &a, nil
 }
 
-// Get mengambil satu aksi berdasarkan id.
+// Get fetches one action by id.
 func (s *Store) Get(ctx context.Context, id string) (*Action, error) {
 	a, err := scanAction(s.pool.QueryRow(ctx, `SELECT `+actionCols+` FROM response_actions WHERE id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("respond: aksi tidak ditemukan")
+		return nil, fmt.Errorf("respond: action not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("respond: get: %w", err)
@@ -73,7 +73,7 @@ func (s *Store) Get(ctx context.Context, id string) (*Action, error) {
 	return a, nil
 }
 
-// SetStatus mengubah status + pencatat keputusan (approve/dismiss).
+// SetStatus changes the status + records the decision (approve/dismiss).
 func (s *Store) SetStatus(ctx context.Context, id string, status Status, decidedBy string) error {
 	ct, err := s.pool.Exec(ctx,
 		`UPDATE response_actions SET status = $2, decided_by = $3, decided_at = now() WHERE id = $1`,
@@ -82,12 +82,12 @@ func (s *Store) SetStatus(ctx context.Context, id string, status Status, decided
 		return fmt.Errorf("respond: set status: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("respond: aksi tidak ditemukan")
+		return fmt.Errorf("respond: action not found")
 	}
 	return nil
 }
 
-// SetExecuted menandai hasil eksekusi: executed bila execErr nil, selain itu failed.
+// SetExecuted records the execution result: executed if execErr is nil, otherwise failed.
 func (s *Store) SetExecuted(ctx context.Context, id, responder string, execErr error) error {
 	status, errMsg := StatusExecuted, ""
 	if execErr != nil {
@@ -106,7 +106,7 @@ func (s *Store) SetExecuted(ctx context.Context, id, responder string, execErr e
 	return nil
 }
 
-// List mengembalikan aksi terbaru; bila status != "" hanya status itu.
+// List returns the most recent actions; if status != "" only that status.
 func (s *Store) List(ctx context.Context, status string, limit int) ([]Action, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100

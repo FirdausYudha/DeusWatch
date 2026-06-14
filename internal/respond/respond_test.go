@@ -23,12 +23,12 @@ func TestBanPolicyProgressive(t *testing.T) {
 		{1, 10 * time.Minute},
 		{2, time.Hour},
 		{3, 24 * time.Hour},
-		{4, 0}, // permanen
+		{4, 0}, // permanent
 		{99, 0},
 	}
 	for _, c := range cases {
 		if got := p.Duration(c.offense); got != c.want {
-			t.Errorf("offense %d: durasi %v, mau %v", c.offense, got, c.want)
+			t.Errorf("offense %d: duration %v, want %v", c.offense, got, c.want)
 		}
 	}
 }
@@ -36,7 +36,7 @@ func TestBanPolicyProgressive(t *testing.T) {
 func TestBanPolicyCapNoPermanent(t *testing.T) {
 	p := BanPolicy{Durations: []time.Duration{time.Minute, time.Hour}, Permanent: false}
 	if got := p.Duration(5); got != time.Hour {
-		t.Fatalf("tanpa permanent harus mentok di durasi terpanjang, dapat %v", got)
+		t.Fatalf("without permanent it should cap at the longest duration, got %v", got)
 	}
 }
 
@@ -130,18 +130,18 @@ func TestEngineRecommendNoAutoApprove(t *testing.T) {
 		t.Fatalf("Recommend: %v", err)
 	}
 	if a == nil || a.Status != StatusRecommended {
-		t.Fatalf("harus recommended: %+v", a)
+		t.Fatalf("should be recommended: %+v", a)
 	}
 	if a.OffenseCount != 1 || a.BanSeconds != int((10 * time.Minute).Seconds()) {
-		t.Fatalf("ban progresif salah: offense=%d sec=%d", a.OffenseCount, a.BanSeconds)
+		t.Fatalf("wrong progressive ban: offense=%d sec=%d", a.OffenseCount, a.BanSeconds)
 	}
 	if len(resp.blocked) != 0 {
-		t.Fatal("tanpa auto-approve tak boleh ada blokir")
+		t.Fatal("without auto-approve there must be no block")
 	}
 }
 
 func TestEngineRecommendAutoApprove(t *testing.T) {
-	store := newFakeStore(2) // sudah 2x diblok -> pelanggaran ke-3 = 24h
+	store := newFakeStore(2) // already blocked 2x -> 3rd offense = 24h
 	resp := &fakeResponder{}
 	e := NewEngine(store, resp, DefaultBanPolicy(), true)
 
@@ -150,16 +150,16 @@ func TestEngineRecommendAutoApprove(t *testing.T) {
 		t.Fatalf("Recommend: %v", err)
 	}
 	if a.OffenseCount != 3 || a.BanSeconds != int((24 * time.Hour).Seconds()) {
-		t.Fatalf("progresif salah: offense=%d sec=%d", a.OffenseCount, a.BanSeconds)
+		t.Fatalf("wrong progression: offense=%d sec=%d", a.OffenseCount, a.BanSeconds)
 	}
 	if len(resp.blocked) != 1 || resp.blocked[0] != "45.155.205.99" {
-		t.Fatalf("auto-approve harus memblokir: %+v", resp.blocked)
+		t.Fatalf("auto-approve should block: %+v", resp.blocked)
 	}
 	if resp.dur != 24*time.Hour {
-		t.Fatalf("durasi blokir salah: %v", resp.dur)
+		t.Fatalf("wrong block duration: %v", resp.dur)
 	}
 	if len(store.execLog) != 1 || store.execLog[0] != "executed" {
-		t.Fatalf("eksekusi tak tercatat executed: %+v", store.execLog)
+		t.Fatalf("execution not recorded as executed: %+v", store.execLog)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestEngineRecommendSkipsNoIP(t *testing.T) {
 	e := NewEngine(newFakeStore(0), &fakeResponder{}, DefaultBanPolicy(), true)
 	a, err := e.Recommend(context.Background(), &ingest.Event{Event: ingest.EventFields{Category: "intrusion_detection"}})
 	if err != nil || a != nil {
-		t.Fatalf("event tanpa IP harus dilewati: a=%+v err=%v", a, err)
+		t.Fatalf("an event without an IP must be skipped: a=%+v err=%v", a, err)
 	}
 }
 
@@ -181,10 +181,10 @@ func TestEngineApproveExecutes(t *testing.T) {
 		t.Fatalf("Approve: %v", err)
 	}
 	if len(resp.blocked) != 1 {
-		t.Fatal("approve harus mengeksekusi blokir")
+		t.Fatal("approve should execute the block")
 	}
 	if len(store.statusLog) == 0 || !strings.HasPrefix(store.statusLog[0], "approved:alice") {
-		t.Fatalf("status approved tak tercatat: %+v", store.statusLog)
+		t.Fatalf("approved status not recorded: %+v", store.statusLog)
 	}
 }
 
@@ -194,7 +194,7 @@ func TestEngineApproveRejectsNonRecommended(t *testing.T) {
 	a, _ := e.Recommend(context.Background(), alertEvent("1.2.3.4"))
 	_ = e.Dismiss(context.Background(), a.ID, "bob")
 	if err := e.Approve(context.Background(), a.ID, "alice"); err == nil {
-		t.Fatal("approve aksi yang sudah dismissed harus error")
+		t.Fatal("approving an already-dismissed action must error")
 	}
 }
 
@@ -206,10 +206,10 @@ func TestEngineExecuteFailureRecorded(t *testing.T) {
 	a, _ := e.Recommend(context.Background(), alertEvent("1.2.3.4"))
 	err := e.Approve(context.Background(), a.ID, "alice")
 	if err == nil {
-		t.Fatal("kegagalan responder harus diteruskan")
+		t.Fatal("a responder failure must be propagated")
 	}
 	if len(store.execLog) != 1 || !strings.HasPrefix(store.execLog[0], "failed:") {
-		t.Fatalf("kegagalan harus tercatat: %+v", store.execLog)
+		t.Fatalf("the failure must be recorded: %+v", store.execLog)
 	}
 }
 
@@ -226,7 +226,7 @@ func TestNftablesResponderArgs(t *testing.T) {
 	}
 	joined := strings.Join(got, " ")
 	if !strings.Contains(joined, "nft add element inet deuswatch banlist") || !strings.Contains(joined, "timeout 600s") {
-		t.Fatalf("perintah nft salah: %q", joined)
+		t.Fatalf("wrong nft command: %q", joined)
 	}
 }
 
@@ -238,7 +238,7 @@ func TestNftablesPermanentNoTimeout(t *testing.T) {
 	}}
 	_ = r.Block(context.Background(), "9.9.9.9", 0)
 	if strings.Contains(joined, "timeout") {
-		t.Fatalf("ban permanen tak boleh ada timeout: %q", joined)
+		t.Fatalf("a permanent ban must have no timeout: %q", joined)
 	}
 }
 
@@ -251,7 +251,7 @@ func TestCrowdSecResponderArgs(t *testing.T) {
 	_ = r.Block(context.Background(), "1.2.3.4", time.Hour)
 	joined := strings.Join(got, " ")
 	if !strings.Contains(joined, "cscli decisions add --ip 1.2.3.4 --duration 1h0m0s --type ban") {
-		t.Fatalf("perintah cscli salah: %q", joined)
+		t.Fatalf("wrong cscli command: %q", joined)
 	}
 }
 
@@ -273,22 +273,22 @@ func TestMikrotikResponderHTTP(t *testing.T) {
 		t.Fatalf("Block: %v", err)
 	}
 	if gotPath != "/rest/ip/firewall/address-list" {
-		t.Fatalf("path salah: %q", gotPath)
+		t.Fatalf("wrong path: %q", gotPath)
 	}
 	if gotAuth == "" {
-		t.Fatal("basic auth tak terkirim")
+		t.Fatal("basic auth not sent")
 	}
 	if !strings.Contains(gotBody, `"address":"5.6.7.8"`) || !strings.Contains(gotBody, `"timeout":"1d"`) {
-		t.Fatalf("body salah: %q", gotBody)
+		t.Fatalf("wrong body: %q", gotBody)
 	}
 }
 
 func TestDryRunResponderNoop(t *testing.T) {
 	r := NewDryRunResponder("nftables")
 	if r.Name() != "dryrun(nftables)" {
-		t.Fatalf("nama salah: %q", r.Name())
+		t.Fatalf("wrong name: %q", r.Name())
 	}
 	if err := r.Block(context.Background(), "1.2.3.4", time.Minute); err != nil {
-		t.Fatalf("dry-run Block tak boleh error: %v", err)
+		t.Fatalf("dry-run Block must not error: %v", err)
 	}
 }

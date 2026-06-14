@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// runnerFunc menjalankan perintah eksternal; di-stub di test agar responder berbasis
-// CLI (nftables/cscli) teruji tanpa benar-benar mengeksekusi.
+// runnerFunc runs an external command; stubbed in tests so the CLI-based responders
+// (nftables/cscli) are tested without actually executing anything.
 type runnerFunc func(ctx context.Context, name string, args ...string) error
 
 func execRunner(ctx context.Context, name string, args ...string) error {
@@ -29,7 +29,7 @@ func execRunner(ctx context.Context, name string, args ...string) error {
 
 // ── DryRun ────────────────────────────────────────────────
 
-// DryRunResponder hanya mencatat aksi yang AKAN dijalankan — default aman.
+// DryRunResponder only logs the action it WOULD run — the safe default.
 type DryRunResponder struct{ backend string }
 
 func NewDryRunResponder(backend string) *DryRunResponder {
@@ -42,7 +42,7 @@ func NewDryRunResponder(backend string) *DryRunResponder {
 func (d *DryRunResponder) Name() string { return "dryrun(" + d.backend + ")" }
 
 func (d *DryRunResponder) Block(_ context.Context, ip string, dur time.Duration) error {
-	log.Printf("respond[dry-run]: BLOCK %s selama %s via %s", ip, durLabel(dur), d.backend)
+	log.Printf("respond[dry-run]: BLOCK %s for %s via %s", ip, durLabel(dur), d.backend)
 	return nil
 }
 
@@ -53,8 +53,8 @@ func (d *DryRunResponder) Unblock(_ context.Context, ip string) error {
 
 // ── nftables (Linux) ──────────────────────────────────────
 
-// NftablesResponder menambah/menghapus IP pada sebuah named set nftables. Set harus
-// sudah dibuat dengan flag timeout, mis.:
+// NftablesResponder adds/removes IPs in a named nftables set. The set must already
+// be created with the timeout flag, e.g.:
 //
 //	nft add table inet deuswatch
 //	nft add set inet deuswatch banlist { type ipv4_addr\; flags timeout\; }
@@ -91,7 +91,7 @@ func (n *NftablesResponder) Unblock(ctx context.Context, ip string) error {
 
 // ── CrowdSec (cscli) ──────────────────────────────────────
 
-// CrowdSecResponder membuat/menghapus decision via cscli (LAPI lokal).
+// CrowdSecResponder creates/removes a decision via cscli (local LAPI).
 type CrowdSecResponder struct{ run runnerFunc }
 
 func NewCrowdSecResponder() *CrowdSecResponder { return &CrowdSecResponder{run: execRunner} }
@@ -99,7 +99,7 @@ func NewCrowdSecResponder() *CrowdSecResponder { return &CrowdSecResponder{run: 
 func (c *CrowdSecResponder) Name() string { return "crowdsec" }
 
 func (c *CrowdSecResponder) Block(ctx context.Context, ip string, dur time.Duration) error {
-	d := "8760h" // permanen ~ 1 tahun
+	d := "8760h" // permanent ~ 1 year
 	if dur > 0 {
 		d = crowdsecDuration(dur)
 	}
@@ -112,10 +112,10 @@ func (c *CrowdSecResponder) Unblock(ctx context.Context, ip string) error {
 
 // ── Mikrotik (RouterOS REST v7) ───────────────────────────
 
-// MikrotikResponder menambah IP ke address-list RouterOS via REST API, lalu firewall
-// filter rule milik admin yang mem-drop list itu yang melakukan blok sebenarnya.
+// MikrotikResponder adds the IP to a RouterOS address-list via the REST API; the
+// admin's own firewall filter rule that drops that list does the actual blocking.
 type MikrotikResponder struct {
-	baseURL string // mis. https://192.168.88.1
+	baseURL string // e.g. https://192.168.88.1
 	user    string
 	pass    string
 	list    string
@@ -144,7 +144,7 @@ func (m *MikrotikResponder) Block(ctx context.Context, ip string, dur time.Durat
 }
 
 func (m *MikrotikResponder) Unblock(ctx context.Context, ip string) error {
-	// RouterOS: hapus berdasarkan query .id; di sini sederhana — POST remove by address.
+	// RouterOS: removing by .id query; kept simple here — POST remove by address.
 	body, _ := json.Marshal(map[string]string{"list": m.list, "address": ip})
 	return m.do(ctx, http.MethodPost, "/rest/ip/firewall/address-list/remove", body)
 }
@@ -167,19 +167,19 @@ func (m *MikrotikResponder) do(ctx context.Context, method, path string, body []
 	return nil
 }
 
-// ── util durasi & seleksi dari env ────────────────────────
+// ── duration & env-selection utils ────────────────────────
 
 func durLabel(d time.Duration) string {
 	if d <= 0 {
-		return "permanen"
+		return "permanent"
 	}
 	return d.String()
 }
 
-// crowdsecDuration: cscli menerima Go duration ("10m","1h","24h").
+// crowdsecDuration: cscli accepts a Go duration ("10m","1h","24h").
 func crowdsecDuration(d time.Duration) string { return d.String() }
 
-// mikrotikDuration: RouterOS memakai format seperti "10m","1h","1d".
+// mikrotikDuration: RouterOS uses a format like "10m","1h","1d".
 func mikrotikDuration(d time.Duration) string {
 	if d%(24*time.Hour) == 0 {
 		return strconv.Itoa(int(d/(24*time.Hour))) + "d"
@@ -187,12 +187,12 @@ func mikrotikDuration(d time.Duration) string {
 	return d.String()
 }
 
-// ResponderFromEnv memilih responder dari env RESPONDER:
+// ResponderFromEnv selects a responder from the RESPONDER env var:
 //
 //	dryrun (default) | nftables | crowdsec | mikrotik | none
 //
-// none menonaktifkan eksekusi sama sekali (kembali nil). Kecuali RESPONSE_LIVE=1,
-// nftables/crowdsec/mikrotik DIBUNGKUS dry-run agar tak ada blok tak sengaja saat dev.
+// none disables execution entirely (returns nil). Unless RESPONSE_LIVE=1,
+// nftables/crowdsec/mikrotik are WRAPPED in dry-run so there are no accidental blocks in dev.
 func ResponderFromEnv() Responder {
 	switch strings.ToLower(os.Getenv("RESPONDER")) {
 	case "", "dryrun":
@@ -208,16 +208,16 @@ func ResponderFromEnv() Responder {
 			os.Getenv("MIKROTIK_URL"), os.Getenv("MIKROTIK_USER"),
 			os.Getenv("MIKROTIK_PASS"), os.Getenv("MIKROTIK_LIST")))
 	default:
-		log.Printf("respond: RESPONDER tak dikenal %q — memakai dry-run", os.Getenv("RESPONDER"))
+		log.Printf("respond: unknown RESPONDER %q — using dry-run", os.Getenv("RESPONDER"))
 		return NewDryRunResponder("none")
 	}
 }
 
 func liveOrDry(r Responder) Responder {
 	if live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE")); live {
-		log.Printf("respond: responder LIVE aktif: %s", r.Name())
+		log.Printf("respond: LIVE responder active: %s", r.Name())
 		return r
 	}
-	log.Printf("respond: responder %s dibungkus dry-run (set RESPONSE_LIVE=1 untuk eksekusi nyata)", r.Name())
+	log.Printf("respond: responder %s wrapped in dry-run (set RESPONSE_LIVE=1 for real execution)", r.Name())
 	return NewDryRunResponder(r.Name())
 }
