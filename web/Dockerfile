@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Build SPA React+Vite lalu sajikan via nginx (mode docker compose).
+# Build the React+Vite SPA then serve it via nginx (docker compose mode).
 
 # ── Build stage ───────────────────────────────────────────
 FROM node:22-alpine AS build

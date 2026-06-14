@@ -1,4 +1,4 @@
-# Cross-compile agent DeusWatch untuk berbagai OS/arch ke dist\.
+# Cross-compile the DeusWatch agent for various OS/arch into dist\.
 #   .\scripts\build-agent.ps1
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
@@ -14,7 +14,7 @@ try {
         go build -trimpath -ldflags="-s -w" -o $out ./cmd/agent
         Write-Host "built $out"
     }
-    Write-Host "Selesai. Biner agent ada di dist\."
+    Write-Host "Done. The agent binaries are in dist\."
 } finally {
     Remove-Item Env:\GOOS, Env:\GOARCH, Env:\CGO_ENABLED -ErrorAction SilentlyContinue
     Pop-Location

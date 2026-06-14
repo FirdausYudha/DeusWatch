@@ -2,9 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// API DeusWatch jalan di :8080 (docker compose). Proxy ini membuat dev server
-// meneruskan /healthz, /readyz, /api ke sana, sehingga UI menyentuh backend asli
-// tanpa masalah CORS.
+// The DeusWatch API runs on :8080 (docker compose). This proxy makes the dev server
+// forward /healthz, /readyz, /api there, so the UI hits the real backend without
+// CORS issues.
 const API_TARGET = 'http://localhost:8080'
 
 export default defineConfig({

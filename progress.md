@@ -1,47 +1,47 @@
 # DeusWatch — Progress & Handoff
 
-> Catatan progres untuk lanjut di mesin lain. Sumber kebenaran desain: [DeusWatch.md](DeusWatch.md).
-> Terakhir diperbarui: 2026-06-14.
+> Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
+> Last updated: 2026-06-14.
 
-## Ringkasan status
+## Status summary
 
-Platform deteksi keamanan **jalan end-to-end**, Fase 1–3 selesai. Stack: Go
+The security detection platform **runs end-to-end**, Phases 1–3 complete. Stack: Go
 (agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS JetStream, React+Vite+Tailwind.
-Diverifikasi live: pipeline event→deteksi(Sigma single+agregasi)→enrich→alert→
-respons(dry-run)→LLM triase→report.
+Verified live: the pipeline event→detection(Sigma single+aggregation)→enrich→alert→
+response(dry-run)→LLM triage→report.
 
 ```
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI
 ```
 
-## Sudah selesai & terverifikasi
+## Done & verified
 
-| Area | Isi | Status |
+| Area | Contents | Status |
 |---|---|---|
-| Fondasi | monorepo, docker-compose (db/nats/api), mTLS lintas-OS (CA+cert) | ✅ |
-| Schema DCS | `internal/ingest/schema.go` + hypertable TimescaleDB (chunk/hari, kompresi, retensi) | ✅ |
+| Foundation | monorepo, docker-compose (db/nats/api), cross-OS mTLS (CA+cert) | ✅ |
+| DCS schema | `internal/ingest/schema.go` + TimescaleDB hypertable (chunk/day, compression, retention) | ✅ |
 | Pipeline | `internal/bus` (NATS), `internal/store` (pgx), `internal/worker` | ✅ |
-| Ingest | gateway mTLS + normalisasi sshd → DCS; agent tail → kirim | ✅ |
-| Deteksi | Sigma single-event (field/keyword/alias/MITRE) + **jalur agregasi Sigma→SQL** (compile ke query TimescaleDB, runner periodik+cooldown+dry-run), `rules/sigma/` (+`agg/`) | ✅ |
-| Enrichment CTI | `internal/enrich` + cache TTL Postgres + **klien nyata AbuseIPDB/OTX + GeoIP** (ip-api) + eskalasi configurable + **community blocklist** | ✅ + tampil di UI |
-| **Response engine** (Fase 2) | `internal/respond`: nftables/CrowdSec/Mikrotik + dry-run + **ban progresif** + approval workflow (API) | ✅ |
-| **Notifikasi** (Fase 2) | `internal/notify`: Telegram/email/webhook + dedup/throttle | ✅ |
-| **LLM worker** (Fase 3) | `internal/llm`: triase alert→vonis (Claude SDK / heuristik) → `deuswatch.llm.*` | ✅ + UI |
-| **Report** (Fase 3) | `internal/report` + `GET /api/report` (JSON/Markdown) | ✅ |
-| Auth | login, sesi, **RBAC**, **audit log append-only**, manajemen user, **TOTP 2FA** | ✅ + UI |
-| Web UI | Login, Dashboard (stats/alert/threat-intel/LLM live), **Agents**, Users, Settings | ✅ |
-| Agent | enrollment per-agent, config push, heartbeat+buffer offline, **FIM**, **Windows Service native**, kolektor per-OS, cross-compile | ✅ |
-| Infra | **runner migrasi otomatis** (embed), **CI** (vet/test/govulncheck/gosec/web), image di-pin, gateway+worker di compose | ✅ |
+| Ingest | mTLS gateway + sshd normalization → DCS; agent tail → ship | ✅ |
+| Detection | single-event Sigma (field/keyword/alias/MITRE) + **Sigma→SQL aggregation path** (compiles to a TimescaleDB query, periodic runner+cooldown+dry-run), `rules/sigma/` (+`agg/`) | ✅ |
+| CTI enrichment | `internal/enrich` + Postgres TTL cache + **real AbuseIPDB/OTX clients + GeoIP** (ip-api) + configurable escalation + **community blocklist** | ✅ + shown in UI |
+| **Response engine** (Phase 2) | `internal/respond`: nftables/CrowdSec/Mikrotik + dry-run + **progressive ban** + approval workflow (API) | ✅ |
+| **Notifications** (Phase 2) | `internal/notify`: Telegram/email/webhook + dedup/throttle | ✅ |
+| **LLM worker** (Phase 3) | `internal/llm`: triage alert→verdict (Claude SDK / heuristic) → `deuswatch.llm.*` | ✅ + UI |
+| **Report** (Phase 3) | `internal/report` + `GET /api/report` (JSON/Markdown) | ✅ |
+| Auth | login, sessions, **RBAC**, **append-only audit log**, user management, **TOTP 2FA** | ✅ + UI |
+| Web UI | Login, Dashboard (stats/alerts/threat-intel/LLM live), **Agents**, Users, Settings | ✅ |
+| Agent | per-agent enrollment, config push, heartbeat+offline buffer, **FIM**, **native Windows Service**, per-OS collectors, cross-compile | ✅ |
+| Infra | **automatic migration runner** (embed), **CI** (vet/test/govulncheck/gosec/web), pinned images, gateway+worker in compose | ✅ |
 
-Semua test (unit + integrasi + e2e) lulus; gosec & govulncheck bersih. ADR Sigma: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
+All tests (unit + integration + e2e) pass; gosec & govulncheck clean. Sigma ADR: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
 
-## Prasyarat di PC baru
+## Prerequisites on a new PC
 
-- **Go 1.25+** (dikembangkan dgn 1.26)
+- **Go 1.25+** (developed with 1.26)
 - **Docker Desktop**
-- **Node 22+** (untuk web)
+- **Node 22+** (for the web UI)
 
-## Setup di PC baru — SATU PERINTAH
+## Setup on a new PC — ONE COMMAND
 
 ```bash
 git clone https://github.com/FirdausYudha/DeusWatch.git
@@ -49,84 +49,84 @@ cd DeusWatch
 docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
-Itu saja. Compose menyalakan **semua**: db, nats, **certgen** (init: generate sertifikat
-mTLS ke `deploy/certs`, idempotent), api (auto-migrasi), gateway, worker, dan **web** (nginx).
+That's it. Compose brings up **everything**: db, nats, **certgen** (init: generates the
+mTLS certificates into `deploy/certs`, idempotent), api (auto-migrate), gateway, worker, and **web** (nginx).
 
 - **Web UI:** http://localhost:5173 · **API:** http://localhost:8080
-- **Login dev:** `admin` / `deuswatch-admin` (seed otomatis; ganti via `ADMIN_PASSWORD`).
-- **Registrasi mandiri** aktif di halaman login (akun baru = role viewer). Nonaktifkan: `REGISTRATION_ENABLED=0`.
+- **Dev login:** `admin` / `thewatcher` (auto-seeded; change via `ADMIN_PASSWORD`).
+- **Self-registration** is enabled on the login page (new account = viewer role). Disable with: `REGISTRATION_ENABLED=0`.
 
-> Dev web hot-reload (opsional): `cd web && npm install && npm run dev` → :5173 — JANGAN
-> jalankan bersamaan dengan container `web` (port bentrok); matikan salah satu.
-> Manual migrate bila perlu: `DATABASE_URL=... go run ./cmd/migrate`. Regen cert: `go run ./cmd/certgen --out deploy/certs -force`.
+> Web dev hot-reload (optional): `cd web && npm install && npm run dev` → :5173 — do NOT
+> run it alongside the `web` container (port clash); turn off one of them.
+> Manual migrate if needed: `DATABASE_URL=... go run ./cmd/migrate`. Regen certs: `go run ./cmd/certgen --out deploy/certs -force`.
 
-## Menjalankan pipeline penuh (agent lokal)
+## Running the full pipeline (local agent)
 
-gateway/worker kini **sudah di docker-compose** (langkah 1 menyalakannya). Hanya
-**agent** yang dijalankan di endpoint terpisah. Untuk menjalankan biner secara lokal
-(dev), set env lalu jalankan (contoh PowerShell di `bin/`):
+gateway/worker are now **already in docker-compose** (step 1 starts them). Only the
+**agent** runs on a separate endpoint. To run the binaries locally (dev), set the env
+then run (PowerShell example in `bin/`):
 
 ```
 NATS_URL=nats://localhost:4222
 STORE_DSN=postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable
-CERT_DIR=deploy/certs            # gateway/worker pakai server cert + CA
+CERT_DIR=deploy/certs            # gateway/worker use the server cert + CA
 RULES_DIR=rules/sigma
 GATEWAY_ADDR=:8443
 
 go build -o bin/gateway.exe ./cmd/gateway   # + worker, agent
-# jalankan gateway, worker, lalu agent (agent: GATEWAY_URL=https://localhost:8443)
+# run gateway, worker, then agent (agent: GATEWAY_URL=https://localhost:8443)
 ```
 
-Cross-compile agent semua OS: `./scripts/build-agent.sh` → `dist/`.
-Install agent: `deploy/agent/` (systemd `install-linux.sh`, Windows `install-windows.ps1`).
+Cross-compile the agent for all OSes: `./scripts/build-agent.sh` → `dist/`.
+Install the agent: `deploy/agent/` (systemd `install-linux.sh`, Windows `install-windows.ps1`).
 
-### Alur enrollment agent (gaya Wazuh)
-1. Admin buat token: `POST /api/agents/tokens` (Bearer admin) → `{token}`.
-2. Agent tukar token: `agent -enroll -token <T> -name <nama> -manager http://host:8080 -out <certdir>`.
-3. Agent jalan normal pakai cert itu; muncul di `GET /api/agents`; bisa di-revoke.
-4. Config push: admin `PUT /api/agents/{id}/config {sources:[...]}`; agent ambil via gateway saat start + poll (versi naik → restart terapkan).
+### Agent enrollment flow (Wazuh-style)
+1. Admin creates a token: `POST /api/agents/tokens` (Bearer admin) → `{token}`.
+2. Agent exchanges the token: `agent -enroll -token <T> -name <name> -manager http://host:8080 -out <certdir>`.
+3. The agent runs normally with that cert; it shows up in `GET /api/agents`; it can be revoked.
+4. Config push: admin `PUT /api/agents/{id}/config {sources:[...]}`; the agent fetches it via the gateway at start + poll (version increases → restart to apply).
 
-## Catatan/gotcha penting
+## Important notes/gotchas
 
-- **Migrasi otomatis** — runner in-house (`internal/migrate` + embed di package `migrations`); api menerapkannya saat start (idempotent). Standalone: `cmd/migrate`. `RUN_MIGRATIONS=0` untuk nonaktif.
-- **Image di-pin**: timescaledb `2.17.2-pg16`, nats `2.10.22-alpine`. Mengubah pin pada volume lama yang dibuat versi lain bisa bentrok — pakai volume fresh.
-- **CI**: `.github/workflows/ci.yml` (vet/build/test dgn services pg+nats, govulncheck, gosec, web tsc+build). gosec mengecualikan rule yang melekat domain (lihat workflow).
-- **Response engine**: `RESPONDER=dryrun|nftables|crowdsec|mikrotik|none` (default dryrun). nftables/crowdsec/mikrotik DIBUNGKUS dry-run kecuali `RESPONSE_LIVE=1`. `RESPONSE_AUTO_APPROVE=1` eksekusi tanpa approval. Approve/dismiss via `POST /api/responses/{id}/approve|dismiss`.
-- **Notifikasi**: aktif bila salah satu saluran diisi — `TELEGRAM_BOT_TOKEN`+`TELEGRAM_CHAT_ID`, `WEBHOOK_URL`, atau `SMTP_HOST`+`SMTP_FROM`+`SMTP_TO`(+`SMTP_USER`/`SMTP_PASS`). Ambang `NOTIFY_MIN_SEVERITY` (default high), dedup `NOTIFY_THROTTLE` (default 10m, per rule+IP). Worker memanggilnya via `worker.AlertHook` (bersama response engine).
-- **Worker LLM** (Fase 3): `ANTHROPIC_API_KEY` → analyzer Claude (model `ANTHROPIC_MODEL`, default `claude-opus-4-8`, via SDK resmi); `LLM_ENABLED=1` → analyzer heuristik offline. Worker mem-poll alert tanpa vonis tiap 20s → isi `deuswatch.llm.*`.
-- **Report**: `GET /api/report?hours=24` (JSON) atau `?format=md` (Markdown) — ringkasan event/alert/severity/top IP/rule/MITRE/vonis.
-- **Community blocklist**: `BLOCKLIST_URLS` (feed IP/CIDR dipisah koma) → IP yang cocok ditandai abuse=100 (feed `blocklist`); refresh tiap `BLOCKLIST_REFRESH` (default 6h).
-- **Enrichment CTI nyata**: set `ABUSEIPDB_API_KEY` / `OTX_API_KEY` / `GEOIP_ENABLED=1` di env worker (tanpa itu pakai provider mock). Ambang eskalasi: `ABUSE_ESCALATE_THRESHOLD` (default 90), `OTX_ESCALATE_THRESHOLD` (default 5).
-- **bin/ & dist/ & deploy/certs/ di-gitignore** — rebuild biner & regen cert di PC baru.
-- Saat ubah kode service, **rebuild biner** sebelum demo (beberapa bug demo karena biner stale).
-- `gateway` butuh `STORE_DSN` untuk revocation/config-push/heartbeat (opsional; tanpa DB fitur itu nonaktif).
-- Detektor `detect-worker`… durable NATS pakai DeliverNew (tak replay backlog).
-- Engine Sigma single-event = evaluator interim; jalur agregasi = compiler in-Go ke SQL (ADR 0001 addendum).
-- Mengubah pin image TimescaleDB pada volume lama yang dibuat versi lain → bentrok (`$libdir`); pakai volume fresh.
+- **Automatic migrations** — in-house runner (`internal/migrate` + embed in the `migrations` package); the api applies them at start (idempotent). Standalone: `cmd/migrate`. `RUN_MIGRATIONS=0` to disable.
+- **Pinned images**: timescaledb `2.17.2-pg16`, nats `2.10.22-alpine`. Changing the pin on an old volume created by a different version can clash — use a fresh volume.
+- **CI**: `.github/workflows/ci.yml` (vet/build/test with pg+nats services, govulncheck, gosec, web tsc+build). gosec excludes rules inherent to the domain (see the workflow).
+- **Response engine**: `RESPONDER=dryrun|nftables|crowdsec|mikrotik|none` (default dryrun). nftables/crowdsec/mikrotik are WRAPPED in dry-run unless `RESPONSE_LIVE=1`. `RESPONSE_AUTO_APPROVE=1` executes without approval. Approve/dismiss via `POST /api/responses/{id}/approve|dismiss`.
+- **Notifications**: active when any channel is filled in — `TELEGRAM_BOT_TOKEN`+`TELEGRAM_CHAT_ID`, `WEBHOOK_URL`, or `SMTP_HOST`+`SMTP_FROM`+`SMTP_TO`(+`SMTP_USER`/`SMTP_PASS`). Threshold `NOTIFY_MIN_SEVERITY` (default high), dedup `NOTIFY_THROTTLE` (default 10m, per rule+IP). The worker calls it via `worker.AlertHook` (alongside the response engine).
+- **LLM worker** (Phase 3): `ANTHROPIC_API_KEY` → Claude analyzer (model `ANTHROPIC_MODEL`, default `claude-opus-4-8`, via the official SDK); `LLM_ENABLED=1` → offline heuristic analyzer. The worker polls alerts without a verdict every 20s → fills `deuswatch.llm.*`.
+- **Report**: `GET /api/report?hours=24` (JSON) or `?format=md` (Markdown) — a summary of events/alerts/severity/top IP/rule/MITRE/verdict.
+- **Community blocklist**: `BLOCKLIST_URLS` (comma-separated IP/CIDR feeds) → matching IPs are marked abuse=100 (feed `blocklist`); refresh every `BLOCKLIST_REFRESH` (default 6h).
+- **Real CTI enrichment**: set `ABUSEIPDB_API_KEY` / `OTX_API_KEY` / `GEOIP_ENABLED=1` in the worker env (without them a mock provider is used). Escalation thresholds: `ABUSE_ESCALATE_THRESHOLD` (default 90), `OTX_ESCALATE_THRESHOLD` (default 5).
+- **bin/ & dist/ & deploy/certs/ are gitignored** — rebuild binaries & regen certs on a new PC.
+- When changing service code, **rebuild the binaries** before a demo (some demo bugs were from stale binaries).
+- `gateway` needs `STORE_DSN` for revocation/config-push/heartbeat (optional; without a DB those features are off).
+- The `detect-worker` detector… the durable NATS consumer uses DeliverNew (no backlog replay).
+- The single-event Sigma engine = an interim evaluator; the aggregation path = an in-Go compiler to SQL (ADR 0001 addendum).
+- Changing the TimescaleDB image pin on an old volume created by a different version → clash (`$libdir`); use a fresh volume.
 
-## Roadmap utama (Fase 1–3) — SELESAI ✅
+## Main roadmap (Phases 1–3) — DONE ✅
 
-Tujuh item roadmap berikut sudah diimplementasikan, diuji, dan diverifikasi end-to-end:
-Sigma agregasi→SQL+rule baru (#4); FIM+Windows Service native+halaman Agents (#5);
-klien CTI nyata+GeoIP+UI (#6); response engine+ban progresif (#7); infra migrasi/CI/
-compose (#8); notifikasi (#9); LLM worker+report+blocklist (#10).
+The following seven roadmap items are implemented, tested, and verified end-to-end:
+Sigma aggregation→SQL+new rules (#4); FIM+native Windows Service+Agents page (#5);
+real CTI clients+GeoIP+UI (#6); response engine+progressive ban (#7); infra migration/CI/
+compose (#8); notifications (#9); LLM worker+report+blocklist (#10).
 
-## Ide lanjutan (opsional)
+## Follow-up ideas (optional)
 
-- Sigma: adopsi fork Go matang untuk single-event; perluas dataset (process/web); aturan eskalasi & ban dari UI.
-- UI: halaman Response/Actions (approve/dismiss dari UI), halaman Report, drift indicator agent.
-- Agent: canary deploy config, FIM real-time (fsnotify) sebagai ganti polling.
-- pgvector untuk RAG/LLM (kolom embedding disiapkan di schema).
+- Sigma: adopt a mature Go fork for single-event; expand datasets (process/web); escalation & ban rules from the UI.
+- UI: Response/Actions page (approve/dismiss from the UI), Report page, agent drift indicator.
+- Agent: canary config deploy, real-time FIM (fsnotify) instead of polling.
+- pgvector for RAG/LLM (the embedding column is prepared in the schema).
 
-## Peta commit (terbaru → lama, sebagian)
+## Commit map (newest → oldest, partial)
 
 ```
-(#10) feat(llm): worker LLM + report + community blocklist (Fase 3)
+(#10) feat(llm): LLM worker + report + community blocklist (Phase 3)
 (#9)  feat(notify): Telegram/email/webhook + dedup/throttle
-(#8)  feat(infra): runner migrasi otomatis + CI + gateway/worker di compose
-(#7)  feat(respond): response engine + blokir + approval + ban progresif
-(#6)  feat(enrich): klien AbuseIPDB/OTX + GeoIP nyata + tampil di UI
-(#5)  feat(agent): FIM + Windows Service native + halaman Agents UI
-(#4)  feat(detect): jalur agregasi Sigma->SQL + rule baru
-... (Fase 1: auth/agent/enrich/UI/pipeline/fondasi) — lihat `git log`
+(#8)  feat(infra): automatic migration runner + CI + gateway/worker in compose
+(#7)  feat(respond): response engine + block + approval + progressive ban
+(#6)  feat(enrich): real AbuseIPDB/OTX clients + GeoIP + shown in UI
+(#5)  feat(agent): FIM + native Windows Service + Agents UI page
+(#4)  feat(detect): Sigma->SQL aggregation path + new rules
+... (Phase 1: auth/agent/enrich/UI/pipeline/foundation) — see `git log`
 ```

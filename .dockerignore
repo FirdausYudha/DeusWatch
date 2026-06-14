@@ -1,6 +1,6 @@
-# Perkecil build context Docker — kode Go + aset yang dibutuhkan biner.
-# CATATAN: migrations/ WAJIB ada (disematkan via go:embed di package migrations);
-# rules/ dipakai image worker. Jangan kecualikan keduanya.
+# Shrink the Docker build context — Go code + the assets the binary needs.
+# NOTE: migrations/ MUST be present (embedded via go:embed in the migrations package);
+# rules/ is used by the worker image. Do not exclude either of them.
 .git/
 .github/
 .claude/

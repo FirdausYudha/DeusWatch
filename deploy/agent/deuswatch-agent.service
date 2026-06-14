@@ -10,7 +10,7 @@ EnvironmentFile=/etc/deuswatch/agent.env
 ExecStart=/usr/local/bin/deuswatch-agent
 Restart=always
 RestartSec=5
-# Baca /var/log secara read-only tanpa root penuh (hardening).
+# Read /var/log read-only without full root (hardening).
 DynamicUser=yes
 SupplementaryGroups=adm systemd-journal
 NoNewPrivileges=yes

@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Cross-compile agent DeusWatch untuk berbagai OS/arch ke dist/.
+# Cross-compile the DeusWatch agent for various OS/arch into dist/.
 #   VERSION=v0.1.0 ./scripts/build-agent.sh
 set -e
 cd "$(dirname "$0")/.."
@@ -14,4 +14,4 @@ for t in $TARGETS; do
     go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/agent
   echo "built $out"
 done
-echo "Selesai. Biner agent ada di dist/."
+echo "Done. The agent binaries are in dist/."

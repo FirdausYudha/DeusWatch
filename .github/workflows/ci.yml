@@ -12,7 +12,7 @@ jobs:
   go:
     name: Go build, vet & test
     runs-on: ubuntu-latest
-    # Layanan untuk tes integrasi (Postgres+TimescaleDB & NATS JetStream).
+    # Services for integration tests (Postgres+TimescaleDB & NATS JetStream).
     services:
       db:
         image: timescale/timescaledb:2.17.2-pg16
@@ -72,11 +72,11 @@ jobs:
           cache: true
       - name: install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
-        # Dikecualikan karena melekat pada domain alat ini (bukan kerentanan):
-        #   G204 jalankan nft/cscli/Get-WinEvent  G304 buka berkas log/konfig sesuai input
-        #   G301/G306 izin berkas cert/buffer      G706 log data operasional
-        #   G115 konversi int terbatas (severity 0..4, dst.)
-        # gosec tetap menjaga: kredensial hardcoded, SQLi, kripto lemah, dll.
+        # Excluded because they are inherent to this tool's domain (not vulnerabilities):
+        #   G204 run nft/cscli/Get-WinEvent       G304 open log/config files per input
+        #   G301/G306 cert/buffer file perms      G706 log operational data
+        #   G115 bounded int conversion (severity 0..4, etc.)
+        # gosec still guards: hardcoded credentials, SQLi, weak crypto, etc.
       - run: gosec -exclude-dir=web -exclude=G204,G304,G306,G301,G706,G115 ./...
 
   web:

@@ -18,10 +18,10 @@ func TestRequirePermission(t *testing.T) {
 		user *User
 		want int
 	}{
-		{"admin diizinkan", &User{Username: "a", Role: RoleAdmin}, http.StatusOK},
-		{"analyst ditolak", &User{Username: "b", Role: RoleAnalyst}, http.StatusForbidden},
-		{"viewer ditolak", &User{Username: "c", Role: RoleViewer}, http.StatusForbidden},
-		{"tanpa user ditolak", nil, http.StatusForbidden},
+		{"admin allowed", &User{Username: "a", Role: RoleAdmin}, http.StatusOK},
+		{"analyst denied", &User{Username: "b", Role: RoleAnalyst}, http.StatusForbidden},
+		{"viewer denied", &User{Username: "c", Role: RoleViewer}, http.StatusForbidden},
+		{"no user denied", nil, http.StatusForbidden},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -32,7 +32,7 @@ func TestRequirePermission(t *testing.T) {
 			rr := httptest.NewRecorder()
 			guarded.ServeHTTP(rr, req)
 			if rr.Code != c.want {
-				t.Fatalf("status=%d, mau %d", rr.Code, c.want)
+				t.Fatalf("status=%d, want %d", rr.Code, c.want)
 			}
 		})
 	}

@@ -1,8 +1,8 @@
-# DeusWatch — docker-compose mode noob: satu perintah untuk menyalakan stack fondasi.
+# DeusWatch — docker-compose easy mode: one command to bring up the foundation stack.
 #   docker compose -f deploy/docker-compose.yml up --build
 #
-# Berisi: PostgreSQL+TimescaleDB, NATS JetStream, dan service Go (api) hello-world
-# yang membuktikan konektivitas ke keduanya lewat /readyz.
+# Contains: PostgreSQL+TimescaleDB, NATS JetStream, and a hello-world Go service (api)
+# that proves connectivity to both via /readyz.
 name: deuswatch
 
 services:
@@ -39,8 +39,8 @@ services:
       retries: 12
     restart: unless-stopped
 
-  # Init container: generate sertifikat mTLS ke ./certs sekali (idempotent —
-  # dilewati bila ca.crt sudah ada). api & gateway menunggu ini selesai.
+  # Init container: generate the mTLS certificates into ./certs once (idempotent —
+  # skipped if ca.crt already exists). api & gateway wait for this to finish.
   certgen:
     build:
       context: ..
@@ -63,10 +63,10 @@ services:
       POSTGRES_ADDR: "db:5432"
       NATS_ADDR: "nats:4222"
       DATABASE_URL: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
-      # Admin awal di-seed saat tabel users kosong. GANTI untuk produksi.
+      # The initial admin is seeded when the users table is empty. CHANGE for production.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-deuswatch-admin}"
-      # CA untuk menerbitkan sertifikat agent saat enrollment (mount read-only).
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-thewatcher}"
+      # CA for issuing agent certificates during enrollment (mounted read-only).
       CERT_DIR: "/certs"
     volumes:
       - ./certs:/certs:ro
@@ -131,7 +131,7 @@ services:
       RESPONDER: "${RESPONDER:-dryrun}"
       RESPONSE_LIVE: "${RESPONSE_LIVE:-0}"
       RESPONSE_AUTO_APPROVE: "${RESPONSE_AUTO_APPROVE:-0}"
-      # Notifikasi (opsional): aktif bila salah satu saluran diisi.
+      # Notifications (optional): active when any channel is filled in.
       NOTIFY_MIN_SEVERITY: "${NOTIFY_MIN_SEVERITY:-high}"
       NOTIFY_THROTTLE: "${NOTIFY_THROTTLE:-10m}"
       TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
