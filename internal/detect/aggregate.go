@@ -1,9 +1,9 @@
 package detect
 
-// Runner deteksi AGREGASI: menjalankan rule Sigma agregasi (di-compile ke SQL oleh
-// internal/detect/sigma) secara periodik terhadap hypertable events, lalu memicu
-// alert untuk grup yang melewati ambang. Inilah jalur SQL ala Zircolite dari ADR
-// 0001 — generalisasi detektor brute-force hardcoded ke rule berbasis Sigma.
+// AGGREGATION detection runner: it runs aggregation Sigma rules (compiled to SQL by
+// internal/detect/sigma) periodically against the events hypertable, then fires alerts
+// for groups crossing the threshold. This is the Zircolite-style SQL path from ADR
+// 0001 — generalizing the hardcoded brute-force detector to Sigma-based rules.
 
 import (
 	"context"
@@ -16,35 +16,35 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// DefaultAggCooldown: jeda minimum antar-alert untuk (rule, grup) yang sama, agar
-// satu serangan berlangsung lama tidak membanjiri alert.
+// DefaultAggCooldown: minimum interval between alerts for the same (rule, group), so a
+// long-running attack doesn't flood alerts.
 const DefaultAggCooldown = 5 * time.Minute
 
-// AggGroup adalah satu baris hasil query agregasi: grup + jumlah + waktu terakhir.
+// AggGroup is one aggregation-query result row: group + count + last seen.
 type AggGroup struct {
 	Group    string
 	Count    int64
 	LastSeen time.Time
 }
 
-// AggExecutor menjalankan satu query agregasi yang sudah di-compile. Dipenuhi oleh
-// *store.Store; di-stub di test agar runner teruji tanpa DB.
+// AggExecutor runs one already-compiled aggregation query. Satisfied by *store.Store;
+// stubbed in tests so the runner is tested without a DB.
 type AggExecutor interface {
 	QueryAgg(ctx context.Context, query string, args []any) ([]AggGroup, error)
 }
 
-// AggregateRunner menjalankan sekumpulan rule agregasi & melacak cooldown.
-// Aman dipakai banyak goroutine.
+// AggregateRunner runs a set of aggregation rules & tracks cooldown.
+// Safe for use by many goroutines.
 type AggregateRunner struct {
 	rules    []*sigma.AggRule
 	exec     AggExecutor
 	cooldown time.Duration
 
 	mu        sync.Mutex
-	lastAlert map[string]time.Time // "ruleID\x00grup" -> waktu alert terakhir
+	lastAlert map[string]time.Time // "ruleID\x00group" -> last alert time
 }
 
-// NewAggregateRunner membuat runner. cooldown<=0 memakai DefaultAggCooldown.
+// NewAggregateRunner creates a runner. cooldown<=0 uses DefaultAggCooldown.
 func NewAggregateRunner(exec AggExecutor, rules []*sigma.AggRule, cooldown time.Duration) *AggregateRunner {
 	if cooldown <= 0 {
 		cooldown = DefaultAggCooldown
@@ -55,12 +55,12 @@ func NewAggregateRunner(exec AggExecutor, rules []*sigma.AggRule, cooldown time.
 	}
 }
 
-// RuleCount mengembalikan jumlah rule agregasi yang dimuat.
+// RuleCount returns the number of loaded aggregation rules.
 func (r *AggregateRunner) RuleCount() int { return len(r.rules) }
 
-// RunOnce menjalankan semua rule sekali dan mengembalikan alert untuk grup yang
-// melewati ambang & lolos cooldown. Error per-rule di-log oleh pemanggil; di sini
-// error pertama dikembalikan agar siklus berikutnya tetap mencoba.
+// RunOnce runs all rules once and returns alerts for groups that crossed the
+// threshold & passed cooldown. Per-rule errors are logged by the caller; here the
+// first error is returned so the next cycle still tries.
 func (r *AggregateRunner) RunOnce(ctx context.Context, now time.Time) ([]*ingest.Event, error) {
 	var alerts []*ingest.Event
 	var firstErr error
@@ -83,15 +83,14 @@ func (r *AggregateRunner) RunOnce(ctx context.Context, now time.Time) ([]*ingest
 	return alerts, firstErr
 }
 
-// DryRun menjalankan satu rule terhadap histori (lewat jendela rule itu sendiri)
-// tanpa cooldown dan tanpa membuat alert — untuk uji rule pada data lampau
-// (design doc bagian 10).
+// DryRun runs one rule against history (over the rule's own window) without cooldown
+// and without creating alerts — for testing rules on past data (design doc section 10).
 func (r *AggregateRunner) DryRun(ctx context.Context, rule *sigma.AggRule) ([]AggGroup, error) {
 	query, args := rule.CompileSQL()
 	return r.exec.QueryAgg(ctx, query, args)
 }
 
-// allow menerapkan cooldown per (rule, grup).
+// allow applies the per-(rule, group) cooldown.
 func (r *AggregateRunner) allow(ruleID, group string, now time.Time) bool {
 	key := ruleID + "\x00" + group
 	r.mu.Lock()
@@ -133,7 +132,7 @@ func buildAggAlert(rule *sigma.AggRule, g AggGroup) *ingest.Event {
 			Severity:   ingest.SeverityMeta{Original: rule.Severity()},
 		},
 	}
-	// Bila pengelompokan berdasarkan IP, isi source.ip agar enrichment & UI bekerja.
+	// When grouping by IP, fill source.ip so enrichment & the UI work.
 	if g.Group != "" {
 		switch rule.GroupByField {
 		case "source.ip", "src_ip", "srcip", "sourceip":

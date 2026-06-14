@@ -7,25 +7,25 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// Detector adalah satu unit deteksi: memeriksa satu event, mengembalikan alert
-// bila terpicu (nil bila tidak). BruteForceDetector & SigmaDetector memenuhinya.
+// Detector is one detection unit: it inspects a single event and returns an alert
+// when it fires (nil otherwise). BruteForceDetector & SigmaDetector satisfy it.
 type Detector interface {
 	Inspect(e *ingest.Event) *ingest.Event
 }
 
-// SigmaDetector mengevaluasi event terhadap Ruleset Sigma (rule single-event).
-// Engine interim memakai prototipe internal/detect/sigma di balik antarmuka ini;
-// dapat ditukar ke fork Go matang kelak tanpa mengubah worker (lihat ADR 0001).
+// SigmaDetector evaluates events against a Sigma Ruleset (single-event rules).
+// The interim engine uses the internal/detect/sigma prototype behind this interface;
+// it can be swapped for a mature Go fork later without changing the worker (see ADR 0001).
 type SigmaDetector struct {
 	rules sigma.Ruleset
 }
 
-// NewSigmaDetector membungkus sebuah Ruleset.
+// NewSigmaDetector wraps a Ruleset.
 func NewSigmaDetector(rs sigma.Ruleset) *SigmaDetector {
 	return &SigmaDetector{rules: rs}
 }
 
-// LoadSigmaDir memuat rule dari dir lalu mengembalikan detektor.
+// LoadSigmaDir loads rules from dir and returns a detector.
 func LoadSigmaDir(dir string) (*SigmaDetector, error) {
 	rs, err := sigma.LoadDir(dir)
 	if err != nil {
@@ -34,11 +34,11 @@ func LoadSigmaDir(dir string) (*SigmaDetector, error) {
 	return &SigmaDetector{rules: rs}, nil
 }
 
-// RuleCount mengembalikan jumlah rule yang dimuat.
+// RuleCount returns the number of loaded rules.
 func (d *SigmaDetector) RuleCount() int { return len(d.rules) }
 
-// Inspect mengembalikan alert untuk rule single-event PERTAMA yang cocok (nil bila
-// tak ada). Dukungan multi-match menyusul.
+// Inspect returns an alert for the FIRST matching single-event rule (nil if none).
+// Multi-match support is coming later.
 func (d *SigmaDetector) Inspect(e *ingest.Event) *ingest.Event {
 	if e == nil || len(d.rules) == 0 {
 		return nil

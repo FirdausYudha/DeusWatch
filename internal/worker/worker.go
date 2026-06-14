@@ -1,5 +1,5 @@
-// Package worker menyatukan bus + detektor + store: ia mengonsumsi event
-// normalized, menyimpannya, menjalankan deteksi, dan menyimpan alert yang terpicu.
+// Package worker ties together the bus + detectors + store: it consumes normalized
+// events, stores them, runs detection, and stores the alerts that fire.
 package worker
 
 import (
@@ -14,24 +14,25 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// AlertHook dipanggil untuk tiap alert yang terpicu & tersimpan (mis. rekomendasi
-// respons + notifikasi). Boleh nil. Worker tetap tak tahu detail respond/notify.
+// AlertHook is called for each alert that fires & is stored (e.g. response
+// recommendations + notifications). May be nil. The worker stays unaware of the
+// respond/notify details.
 type AlertHook func(ctx context.Context, alert *ingest.Event)
 
-// EventSink menulis event DCS (dipenuhi oleh *store.Store).
+// EventSink writes DCS events (satisfied by *store.Store).
 type EventSink interface {
 	InsertEvent(ctx context.Context, e *ingest.Event) error
 }
 
-// Handler mengembalikan bus.Handler untuk subject logs.normalized: enrich event
-// (bila enricher disetel), persist, jalankan detektor, persist alert yang terpicu,
-// lalu memanggil onAlert untuk tiap alert. enricher & onAlert boleh nil.
+// Handler returns a bus.Handler for the logs.normalized subject: enrich the event
+// (if an enricher is set), persist it, run the detectors, persist any fired alerts,
+// then call onAlert for each alert. enricher & onAlert may be nil.
 func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
-			log.Printf("worker: pesan rusak di-drop: %v", err)
-			return nil // poison message: jangan redeliver
+			log.Printf("worker: dropped corrupt message: %v", err)
+			return nil // poison message: do not redeliver
 		}
 		if e.Timestamp.IsZero() {
 			e.Timestamp = time.Now()
@@ -42,12 +43,12 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 
 		if enricher != nil {
 			if err := enricher.EnrichEvent(ic, &e); err != nil {
-				log.Printf("worker: enrichment gagal: %v", err) // lanjut; status=failed
+				log.Printf("worker: enrichment failed: %v", err) // continue; status=failed
 			}
 		}
 
 		if err := sink.InsertEvent(ic, &e); err != nil {
-			return err // dikembalikan -> Nak -> redeliver
+			return err // returned -> Nak -> redeliver
 		}
 		for _, det := range detectors {
 			alert := det.Inspect(&e)
@@ -57,7 +58,7 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 			if err := sink.InsertEvent(ic, alert); err != nil {
 				return err
 			}
-			log.Printf("worker: ALERT %s dari %s (rule=%s)",
+			log.Printf("worker: ALERT %s from %s (rule=%s)",
 				alert.DeusWatch.Label, alertSourceIP(alert), ruleID(alert))
 			if onAlert != nil {
 				onAlert(ic, alert)

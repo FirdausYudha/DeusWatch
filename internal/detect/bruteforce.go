@@ -1,8 +1,8 @@
-// Package detect berisi engine deteksi DeusWatch.
+// Package detect contains the DeusWatch detection engine.
 //
-// Fase 1 menyertakan detektor brute-force SSH bawaan sebagai komponen murni
-// (tanpa I/O) agar mudah diuji. Engine Sigma umum menyusul; detektor ini memberi
-// hasil cepat untuk "definition of done" Fase 1 (lihat design doc bagian 6).
+// Phase 1 includes a built-in SSH brute-force detector as a pure component
+// (no I/O) so it is easy to test. A general Sigma engine follows; this detector gives
+// a quick result for the Phase 1 "definition of done" (see design doc section 6).
 package detect
 
 import (
@@ -12,16 +12,16 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// BruteForceConfig mengatur ambang deteksi brute force.
+// BruteForceConfig configures the brute-force detection thresholds.
 type BruteForceConfig struct {
-	Threshold int           // jumlah kegagalan dalam window untuk memicu alert
-	Window    time.Duration // jendela pengamatan
-	Cooldown  time.Duration // jeda minimum antar-alert untuk source IP yang sama
+	Threshold int           // number of failures within the window to fire an alert
+	Window    time.Duration // observation window
+	Cooldown  time.Duration // minimum interval between alerts for the same source IP
 	RuleID    string
 	RuleName  string
 }
 
-// DefaultBruteForceConfig: 5 kegagalan dalam 1 menit, cooldown 5 menit.
+// DefaultBruteForceConfig: 5 failures within 1 minute, 5-minute cooldown.
 func DefaultBruteForceConfig() BruteForceConfig {
 	return BruteForceConfig{
 		Threshold: 5,
@@ -32,16 +32,16 @@ func DefaultBruteForceConfig() BruteForceConfig {
 	}
 }
 
-// BruteForceDetector mendeteksi brute force SSH dari aliran event auth gagal.
-// Aman dipakai oleh banyak goroutine.
+// BruteForceDetector detects SSH brute force from the stream of failed auth events.
+// Safe for use by many goroutines.
 type BruteForceDetector struct {
 	cfg       BruteForceConfig
 	mu        sync.Mutex
-	hits      map[string][]time.Time // source IP -> timestamp kegagalan dalam window
-	lastAlert map[string]time.Time   // source IP -> waktu alert terakhir (cooldown)
+	hits      map[string][]time.Time // source IP -> failure timestamps within the window
+	lastAlert map[string]time.Time   // source IP -> last alert time (cooldown)
 }
 
-// NewBruteForceDetector membuat detektor dengan konfigurasi cfg.
+// NewBruteForceDetector creates a detector with config cfg.
 func NewBruteForceDetector(cfg BruteForceConfig) *BruteForceDetector {
 	return &BruteForceDetector{
 		cfg:       cfg,
@@ -50,14 +50,14 @@ func NewBruteForceDetector(cfg BruteForceConfig) *BruteForceDetector {
 	}
 }
 
-// Inspect memeriksa satu event normalized. Bila event ini kegagalan login SSH dan
-// memicu ambang, mengembalikan *ingest.Event alert (severity high, MITRE T1110,
-// label bruteforce). Selain itu mengembalikan nil.
+// Inspect inspects one normalized event. If this event is a failed SSH login and
+// crosses the threshold, it returns an *ingest.Event alert (severity high, MITRE
+// T1110, label bruteforce). Otherwise it returns nil.
 func (d *BruteForceDetector) Inspect(e *ingest.Event) *ingest.Event {
 	if e == nil || !isFailedSSHLogin(e) {
 		return nil
 	}
-	ip := e.Source.IP // isFailedSSHLogin menjamin Source != nil dan IP terisi
+	ip := e.Source.IP // isFailedSSHLogin guarantees Source != nil and IP is set
 	now := e.Timestamp
 	if now.IsZero() {
 		now = time.Now()
@@ -114,11 +114,11 @@ func (d *BruteForceDetector) buildAlert(src *ingest.Event, count int, now time.T
 	if src.User != nil {
 		alert.User = &ingest.User{Name: src.User.Name, Domain: src.User.Domain}
 	}
-	_ = count // jumlah kejadian tersedia bila kelak ingin disertakan di ringkasan
+	_ = count // the occurrence count is available if we later want it in the summary
 	return alert
 }
 
-// isFailedSSHLogin: event auth gagal dari sumber ber-IP (sshd).
+// isFailedSSHLogin: a failed auth event from an IP-bearing source (sshd).
 func isFailedSSHLogin(e *ingest.Event) bool {
 	if e.Source == nil || e.Source.IP == "" {
 		return false

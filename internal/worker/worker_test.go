@@ -21,26 +21,26 @@ func envOr(k, d string) string {
 	return d
 }
 
-// TestPipelineEndToEnd membuktikan rantai utuh: publish event normalized ke NATS
-// -> worker konsumsi -> persist + deteksi -> alert brute force tersimpan di events.
-// Integrasi: di-skip bila NATS atau Postgres tak tersedia.
+// TestPipelineEndToEnd proves the full chain: publish a normalized event to NATS
+// -> worker consumes -> persist + detect -> a brute-force alert stored in events.
+// Integration: skipped if NATS or Postgres is unavailable.
 func TestPipelineEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	st, err := store.Connect(ctx, envOr("STORE_DSN", "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable"))
 	if err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 	defer st.Close()
 
 	b, err := bus.Connect(ctx, envOr("NATS_URL", "nats://localhost:4222"))
 	if err != nil {
-		t.Skipf("NATS tak tersedia: %v", err)
+		t.Skipf("NATS unavailable: %v", err)
 	}
 	defer b.Close()
 
-	// IP unik (TEST-NET) + durable unik agar tak bentrok antar-run / dengan worker asli.
+	// Unique IP (TEST-NET) + unique durable so runs don't collide with each other / the real worker.
 	nonce := time.Now().UnixNano() & 0xffff
 	ip := fmt.Sprintf("198.18.%d.%d", (nonce>>8)&0xff, nonce&0xff)
 	durable := fmt.Sprintf("test-pipeline-%d", nonce)
@@ -52,7 +52,7 @@ func TestPipelineEndToEnd(t *testing.T) {
 	}
 	defer stop()
 
-	// 6 login gagal SSH dari IP yang sama -> kegagalan ke-5 memicu alert.
+	// 6 failed SSH logins from the same IP -> the 5th failure fires an alert.
 	now := time.Now()
 	for i := 0; i < 6; i++ {
 		e := ingest.Event{
@@ -82,10 +82,10 @@ func TestPipelineEndToEnd(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	if total < 6 {
-		t.Fatalf("event tersimpan untuk %s = %d, mau >= 6", ip, total)
+		t.Fatalf("events stored for %s = %d, want >= 6", ip, total)
 	}
 	if alerts < 1 {
-		t.Fatalf("alert bruteforce untuk %s = %d, mau >= 1", ip, alerts)
+		t.Fatalf("brute-force alerts for %s = %d, want >= 1", ip, alerts)
 	}
-	t.Logf("OK: end-to-end — %d event dari %s tersimpan, %d alert brute force terdeteksi", total, ip, alerts)
+	t.Logf("OK: end-to-end — %d events from %s stored, %d brute-force alerts detected", total, ip, alerts)
 }
