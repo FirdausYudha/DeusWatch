@@ -1,94 +1,92 @@
-# ADR 0001 — Strategi Engine Deteksi Sigma
+# ADR 0001 — Sigma Detection Engine Strategy
 
-- Status: **Diterima** (Hybrid D); jalur agregasi diimplementasikan in-Go (lihat Addendum)
-- Tanggal: 2026-06-13 (addendum 2026-06-14)
-- Konteks: design doc bagian 3 (memilih Sigma), bagian 6 (subset rule Fase 1), bagian 10 (dry-run terhadap histori)
+- Status: **Accepted** (Hybrid D); the aggregation path is implemented in-Go (see Addendum)
+- Date: 2026-06-13 (addendum 2026-06-14)
+- Context: design doc section 3 (choosing Sigma), section 6 (Phase 1 rule subset), section 10 (dry-run against history)
 
-## Konteks & masalah
+## Context & problem
 
-Nilai jual inti DeusWatch bergantung pada Sigma: ribuan rule komunitas + tag MITRE
-ATT&CK "gratis". Pertanyaan spike: **bagaimana cara mengevaluasi rule Sigma di
-DeusWatch?** Saat ini deteksi hanya berupa satu detektor brute-force *hardcoded*.
+DeusWatch's core value depends on Sigma: thousands of community rules + MITRE ATT&CK tags
+"for free". The spike question: **how do we evaluate Sigma rules in DeusWatch?** Today
+detection is just a single *hardcoded* brute-force detector.
 
-## Temuan riset
+## Research findings
 
-1. **Engine match in-process (Go).** `markuskont/go-sigma-rule-engine` (+ fork aktif
-   2025: runreveal, tufosa) — ~3000 baris, evaluasi per-event berbasis pohon Matcher.
-   Cocok untuk rule **single-event**. **Tidak** menangani korelasi/agregasi.
-2. **pySigma (SigmaHQ, Python).** Standar emas; meng-*compile* Sigma → query backend
-   (Elasticsearch, Splunk, **SQLite**). Backend SQLite (DenizenB/SigmaHQ) dipakai
-   **Zircolite** untuk deteksi Sigma murni via SQL. Mendukung agregasi lewat SQL.
-3. **Insight terpenting — biaya sebenarnya bukan di engine match, tapi di PEMETAAN
-   FIELD.** Rule komunitas ditulis untuk skema spesifik (Sysmon/Windows Event/
-   produk tertentu). Memakainya terhadap data ter-normalisasi kita butuh "processing
-   pipeline" (taksonomi field) — inilah yang diselesaikan pipeline pySigma, dan yang
-   TIDAK diberikan oleh engine match Go. Prototipe kita (`internal/detect/sigma`)
-   mengonfirmasi: parsing + kondisi + modifier itu mudah; menyelaraskan field rule ↔
-   DCS adalah pekerjaan nyata yang berkelanjutan.
-4. **Brute-force SSH adalah rule AGREGASI** (`count() by source.ip > N`) — itulah
-   sebabnya kita terpaksa menulis detektor stateful. Engine match single-event tidak
-   bisa menggantikannya; agregasi butuh state atau SQL.
+1. **In-process match engine (Go).** `markuskont/go-sigma-rule-engine` (+ active 2025
+   forks: runreveal, tufosa) — ~3000 lines, per-event Matcher-tree evaluation.
+   Suited to **single-event** rules. Does **not** handle correlation/aggregation.
+2. **pySigma (SigmaHQ, Python).** The gold standard; it *compiles* Sigma → a backend query
+   (Elasticsearch, Splunk, **SQLite**). The SQLite backend (DenizenB/SigmaHQ) is used by
+   **Zircolite** for pure SQL-based Sigma detection. It supports aggregation via SQL.
+3. **The key insight — the real cost isn't the match engine, it's FIELD MAPPING.**
+   Community rules are written for specific schemas (Sysmon/Windows Event/specific products).
+   Applying them to our normalized data needs a "processing pipeline" (field taxonomy) —
+   exactly what the pySigma pipeline solves, and what the Go match engine does NOT provide.
+   Our prototype (`internal/detect/sigma`) confirms: parsing + conditions + modifiers are
+   easy; aligning rule fields ↔ DCS is the real, ongoing work.
+4. **SSH brute force is an AGGREGATION rule** (`count() by source.ip > N`) — which is why
+   we were forced to write a stateful detector. A single-event match engine cannot replace
+   it; aggregation needs state or SQL.
 
-## Hasil prototipe (`internal/detect/sigma`)
+## Prototype results (`internal/detect/sigma`)
 
-Evaluator subset (~300 baris) membuktikan kelayakan: mem-parse rule Sigma YAML asli,
-mencocokkan terhadap event DCS (lewat `FlattenEvent` ke key ECS dotted), mendukung
-modifier `contains/startswith/endswith/re` & kondisi `and/or/not`/`N of them`, serta
-mengekstrak MITRE dari tag. Kondisi agregasi sengaja **ditolak** dan diarahkan ke
-jalur SQL. Semua ter-cover test.
+The subset evaluator (~300 lines) proves feasibility: it parses real Sigma YAML rules,
+matches against DCS events (via `FlattenEvent` to dotted ECS keys), supports the
+`contains/startswith/endswith/re` modifiers & `and/or/not`/`N of them` conditions, and
+extracts MITRE from tags. Aggregation conditions are deliberately **rejected** and routed
+to the SQL path. All covered by tests.
 
-## Opsi
+## Options
 
-| Opsi | Isi | Plus | Minus |
+| Option | Contents | Pros | Cons |
 |---|---|---|---|
-| A. Adopsi fork Go | pakai runreveal/go-sigma-rule-engine | tak reinvent, matang utk single-event | tak ada agregasi; tetap perlu pemetaan field |
-| B. Tulis evaluator sendiri | seperti prototipe ini | kontrol penuh, nol dep | melanggar "jangan reinvent"; beban rawat |
-| C. pySigma → SQL | compile rule jadi SQL, jalankan periodik di TimescaleDB | agregasi & dry-run histori "gratis"; matang | Python di build-time; latensi = interval; dialek SQLite≠Postgres perlu disesuaikan |
-| D. **Hybrid (rekomendasi)** | A untuk real-time single-event + C untuk agregasi/dry-run | menutup kedua kebutuhan design doc | dua jalur untuk dirawat |
+| A. Adopt a Go fork | use runreveal/go-sigma-rule-engine | no reinvention, mature for single-event | no aggregation; still needs field mapping |
+| B. Write our own evaluator | like this prototype | full control, zero deps | violates "don't reinvent"; maintenance burden |
+| C. pySigma → SQL | compile rules to SQL, run periodically on TimescaleDB | aggregation & history dry-run "for free"; mature | Python at build time; latency = interval; SQLite dialect ≠ Postgres needs adapting |
+| D. **Hybrid (recommended)** | A for real-time single-event + C for aggregation/dry-run | covers both design-doc needs | two paths to maintain |
 
-## Keputusan yang diusulkan — Hybrid (D)
+## Proposed decision — Hybrid (D)
 
-1. **Real-time single-event**: adopsi fork Go matang (evaluasi `runreveal/
-   go-sigma-rule-engine`); prototipe kita jadi cadangan/pembelajaran, bukan produk.
-2. **Agregasi & dry-run histori** (bagian 10): jalur SQL ala Zircolite — compile rule
-   agregasi via pySigma (offline/CI, bukan runtime) menjadi query yang dijalankan
-   periodik terhadap hypertable `events`. Detektor brute-force saat ini adalah
-   placeholder jalur ini.
-3. **Investasi utama** diarahkan ke **processing pipeline DCS** (pemetaan field +
-   kurasi rule yang relevan untuk dataset Fase 1: sshd/auth/web), karena di situ
-   letak biaya & nilai sesungguhnya — bukan di engine match.
+1. **Real-time single-event**: adopt a mature Go fork (evaluate `runreveal/
+   go-sigma-rule-engine`); our prototype becomes a fallback/learning artifact, not the product.
+2. **Aggregation & history dry-run** (section 10): a Zircolite-style SQL path — compile
+   aggregation rules via pySigma (offline/CI, not runtime) into queries run periodically
+   against the `events` hypertable. The current brute-force detector is a placeholder for this path.
+3. **Primary investment** goes into the **DCS processing pipeline** (field mapping + curating
+   rules relevant to the Phase 1 dataset: sshd/auth/web), because that is where the real cost
+   & value lie — not in the match engine.
 
-## Konsekuensi
+## Consequences
 
-- Python (pySigma) masuk sebagai dependensi **build/CI**, bukan runtime — tetap selaras
-  arsitektur Go single-binary di runtime.
-- Perlu mendefinisikan & memelihara taksonomi field DCS sebagai "pipeline" Sigma.
-- Detektor brute-force tetap dipakai sampai jalur SQL agregasi siap.
+- Python (pySigma) enters as a **build/CI** dependency, not a runtime one — staying aligned
+  with the single-binary Go runtime architecture.
+- We need to define & maintain the DCS field taxonomy as a Sigma "pipeline".
+- The brute-force detector stays in use until the SQL aggregation path is ready.
 
-## Langkah berikut bila disetujui
+## Next steps if approved
 
-1. Spike kecil: jalankan satu rule agregasi via pySigma→SQL terhadap TimescaleDB.
-2. Evaluasi fork Go terpilih dengan 10–20 rule komunitas single-event nyata + pipeline DCS.
-3. Putuskan struktur penyimpanan rule (`rules/sigma/`) + loader + versioning (bagian 10).
+1. A small spike: run one aggregation rule via pySigma→SQL against TimescaleDB.
+2. Evaluate the chosen Go fork with 10–20 real single-event community rules + the DCS pipeline.
+3. Decide the rule storage structure (`rules/sigma/`) + loader + versioning (section 10).
 
-## Addendum (2026-06-14) — implementasi jalur agregasi
+## Addendum (2026-06-14) — aggregation path implementation
 
-Jalur agregasi (poin 2 keputusan) **diimplementasikan in-Go di runtime**, bukan
-pySigma di build-time. Alasan: mempertahankan single-binary tanpa dependensi Python,
-dan ruang lingkup agregasi Fase 1 (`count() [by field] <op> N` + `timeframe`) cukup
-sempit untuk di-compile sendiri dengan andal.
+The aggregation path (decision point 2) is **implemented in-Go at runtime**, not pySigma
+at build time. Reason: to keep the single binary without a Python dependency, and the
+Phase 1 aggregation scope (`count() [by field] <op> N` + `timeframe`) is narrow enough to
+compile ourselves reliably.
 
-- `internal/detect/sigma/aggregate.go`: `ParseAggRule` + `CompileSQL` — meng-compile
-  rule agregasi Sigma menjadi satu query parameterized terhadap hypertable `events`.
-  Selection di-compile ke fragmen `WHERE` (peta `fieldColumns` = cermin SQL dari
-  `FlattenEvent`); nilai literal **selalu** lewat argumen (anti-injeksi).
-- `internal/detect/aggregate.go`: `AggregateRunner` menjalankan rule periodik
-  (worker, default tiap 30s), cooldown per (rule, grup), plus `DryRun` untuk uji
-  histori (design doc bagian 10).
-- Detektor brute-force hardcoded kini punya padanan rule Sigma
-  (`rules/sigma/agg/ssh_bruteforce.yml`) — masih jalan berdampingan; pelensiunan
-  detektor lama dilakukan setelah jalur SQL terbukti di produksi.
+- `internal/detect/sigma/aggregate.go`: `ParseAggRule` + `CompileSQL` — compiles an
+  aggregation Sigma rule into a single parameterized query against the `events` hypertable.
+  Selections compile to `WHERE` fragments (the `fieldColumns` map = the SQL mirror of
+  `FlattenEvent`); literal values **always** go through arguments (anti-injection).
+- `internal/detect/aggregate.go`: `AggregateRunner` runs rules periodically (in the worker,
+  default every 30s), with a per-(rule, group) cooldown, plus `DryRun` for history testing
+  (design doc section 10).
+- The hardcoded brute-force detector now has a Sigma-rule equivalent
+  (`rules/sigma/agg/ssh_bruteforce.yml`) — still running alongside; retiring the old
+  detector happens once the SQL path is proven in production.
 
-Sisa keputusan tetap berlaku: real-time single-event masih memakai evaluator interim
-`internal/detect/sigma` (adopsi fork Go matang belum dikerjakan); pySigma tetap opsi
-untuk mengonversi rule komunitas kompleks ke depan.
+The rest of the decision still holds: real-time single-event still uses the interim
+`internal/detect/sigma` evaluator (adopting a mature Go fork is not yet done); pySigma
+remains an option for converting complex community rules going forward.

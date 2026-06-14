@@ -1,7 +1,7 @@
-# Sertifikat mTLS
+# mTLS certificates
 
-Folder ini menampung bundel sertifikat mTLS DeusWatch. **Berkas sertifikat tidak
-pernah di-commit** (lihat `.gitignore`) — hanya script generator yang masuk repo.
+This folder holds the DeusWatch mTLS certificate bundle. **Certificate files are never
+committed** (see `.gitignore`) — only the generator scripts go in the repo.
 
 ## Generate
 
@@ -13,22 +13,22 @@ pernah di-commit** (lihat `.gitignore`) — hanya script generator yang masuk re
 .\generate.ps1
 ```
 
-Atau langsung:
+Or directly:
 
 ```sh
 go run ./cmd/certgen --out deploy/certs
 ```
 
-## Hasil
+## Output
 
-| Berkas | Isi |
+| File | Contents |
 |---|---|
-| `ca.crt` / `ca.key` | Root CA self-signed DeusWatch |
-| `server.crt` / `server.key` | Sertifikat server (gateway/api), SAN: localhost, gateway, api, 127.0.0.1, ::1 |
-| `client.crt` / `client.key` | Sertifikat client (agent) |
+| `ca.crt` / `ca.key` | DeusWatch self-signed root CA |
+| `server.crt` / `server.key` | Server cert (gateway/api), SAN: localhost, gateway, api, 127.0.0.1, ::1 |
+| `client.crt` / `client.key` | Client cert (agent) |
 
-Server dikonfigurasi `RequireAndVerifyClientCert` (mTLS penuh, TLS 1.3 minimum) —
-client tanpa sertifikat sah ditolak pada handshake. Lihat `internal/mtls`.
+The server is configured with `RequireAndVerifyClientCert` (full mTLS, TLS 1.3 minimum) —
+a client without a valid certificate is rejected at the handshake. See `internal/mtls`.
 
-> Untuk produksi, kunci CA sebaiknya disimpan terpisah/aman dan sertifikat client
-> diterbitkan per-agent saat enrollment (lihat design doc bagian 4 & 12).
+> In production the CA key should be stored separately/securely and client certs should
+> be issued per-agent at enrollment time (see design doc sections 4 & 12).

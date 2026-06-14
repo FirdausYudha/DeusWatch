@@ -1,52 +1,52 @@
-# Kebijakan Keamanan DeusWatch
+# DeusWatch Security Policy
 
-DeusWatch adalah perangkat keamanan. Kami memperlakukan kerentanan dengan sangat serius
-dan menghargai laporan yang bertanggung jawab dari komunitas.
+DeusWatch is a security tool. We take vulnerabilities very seriously and value
+responsible reports from the community.
 
-## Versi yang didukung
+## Supported versions
 
-Selama Fase pengembangan awal, hanya branch `main` (terbaru) yang menerima perbaikan keamanan.
-Tabel ini akan diperbarui saat rilis ber-versi mulai dipublikasikan.
+During the early development phases, only the `main` (latest) branch receives security
+fixes. This table will be updated once versioned releases are published.
 
-| Versi | Didukung |
+| Version | Supported |
 |---|---|
-| `main` (pra-rilis) | ✅ |
+| `main` (pre-release) | ✅ |
 
-## Melaporkan kerentanan
+## Reporting a vulnerability
 
-**Jangan** membuka GitHub Issue publik untuk kerentanan keamanan.
+**Do not** open a public GitHub Issue for a security vulnerability.
 
-Sebagai gantinya, gunakan salah satu jalur privat berikut:
+Instead, use one of these private channels:
 
-1. **GitHub Security Advisory** — fitur "Report a vulnerability" pada tab *Security* repo ini
-   (jalur yang lebih disukai).
-2. **Email** — `security@deuswatch.example` *(TODO: ganti dengan kontak asli sebelum rilis publik)*.
+1. **GitHub Security Advisory** — the "Report a vulnerability" feature on this repo's
+   *Security* tab (the preferred channel).
+2. **Email** — `security@deuswatch.example` *(TODO: replace with a real contact before public release)*.
 
-Sertakan jika memungkinkan:
+Please include, where possible:
 
-- Deskripsi kerentanan dan dampaknya.
-- Langkah reproduksi atau proof-of-concept.
-- Komponen/berkas yang terpengaruh dan versi/commit.
-- Saran mitigasi (opsional).
+- A description of the vulnerability and its impact.
+- Reproduction steps or a proof-of-concept.
+- The affected component/file and the version/commit.
+- A suggested mitigation (optional).
 
-## Yang bisa Anda harapkan
+## What to expect
 
-- **Konfirmasi penerimaan** dalam 72 jam.
-- **Penilaian awal** dalam 7 hari.
-- Pembaruan berkala hingga masalah selesai.
-- Kredit kepada pelapor di catatan rilis (kecuali Anda meminta anonim).
+- **Acknowledgement of receipt** within 72 hours.
+- **Initial assessment** within 7 days.
+- Regular updates until the issue is resolved.
+- Credit to the reporter in the release notes (unless you request anonymity).
 
-## Komitmen secure-by-design
+## Secure-by-design commitment
 
-Prinsip keamanan ini berlaku sejak commit pertama dan tidak dikompromikan demi kemudahan:
+These security principles apply from the first commit and are not compromised for convenience:
 
-- **mTLS wajib** untuk seluruh komunikasi agent–server (tanpa mode plaintext, bahkan dev).
-- **RBAC + audit log append-only** sejak hari pertama.
-- **Secrets terenkripsi** (envelope encryption); tidak pernah muncul di log, di-mask di UI.
-- **Parameterized query** tanpa pengecualian; semua log masuk diperlakukan sebagai data berbahaya.
-- **Output LLM tidak pernah dieksekusi otomatis** sebagai aksi blocking — konten log adalah
-  vektor prompt injection; rekomendasi selalu butuh konfirmasi manusia.
-- **Supply chain**: binary & image ditandatangani (cosign); CI menjalankan `govulncheck`,
-  `gosec`, dan dependency scanning; SBOM di-generate tiap rilis.
+- **Required mTLS** for all agent–server communication (no plaintext mode, even in dev).
+- **RBAC + append-only audit log** from day one.
+- **Encrypted secrets** (envelope encryption); never shown in logs, masked in the UI.
+- **Parameterized queries** without exception; all incoming logs are treated as hostile data.
+- **LLM output is never auto-executed** as a blocking action — log content is a prompt-injection
+  vector; recommendations always require human confirmation.
+- **Supply chain**: binaries & images are signed (cosign); CI runs `govulncheck`,
+  `gosec`, and dependency scanning; an SBOM is generated for each release.
 
-Terima kasih telah membantu menjaga DeusWatch dan penggunanya tetap aman.
+Thank you for helping keep DeusWatch and its users safe.

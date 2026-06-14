@@ -2,39 +2,39 @@
 
 # DeusWatch
 
-**Platform Keamanan All-in-One, Open Source, Self-Hosted.**
+**All-in-One, Open Source, Self-Hosted Security Platform.**
 
-SIEM · IDS/IPS · SOAR ringan · CTI enrichment · analisis berbasis LLM — dalam satu sistem ringan & modular.
+SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis — in one lightweight, modular system.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Fase%201%20(WIP)-orange.svg)]()
+[![Status](https://img.shields.io/badge/status-Phase%201–3%20complete-green.svg)]()
 
 </div>
 
 ---
 
-> ⚠️ **Status: pengembangan awal (Fase 1).** Belum siap produksi. Fondasi sedang dibangun.
+> ⚠️ **Status: active development.** Phases 1–3 are implemented end-to-end; not yet hardened for production.
 
-## Apa itu DeusWatch?
+## What is DeusWatch?
 
-DeusWatch menggabungkan deteksi dan respons keamanan dalam satu paket yang bisa dijalankan
-dengan satu perintah `docker compose up`. Dirancang ramah pemula secara default, namun
-sepenuhnya dapat dikustomisasi untuk profesional SOC.
+DeusWatch combines security detection and response in a single package you can run with one
+`docker compose up` command. It is beginner-friendly by default, yet fully customizable for
+SOC professionals.
 
-Prinsip utama: **jangan reinvent the wheel.** Kami memanfaatkan standar matang
-(Sigma rules, protokol bouncer CrowdSec, PostgreSQL, NATS) dan fokus membangun lapisan
-integrasi serta pengalaman pengguna yang belum dimiliki vendor manapun dalam satu paket.
+Core principle: **don't reinvent the wheel.** We build on mature standards (Sigma rules, the
+CrowdSec bouncer protocol, PostgreSQL, NATS) and focus on the integration layer and user
+experience that no single vendor packages together.
 
-## Fitur (peta jalan)
+## Features (roadmap)
 
-| Fase | Cakupan |
-|---|---|
-| **Fase 1** (sekarang) | Agent Linux, ingest mTLS, gateway + normalisasi, NATS, Postgres+TimescaleDB, Sigma detection (SSH brute force dll.) + auto-label MITRE, API + RBAC + audit log, Web UI dasar |
-| Fase 2 | Agent Windows/macOS, CTI enrichment (AbuseIPDB/OTX), response engine (nftables/Mikrotik/CrowdSec LAPI), TOTP 2FA |
-| Fase 3 | LLM worker (RAG via pgvector), report otomatis, community blocklist, ML anomaly baseline |
-| Fase 4 | Agent Android, marketplace rule/integrasi, Helm chart |
+| Phase | Scope | Status |
+|---|---|---|
+| **Phase 1** | Linux agent, mTLS ingest, gateway + normalization, NATS, Postgres+TimescaleDB, Sigma detection (SSH brute force, etc.) + auto MITRE labeling, API + RBAC + audit log, base Web UI | ✅ |
+| **Phase 2** | Windows/macOS agent, CTI enrichment (AbuseIPDB/OTX/GeoIP), response engine (nftables/Mikrotik/CrowdSec LAPI), TOTP 2FA, notifications (Telegram/email/webhook) | ✅ |
+| **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
+| Phase 4 | Android agent, rule/integration marketplace, Helm chart | planned |
 
-## Arsitektur singkat
+## Architecture
 
 ```
 Agent (Go) ──mTLS──> Ingest Gateway ──> NATS JetStream ──> Worker (detect/enrich/respond/llm)
@@ -44,35 +44,38 @@ Agent (Go) ──mTLS──> Ingest Gateway ──> NATS JetStream ──> Worke
                                               API Server (Go) ──> Web UI (React + Vite)
 ```
 
-Detail desain lengkap: lihat [DeusWatch.md](DeusWatch.md).
+Full design details: see [DeusWatch.md](DeusWatch.md).
 
 ## Quick start
 
-> Belum tersedia — akan diisi saat skeleton `docker-compose` siap (langkah 2 fondasi).
+One command brings up the whole stack (db, NATS, cert generation, API, gateway, worker, web UI):
 
 ```bash
-# (segera hadir)
-git clone <repo>
-cd deuswatch
-docker compose -f deploy/docker-compose.yml up
+git clone https://github.com/FirdausYudha/DeusWatch.git
+cd DeusWatch
+docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
-## Teknologi
+- **Web UI:** http://localhost:5173 · **API:** http://localhost:8080
+- **Default login:** `admin` / `thewatcher` (change via `ADMIN_PASSWORD`)
+- Self-registration is available on the login page (new accounts get the viewer role).
+
+## Tech stack
 
 Go · PostgreSQL + TimescaleDB · pgvector · NATS JetStream · Sigma · React + Vite + Tailwind ·
-Docker · LLM provider-agnostic (Ollama / OpenAI-compatible / Anthropic).
+Docker · LLM provider via the official Anthropic SDK (Claude).
 
-## Keamanan
+## Security
 
-Sistem keamanan yang tidak aman adalah ironi. mTLS wajib, RBAC sejak hari pertama,
-secrets terenkripsi, audit log append-only. Lihat [SECURITY.md](SECURITY.md) untuk
-kebijakan responsible disclosure.
+A security system that isn't secure is an irony. mTLS is required, RBAC from day one,
+encrypted secrets, append-only audit log. See [SECURITY.md](SECURITY.md) for the
+responsible-disclosure policy.
 
-## Lisensi
+## License
 
-[AGPL-3.0](LICENSE) — bebas self-host selamanya, anti vendor lock-in.
+[AGPL-3.0](LICENSE) — free to self-host forever, anti vendor lock-in.
 
-## Dukungan
+## Support
 
-♥ Suka DeusWatch? Pertimbangkan mendukung lewat tombol **Sponsor** di repo ini
-(Saweria untuk Indonesia, Ko-fi untuk internasional).
+♥ Like DeusWatch? Consider supporting via the **Sponsor** button on this repo
+(Saweria for Indonesia, Ko-fi for international).

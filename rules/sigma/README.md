@@ -1,74 +1,74 @@
-# Rule Sigma DeusWatch
+# DeusWatch Sigma rules
 
-Folder ini berisi rule deteksi format **Sigma** yang dimuat worker saat start
-(`RULES_DIR`, default `rules/sigma`). Worker mengevaluasi tiap event normalized
-terhadap rule di sini, di samping detektor brute-force bawaan.
+This folder contains detection rules in **Sigma** format, loaded by the worker at start
+(`RULES_DIR`, default `rules/sigma`). The worker evaluates every normalized event against
+these rules, alongside the built-in brute-force detector.
 
-> Status engine: evaluator subset (`internal/detect/sigma`) sebagai **interim** di
-> balik antarmuka `detect.Detector` — lihat [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md).
+> Engine status: a subset evaluator (`internal/detect/sigma`) as an **interim** behind
+> the `detect.Detector` interface — see [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md).
 
-## Taksonomi field (pipeline pemetaan)
+## Field taxonomy (mapping pipeline)
 
-Event DeusWatch memakai penamaan **ECS** (lihat DCS, design doc bagian 7). Tulis
-rule memakai key ECS dotted ini:
+DeusWatch events use **ECS** naming (see DCS, design doc section 7). Write rules using
+these dotted ECS keys:
 
-| Field rule | Contoh | Asal |
+| Rule field | Example | Origin |
 |---|---|---|
-| `event.dataset` | `sshd` | sumber log |
-| `event.action` | `ssh_login` | aksi |
-| `event.outcome` | `success` / `failure` | hasil |
-| `source.ip`, `source.port` | `203.0.113.10` | sumber |
-| `user.name` | `root` | akun target |
-| `process.name`, `process.command_line` | | endpoint (Fase 2+) |
-| `event.original` | baris log mentah | dipakai rule **keywords** |
+| `event.dataset` | `sshd` | log source |
+| `event.action` | `ssh_login` | action |
+| `event.outcome` | `success` / `failure` | outcome |
+| `source.ip`, `source.port` | `203.0.113.10` | source |
+| `user.name` | `root` | target account |
+| `process.name`, `process.command_line` | | endpoint (Phase 2+) |
+| `event.original` | raw log line | used by **keyword** rules |
 
-**Alias** untuk kompatibilitas rule komunitas (di-resolve otomatis,
-case-insensitive — lihat `internal/detect/sigma/mapping.go`):
+**Aliases** for community-rule compatibility (resolved automatically,
+case-insensitive — see `internal/detect/sigma/mapping.go`):
 `User`/`username`→`user.name`, `src_ip`/`SourceIp`→`source.ip`,
 `CommandLine`→`process.command_line`, `Image`→`process.name`,
-`Computer`/`hostname`→`host.name`. Tambah entri saat mengadopsi rule baru.
+`Computer`/`hostname`→`host.name`. Add an entry when adopting a new rule.
 
-## Bentuk detection yang didukung
+## Supported detection forms
 
-- **Field match**: `selection: { field: nilai }` atau `field: [a, b]` (OR).
-  Modifier: `|contains`, `|startswith`, `|endswith`, `|re`.
-- **Keyword**: `selection: [ 'string1', 'string2' ]` → cocok substring di isi event
-  (terutama `event.original`). Cocok untuk rule Linux berbasis pesan log.
-- **Condition**: `and` / `or` / `not`, tanda kurung, `N of them`, `all of <prefix>*`.
+- **Field match**: `selection: { field: value }` or `field: [a, b]` (OR).
+  Modifiers: `|contains`, `|startswith`, `|endswith`, `|re`.
+- **Keyword**: `selection: [ 'string1', 'string2' ]` → substring match against the event
+  content (mainly `event.original`). Suitable for Linux log-message rules.
+- **Condition**: `and` / `or` / `not`, parentheses, `N of them`, `all of <prefix>*`.
 
-## Rule AGREGASI (jalur SQL)
+## AGGREGATION rules (SQL path)
 
-Rule dengan kondisi ber-pipa — `selection | count() [by <field>] <op> N` — tidak bisa
-dijawab satu event; ia di-**compile ke SQL** dan dijalankan periodik oleh worker
-terhadap hypertable `events` (model Zircolite/pySigma, [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md)).
-Ini menggantikan detektor brute-force hardcoded dengan rule berformat Sigma.
+Rules with a piped condition — `selection | count() [by <field>] <op> N` — cannot be
+answered by a single event; they are **compiled to SQL** and run periodically by the worker
+against the `events` hypertable (Zircolite/pySigma model, [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md)).
+This replaces the hardcoded brute-force detector with a Sigma-formatted rule.
 
-- Letakkan di sub-folder `rules/sigma/agg/` (dimuat rekursif satu level; bisa juga
-  di root — pemisahan single-event vs agregasi otomatis dari ada/tidaknya `|`).
-- **Pipa didukung**: `count()` dengan `by <field>` opsional, operator `> >= < <=`.
-- **`timeframe`** (mis. `1m`, `5m`, `1h`, `1d`) = jendela waktu; default 5m.
-- **Kiri pipa**: ekspresi boolean atas selection (`and`/`or`/`not`/kurung + nama
-  selection). `N of them` **tidak** didukung di sisi kiri pipa.
-- Setiap field yang dipakai harus punya kolom DCS yang dipetakan
-  (`fieldColumns` di `internal/detect/sigma/aggregate.go` — cermin SQL dari
-  `FlattenEvent`). Nilai literal selalu lewat argumen ber-parameter (anti-injeksi).
-- Tiap grup yang melewati ambang memicu satu alert; ada **cooldown** per (rule, grup)
-  agar serangan panjang tidak membanjiri alert. Tersedia juga **dry-run** terhadap
-  histori (`AggregateRunner.DryRun`).
+- Put them in the `rules/sigma/agg/` sub-folder (loaded recursively one level deep; they can
+  also live at the root — single-event vs aggregation is split automatically by the presence of `|`).
+- **Supported pipe**: `count()` with an optional `by <field>`, operators `> >= < <=`.
+- **`timeframe`** (e.g. `1m`, `5m`, `1h`, `1d`) = time window; default 5m.
+- **Left of the pipe**: a boolean expression over selections (`and`/`or`/`not`/parens +
+  selection names). `N of them` is **not** supported on the left of the pipe.
+- Every field used must have a mapped DCS column (`fieldColumns` in
+  `internal/detect/sigma/aggregate.go` — the SQL mirror of `FlattenEvent`). Literal values
+  always go through parameterized arguments (anti-injection).
+- Each group crossing the threshold fires one alert; there is a **cooldown** per (rule, group)
+  so a long attack doesn't flood alerts. A **dry-run** against history is also available
+  (`AggregateRunner.DryRun`).
 
-## MITRE & severity otomatis
+## Automatic MITRE & severity
 
 `tags: [attack.tXXXX, attack.<tactic>]` → `threat.technique.id` + `threat.tactic.name`.
 `level:` (informational/low/medium/high/critical) → `event.severity` (0–4).
 
-## Rule saat ini
+## Current rules
 
-| Berkas | Deteksi | Bentuk |
+| File | Detection | Form |
 |---|---|---|
-| `ssh_login_root.yml` | login SSH sukses sebagai root (T1078.003) | field match |
-| `ssh_breakin_attempt.yml` | pesan sshd "POSSIBLE BREAK-IN ATTEMPT" (T1595) | keyword |
-| `sshd_invalid_user.yml` | upaya login untuk user tak dikenal (T1110.003) | keyword |
-| `sshd_failed_root.yml` | kegagalan SSH menargetkan root (T1110) | field match (multi-selection) |
-| `fim_file_change.yml` | berkas FIM diubah/dihapus (T1565.001/T1070.004) | field match (multi-selection) |
-| `agg/ssh_bruteforce.yml` | brute force: >5 kegagalan/IP per 1m (T1110) | **agregasi (SQL)** |
-| `agg/ssh_invalid_user_burst.yml` | >10 "invalid user"/IP per 5m (T1110.003) | **agregasi (SQL)** |
+| `ssh_login_root.yml` | successful SSH login as root (T1078.003) | field match |
+| `ssh_breakin_attempt.yml` | sshd "POSSIBLE BREAK-IN ATTEMPT" message (T1595) | keyword |
+| `sshd_invalid_user.yml` | login attempt for an unknown user (T1110.003) | keyword |
+| `sshd_failed_root.yml` | failed SSH targeting root (T1110) | field match (multi-selection) |
+| `fim_file_change.yml` | monitored FIM file modified/deleted (T1565.001/T1070.004) | field match (multi-selection) |
+| `agg/ssh_bruteforce.yml` | brute force: >5 failures/IP per 1m (T1110) | **aggregation (SQL)** |
+| `agg/ssh_invalid_user_burst.yml` | >10 "invalid user"/IP per 5m (T1110.003) | **aggregation (SQL)** |
