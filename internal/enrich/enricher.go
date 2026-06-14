@@ -10,23 +10,23 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// DefaultTTL: umur cache CTI sebelum lookup ulang.
+// DefaultTTL: how long a CTI cache entry lives before a re-lookup.
 const DefaultTTL = 12 * time.Hour
 
-// EscalationRules mengatur ambang eskalasi severity dinamis (design doc bagian 9).
-// Tiap ambang yang terlampaui menaikkan severity satu tingkat (dibatasi critical).
+// EscalationRules configures dynamic severity-escalation thresholds (design doc
+// section 9). Each threshold crossed raises severity by one level (capped at critical).
 type EscalationRules struct {
-	AbuseThreshold int // skor AbuseIPDB >= ini -> +1 severity
-	OTXThreshold   int // jumlah pulse OTX >= ini -> +1 severity
+	AbuseThreshold int // AbuseIPDB score >= this -> +1 severity
+	OTXThreshold   int // OTX pulse count >= this -> +1 severity
 }
 
-// DefaultEscalationRules: abuse>=90, otx>=5 (perilaku historis).
+// DefaultEscalationRules: abuse>=90, otx>=5 (historical behavior).
 func DefaultEscalationRules() EscalationRules {
 	return EscalationRules{AbuseThreshold: 90, OTXThreshold: 5}
 }
 
-// EscalationFromEnv membaca ambang dari env (ABUSE_ESCALATE_THRESHOLD,
-// OTX_ESCALATE_THRESHOLD), jatuh ke default bila tak diset/ tak valid.
+// EscalationFromEnv reads thresholds from env (ABUSE_ESCALATE_THRESHOLD,
+// OTX_ESCALATE_THRESHOLD), falling back to defaults if unset/invalid.
 func EscalationFromEnv() EscalationRules {
 	r := DefaultEscalationRules()
 	if v, err := strconv.Atoi(os.Getenv("ABUSE_ESCALATE_THRESHOLD")); err == nil && v > 0 {
@@ -38,7 +38,7 @@ func EscalationFromEnv() EscalationRules {
 	return r
 }
 
-// Enricher menggabungkan Provider + Cache. Cek cache dulu, baru panggil provider.
+// Enricher combines a Provider + Cache. Check the cache first, then call the provider.
 type Enricher struct {
 	provider Provider
 	cache    *Cache
@@ -56,8 +56,8 @@ func NewEnricher(provider Provider, cache *Cache, ttl time.Duration, rules Escal
 	return &Enricher{provider: provider, cache: cache, ttl: ttl, rules: rules}
 }
 
-// lookup mengembalikan indikator untuk ip: cache-hit bila TTL aktif, selain itu
-// panggil provider lalu simpan ke cache (best-effort).
+// lookup returns the indicator for ip: a cache hit while the TTL is active, otherwise
+// it calls the provider then stores the result in the cache (best-effort).
 func (e *Enricher) lookup(ctx context.Context, ip string) (Indicator, error) {
 	if ind, ok, err := e.cache.Get(ctx, ip); err == nil && ok {
 		return ind, nil
@@ -70,9 +70,9 @@ func (e *Enricher) lookup(ctx context.Context, ip string) (Indicator, error) {
 	return ind, nil
 }
 
-// EnrichEvent melengkapi event berdasarkan source.ip: mengisi threat.* +
-// deuswatch.enrichment.* dan mengeskalasi severity (bagian 9). Event tanpa
-// source IP ditandai 'skipped'.
+// EnrichEvent enriches an event based on source.ip: it fills threat.* +
+// deuswatch.enrichment.* and escalates severity (section 9). Events without a
+// source IP are marked 'skipped'.
 func (e *Enricher) EnrichEvent(ctx context.Context, ev *ingest.Event) error {
 	if ev.Source == nil || ev.Source.IP == "" {
 		ev.DeusWatch.Enrichment.Status = ingest.EnrichmentSkipped
@@ -112,7 +112,7 @@ func applyToEvent(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 		}
 	}
 
-	// Eskalasi dinamis severity (bagian 9). Severity asli disimpan terpisah.
+	// Dynamic severity escalation (section 9). The original severity is kept separately.
 	orig := ev.Event.Severity
 	esc := orig
 	var reasons []string

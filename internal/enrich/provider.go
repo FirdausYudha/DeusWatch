@@ -1,9 +1,9 @@
-// Package enrich melakukan enrichment CTI: melengkapi event dengan reputasi IP
-// (AbuseIPDB/OTX/GeoIP) dan mengeskalasi severity (design doc bagian 3 & 9).
+// Package enrich performs CTI enrichment: it augments events with IP reputation
+// (AbuseIPDB/OTX/GeoIP) and escalates severity (design doc sections 3 & 9).
 //
-// Hasil lookup di-cache sebagai baris Postgres ber-TTL (lihat cache.go), bukan
-// in-memory. Klien API nyata (AbuseIPDB/OTX) menyusul di balik interface Provider;
-// MockProvider dipakai untuk dev/test tanpa API key.
+// Lookup results are cached as TTL-bearing Postgres rows (see cache.go), not in
+// memory. Real API clients (AbuseIPDB/OTX) live behind the Provider interface;
+// MockProvider is used for dev/test without an API key.
 package enrich
 
 import (
@@ -11,23 +11,23 @@ import (
 	"sync"
 )
 
-// Indicator adalah hasil lookup CTI untuk sebuah IP.
+// Indicator is the CTI lookup result for an IP.
 type Indicator struct {
 	AbuseConfidence int    // 0..100
-	OTXPulseCount   int    // jumlah pulse OTX
-	CountryISO      string // kode negara ISO (GeoIP)
-	City            string // kota (GeoIP, opsional)
-	FeedName        string // sumber, mis. "abuseipdb,otx" / "mock"
+	OTXPulseCount   int    // OTX pulse count
+	CountryISO      string // ISO country code (GeoIP)
+	City            string // city (GeoIP, optional)
+	FeedName        string // source, e.g. "abuseipdb,otx" / "mock"
 }
 
-// Provider melakukan lookup CTI untuk satu IP.
+// Provider performs a CTI lookup for one IP.
 type Provider interface {
 	Lookup(ctx context.Context, ip string) (Indicator, error)
 }
 
-// MockProvider: provider deterministik untuk dev/test (tanpa API eksternal).
-// Results menimpa per-IP; selain itu memakai Default. Calls menghitung pemanggilan
-// (untuk memverifikasi cache mengurangi panggilan).
+// MockProvider: a deterministic provider for dev/test (no external API). Results
+// overrides per-IP; otherwise Default is used. Calls counts invocations (to verify
+// the cache reduces calls).
 type MockProvider struct {
 	mu      sync.Mutex
 	Calls   int
@@ -45,8 +45,8 @@ func (m *MockProvider) Lookup(_ context.Context, ip string) (Indicator, error) {
 	return m.Default, nil
 }
 
-// NewDemoProvider mengembalikan MockProvider dengan beberapa IP "berbahaya" yang
-// sudah dikenal untuk demo, sisanya benign. Diganti klien CTI nyata di produksi.
+// NewDemoProvider returns a MockProvider with a few known-"malicious" IPs for the
+// demo, the rest benign. Replaced by real CTI clients in production.
 func NewDemoProvider() *MockProvider {
 	return &MockProvider{
 		Default: Indicator{AbuseConfidence: 5, OTXPulseCount: 0, CountryISO: "US", FeedName: "mock"},

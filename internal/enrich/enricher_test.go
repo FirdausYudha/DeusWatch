@@ -20,25 +20,25 @@ func TestApplyEscalation(t *testing.T) {
 	applyToEvent(ev, Indicator{AbuseConfidence: 95, OTXPulseCount: 8, CountryISO: "RU", FeedName: "mock"}, DefaultEscalationRules())
 
 	if ev.Event.Severity != ingest.SeverityHigh { // low +1 (abuse) +1 (otx) = high
-		t.Fatalf("severity tereskalasi salah: %v (mau high)", ev.Event.Severity)
+		t.Fatalf("wrong escalated severity: %v (want high)", ev.Event.Severity)
 	}
 	if ev.DeusWatch.Severity.Original != ingest.SeverityLow {
-		t.Fatalf("severity asli harus tersimpan low, dapat %v", ev.DeusWatch.Severity.Original)
+		t.Fatalf("original severity should be kept as low, got %v", ev.DeusWatch.Severity.Original)
 	}
 	if ev.DeusWatch.Severity.EscalatedBy == "" {
-		t.Fatal("escalated_by harus terisi")
+		t.Fatal("escalated_by should be set")
 	}
 	if ev.DeusWatch.Enrichment.Status != ingest.EnrichmentEnriched {
-		t.Fatalf("status enrichment salah: %v", ev.DeusWatch.Enrichment.Status)
+		t.Fatalf("wrong enrichment status: %v", ev.DeusWatch.Enrichment.Status)
 	}
 	if ev.DeusWatch.Enrichment.AbuseConfidence == nil || *ev.DeusWatch.Enrichment.AbuseConfidence != 95 {
-		t.Fatal("abuse_confidence tidak terisi")
+		t.Fatal("abuse_confidence not set")
 	}
 	if ev.Threat == nil || ev.Threat.Indicator == nil || ev.Threat.Indicator.IP != "45.155.205.99" {
-		t.Fatalf("threat.indicator tidak terisi: %+v", ev.Threat)
+		t.Fatalf("threat.indicator not set: %+v", ev.Threat)
 	}
 	if ev.Source.Geo == nil || ev.Source.Geo.CountryISOCode != "RU" {
-		t.Fatalf("geo country tidak terisi: %+v", ev.Source.Geo)
+		t.Fatalf("geo country not set: %+v", ev.Source.Geo)
 	}
 }
 
@@ -49,7 +49,7 @@ func TestNoEscalationBenign(t *testing.T) {
 	}
 	applyToEvent(ev, Indicator{AbuseConfidence: 5, OTXPulseCount: 0}, DefaultEscalationRules())
 	if ev.Event.Severity != ingest.SeverityMedium || ev.DeusWatch.Severity.EscalatedBy != "" {
-		t.Fatal("IP benign tidak boleh mengeskalasi severity")
+		t.Fatal("a benign IP must not escalate severity")
 	}
 }
 
@@ -58,10 +58,10 @@ func TestCustomEscalationThreshold(t *testing.T) {
 		Event:  ingest.EventFields{Severity: ingest.SeverityLow},
 		Source: &ingest.Endpoint{IP: "1.2.3.4"},
 	}
-	// Ambang lebih ketat: abuse>=50 memicu eskalasi; otx>=100 tidak.
+	// Stricter thresholds: abuse>=50 triggers escalation; otx>=100 does not.
 	applyToEvent(ev, Indicator{AbuseConfidence: 60, OTXPulseCount: 3}, EscalationRules{AbuseThreshold: 50, OTXThreshold: 100})
-	if ev.Event.Severity != ingest.SeverityMedium { // low +1 (abuse saja)
-		t.Fatalf("severity salah: %v (mau medium)", ev.Event.Severity)
+	if ev.Event.Severity != ingest.SeverityMedium { // low +1 (abuse only)
+		t.Fatalf("wrong severity: %v (want medium)", ev.Event.Severity)
 	}
 }
 
@@ -72,18 +72,18 @@ func dsn() string {
 	return "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable"
 }
 
-// TestEnricherCacheHit memverifikasi cache Postgres mengurangi panggilan provider.
+// TestEnricherCacheHit verifies the Postgres cache reduces provider calls.
 func TestEnricherCacheHit(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	pool, err := pgxpool.New(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 
 	ip := fmt.Sprintf("198.18.%d.%d", time.Now().UnixNano()%256, (time.Now().UnixNano()/256)%256)
@@ -101,10 +101,10 @@ func TestEnricherCacheHit(t *testing.T) {
 		t.Fatalf("lookup 2: %v", err)
 	}
 	if provider.Calls != 1 {
-		t.Fatalf("provider dipanggil %d kali, mau 1 (kedua dari cache)", provider.Calls)
+		t.Fatalf("provider called %d times, want 1 (second from cache)", provider.Calls)
 	}
 	if ind1.AbuseConfidence != 77 || ind2.AbuseConfidence != 77 {
-		t.Fatalf("indikator tidak konsisten: %+v / %+v", ind1, ind2)
+		t.Fatalf("inconsistent indicator: %+v / %+v", ind1, ind2)
 	}
-	t.Logf("OK: cache TTL bekerja — provider 1x, lookup ke-2 dari Postgres (%s)", ip)
+	t.Logf("OK: TTL cache works — provider 1x, 2nd lookup from Postgres (%s)", ip)
 }

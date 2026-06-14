@@ -10,14 +10,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Cache adalah penyimpanan hasil CTI ber-TTL di Postgres (tabel cti_indicators).
+// Cache is a TTL-bearing store of CTI results in Postgres (the cti_indicators table).
 type Cache struct {
 	pool *pgxpool.Pool
 }
 
 func NewCache(pool *pgxpool.Pool) *Cache { return &Cache{pool: pool} }
 
-// Get mengembalikan indikator untuk ip bila ada DAN belum kedaluwarsa (TTL aktif).
+// Get returns the indicator for ip if it exists AND has not expired (TTL active).
 func (c *Cache) Get(ctx context.Context, ip string) (Indicator, bool, error) {
 	var ind Indicator
 	var country, city, feed *string
@@ -44,8 +44,8 @@ func (c *Cache) Get(ctx context.Context, ip string) (Indicator, bool, error) {
 	return ind, true, nil
 }
 
-// Put menyimpan/memperbarui indikator dengan TTL. UPSERT (ON CONFLICT) membuat
-// dua worker yang lookup IP sama secara bersamaan tidak pernah bertabrakan.
+// Put stores/updates an indicator with a TTL. UPSERT (ON CONFLICT) ensures two
+// workers looking up the same IP concurrently never collide.
 func (c *Cache) Put(ctx context.Context, ip string, ind Indicator, ttl time.Duration) error {
 	_, err := c.pool.Exec(ctx, `
 		INSERT INTO cti_indicators (ip, abuse_confidence, otx_pulse_count, country_iso, city, feed_name, checked_at, expires_at)

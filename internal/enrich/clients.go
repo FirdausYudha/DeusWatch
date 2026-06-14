@@ -1,14 +1,14 @@
 package enrich
 
-// Klien CTI/GeoIP nyata (menggantikan MockProvider untuk produksi):
-//   - AbuseIPDB  : reputasi IP (abuseConfidenceScore + countryCode)  — butuh API key
-//   - OTX        : jumlah pulse AlienVault OTX                        — butuh API key
-//   - ip-api.com : GeoIP gratis (countryCode + city), tanpa key      — opt-in
+// Real CTI/GeoIP clients (replacing MockProvider in production):
+//   - AbuseIPDB  : IP reputation (abuseConfidenceScore + countryCode)  — needs API key
+//   - OTX        : AlienVault OTX pulse count                          — needs API key
+//   - ip-api.com : free GeoIP (countryCode + city), no key             — opt-in
 //
-// CompositeProvider menggabungkan sub-klien yang dikonfigurasi menjadi satu Indicator.
-// IP privat/loopback dilewati (tak ada panggilan eksternal). Kegagalan satu sumber
-// di-log dan diabaikan selama minimal satu sumber berhasil; bila semua gagal → error
-// (worker menandai enrichment 'failed', event tetap tersimpan).
+// CompositeProvider merges the configured sub-clients into a single Indicator.
+// Private/loopback IPs are skipped (no external calls). A single source's failure is
+// logged and ignored as long as at least one source succeeds; if all fail → error
+// (the worker marks enrichment 'failed', the event is still stored).
 
 import (
 	"context"
@@ -30,7 +30,7 @@ const defaultHTTPTimeout = 8 * time.Second
 
 func newHTTPClient() *http.Client { return &http.Client{Timeout: defaultHTTPTimeout} }
 
-// isPrivateIP melaporkan apakah ip privat/loopback/link-local/tak valid — dilewati.
+// isPrivateIP reports whether ip is private/loopback/link-local/invalid — skipped.
 func isPrivateIP(ip string) bool {
 	p := net.ParseIP(ip)
 	if p == nil {
@@ -39,7 +39,7 @@ func isPrivateIP(ip string) bool {
 	return p.IsPrivate() || p.IsLoopback() || p.IsLinkLocalUnicast() || p.IsUnspecified()
 }
 
-// getJSON melakukan GET dengan header opsional dan men-decode body JSON ke dst.
+// getJSON does a GET with optional headers and decodes the JSON body into dst.
 func getJSON(ctx context.Context, hc *http.Client, rawURL string, headers map[string]string, dst any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
@@ -74,7 +74,7 @@ func NewAbuseIPDBClient(key string) *AbuseIPDBClient {
 	return &AbuseIPDBClient{key: key, base: defaultAbuseBase, hc: newHTTPClient()}
 }
 
-// Check mengembalikan skor abuse (0..100) & kode negara untuk ip.
+// Check returns the abuse score (0..100) & country code for ip.
 func (c *AbuseIPDBClient) Check(ctx context.Context, ip string) (score int, country string, err error) {
 	u := c.base + "/api/v2/check?" + url.Values{
 		"ipAddress":    {ip},
@@ -106,7 +106,7 @@ func NewOTXClient(key string) *OTXClient {
 	return &OTXClient{key: key, base: defaultOTXBase, hc: newHTTPClient()}
 }
 
-// Pulses mengembalikan jumlah pulse OTX untuk ip.
+// Pulses returns the OTX pulse count for ip.
 func (c *OTXClient) Pulses(ctx context.Context, ip string) (int, error) {
 	u := c.base + "/api/v1/indicators/IPv4/" + url.PathEscape(ip) + "/general"
 	var out struct {
@@ -120,7 +120,7 @@ func (c *OTXClient) Pulses(ctx context.Context, ip string) (int, error) {
 	return out.PulseInfo.Count, nil
 }
 
-// ── GeoIP (ip-api.com, gratis tanpa key) ──────────────────
+// ── GeoIP (ip-api.com, free, no key) ──────────────────────
 
 const defaultGeoBase = "http://ip-api.com"
 
@@ -131,7 +131,7 @@ type GeoClient struct {
 
 func NewGeoClient() *GeoClient { return &GeoClient{base: defaultGeoBase, hc: newHTTPClient()} }
 
-// Geo mengembalikan kode negara & kota untuk ip.
+// Geo returns the country code & city for ip.
 func (c *GeoClient) Geo(ctx context.Context, ip string) (country, city string, err error) {
 	u := c.base + "/json/" + url.PathEscape(ip) + "?fields=status,message,countryCode,city"
 	var out struct {
@@ -151,19 +151,19 @@ func (c *GeoClient) Geo(ctx context.Context, ip string) (country, city string, e
 
 // ── Composite ─────────────────────────────────────────────
 
-// CompositeProvider menjalankan sub-klien yang dikonfigurasi dan menggabungkan
-// hasilnya. Field nil dilewati.
+// CompositeProvider runs the configured sub-clients and merges their results.
+// Nil fields are skipped.
 type CompositeProvider struct {
 	Abuse     *AbuseIPDBClient
 	OTX       *OTXClient
 	Geo       *GeoClient
-	Blocklist *blocklist.Set // daftar blokir komunitas (opsional)
+	Blocklist *blocklist.Set // community blocklist (optional)
 }
 
-// Lookup memenuhi Provider.
+// Lookup satisfies Provider.
 func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, error) {
 	if isPrivateIP(ip) {
-		return Indicator{FeedName: "internal"}, nil // jangan kueri IP privat ke layanan luar
+		return Indicator{FeedName: "internal"}, nil // never query private IPs against external services
 	}
 	var (
 		ind   Indicator
@@ -171,7 +171,7 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 		ok    bool
 		errs  []string
 	)
-	// Daftar blokir komunitas = sinyal malicious kuat (offline, tanpa API).
+	// The community blocklist is a strong malicious signal (offline, no API).
 	if p.Blocklist != nil && p.Blocklist.Contains(ip) {
 		ind.AbuseConfidence = 100
 		feeds, ok = append(feeds, "blocklist"), true
@@ -181,7 +181,7 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 			log.Printf("enrich: %v", err)
 			errs = append(errs, err.Error())
 		} else {
-			if score > ind.AbuseConfidence { // jangan turunkan floor dari blocklist
+			if score > ind.AbuseConfidence { // do not lower the blocklist floor
 				ind.AbuseConfidence = score
 			}
 			ind.CountryISO = country
@@ -210,19 +210,19 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 		}
 	}
 	if !ok && len(errs) > 0 {
-		return Indicator{}, fmt.Errorf("enrich: semua sumber gagal: %s", strings.Join(errs, "; "))
+		return Indicator{}, fmt.Errorf("enrich: all sources failed: %s", strings.Join(errs, "; "))
 	}
 	ind.FeedName = strings.Join(feeds, ",")
 	return ind, nil
 }
 
-// ProviderFromEnv membangun provider dari environment:
+// ProviderFromEnv builds a provider from the environment:
 //
-//	ABUSEIPDB_API_KEY  -> aktifkan klien AbuseIPDB
-//	OTX_API_KEY        -> aktifkan klien OTX
-//	GEOIP_ENABLED=1    -> aktifkan GeoIP (ip-api.com, gratis)
+//	ABUSEIPDB_API_KEY  -> enable the AbuseIPDB client
+//	OTX_API_KEY        -> enable the OTX client
+//	GEOIP_ENABLED=1    -> enable GeoIP (ip-api.com, free)
 //
-// Bila tak satu pun dikonfigurasi, kembali ke MockProvider demo (dev) + flag false.
+// If nothing is configured, it falls back to the demo MockProvider (dev) + false flag.
 func ProviderFromEnv() (Provider, bool) {
 	abuseKey := os.Getenv("ABUSEIPDB_API_KEY")
 	otxKey := os.Getenv("OTX_API_KEY")
@@ -244,17 +244,17 @@ func ProviderFromEnv() (Provider, bool) {
 	}
 	if len(blURLs) > 0 {
 		if set, err := blocklist.Load(context.Background(), nil, blURLs); err != nil {
-			log.Printf("enrich: blocklist gagal dimuat: %v", err)
+			log.Printf("enrich: failed to load blocklist: %v", err)
 		} else {
 			cp.Blocklist = set
-			log.Printf("enrich: blocklist komunitas dimuat (%d entri)", set.Len())
+			log.Printf("enrich: community blocklist loaded (%d entries)", set.Len())
 			go blocklist.Refresh(context.Background(), nil, blURLs, blocklistRefresh(), set)
 		}
 	}
 	return cp, true
 }
 
-// splitCSV memecah string dipisah koma menjadi token non-kosong yang sudah di-trim.
+// splitCSV splits a comma-separated string into non-empty, trimmed tokens.
 func splitCSV(s string) []string {
 	var out []string
 	for _, p := range strings.Split(s, ",") {
@@ -265,7 +265,7 @@ func splitCSV(s string) []string {
 	return out
 }
 
-// blocklistRefresh membaca interval refresh blocklist (BLOCKLIST_REFRESH), default 6 jam.
+// blocklistRefresh reads the blocklist refresh interval (BLOCKLIST_REFRESH), default 6h.
 func blocklistRefresh() time.Duration {
 	if v := os.Getenv("BLOCKLIST_REFRESH"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {

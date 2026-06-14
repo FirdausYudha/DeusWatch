@@ -12,10 +12,10 @@ import (
 func TestAbuseIPDBClientParses(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Key") != "secret" {
-			t.Errorf("API key tak diteruskan: %q", r.Header.Get("Key"))
+			t.Errorf("API key not forwarded: %q", r.Header.Get("Key"))
 		}
 		if r.URL.Query().Get("ipAddress") != "45.155.205.99" {
-			t.Errorf("ipAddress salah: %q", r.URL.Query().Get("ipAddress"))
+			t.Errorf("wrong ipAddress: %q", r.URL.Query().Get("ipAddress"))
 		}
 		w.Write([]byte(`{"data":{"abuseConfidenceScore":95,"countryCode":"RU"}}`))
 	}))
@@ -27,14 +27,14 @@ func TestAbuseIPDBClientParses(t *testing.T) {
 		t.Fatalf("Check: %v", err)
 	}
 	if score != 95 || country != "RU" {
-		t.Fatalf("hasil salah: score=%d country=%q", score, country)
+		t.Fatalf("wrong result: score=%d country=%q", score, country)
 	}
 }
 
 func TestOTXClientParses(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-OTX-API-KEY") != "k" {
-			t.Errorf("OTX key tak diteruskan")
+			t.Errorf("OTX key not forwarded")
 		}
 		w.Write([]byte(`{"pulse_info":{"count":12}}`))
 	}))
@@ -46,7 +46,7 @@ func TestOTXClientParses(t *testing.T) {
 		t.Fatalf("Pulses: %v", err)
 	}
 	if n != 12 {
-		t.Fatalf("pulse count salah: %d", n)
+		t.Fatalf("wrong pulse count: %d", n)
 	}
 }
 
@@ -62,7 +62,7 @@ func TestGeoClientParses(t *testing.T) {
 		t.Fatalf("Geo: %v", err)
 	}
 	if country != "DE" || city != "Berlin" {
-		t.Fatalf("geo salah: %q/%q", country, city)
+		t.Fatalf("wrong geo: %q/%q", country, city)
 	}
 }
 
@@ -73,7 +73,7 @@ func TestGeoClientFailStatus(t *testing.T) {
 	defer srv.Close()
 	c := &GeoClient{base: srv.URL, hc: srv.Client()}
 	if _, _, err := c.Geo(context.Background(), "10.0.0.1"); err == nil {
-		t.Fatal("status fail harus error")
+		t.Fatal("a fail status must be an error")
 	}
 }
 
@@ -96,10 +96,10 @@ func TestCompositeMergesSources(t *testing.T) {
 		t.Fatalf("Lookup: %v", err)
 	}
 	if ind.AbuseConfidence != 80 || ind.OTXPulseCount != 7 || ind.CountryISO != "CN" {
-		t.Fatalf("merge salah: %+v", ind)
+		t.Fatalf("wrong merge: %+v", ind)
 	}
 	if ind.FeedName != "abuseipdb,otx" {
-		t.Fatalf("feed name salah: %q", ind.FeedName)
+		t.Fatalf("wrong feed name: %q", ind.FeedName)
 	}
 }
 
@@ -107,13 +107,13 @@ func TestCompositeSkipsPrivateIP(t *testing.T) {
 	cp := &CompositeProvider{
 		Abuse: &AbuseIPDBClient{key: "x", base: "http://127.0.0.1:0", hc: newHTTPClient()},
 	}
-	// IP privat tak boleh memicu panggilan eksternal (base tak terjangkau pun tak apa).
+	// A private IP must not trigger any external call (an unreachable base is fine).
 	ind, err := cp.Lookup(context.Background(), "10.0.0.5")
 	if err != nil {
-		t.Fatalf("IP privat seharusnya tak error: %v", err)
+		t.Fatalf("a private IP should not error: %v", err)
 	}
 	if ind.AbuseConfidence != 0 || ind.FeedName != "internal" {
-		t.Fatalf("IP privat harus dilewati: %+v", ind)
+		t.Fatalf("a private IP must be skipped: %+v", ind)
 	}
 }
 
@@ -124,7 +124,7 @@ func TestCompositeAllSourcesFail(t *testing.T) {
 	defer srv.Close()
 	cp := &CompositeProvider{Abuse: &AbuseIPDBClient{key: "x", base: srv.URL, hc: srv.Client()}}
 	if _, err := cp.Lookup(context.Background(), "8.8.8.8"); err == nil {
-		t.Fatal("semua sumber gagal harus mengembalikan error")
+		t.Fatal("all sources failing must return an error")
 	}
 }
 
@@ -138,20 +138,20 @@ func TestCompositeBlocklistMarksMalicious(t *testing.T) {
 		t.Fatalf("Lookup: %v", err)
 	}
 	if ind.AbuseConfidence != 100 || ind.FeedName != "blocklist" {
-		t.Fatalf("IP di blocklist harus abuse=100 feed=blocklist: %+v", ind)
+		t.Fatalf("a blocklisted IP should be abuse=100 feed=blocklist: %+v", ind)
 	}
-	// IP bersih tanpa sumber lain → kosong (bukan error).
+	// A clean IP with no other source → empty (not an error).
 	clean, err := cp.Lookup(context.Background(), "8.8.8.8")
 	if err != nil {
-		t.Fatalf("Lookup bersih: %v", err)
+		t.Fatalf("clean Lookup: %v", err)
 	}
 	if clean.AbuseConfidence != 0 {
-		t.Fatalf("IP bersih tak boleh ditandai: %+v", clean)
+		t.Fatalf("a clean IP must not be flagged: %+v", clean)
 	}
 }
 
 func TestCompositeBlocklistFloorsAbuse(t *testing.T) {
-	// AbuseIPDB skor rendah tak boleh menurunkan floor blocklist (100).
+	// A low AbuseIPDB score must not lower the blocklist floor (100).
 	abuse := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"data":{"abuseConfidenceScore":5,"countryCode":"RU"}}`))
 	}))
@@ -167,22 +167,22 @@ func TestCompositeBlocklistFloorsAbuse(t *testing.T) {
 		t.Fatalf("Lookup: %v", err)
 	}
 	if ind.AbuseConfidence != 100 {
-		t.Fatalf("floor blocklist harus dipertahankan, dapat %d", ind.AbuseConfidence)
+		t.Fatalf("the blocklist floor should be preserved, got %d", ind.AbuseConfidence)
 	}
 	if ind.CountryISO != "RU" {
-		t.Fatalf("country dari abuse harus tetap terisi: %+v", ind)
+		t.Fatalf("the country from abuse should still be set: %+v", ind)
 	}
 }
 
 func TestIsPrivateIP(t *testing.T) {
 	for _, ip := range []string{"10.0.0.1", "192.168.1.1", "127.0.0.1", "::1", "garbage"} {
 		if !isPrivateIP(ip) {
-			t.Errorf("%q seharusnya privat/dilewati", ip)
+			t.Errorf("%q should be private/skipped", ip)
 		}
 	}
 	for _, ip := range []string{"8.8.8.8", "45.155.205.99"} {
 		if isPrivateIP(ip) {
-			t.Errorf("%q seharusnya publik", ip)
+			t.Errorf("%q should be public", ip)
 		}
 	}
 }
