@@ -41,28 +41,24 @@ Semua test (unit + integrasi + e2e) lulus; gosec & govulncheck bersih. ADR Sigma
 - **Docker Desktop**
 - **Node 22+** (untuk web)
 
-## Setup di PC baru (urutan)
+## Setup di PC baru — SATU PERINTAH
 
 ```bash
 git clone https://github.com/FirdausYudha/DeusWatch.git
 cd DeusWatch
-
-# 1. Nyalakan stack penuh (db + nats + api + gateway + worker)
 docker compose -f deploy/docker-compose.yml up -d --build
-
-# 2. Migrasi OTOMATIS saat api start (runner in-house, idempotent).
-#    Manual bila perlu: DATABASE_URL=... go run ./cmd/migrate
-#    Nonaktifkan auto: RUN_MIGRATIONS=0
-
-# 3. Generate sertifikat mTLS (dibutuhkan gateway/agent + enrollment di api)
-go run ./cmd/certgen --out deploy/certs
-docker compose -f deploy/docker-compose.yml restart api gateway   # agar memuat CA/cert
-
-# 4. Web UI
-cd web && npm install && npm run dev      # http://localhost:5173
 ```
 
-**Login dev:** `admin` / `deuswatch-admin` (di-seed otomatis; ganti via env `ADMIN_PASSWORD`).
+Itu saja. Compose menyalakan **semua**: db, nats, **certgen** (init: generate sertifikat
+mTLS ke `deploy/certs`, idempotent), api (auto-migrasi), gateway, worker, dan **web** (nginx).
+
+- **Web UI:** http://localhost:5173 · **API:** http://localhost:8080
+- **Login dev:** `admin` / `deuswatch-admin` (seed otomatis; ganti via `ADMIN_PASSWORD`).
+- **Registrasi mandiri** aktif di halaman login (akun baru = role viewer). Nonaktifkan: `REGISTRATION_ENABLED=0`.
+
+> Dev web hot-reload (opsional): `cd web && npm install && npm run dev` → :5173 — JANGAN
+> jalankan bersamaan dengan container `web` (port bentrok); matikan salah satu.
+> Manual migrate bila perlu: `DATABASE_URL=... go run ./cmd/migrate`. Regen cert: `go run ./cmd/certgen --out deploy/certs -force`.
 
 ## Menjalankan pipeline penuh (agent lokal)
 

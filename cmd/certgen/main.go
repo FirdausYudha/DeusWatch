@@ -9,6 +9,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -20,7 +21,16 @@ func main() {
 	dns := flag.String("dns", "localhost,gateway,api", "SAN DNS server (pisah koma)")
 	ips := flag.String("ip", "127.0.0.1,::1", "SAN IP server (pisah koma)")
 	days := flag.Int("days", 825, "masa berlaku sertifikat daun (hari)")
+	force := flag.Bool("force", false, "regenerate walau sertifikat sudah ada")
 	flag.Parse()
+
+	// Idempotent: lewati bila CA sudah ada (dipakai init container compose).
+	if !*force {
+		if _, err := os.Stat(mtls.Paths(*out).CACert); err == nil {
+			log.Printf("certgen: sertifikat sudah ada di %q — dilewati (pakai -force untuk regenerate)", *out)
+			return
+		}
+	}
 
 	paths, err := mtls.GenerateBundle(mtls.Options{
 		Dir:       *out,

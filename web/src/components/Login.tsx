@@ -1,20 +1,45 @@
-import { useState, type FormEvent } from 'react'
-import { login, TwoFactorRequired, type Me } from '../lib/api'
+import { useEffect, useState, type FormEvent } from 'react'
+import { login, register, fetchAuthConfig, TwoFactorRequired, type Me } from '../lib/api'
+
+type Mode = 'login' | 'register'
 
 export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
+  const [mode, setMode] = useState<Mode>('login')
+  const [canRegister, setCanRegister] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [totp, setTotp] = useState('')
   const [need2fa, setNeed2fa] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    fetchAuthConfig().then((c) => setCanRegister(c.registration_enabled))
+  }, [])
+
+  const switchMode = (m: Mode) => {
+    setMode(m)
+    setError('')
+    setNeed2fa(false)
+    setPassword('')
+    setConfirm('')
+    setTotp('')
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
     setError('')
     try {
-      onSuccess(await login(username, password, need2fa ? totp : undefined))
+      if (mode === 'register') {
+        if (password !== confirm) {
+          throw new Error('Konfirmasi password tidak cocok')
+        }
+        onSuccess(await register(username, password))
+      } else {
+        onSuccess(await login(username, password, need2fa ? totp : undefined))
+      }
     } catch (err) {
       if (err instanceof TwoFactorRequired) {
         setNeed2fa(true)
@@ -27,6 +52,14 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
     }
   }
 
+  const isRegister = mode === 'register'
+  const canSubmit =
+    !busy &&
+    username.length >= 3 &&
+    password.length >= (isRegister ? 8 : 1) &&
+    (!isRegister || confirm.length > 0) &&
+    (!need2fa || totp.length > 0)
+
   return (
     <div className="grid h-screen place-items-center bg-slate-950 text-slate-200">
       <form onSubmit={submit} className="w-80 space-y-5 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
@@ -36,9 +69,32 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
           </div>
           <div className="leading-tight">
             <div className="font-semibold tracking-tight text-white">DeusWatch</div>
-            <div className="text-xs text-slate-500">Masuk untuk melanjutkan</div>
+            <div className="text-xs text-slate-500">{isRegister ? 'Buat akun baru' : 'Masuk untuk melanjutkan'}</div>
           </div>
         </div>
+
+        {canRegister && !need2fa && (
+          <div className="flex rounded-lg border border-slate-800 bg-slate-950 p-0.5 text-sm">
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              className={`flex-1 rounded-md py-1.5 transition-colors ${
+                mode === 'login' ? 'bg-slate-800 font-medium text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Masuk
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('register')}
+              className={`flex-1 rounded-md py-1.5 transition-colors ${
+                mode === 'register' ? 'bg-slate-800 font-medium text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Daftar
+            </button>
+          </div>
+        )}
 
         <div className="space-y-3">
           <input
@@ -53,10 +109,19 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder={isRegister ? 'Password (min 8)' : 'Password'}
             disabled={need2fa}
             className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 disabled:opacity-60"
           />
+          {isRegister && !need2fa && (
+            <input
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Konfirmasi password"
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            />
+          )}
           {need2fa && (
             <input
               value={totp}
@@ -73,11 +138,15 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
 
         <button
           type="submit"
-          disabled={busy || !username || !password || (need2fa && !totp)}
+          disabled={!canSubmit}
           className="w-full rounded-lg bg-indigo-500 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
         >
-          {busy ? 'Masuk…' : need2fa ? 'Verifikasi' : 'Masuk'}
+          {busy ? 'Memproses…' : need2fa ? 'Verifikasi' : isRegister ? 'Daftar' : 'Masuk'}
         </button>
+
+        {isRegister && (
+          <p className="text-center text-xs text-slate-600">Akun baru mendapat peran viewer (read-only).</p>
+        )}
       </form>
     </div>
   )

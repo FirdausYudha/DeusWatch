@@ -151,6 +151,29 @@ export async function login(username: string, password: string, totp?: string): 
   return { username: data.username, role: data.role }
 }
 
+export async function register(username: string, password: string): Promise<Me> {
+  const res = await fetch('/api/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  const data = await res.json()
+  if (!data.token) throw new Error('Akun dibuat — silakan masuk')
+  setToken(data.token)
+  return { username: data.username, role: data.role }
+}
+
+export async function fetchAuthConfig(): Promise<{ registration_enabled: boolean }> {
+  try {
+    const res = await fetch('/api/auth/config', { cache: 'no-store' })
+    if (!res.ok) return { registration_enabled: false }
+    return res.json()
+  } catch {
+    return { registration_enabled: false }
+  }
+}
+
 // ── 2FA (self-service) ────────────────────────────────────
 
 export async function setup2FA(): Promise<{ secret: string; otpauth_url: string }> {

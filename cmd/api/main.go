@@ -67,6 +67,16 @@ func main() {
 		// Publik (tanpa token).
 		mux.HandleFunc("/api/login", authStore.LoginHandler())
 
+		// Registrasi mandiri (opsional, default aktif): akun baru = role viewer.
+		registrationEnabled, _ := strconv.ParseBool(getenv("REGISTRATION_ENABLED", "1"))
+		mux.HandleFunc("/api/auth/config", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]bool{"registration_enabled": registrationEnabled})
+		})
+		if registrationEnabled {
+			mux.HandleFunc("/api/register", authStore.RegisterHandler())
+			log.Printf("api: registrasi mandiri AKTIF (set REGISTRATION_ENABLED=0 untuk menonaktifkan)")
+		}
+
 		// Terproteksi: wajib sesi valid + permission.
 		protect := func(p auth.Permission, h http.HandlerFunc) http.Handler {
 			return authStore.Middleware(auth.RequirePermission(p, h))

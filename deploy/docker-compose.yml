@@ -39,6 +39,19 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # Init container: generate sertifikat mTLS ke ./certs sekali (idempotent —
+  # dilewati bila ca.crt sudah ada). api & gateway menunggu ini selesai.
+  certgen:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        CMD: certgen
+    command: ["--out", "/certs"]
+    volumes:
+      - ./certs:/certs
+    restart: "no"
+
   api:
     build:
       context: ..
@@ -64,9 +77,11 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      certgen:
+        condition: service_completed_successfully
     restart: unless-stopped
 
-  # Ingest gateway (mTLS). Butuh sertifikat server di ./certs (jalankan certgen).
+  # Ingest gateway (mTLS). Sertifikat server di ./certs dibuat service certgen.
   gateway:
     build:
       context: ..
@@ -87,6 +102,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      certgen:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # Worker deteksi: enrich + Sigma (single-event & agregasi) + response engine.
@@ -131,6 +148,17 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Web UI (React+Vite) disajikan nginx; proxy /api ke service api.
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:
