@@ -106,7 +106,7 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # Worker deteksi: enrich + Sigma (single-event & agregasi) + response engine.
+  # Detection worker: enrich + Sigma (single-event & aggregation) + response engine.
   worker:
     build:
       context: ..
