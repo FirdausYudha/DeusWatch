@@ -21,11 +21,11 @@ func TestHeuristicVerdicts(t *testing.T) {
 		in   AlertInput
 		want ingest.LLMVerdict
 	}{
-		{"abuse tinggi", AlertInput{Severity: ingest.SeverityHigh, AbuseConfidence: ptr(95)}, ingest.VerdictMalicious},
+		{"high abuse", AlertInput{Severity: ingest.SeverityHigh, AbuseConfidence: ptr(95)}, ingest.VerdictMalicious},
 		{"otx", AlertInput{Severity: ingest.SeverityMedium, OTXPulseCount: ptr(7)}, ingest.VerdictMalicious},
-		{"severity tinggi", AlertInput{Severity: ingest.SeverityHigh, AbuseConfidence: ptr(10)}, ingest.VerdictSuspicious},
+		{"high severity", AlertInput{Severity: ingest.SeverityHigh, AbuseConfidence: ptr(10)}, ingest.VerdictSuspicious},
 		{"benign", AlertInput{Severity: ingest.SeverityLow, AbuseConfidence: ptr(2)}, ingest.VerdictBenign},
-		{"perlu tinjau", AlertInput{Severity: ingest.SeverityMedium, AbuseConfidence: ptr(20)}, ingest.VerdictNeedsReview},
+		{"needs review", AlertInput{Severity: ingest.SeverityMedium, AbuseConfidence: ptr(20)}, ingest.VerdictNeedsReview},
 	}
 	for _, c := range cases {
 		res, err := a.Analyze(context.Background(), c.in)
@@ -33,29 +33,29 @@ func TestHeuristicVerdicts(t *testing.T) {
 			t.Fatalf("%s: %v", c.name, err)
 		}
 		if res.Verdict != c.want {
-			t.Errorf("%s: vonis %q, mau %q", c.name, res.Verdict, c.want)
+			t.Errorf("%s: verdict %q, want %q", c.name, res.Verdict, c.want)
 		}
 		if res.Summary == "" {
-			t.Errorf("%s: ringkasan kosong", c.name)
+			t.Errorf("%s: empty summary", c.name)
 		}
 	}
 }
 
 func TestParseResult(t *testing.T) {
-	// Toleran terhadap teks pembungkus + vonis tak dikenal -> needs_review.
-	r, err := parseResult("Tentu:\n{\"verdict\":\"malicious\",\"summary\":\"brute force\"}\nselesai")
+	// Tolerant of surrounding text + an unknown verdict -> needs_review.
+	r, err := parseResult("Sure:\n{\"verdict\":\"malicious\",\"summary\":\"brute force\"}\ndone")
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 	if r.Verdict != ingest.VerdictMalicious || r.Summary != "brute force" {
-		t.Fatalf("hasil salah: %+v", r)
+		t.Fatalf("wrong result: %+v", r)
 	}
-	r2, _ := parseResult(`{"verdict":"ngawur","summary":"x"}`)
+	r2, _ := parseResult(`{"verdict":"nonsense","summary":"x"}`)
 	if r2.Verdict != ingest.VerdictNeedsReview {
-		t.Fatalf("vonis tak dikenal harus needs_review, dapat %q", r2.Verdict)
+		t.Fatalf("unknown verdict should be needs_review, got %q", r2.Verdict)
 	}
-	if _, err := parseResult("tanpa json"); err == nil {
-		t.Fatal("teks tanpa JSON harus error")
+	if _, err := parseResult("no json"); err == nil {
+		t.Fatal("text without JSON should error")
 	}
 }
 
@@ -66,7 +66,7 @@ func TestBuildUserPrompt(t *testing.T) {
 	})
 	for _, want := range []string{"SSH Brute Force", "1.2.3.4", "RU", "T1110", "95/100"} {
 		if !strings.Contains(p, want) {
-			t.Errorf("prompt tak memuat %q:\n%s", want, p)
+			t.Errorf("prompt missing %q:\n%s", want, p)
 		}
 	}
 }
@@ -75,7 +75,7 @@ func TestClaudeAnalyzerHTTP(t *testing.T) {
 	var gotModel, gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.URL.Path, "/v1/messages") {
-			t.Errorf("path tak terduga: %s", r.URL.Path)
+			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		buf := make([]byte, r.ContentLength)
 		r.Body.Read(buf)
@@ -88,7 +88,7 @@ func TestClaudeAnalyzerHTTP(t *testing.T) {
 			"id":"msg_1","type":"message","role":"assistant","model":"claude-haiku-4-5",
 			"stop_reason":"end_turn","stop_sequence":null,
 			"usage":{"input_tokens":10,"output_tokens":5},
-			"content":[{"type":"text","text":"{\"verdict\":\"suspicious\",\"summary\":\"perlu cek\"}"}]
+			"content":[{"type":"text","text":"{\"verdict\":\"suspicious\",\"summary\":\"needs a check\"}"}]
 		}`))
 	}))
 	defer srv.Close()
@@ -99,11 +99,11 @@ func TestClaudeAnalyzerHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Analyze: %v", err)
 	}
-	if res.Verdict != ingest.VerdictSuspicious || res.Summary != "perlu cek" {
-		t.Fatalf("hasil salah: %+v", res)
+	if res.Verdict != ingest.VerdictSuspicious || res.Summary != "needs a check" {
+		t.Fatalf("wrong result: %+v", res)
 	}
 	if gotModel != "claude-haiku-4-5" {
-		t.Fatalf("model tak diteruskan: body=%s", gotBody)
+		t.Fatalf("model not forwarded: body=%s", gotBody)
 	}
 }
 
@@ -111,16 +111,16 @@ func TestAnalyzerFromEnv(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	t.Setenv("LLM_ENABLED", "")
 	if _, ok := AnalyzerFromEnv(); ok {
-		t.Fatal("tanpa konfigurasi harus nonaktif")
+		t.Fatal("with no configuration it should be disabled")
 	}
 	t.Setenv("LLM_ENABLED", "1")
 	a, ok := AnalyzerFromEnv()
 	if !ok || a.Name() != "heuristic" {
-		t.Fatalf("LLM_ENABLED=1 harus heuristic, dapat ok=%v name=%v", ok, a)
+		t.Fatalf("LLM_ENABLED=1 should be heuristic, got ok=%v name=%v", ok, a)
 	}
 	t.Setenv("ANTHROPIC_API_KEY", "sk-test")
 	a, ok = AnalyzerFromEnv()
 	if !ok || !strings.HasPrefix(a.Name(), "claude(") {
-		t.Fatalf("dengan API key harus claude, dapat %v", a.Name())
+		t.Fatalf("with an API key it should be claude, got %v", a.Name())
 	}
 }

@@ -12,11 +12,11 @@ func TestParseLines(t *testing.T) {
 	got := ParseLines(data)
 	want := []string{"45.155.205.99", "185.220.0.0/16", "1.2.3.4"}
 	if len(got) != len(want) {
-		t.Fatalf("jumlah token %d, mau %d: %+v", len(got), len(want), got)
+		t.Fatalf("token count %d, want %d: %+v", len(got), len(want), got)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Errorf("token[%d]=%q, mau %q", i, got[i], want[i])
+			t.Errorf("token[%d]=%q, want %q", i, got[i], want[i])
 		}
 	}
 }
@@ -24,19 +24,19 @@ func TestParseLines(t *testing.T) {
 func TestSetContains(t *testing.T) {
 	s := NewSet()
 	s.Replace([]string{"45.155.205.99", "185.220.0.0/16", "bogus", "10.0.0.0/8"})
-	if s.Len() != 3 { // bogus dilewati
-		t.Fatalf("Len=%d, mau 3", s.Len())
+	if s.Len() != 3 { // bogus is skipped
+		t.Fatalf("Len=%d, want 3", s.Len())
 	}
 	cases := map[string]bool{
-		"45.155.205.99": true,  // IP eksak
-		"185.220.5.7":   true,  // dalam CIDR
-		"10.255.1.1":    true,  // dalam /8
-		"8.8.8.8":       false, // bukan anggota
-		"185.221.0.1":   false, // di luar CIDR
+		"45.155.205.99": true,  // exact IP
+		"185.220.5.7":   true,  // within CIDR
+		"10.255.1.1":    true,  // within /8
+		"8.8.8.8":       false, // not a member
+		"185.221.0.1":   false, // outside the CIDR
 	}
 	for ip, want := range cases {
 		if got := s.Contains(ip); got != want {
-			t.Errorf("Contains(%q)=%v, mau %v", ip, got, want)
+			t.Errorf("Contains(%q)=%v, want %v", ip, got, want)
 		}
 	}
 }
@@ -45,11 +45,11 @@ func TestReplaceSwaps(t *testing.T) {
 	s := NewSet()
 	s.Replace([]string{"1.1.1.1"})
 	if !s.Contains("1.1.1.1") {
-		t.Fatal("entri awal hilang")
+		t.Fatal("initial entry lost")
 	}
 	s.Replace([]string{"2.2.2.2"})
 	if s.Contains("1.1.1.1") || !s.Contains("2.2.2.2") {
-		t.Fatal("Replace harus mengganti, bukan menambah")
+		t.Fatal("Replace should swap, not append")
 	}
 }
 
@@ -69,7 +69,7 @@ func TestLoadHTTP(t *testing.T) {
 	}
 	for _, ip := range []string{"45.155.205.99", "185.220.1.1", "203.0.113.10"} {
 		if !set.Contains(ip) {
-			t.Errorf("%s harus ada di blocklist gabungan", ip)
+			t.Errorf("%s should be in the merged blocklist", ip)
 		}
 	}
 }
@@ -80,13 +80,13 @@ func TestLoadPartialFailureStillLoads(t *testing.T) {
 	}))
 	defer good.Close()
 
-	// satu URL valid + satu yang tak terjangkau -> tetap memuat yang valid.
+	// one valid URL + one unreachable -> still loads the valid one.
 	set, err := Load(context.Background(), good.Client(), []string{good.URL, "http://127.0.0.1:0/x"})
 	if err != nil {
-		t.Fatalf("kegagalan parsial tak boleh menggagalkan Load: %v", err)
+		t.Fatalf("a partial failure must not fail Load: %v", err)
 	}
 	if !set.Contains("9.9.9.9") {
-		t.Fatal("entri valid harus tetap dimuat")
+		t.Fatal("the valid entry should still be loaded")
 	}
 }
 
@@ -96,6 +96,6 @@ func TestLoadAllFail(t *testing.T) {
 	}))
 	defer srv.Close()
 	if _, err := Load(context.Background(), srv.Client(), []string{srv.URL}); err == nil {
-		t.Fatal("semua sumber gagal harus mengembalikan error")
+		t.Fatal("all sources failing must return an error")
 	}
 }

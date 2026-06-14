@@ -1,8 +1,8 @@
-// Package notify mengirim notifikasi alert ke saluran eksternal (Telegram, email,
-// webhook) dengan ambang severity + dedup/throttle (design doc Fase 2).
+// Package notify sends alert notifications to external channels (Telegram, email,
+// webhook) with a severity threshold + dedup/throttle (design doc Phase 2).
 //
-// Dispatcher menyaring alert di bawah ambang, menekan duplikat dalam jendela
-// throttle (per rule+IP), lalu menyebarkannya ke semua sink yang dikonfigurasi.
+// The Dispatcher filters out alerts below the threshold, suppresses duplicates within
+// the throttle window (per rule+IP), then fans them out to all configured sinks.
 package notify
 
 import (
@@ -15,7 +15,7 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// Notification adalah ringkasan alert yang siap dikirim ke saluran.
+// Notification is the alert summary ready to send to a channel.
 type Notification struct {
 	Title     string
 	Severity  ingest.Severity
@@ -27,7 +27,7 @@ type Notification struct {
 	Time      time.Time
 }
 
-// FromEvent membangun Notification dari event alert DCS.
+// FromEvent builds a Notification from a DCS alert event.
 func FromEvent(ev *ingest.Event) Notification {
 	n := Notification{
 		Severity: ev.Event.Severity,
@@ -54,10 +54,10 @@ func FromEvent(ev *ingest.Event) Notification {
 	return n
 }
 
-// dedupKey: notifikasi dianggap duplikat bila rule + source IP sama dalam window.
+// dedupKey: a notification is considered a duplicate if rule + source IP match within the window.
 func (n Notification) dedupKey() string { return n.Rule + "|" + n.SourceIP }
 
-// Text mengembalikan badan pesan teks polos (dipakai Telegram/email/log).
+// Text returns the plain-text message body (used by Telegram/email/log).
 func (n Notification) Text() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "🚨 [%s] %s\n", strings.ToUpper(n.Severity.String()), n.Title)
@@ -68,18 +68,18 @@ func (n Notification) Text() string {
 		fmt.Fprintf(&b, "MITRE: %s %s\n", n.Technique, n.Tactic)
 	}
 	if !n.Time.IsZero() {
-		fmt.Fprintf(&b, "Waktu: %s\n", n.Time.UTC().Format(time.RFC3339))
+		fmt.Fprintf(&b, "Time: %s\n", n.Time.UTC().Format(time.RFC3339))
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// Notifier mengirim satu notifikasi ke sebuah saluran.
+// Notifier sends one notification to a channel.
 type Notifier interface {
 	Name() string
 	Notify(ctx context.Context, n Notification) error
 }
 
-// Dispatcher menyaring + men-throttle + menyebarkan notifikasi ke banyak sink.
+// Dispatcher filters + throttles + fans out notifications to many sinks.
 type Dispatcher struct {
 	sinks       []Notifier
 	minSeverity ingest.Severity
@@ -90,7 +90,7 @@ type Dispatcher struct {
 	now      func() time.Time
 }
 
-// NewDispatcher membuat dispatcher. throttle<=0 menonaktifkan dedup.
+// NewDispatcher creates a dispatcher. throttle<=0 disables dedup.
 func NewDispatcher(minSeverity ingest.Severity, throttle time.Duration, sinks ...Notifier) *Dispatcher {
 	return &Dispatcher{
 		sinks: sinks, minSeverity: minSeverity, throttle: throttle,
@@ -98,10 +98,10 @@ func NewDispatcher(minSeverity ingest.Severity, throttle time.Duration, sinks ..
 	}
 }
 
-// Enabled melaporkan apakah ada sink terkonfigurasi.
+// Enabled reports whether any sink is configured.
 func (d *Dispatcher) Enabled() bool { return d != nil && len(d.sinks) > 0 }
 
-// SinkNames mengembalikan nama sink yang aktif.
+// SinkNames returns the names of the active sinks.
 func (d *Dispatcher) SinkNames() []string {
 	names := make([]string, 0, len(d.sinks))
 	for _, s := range d.sinks {
@@ -110,9 +110,9 @@ func (d *Dispatcher) SinkNames() []string {
 	return names
 }
 
-// Dispatch menyaring (severity + throttle) lalu mengirim ke semua sink. Error tiap
-// sink dikumpulkan; satu sink gagal tak menghentikan yang lain. Mengembalikan nil
-// bila ditekan ambang/throttle.
+// Dispatch filters (severity + throttle) then sends to all sinks. Each sink's error
+// is collected; one sink failing does not stop the others. Returns nil when
+// suppressed by the threshold/throttle.
 func (d *Dispatcher) Dispatch(ctx context.Context, n Notification) error {
 	if !d.Enabled() {
 		return nil
@@ -135,7 +135,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, n Notification) error {
 	return nil
 }
 
-// allow menerapkan throttle/dedup per key.
+// allow applies the per-key throttle/dedup.
 func (d *Dispatcher) allow(key string) bool {
 	if d.throttle <= 0 {
 		return true

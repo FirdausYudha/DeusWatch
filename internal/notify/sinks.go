@@ -95,7 +95,7 @@ func (wn *WebhookNotifier) Notify(ctx context.Context, n Notification) error {
 
 // ── Email (SMTP) ──────────────────────────────────────────
 
-// sendMailFunc memisahkan pengiriman SMTP agar bisa di-stub di test.
+// sendMailFunc decouples SMTP sending so it can be stubbed in tests.
 type sendMailFunc func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
 
 type EmailNotifier struct {
@@ -114,7 +114,7 @@ func NewEmailNotifier(host, port, user, pass, from string, to []string) *EmailNo
 
 func (e *EmailNotifier) Name() string { return "email" }
 
-// message membangun pesan RFC 822 sederhana.
+// message builds a simple RFC 822 message.
 func (e *EmailNotifier) message(n Notification) []byte {
 	subject := fmt.Sprintf("[DeusWatch][%s] %s", strings.ToUpper(n.Severity.String()), n.Title)
 	var b strings.Builder
@@ -138,17 +138,17 @@ func (e *EmailNotifier) Notify(_ context.Context, n Notification) error {
 	return nil
 }
 
-// ── Konstruksi dari env ───────────────────────────────────
+// ── Construction from env ─────────────────────────────────
 
-// DispatcherFromEnv membangun Dispatcher dari environment:
+// DispatcherFromEnv builds a Dispatcher from the environment:
 //
-//	NOTIFY_MIN_SEVERITY  ambang (info|low|medium|high|critical; default high)
-//	NOTIFY_THROTTLE       jeda dedup per rule+IP (Go duration; default 10m)
+//	NOTIFY_MIN_SEVERITY  threshold (info|low|medium|high|critical; default high)
+//	NOTIFY_THROTTLE       dedup interval per rule+IP (Go duration; default 10m)
 //	TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
 //	WEBHOOK_URL
-//	SMTP_HOST + SMTP_PORT + SMTP_FROM + SMTP_TO (koma) [+ SMTP_USER + SMTP_PASS]
+//	SMTP_HOST + SMTP_PORT + SMTP_FROM + SMTP_TO (comma) [+ SMTP_USER + SMTP_PASS]
 //
-// Mengembalikan (dispatcher, true) bila minimal satu sink aktif.
+// Returns (dispatcher, true) if at least one sink is active.
 func DispatcherFromEnv() (*Dispatcher, bool) {
 	var sinks []Notifier
 	if tok, chat := os.Getenv("TELEGRAM_BOT_TOKEN"), os.Getenv("TELEGRAM_CHAT_ID"); tok != "" && chat != "" {

@@ -43,10 +43,10 @@ func TestFromEvent(t *testing.T) {
 	}
 	n := FromEvent(ev)
 	if n.SourceIP != "1.2.3.4" || n.Rule != "SSH Brute Force" || n.Technique != "T1110" {
-		t.Fatalf("mapping salah: %+v", n)
+		t.Fatalf("wrong mapping: %+v", n)
 	}
 	if !strings.Contains(n.Text(), "T1110") || !strings.Contains(n.Text(), "HIGH") {
-		t.Fatalf("teks tak lengkap: %q", n.Text())
+		t.Fatalf("incomplete text: %q", n.Text())
 	}
 }
 
@@ -56,11 +56,11 @@ func TestDispatcherSeverityThreshold(t *testing.T) {
 
 	_ = d.Dispatch(context.Background(), Notification{Severity: ingest.SeverityMedium, Rule: "x"})
 	if f.count() != 0 {
-		t.Fatal("severity di bawah ambang tak boleh dikirim")
+		t.Fatal("severity below the threshold must not be sent")
 	}
 	_ = d.Dispatch(context.Background(), highAlert("1.1.1.1"))
 	if f.count() != 1 {
-		t.Fatal("severity >= ambang harus dikirim")
+		t.Fatal("severity >= threshold must be sent")
 	}
 }
 
@@ -71,20 +71,20 @@ func TestDispatcherThrottle(t *testing.T) {
 	d.now = func() time.Time { return now }
 
 	_ = d.Dispatch(context.Background(), highAlert("9.9.9.9"))
-	_ = d.Dispatch(context.Background(), highAlert("9.9.9.9")) // duplikat dalam window
+	_ = d.Dispatch(context.Background(), highAlert("9.9.9.9")) // duplicate within the window
 	if f.count() != 1 {
-		t.Fatalf("duplikat harus ditekan, terkirim %d", f.count())
+		t.Fatalf("the duplicate must be suppressed, sent %d", f.count())
 	}
-	// IP berbeda tetap lolos.
+	// A different IP still passes.
 	_ = d.Dispatch(context.Background(), highAlert("8.8.8.8"))
 	if f.count() != 2 {
-		t.Fatalf("IP berbeda harus lolos, terkirim %d", f.count())
+		t.Fatalf("a different IP must pass, sent %d", f.count())
 	}
-	// Setelah window lewat.
+	// After the window passes.
 	now = now.Add(11 * time.Minute)
 	_ = d.Dispatch(context.Background(), highAlert("9.9.9.9"))
 	if f.count() != 3 {
-		t.Fatalf("setelah throttle harus lolos lagi, terkirim %d", f.count())
+		t.Fatalf("after throttle it must pass again, sent %d", f.count())
 	}
 }
 
@@ -95,20 +95,20 @@ func TestDispatcherFanOutAggregatesErrors(t *testing.T) {
 
 	err := d.Dispatch(context.Background(), highAlert("1.1.1.1"))
 	if err == nil || !strings.Contains(err.Error(), "bad: boom") {
-		t.Fatalf("error sink harus dikumpulkan: %v", err)
+		t.Fatalf("sink errors must be collected: %v", err)
 	}
 	if ok.count() != 1 {
-		t.Fatal("sink lain tetap harus menerima meski satu gagal")
+		t.Fatal("the other sink must still receive even if one fails")
 	}
 }
 
 func TestDispatcherDisabled(t *testing.T) {
 	var d *Dispatcher
 	if d.Enabled() {
-		t.Fatal("nil dispatcher tak boleh enabled")
+		t.Fatal("a nil dispatcher must not be enabled")
 	}
 	if err := d.Dispatch(context.Background(), highAlert("1.1.1.1")); err != nil {
-		t.Fatalf("dispatch ke nil tak boleh error: %v", err)
+		t.Fatalf("dispatch to nil must not error: %v", err)
 	}
 }
 
@@ -130,10 +130,10 @@ func TestTelegramNotifier(t *testing.T) {
 		t.Fatalf("Notify: %v", err)
 	}
 	if gotPath != "/botTOKEN/sendMessage" {
-		t.Fatalf("path salah: %q", gotPath)
+		t.Fatalf("wrong path: %q", gotPath)
 	}
 	if !strings.Contains(gotBody, "chat_id=CHAT") {
-		t.Fatalf("body tak memuat chat_id: %q", gotBody)
+		t.Fatalf("body missing chat_id: %q", gotBody)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestWebhookNotifier(t *testing.T) {
 		t.Fatalf("Notify: %v", err)
 	}
 	if !strings.Contains(gotBody, `"source_ip":"5.6.7.8"`) || !strings.Contains(gotBody, `"severity":"high"`) {
-		t.Fatalf("payload webhook salah: %q", gotBody)
+		t.Fatalf("wrong webhook payload: %q", gotBody)
 	}
 }
 
@@ -171,23 +171,23 @@ func TestEmailNotifierMessage(t *testing.T) {
 		t.Fatalf("Notify: %v", err)
 	}
 	if gotAddr != "smtp.example:587" {
-		t.Fatalf("addr salah: %q", gotAddr)
+		t.Fatalf("wrong addr: %q", gotAddr)
 	}
 	if gotAuth == nil {
-		t.Fatal("auth harus diset bila user ada")
+		t.Fatal("auth must be set when a user is present")
 	}
 	if gotFrom != "soc@example.com" || len(gotTo) != 2 {
-		t.Fatalf("from/to salah: %q %v", gotFrom, gotTo)
+		t.Fatalf("wrong from/to: %q %v", gotFrom, gotTo)
 	}
 	msg := string(gotMsg)
 	if !strings.Contains(msg, "Subject: [DeusWatch][HIGH] SSH Brute Force") || !strings.Contains(msg, "To: a@x.com, b@x.com") {
-		t.Fatalf("header email salah:\n%s", msg)
+		t.Fatalf("wrong email header:\n%s", msg)
 	}
 }
 
 func TestSplitCSV(t *testing.T) {
 	got := splitCSV(" a@x.com , b@x.com ,, ")
 	if len(got) != 2 || got[0] != "a@x.com" || got[1] != "b@x.com" {
-		t.Fatalf("split salah: %+v", got)
+		t.Fatalf("wrong split: %+v", got)
 	}
 }

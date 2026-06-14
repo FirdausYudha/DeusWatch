@@ -8,15 +8,15 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-// ClaudeAnalyzer mentriase alert lewat Anthropic Messages API (SDK resmi).
-// Default model claude-opus-4-8 (paling mampu); ubah via ANTHROPIC_MODEL.
+// ClaudeAnalyzer triages alerts via the Anthropic Messages API (official SDK).
+// Default model claude-opus-4-8 (most capable); change it via ANTHROPIC_MODEL.
 type ClaudeAnalyzer struct {
 	client anthropic.Client
 	model  anthropic.Model
 }
 
-// NewClaudeAnalyzer membuat analyzer. model kosong → claude-opus-4-8. opts dipakai
-// test untuk mengarahkan base URL ke server tiruan.
+// NewClaudeAnalyzer creates an analyzer. An empty model → claude-opus-4-8. opts are
+// used by tests to point the base URL at a mock server.
 func NewClaudeAnalyzer(apiKey, model string, opts ...option.RequestOption) *ClaudeAnalyzer {
 	m := anthropic.ModelClaudeOpus4_8
 	if model != "" {
@@ -38,7 +38,7 @@ func (c *ClaudeAnalyzer) Analyze(ctx context.Context, in AlertInput) (Result, er
 		},
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("llm: panggil Claude: %w", err)
+		return Result{}, fmt.Errorf("llm: call Claude: %w", err)
 	}
 	var text string
 	for _, block := range resp.Content {

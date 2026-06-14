@@ -1,7 +1,7 @@
-// Package llm adalah worker analisis LLM DeusWatch (Fase 3): mentriase alert
-// menjadi vonis (benign/suspicious/malicious/needs_review) + ringkasan singkat,
-// disimpan ke deuswatch.llm.*. Analyzer Claude (API Anthropic) dipakai bila
-// ANTHROPIC_API_KEY diset; selain itu HeuristicAnalyzer deterministik (dev/offline).
+// Package llm is the DeusWatch LLM analysis worker (Phase 3): it triages alerts into
+// a verdict (benign/suspicious/malicious/needs_review) + a short summary, stored to
+// deuswatch.llm.*. The Claude analyzer (Anthropic API) is used when ANTHROPIC_API_KEY
+// is set; otherwise the deterministic HeuristicAnalyzer (dev/offline).
 package llm
 
 import (
@@ -14,13 +14,13 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// Result adalah keluaran analisis: vonis + ringkasan.
+// Result is the analysis output: verdict + summary.
 type Result struct {
 	Verdict ingest.LLMVerdict `json:"verdict"`
 	Summary string            `json:"summary"`
 }
 
-// AlertInput adalah konteks alert yang dianalisis (sudah ter-enrich).
+// AlertInput is the (already-enriched) alert context being analyzed.
 type AlertInput struct {
 	Rule            string
 	Severity        ingest.Severity
@@ -34,13 +34,13 @@ type AlertInput struct {
 	OTXPulseCount   *int
 }
 
-// Analyzer menganalisis satu alert.
+// Analyzer analyzes one alert.
 type Analyzer interface {
 	Name() string
 	Analyze(ctx context.Context, in AlertInput) (Result, error)
 }
 
-// validVerdict melaporkan apakah v termasuk vonis yang dikenal.
+// validVerdict reports whether v is a known verdict.
 func validVerdict(v ingest.LLMVerdict) bool {
 	switch v {
 	case ingest.VerdictBenign, ingest.VerdictSuspicious, ingest.VerdictMalicious, ingest.VerdictNeedsReview:
@@ -49,9 +49,9 @@ func validVerdict(v ingest.LLMVerdict) bool {
 	return false
 }
 
-// ── HeuristicAnalyzer (fallback tanpa API) ────────────────
+// ── HeuristicAnalyzer (fallback without an API) ───────────
 
-// HeuristicAnalyzer memberi vonis deterministik dari sinyal enrichment + severity.
+// HeuristicAnalyzer gives a deterministic verdict from enrichment + severity signals.
 type HeuristicAnalyzer struct{}
 
 func (HeuristicAnalyzer) Name() string { return "heuristic" }
@@ -62,13 +62,13 @@ func (HeuristicAnalyzer) Analyze(_ context.Context, in AlertInput) (Result, erro
 
 	switch {
 	case abuse >= 90 || otx >= 5:
-		return Result{ingest.VerdictMalicious, heuristicSummary(in, "reputasi IP buruk (CTI)")}, nil
+		return Result{ingest.VerdictMalicious, heuristicSummary(in, "bad IP reputation (CTI)")}, nil
 	case in.Severity >= ingest.SeverityHigh || abuse >= 50:
-		return Result{ingest.VerdictSuspicious, heuristicSummary(in, "severity tinggi / reputasi sedang")}, nil
+		return Result{ingest.VerdictSuspicious, heuristicSummary(in, "high severity / medium reputation")}, nil
 	case in.Severity <= ingest.SeverityLow && abuse < 10:
-		return Result{ingest.VerdictBenign, heuristicSummary(in, "severity rendah & IP bersih")}, nil
+		return Result{ingest.VerdictBenign, heuristicSummary(in, "low severity & clean IP")}, nil
 	default:
-		return Result{ingest.VerdictNeedsReview, heuristicSummary(in, "perlu tinjauan analis")}, nil
+		return Result{ingest.VerdictNeedsReview, heuristicSummary(in, "needs analyst review")}, nil
 	}
 }
 
@@ -77,14 +77,14 @@ func heuristicSummary(in AlertInput, reason string) string {
 	if src == "" {
 		src = "-"
 	}
-	return fmt.Sprintf("%s dari %s (%s): %s.", firstNonEmpty(in.Rule, in.Label, "alert"), src, in.Technique, reason)
+	return fmt.Sprintf("%s from %s (%s): %s.", firstNonEmpty(in.Rule, in.Label, "alert"), src, in.Technique, reason)
 }
 
-// ── prompt & parsing (dipakai ClaudeAnalyzer) ─────────────
+// ── prompt & parsing (used by ClaudeAnalyzer) ─────────────
 
-const systemPrompt = `Kamu analis SOC DeusWatch. Diberi satu alert keamanan, beri vonis triase singkat.
-Balas HANYA JSON valid tanpa teks lain, bentuk:
-{"verdict":"benign|suspicious|malicious|needs_review","summary":"<=2 kalimat ringkas alasan"}`
+const systemPrompt = `You are a DeusWatch SOC analyst. Given one security alert, give a short triage verdict.
+Reply with ONLY valid JSON and no other text, in the form:
+{"verdict":"benign|suspicious|malicious|needs_review","summary":"<=2 sentence reason"}`
 
 func buildUserPrompt(in AlertInput) string {
 	var b strings.Builder
@@ -111,22 +111,22 @@ func buildUserPrompt(in AlertInput) string {
 		if len(orig) > 500 {
 			orig = orig[:500]
 		}
-		fmt.Fprintf(&b, "Log mentah: %s\n", orig)
+		fmt.Fprintf(&b, "Raw log: %s\n", orig)
 	}
 	return strings.TrimSpace(b.String())
 }
 
-// parseResult mengekstrak JSON {verdict,summary} dari teks model (toleran terhadap
-// teks pembungkus). Vonis tak dikenal → needs_review.
+// parseResult extracts the {verdict,summary} JSON from the model's text (tolerant of
+// surrounding text). An unknown verdict → needs_review.
 func parseResult(text string) (Result, error) {
 	start := strings.IndexByte(text, '{')
 	end := strings.LastIndexByte(text, '}')
 	if start < 0 || end <= start {
-		return Result{}, fmt.Errorf("llm: tak ada objek JSON di respons")
+		return Result{}, fmt.Errorf("llm: no JSON object in response")
 	}
 	var r Result
 	if err := json.Unmarshal([]byte(text[start:end+1]), &r); err != nil {
-		return Result{}, fmt.Errorf("llm: parse JSON respons: %w", err)
+		return Result{}, fmt.Errorf("llm: parse response JSON: %w", err)
 	}
 	if !validVerdict(r.Verdict) {
 		r.Verdict = ingest.VerdictNeedsReview
@@ -135,11 +135,11 @@ func parseResult(text string) (Result, error) {
 	return r, nil
 }
 
-// ── konstruksi dari env ───────────────────────────────────
+// ── construction from env ─────────────────────────────────
 
-// AnalyzerFromEnv mengembalikan ClaudeAnalyzer bila ANTHROPIC_API_KEY diset
-// (model via ANTHROPIC_MODEL, default claude-opus-4-8), selain itu HeuristicAnalyzer
-// bila LLM_ENABLED=1. (analyzer, enabled).
+// AnalyzerFromEnv returns a ClaudeAnalyzer if ANTHROPIC_API_KEY is set (model via
+// ANTHROPIC_MODEL, default claude-opus-4-8), otherwise a HeuristicAnalyzer if
+// LLM_ENABLED=1. (analyzer, enabled).
 func AnalyzerFromEnv() (Analyzer, bool) {
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		return NewClaudeAnalyzer(key, os.Getenv("ANTHROPIC_MODEL")), true

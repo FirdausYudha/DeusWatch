@@ -1,6 +1,6 @@
-// Package blocklist memuat daftar blokir IP komunitas (mis. feed publik) ke dalam
-// set in-memory thread-safe, lalu dipakai enrichment untuk menandai IP berbahaya
-// (design doc Fase 3). Mendukung IP tunggal & CIDR; baris komentar (#/;) dilewati.
+// Package blocklist loads community IP blocklists (e.g. public feeds) into a
+// thread-safe in-memory set, used by enrichment to flag malicious IPs (design doc
+// Phase 3). Supports single IPs & CIDRs; comment lines (#/;) are skipped.
 package blocklist
 
 import (
@@ -16,24 +16,24 @@ import (
 	"time"
 )
 
-// Set adalah kumpulan IP & CIDR yang diblokir, aman untuk dibaca/diganti konkuren.
+// Set is a collection of blocked IPs & CIDRs, safe to read/replace concurrently.
 type Set struct {
 	mu   sync.RWMutex
 	ips  map[string]struct{}
 	nets []*net.IPNet
 }
 
-// NewSet membuat set kosong.
+// NewSet creates an empty set.
 func NewSet() *Set { return &Set{ips: map[string]struct{}{}} }
 
-// Len mengembalikan jumlah entri (IP eksak + CIDR).
+// Len returns the number of entries (exact IPs + CIDRs).
 func (s *Set) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.ips) + len(s.nets)
 }
 
-// Contains melaporkan apakah ip termasuk daftar blokir (cocok eksak atau dalam CIDR).
+// Contains reports whether ip is in the blocklist (exact match or within a CIDR).
 func (s *Set) Contains(ip string) bool {
 	parsed := net.ParseIP(ip)
 	s.mu.RLock()
@@ -51,7 +51,8 @@ func (s *Set) Contains(ip string) bool {
 	return false
 }
 
-// Replace mengganti isi set dari daftar token (IP atau CIDR). Token tak valid dilewati.
+// Replace swaps the set's contents from a list of tokens (IP or CIDR). Invalid
+// tokens are skipped.
 func (s *Set) Replace(tokens []string) {
 	ips := make(map[string]struct{}, len(tokens))
 	var nets []*net.IPNet
@@ -71,8 +72,8 @@ func (s *Set) Replace(tokens []string) {
 	s.mu.Unlock()
 }
 
-// ParseLines mengekstrak token IP/CIDR dari isi feed: satu per baris, komentar (#/;)
-// & teks setelah spasi diabaikan.
+// ParseLines extracts IP/CIDR tokens from feed content: one per line, comments (#/;)
+// and text after whitespace are ignored.
 func ParseLines(data []byte) []string {
 	var out []string
 	sc := bufio.NewScanner(bytes.NewReader(data))
@@ -82,7 +83,7 @@ func ParseLines(data []byte) []string {
 		if line == "" || line[0] == '#' || line[0] == ';' {
 			continue
 		}
-		// Ambil field pertama (banyak feed: "<ip> # komentar" atau "<ip>,<meta>").
+		// Take the first field (many feeds: "<ip> # comment" or "<ip>,<meta>").
 		field := strings.FieldsFunc(line, func(r rune) bool { return r == ' ' || r == '\t' || r == ',' })
 		if len(field) > 0 && field[0] != "" && field[0][0] != '#' {
 			out = append(out, field[0])
@@ -91,7 +92,7 @@ func ParseLines(data []byte) []string {
 	return out
 }
 
-// fetchTokens mengunduh & mem-parse semua URL; mengembalikan token gabungan + error per-URL.
+// fetchTokens downloads & parses all URLs; returns the combined tokens + per-URL errors.
 func fetchTokens(ctx context.Context, hc *http.Client, urls []string) ([]string, []error) {
 	var tokens []string
 	var errs []error
@@ -123,27 +124,27 @@ func fetchTokens(ctx context.Context, hc *http.Client, urls []string) ([]string,
 
 func readAllLimited(resp *http.Response) ([]byte, error) {
 	var b bytes.Buffer
-	_, err := b.ReadFrom(http.MaxBytesReader(nil, resp.Body, 32<<20)) // batas 32 MiB
+	_, err := b.ReadFrom(http.MaxBytesReader(nil, resp.Body, 32<<20)) // 32 MiB limit
 	return b.Bytes(), err
 }
 
-// Load mengunduh semua URL dan membangun Set. Error hanya bila TIDAK ada token sama
-// sekali yang berhasil dimuat.
+// Load downloads all URLs and builds a Set. It errors only if NO tokens at all were
+// successfully loaded.
 func Load(ctx context.Context, hc *http.Client, urls []string) (*Set, error) {
 	if hc == nil {
 		hc = &http.Client{Timeout: 15 * time.Second}
 	}
 	tokens, errs := fetchTokens(ctx, hc, urls)
 	if len(tokens) == 0 && len(errs) > 0 {
-		return nil, fmt.Errorf("blocklist: semua sumber gagal: %v", errs)
+		return nil, fmt.Errorf("blocklist: all sources failed: %v", errs)
 	}
 	s := NewSet()
 	s.Replace(tokens)
 	return s, nil
 }
 
-// Refresh memuat ulang set tiap interval hingga ctx dibatalkan. Kegagalan di-log dan
-// tidak mengosongkan set lama.
+// Refresh reloads the set every interval until ctx is cancelled. Failures are logged
+// and do not clear the previous set.
 func Refresh(ctx context.Context, hc *http.Client, urls []string, interval time.Duration, s *Set) {
 	if interval <= 0 {
 		interval = 6 * time.Hour
@@ -160,11 +161,11 @@ func Refresh(ctx context.Context, hc *http.Client, urls []string, interval time.
 		case <-t.C:
 			tokens, errs := fetchTokens(ctx, hc, urls)
 			if len(tokens) == 0 {
-				log.Printf("blocklist: refresh gagal (set lama dipertahankan): %v", errs)
+				log.Printf("blocklist: refresh failed (keeping previous set): %v", errs)
 				continue
 			}
 			s.Replace(tokens)
-			log.Printf("blocklist: refresh — %d entri", s.Len())
+			log.Printf("blocklist: refreshed — %d entries", s.Len())
 		}
 	}
 }
