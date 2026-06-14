@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// LLMAlert adalah alert yang menunggu analisis LLM (beserta id untuk update).
+// LLMAlert is an alert awaiting LLM analysis (with its id for the update).
 type LLMAlert struct {
 	ID              string
 	Time            time.Time
@@ -22,7 +22,7 @@ type LLMAlert struct {
 	OTXPulseCount   *int
 }
 
-// AlertsForLLM mengembalikan alert (ber-label) yang belum punya vonis LLM, terbaru dulu.
+// AlertsForLLM returns labeled alerts that do not yet have an LLM verdict, newest first.
 func (s *Store) AlertsForLLM(ctx context.Context, limit int) ([]LLMAlert, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
@@ -54,7 +54,7 @@ func (s *Store) AlertsForLLM(ctx context.Context, limit int) ([]LLMAlert, error)
 	return out, rows.Err()
 }
 
-// SetLLMVerdict menyimpan vonis + ringkasan LLM untuk satu alert.
+// SetLLMVerdict stores the LLM verdict + summary for one alert.
 func (s *Store) SetLLMVerdict(ctx context.Context, id, verdict, summary string) error {
 	_, err := s.pool.Exec(ctx,
 		`UPDATE events SET dw_llm_verdict = $2, dw_llm_summary = $3, dw_llm_analyzed_at = now()

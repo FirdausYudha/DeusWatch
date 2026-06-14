@@ -1,21 +1,21 @@
-// Package ingest mendefinisikan DeusWatch Core Schema (DCS) dan normalisasi log.
+// Package ingest defines the DeusWatch Core Schema (DCS) and log normalization.
 //
-// DCS = subset ber-penamaan ECS (Elastic Common Schema) + namespace deuswatch.*
-// (design doc bagian 7). File ini adalah SUMBER KEBENARAN TUNGGAL untuk schema.
+// DCS = an ECS-named subset (Elastic Common Schema) + the deuswatch.* namespace
+// (design doc section 7). This file is the SINGLE SOURCE OF TRUTH for the schema.
 //
-// Aturan disiplin (bagian 7, wajib): field baru HANYA boleh ditambah lewat
-// perubahan file ini + migrasi SQL yang sepadan di migrations/. Tidak boleh ada
-// field liar yang muncul dadakan di kode lain. Ini mencegah schema membusuk.
+// Discipline rule (section 7, required): new fields may ONLY be added by changing
+// this file plus the matching SQL migration under migrations/. No stray fields may
+// appear ad hoc elsewhere in the code. This keeps the schema from rotting.
 //
-// Pemetaan ke kolom TimescaleDB ada di migrations/000001_init_dcs.up.sql —
-// nama kolom = nama dotted ECS yang di-snake_case-kan (mis. source.ip -> source_ip,
+// The mapping to TimescaleDB columns lives in migrations/000001_init_dcs.up.sql —
+// column name = the dotted ECS name snake_cased (e.g. source.ip -> source_ip,
 // deuswatch.enrichment.status -> dw_enrichment_status).
 package ingest
 
 import "time"
 
-// Severity mengikuti model 5-level design doc bagian 9, disimpan numerik 0..4
-// agar mudah diagregasi dashboard. Nilainya sengaja sama dengan level Sigma.
+// Severity follows the 5-level model from design doc section 9, stored numerically
+// 0..4 so the dashboard can aggregate it easily. Values intentionally match Sigma levels.
 type Severity int8
 
 const (
@@ -26,7 +26,7 @@ const (
 	SeverityCritical Severity = 4
 )
 
-// Valid melaporkan apakah s berada dalam rentang 0..4.
+// Valid reports whether s is within the 0..4 range.
 func (s Severity) Valid() bool { return s >= SeverityInfo && s <= SeverityCritical }
 
 func (s Severity) String() string {
@@ -46,7 +46,7 @@ func (s Severity) String() string {
 	}
 }
 
-// EnrichmentStatus = status pipeline enrichment per-log (deuswatch.enrichment.status).
+// EnrichmentStatus = per-log enrichment pipeline status (deuswatch.enrichment.status).
 type EnrichmentStatus string
 
 const (
@@ -56,7 +56,7 @@ const (
 	EnrichmentSkipped  EnrichmentStatus = "skipped"
 )
 
-// LLMVerdict = vonis worker LLM (deuswatch.llm.verdict).
+// LLMVerdict = the LLM worker's verdict (deuswatch.llm.verdict).
 type LLMVerdict string
 
 const (
@@ -66,7 +66,7 @@ const (
 	VerdictNeedsReview LLMVerdict = "needs_review"
 )
 
-// RemediationSource = asal rekomendasi (deuswatch.remediation.source).
+// RemediationSource = origin of a recommendation (deuswatch.remediation.source).
 type RemediationSource string
 
 const (
@@ -74,7 +74,7 @@ const (
 	RemediationLLM      RemediationSource = "llm"
 )
 
-// RemediationStatus = siklus hidup rekomendasi (deuswatch.remediation.status).
+// RemediationStatus = recommendation lifecycle (deuswatch.remediation.status).
 type RemediationStatus string
 
 const (
@@ -84,19 +84,19 @@ const (
 	RemediationDismissed   RemediationStatus = "dismissed"
 )
 
-// ── Grup field ECS ────────────────────────────────────────
+// ── ECS field groups ──────────────────────────────────────
 
-// EventFields = grup event.* (dasar semua agregasi dashboard).
+// EventFields = the event.* group (the basis of all dashboard aggregations).
 type EventFields struct {
 	Category string   `json:"category,omitempty"`
 	Action   string   `json:"action,omitempty"`
 	Outcome  string   `json:"outcome,omitempty"`
 	Severity Severity `json:"severity"`
 	Dataset  string   `json:"dataset,omitempty"`
-	Original string   `json:"original,omitempty"` // baris log mentah
+	Original string   `json:"original,omitempty"` // raw log line
 }
 
-// Geo = source.geo.* (di Fase 1 hanya source yang di-enrich geografis).
+// Geo = source.geo.* (in Phase 1 only the source is geo-enriched).
 type Geo struct {
 	CountryISOCode string `json:"country_iso_code,omitempty"`
 	CityName       string `json:"city_name,omitempty"`
@@ -142,33 +142,33 @@ type File struct {
 	Mode       string `json:"mode,omitempty"`
 }
 
-// Process = process.* (konteks endpoint, Fase 2+).
+// Process = process.* (endpoint context, Phase 2+).
 type Process struct {
 	Name        string `json:"name,omitempty"`
 	PID         int    `json:"pid,omitempty"`
 	CommandLine string `json:"command_line,omitempty"`
 }
 
-// Rule = rule.* (identitas rule deteksi yang memicu).
+// Rule = rule.* (identity of the detection rule that fired).
 type Rule struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
 }
 
-// Technique / Tactic = threat.technique.* / threat.tactic.* (auto-label MITRE).
+// Technique / Tactic = threat.technique.* / threat.tactic.* (auto MITRE labeling).
 type Technique struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
 }
 
-// Indicator = threat.indicator.* (hasil lookup CTI — Fase 2).
+// Indicator = threat.indicator.* (CTI lookup result — Phase 2).
 type Indicator struct {
 	IP         string     `json:"ip,omitempty"`
 	Confidence int        `json:"confidence,omitempty"`
 	LastSeen   *time.Time `json:"last_seen,omitempty"`
 }
 
-// Threat = threat.* (deteksi MITRE + enrichment CTI).
+// Threat = threat.* (MITRE detection + CTI enrichment).
 type Threat struct {
 	Technique Technique  `json:"technique,omitempty"`
 	TacticName string    `json:"tactic.name,omitempty"`
@@ -176,7 +176,7 @@ type Threat struct {
 	FeedName   string    `json:"feed.name,omitempty"`
 }
 
-// ── Namespace custom deuswatch.* ──────────────────────────
+// ── Custom deuswatch.* namespace ──────────────────────────
 
 // Enrichment = deuswatch.enrichment.*.
 type Enrichment struct {
@@ -188,24 +188,24 @@ type Enrichment struct {
 // LLM = deuswatch.llm.*.
 type LLM struct {
 	Verdict    LLMVerdict `json:"verdict,omitempty"`
-	Summary    string     `json:"summary,omitempty"` // juga di-embed ke pgvector (Fase 3)
+	Summary    string     `json:"summary,omitempty"` // also embedded into pgvector (Phase 3)
 	AnalyzedAt *time.Time `json:"analyzed_at,omitempty"`
 }
 
-// SeverityMeta = deuswatch.severity.* (jejak audit eskalasi dinamis, bagian 9).
+// SeverityMeta = deuswatch.severity.* (audit trail for dynamic escalation, section 9).
 type SeverityMeta struct {
 	Original   Severity `json:"original"`
 	EscalatedBy string  `json:"escalated_by,omitempty"`
 }
 
-// Remediation = deuswatch.remediation.* (rekomendasi playbook/LLM, bagian 9).
+// Remediation = deuswatch.remediation.* (playbook/LLM recommendation, section 9).
 type Remediation struct {
 	Action string            `json:"action,omitempty"`
 	Source RemediationSource `json:"source,omitempty"`
 	Status RemediationStatus `json:"status,omitempty"`
 }
 
-// DeusWatch = seluruh namespace deuswatch.*.
+// DeusWatch = the entire deuswatch.* namespace.
 type DeusWatch struct {
 	Enrichment  Enrichment   `json:"enrichment,omitempty"`
 	Label       string       `json:"label,omitempty"` // bruteforce, password_guessing, mailscam, ...
@@ -214,10 +214,10 @@ type DeusWatch struct {
 	Remediation Remediation  `json:"remediation,omitempty"`
 }
 
-// ── Rekaman utama ─────────────────────────────────────────
+// ── Main record ───────────────────────────────────────────
 
-// Event adalah satu rekaman log DCS — bentuk internal setelah normalisasi gateway
-// dan unit penyimpanan di hypertable TimescaleDB `events`.
+// Event is a single DCS log record — the internal form after gateway normalization
+// and the unit of storage in the TimescaleDB `events` hypertable.
 type Event struct {
 	Timestamp   time.Time   `json:"@timestamp"`
 	Event       EventFields `json:"event"`

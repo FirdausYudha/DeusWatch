@@ -16,20 +16,20 @@ func dsn() string {
 	return "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable"
 }
 
-// TestInsertAndCount membuktikan InsertEvent menulis ke hypertable events dan
-// CountByLabel bisa membaca event berlabel. Integrasi — di-skip bila Postgres mati.
+// TestInsertAndCount proves InsertEvent writes to the events hypertable and
+// CountByLabel can read labeled events. Integration — skipped if Postgres is down.
 func TestInsertAndCount(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	st, err := Connect(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres tak tersedia — lewati: %v", err)
+		t.Skipf("Postgres unavailable — skipping: %v", err)
 	}
 	defer st.Close()
 
 	if _, err := st.pool.Exec(ctx, "TRUNCATE events"); err != nil {
-		t.Fatalf("truncate awal: %v", err)
+		t.Fatalf("initial truncate: %v", err)
 	}
 
 	rawLog := &ingest.Event{
@@ -68,16 +68,16 @@ func TestInsertAndCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != 2 {
-		t.Fatalf("CountEvents=%d, mau 2", n)
+		t.Fatalf("CountEvents=%d, want 2", n)
 	}
 	bf, err := st.CountByLabel(ctx, "bruteforce")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if bf != 1 {
-		t.Fatalf("CountByLabel(bruteforce)=%d, mau 1", bf)
+		t.Fatalf("CountByLabel(bruteforce)=%d, want 1", bf)
 	}
-	t.Logf("OK: 2 event tersimpan di hypertable, 1 berlabel bruteforce")
+	t.Logf("OK: 2 events stored in the hypertable, 1 labeled bruteforce")
 
 	_, _ = st.pool.Exec(ctx, "TRUNCATE events")
 }

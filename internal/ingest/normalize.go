@@ -7,13 +7,14 @@ import (
 	"time"
 )
 
-// RawLog adalah amplop log mentah yang dikirim agent ke gateway, sebelum dinormalkan.
+// RawLog is the envelope of a raw log line the agent sends to the gateway, before
+// normalization.
 type RawLog struct {
 	Timestamp time.Time `json:"timestamp"`
 	Host      string    `json:"host"`
 	AgentID   string    `json:"agent_id"`
-	Dataset   string    `json:"dataset"` // sumber log: sshd, nginx, ...
-	Message   string    `json:"message"` // baris log mentah
+	Dataset   string    `json:"dataset"` // log source: sshd, nginx, ...
+	Message   string    `json:"message"` // raw log line
 }
 
 var (
@@ -24,9 +25,9 @@ var (
 	reSSHAccepted = regexp.MustCompile(`^Accepted \w+ for (\S+) from (\S+) port (\d+)`)
 )
 
-// Normalize mengubah RawLog menjadi Event DCS. Mengembalikan (event, true) bila
-// baris dikenali & terpetakan. Untuk format tak dikenal tetap menghasilkan event
-// minimal (dataset + original) agar log tidak hilang, dengan flag false.
+// Normalize turns a RawLog into a DCS Event. Returns (event, true) when the line is
+// recognized and mapped. For unknown formats it still produces a minimal event
+// (dataset + original) so the log is not lost, with the flag set to false.
 func Normalize(raw RawLog) (*Event, bool) {
 	ts := raw.Timestamp
 	if ts.IsZero() {
@@ -52,8 +53,8 @@ func Normalize(raw RawLog) (*Event, bool) {
 	return e, false
 }
 
-// normalizeFIM mem-parse payload JSON FIM dari agent ({path,action,sha256,size,mode})
-// menjadi field file.* DCS. action: created/modified/deleted.
+// normalizeFIM parses the agent's FIM JSON payload ({path,action,sha256,size,mode})
+// into DCS file.* fields. action: created/modified/deleted.
 func normalizeFIM(msg string, e *Event) bool {
 	var c struct {
 		Path   string `json:"path"`
@@ -68,7 +69,7 @@ func normalizeFIM(msg string, e *Event) bool {
 	e.Event.Action = "file_" + c.Action
 	e.Event.Outcome = "success"
 	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode}
-	// Perubahan/penghapusan lebih berisiko daripada pembuatan berkas baru.
+	// Changes/deletions are riskier than newly created files.
 	if c.Action == "created" {
 		e.Event.Severity = SeverityLow
 	} else {
@@ -82,7 +83,7 @@ func normalizeSSHD(msg string, e *Event) bool {
 		e.Event.Category = "authentication"
 		e.Event.Action = "ssh_login"
 		e.Event.Outcome = "failure"
-		e.Event.Severity = SeverityLow // satu kegagalan = rendah; alert brute-force yang High
+		e.Event.Severity = SeverityLow // one failure = low; the brute-force alert is High
 		e.User = &User{Name: m[1]}
 		e.Source = endpoint(m[2], m[3])
 		return true

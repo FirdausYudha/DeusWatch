@@ -8,33 +8,33 @@ func TestNormalizeSSHDFailed(t *testing.T) {
 		Message: "Failed password for root from 203.0.113.10 port 54321 ssh2",
 	})
 	if !ok {
-		t.Fatal("baris failed password seharusnya dikenali")
+		t.Fatal("a failed-password line should be recognized")
 	}
 	if e.Event.Category != "authentication" || e.Event.Outcome != "failure" {
-		t.Fatalf("event salah: %+v", e.Event)
+		t.Fatalf("wrong event: %+v", e.Event)
 	}
 	if e.Event.Severity != SeverityLow {
-		t.Fatalf("severity=%v, mau low", e.Event.Severity)
+		t.Fatalf("severity=%v, want low", e.Event.Severity)
 	}
 	if e.Source == nil || e.Source.IP != "203.0.113.10" || e.Source.Port != 54321 {
-		t.Fatalf("source salah: %+v", e.Source)
+		t.Fatalf("wrong source: %+v", e.Source)
 	}
 	if e.User == nil || e.User.Name != "root" {
-		t.Fatalf("user salah: %+v", e.User)
+		t.Fatalf("wrong user: %+v", e.User)
 	}
 }
 
 func TestNormalizeSSHDInvalidUser(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "Failed password for invalid user admin from 1.2.3.4 port 22 ssh2"})
 	if !ok || e.User.Name != "admin" || e.Source.IP != "1.2.3.4" {
-		t.Fatalf("parse invalid user gagal: ok=%v %+v", ok, e)
+		t.Fatalf("invalid-user parse failed: ok=%v %+v", ok, e)
 	}
 }
 
 func TestNormalizeSSHDAccepted(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "Accepted password for deploy from 10.0.0.5 port 22 ssh2"})
 	if !ok || e.Event.Outcome != "success" || e.User.Name != "deploy" {
-		t.Fatalf("parse accepted gagal: ok=%v %+v", ok, e)
+		t.Fatalf("accepted parse failed: ok=%v %+v", ok, e)
 	}
 }
 
@@ -44,38 +44,38 @@ func TestNormalizeFIM(t *testing.T) {
 		Message: `{"path":"/etc/passwd","action":"modified","sha256":"abc123","mode":"-rw-r--r--"}`,
 	})
 	if !ok {
-		t.Fatal("payload FIM seharusnya dikenali")
+		t.Fatal("FIM payload should be recognized")
 	}
 	if e.Event.Category != "file" || e.Event.Action != "file_modified" {
-		t.Fatalf("event FIM salah: %+v", e.Event)
+		t.Fatalf("wrong FIM event: %+v", e.Event)
 	}
 	if e.Event.Severity != SeverityMedium {
-		t.Fatalf("severity modified harus medium, dapat %v", e.Event.Severity)
+		t.Fatalf("modified severity should be medium, got %v", e.Event.Severity)
 	}
 	if e.File == nil || e.File.Path != "/etc/passwd" || e.File.HashSHA256 != "abc123" {
-		t.Fatalf("file fields salah: %+v", e.File)
+		t.Fatalf("wrong file fields: %+v", e.File)
 	}
 }
 
 func TestNormalizeFIMCreatedLowSeverity(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "fim", Message: `{"path":"/tmp/new","action":"created","sha256":"x"}`})
 	if !ok || e.Event.Severity != SeverityLow {
-		t.Fatalf("created harus low: ok=%v sev=%v", ok, e.Event.Severity)
+		t.Fatalf("created should be low: ok=%v sev=%v", ok, e.Event.Severity)
 	}
 }
 
 func TestNormalizeFIMBadPayload(t *testing.T) {
 	if _, ok := Normalize(RawLog{Dataset: "fim", Message: "not json"}); ok {
-		t.Fatal("payload FIM rusak tidak boleh ditandai dikenali")
+		t.Fatal("a broken FIM payload must not be flagged as recognized")
 	}
 }
 
 func TestNormalizeUnknownKeepsOriginal(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "Server listening on 0.0.0.0 port 22."})
 	if ok {
-		t.Fatal("baris non-auth tidak boleh ditandai dikenali")
+		t.Fatal("a non-auth line must not be flagged as recognized")
 	}
 	if e.Event.Original == "" || e.Event.Dataset != "sshd" {
-		t.Fatalf("event minimal seharusnya tetap menyimpan original & dataset: %+v", e.Event)
+		t.Fatalf("the minimal event should still keep original & dataset: %+v", e.Event)
 	}
 }

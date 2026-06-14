@@ -1,7 +1,7 @@
-// Package report menghasilkan ringkasan keamanan periodik (design doc Fase 3):
-// total event/alert, sebaran severity, top source IP/rule/MITRE, dan sebaran vonis
-// LLM dalam satu jendela waktu. Struktur murni (data di-query oleh store) + perender
-// Markdown agar mudah diuji dan dikirim ke UI/notifikasi.
+// Package report produces periodic security summaries (design doc Phase 3):
+// total events/alerts, severity breakdown, top source IP/rule/MITRE, and the LLM
+// verdict breakdown over a time window. A pure struct (data is queried by store) plus
+// a Markdown renderer so it is easy to test and to send to the UI/notifications.
 package report
 
 import (
@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-// Count adalah satu baris agregasi berlabel.
+// Count is one labeled aggregation row.
 type Count struct {
 	Label string `json:"label"`
 	Count int64  `json:"count"`
 }
 
-// Report adalah ringkasan satu jendela waktu.
+// Report is a summary over one time window.
 type Report struct {
 	Generated     time.Time `json:"generated"`
 	Since         time.Time `json:"since"`
@@ -30,32 +30,32 @@ type Report struct {
 	ByVerdict     []Count   `json:"by_verdict"`
 }
 
-// RenderMarkdown merender report menjadi Markdown ringkas.
+// RenderMarkdown renders the report as compact Markdown.
 func RenderMarkdown(r Report) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Laporan DeusWatch — %d jam terakhir\n\n", r.WindowHours)
-	fmt.Fprintf(&b, "_Dibuat %s · sejak %s_\n\n",
+	fmt.Fprintf(&b, "# DeusWatch Report — last %d hours\n\n", r.WindowHours)
+	fmt.Fprintf(&b, "_Generated %s · since %s_\n\n",
 		r.Generated.UTC().Format(time.RFC3339), r.Since.UTC().Format(time.RFC3339))
-	fmt.Fprintf(&b, "- **Total event:** %d\n- **Total alert:** %d\n\n", r.TotalEvents, r.TotalAlerts)
+	fmt.Fprintf(&b, "- **Total events:** %d\n- **Total alerts:** %d\n\n", r.TotalEvents, r.TotalAlerts)
 
 	section(&b, "Severity", r.BySeverity)
 	section(&b, "Top source IP", r.TopSourceIPs)
 	section(&b, "Top rule", r.TopRules)
 	section(&b, "Top MITRE technique", r.TopTechniques)
-	section(&b, "Vonis LLM", r.ByVerdict)
+	section(&b, "LLM verdict", r.ByVerdict)
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }
 
 func section(b *strings.Builder, title string, rows []Count) {
 	fmt.Fprintf(b, "## %s\n\n", title)
 	if len(rows) == 0 {
-		b.WriteString("_tidak ada data_\n\n")
+		b.WriteString("_no data yet_\n\n")
 		return
 	}
 	for _, c := range rows {
 		label := c.Label
 		if label == "" {
-			label = "(kosong)"
+			label = "(empty)"
 		}
 		fmt.Fprintf(b, "- %s — %d\n", label, c.Count)
 	}

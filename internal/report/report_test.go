@@ -20,18 +20,18 @@ func TestRenderMarkdown(t *testing.T) {
 	}
 	md := RenderMarkdown(r)
 	for _, want := range []string{
-		"Laporan DeusWatch — 24 jam", "Total event:** 1234", "Total alert:** 56",
+		"DeusWatch Report — last 24 hours", "Total events:** 1234", "Total alerts:** 56",
 		"high — 40", "45.155.205.99 — 30", "SSH Brute Force — 25", "malicious — 30",
 	} {
 		if !strings.Contains(md, want) {
-			t.Errorf("markdown tak memuat %q:\n%s", want, md)
+			t.Errorf("markdown missing %q:\n%s", want, md)
 		}
 	}
 }
 
 func TestRenderMarkdownEmptySections(t *testing.T) {
 	md := RenderMarkdown(Report{WindowHours: 1})
-	if !strings.Contains(md, "_tidak ada data_") {
-		t.Fatalf("seksi kosong harus tampil placeholder:\n%s", md)
+	if !strings.Contains(md, "_no data yet_") {
+		t.Fatalf("empty section should show the placeholder:\n%s", md)
 	}
 }

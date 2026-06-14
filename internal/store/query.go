@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// EventRow adalah representasi datar satu event untuk API/UI.
+// EventRow is a flat representation of one event for the API/UI.
 type EventRow struct {
 	Time        time.Time `json:"time"`
 	Category    string    `json:"event_category"`
@@ -25,7 +25,7 @@ type EventRow struct {
 	TacticName  string    `json:"threat_tactic_name"`
 	Label       string    `json:"dw_label"`
 	Original    string    `json:"event_original"`
-	// Enrichment CTI / GeoIP (untuk tampilan alert).
+	// CTI / GeoIP enrichment (for the alert view).
 	GeoCountry      string `json:"source_geo_country_iso"`
 	GeoCity         string `json:"source_geo_city"`
 	FeedName        string `json:"threat_feed_name"`
@@ -70,7 +70,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	return out, rows.Err()
 }
 
-// RecentEvents mengembalikan event terbaru (live log stream).
+// RecentEvents returns the most recent events (live log stream).
 func (s *Store) RecentEvents(ctx context.Context, limit int) ([]EventRow, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+selectCols+` FROM events ORDER BY time DESC LIMIT $1`, limit)
 	if err != nil {
@@ -79,7 +79,7 @@ func (s *Store) RecentEvents(ctx context.Context, limit int) ([]EventRow, error)
 	return scanEventRows(rows)
 }
 
-// RecentAlerts mengembalikan event ber-label (alert) terbaru.
+// RecentAlerts returns the most recent labeled events (alerts).
 func (s *Store) RecentAlerts(ctx context.Context, limit int) ([]EventRow, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT `+selectCols+` FROM events WHERE dw_label IS NOT NULL ORDER BY time DESC LIMIT $1`, limit)
@@ -89,7 +89,7 @@ func (s *Store) RecentAlerts(ctx context.Context, limit int) ([]EventRow, error)
 	return scanEventRows(rows)
 }
 
-// IPCount / SeverityCount untuk widget dashboard.
+// IPCount / SeverityCount for dashboard widgets.
 type IPCount struct {
 	IP    string `json:"ip"`
 	Count int64  `json:"count"`
@@ -99,7 +99,7 @@ type SeverityCount struct {
 	Count    int64 `json:"count"`
 }
 
-// Stats meringkas isi tabel events untuk dashboard.
+// Stats summarizes the events table for the dashboard.
 type Stats struct {
 	TotalEvents  int64           `json:"total_events"`
 	TotalAlerts  int64           `json:"total_alerts"`
@@ -108,7 +108,7 @@ type Stats struct {
 	BySeverity   []SeverityCount `json:"by_severity"`
 }
 
-// Stats mengumpulkan ringkasan untuk dashboard.
+// Stats gathers the summary for the dashboard.
 func (s *Store) Stats(ctx context.Context) (Stats, error) {
 	var st Stats
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&st.TotalEvents); err != nil {

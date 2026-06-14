@@ -9,7 +9,7 @@ import (
 	"deuswatch/internal/report"
 )
 
-// BuildReport menyusun ringkasan untuk jendela `hours` jam terakhir.
+// BuildReport assembles the summary for the last `hours` hours.
 func (s *Store) BuildReport(ctx context.Context, hours int) (report.Report, error) {
 	if hours <= 0 || hours > 24*30 {
 		hours = 24

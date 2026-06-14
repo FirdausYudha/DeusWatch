@@ -1,5 +1,5 @@
-// Package store adalah lapisan repository ke PostgreSQL + TimescaleDB.
-// Semua tulis log melewati sini; query selalu parameterized (design doc bagian 4).
+// Package store is the repository layer over PostgreSQL + TimescaleDB.
+// All log writes go through here; queries are always parameterized (design doc section 4).
 package store
 
 import (
@@ -11,16 +11,16 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// Store memegang pool koneksi Postgres.
+// Store holds the Postgres connection pool.
 type Store struct {
 	pool *pgxpool.Pool
 }
 
-// Connect membuka pool ke dsn dan memverifikasi konektivitas.
+// Connect opens a pool to dsn and verifies connectivity.
 func Connect(ctx context.Context, dsn string) (*Store, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		return nil, fmt.Errorf("store: buat pool: %w", err)
+		return nil, fmt.Errorf("store: create pool: %w", err)
 	}
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
@@ -29,10 +29,10 @@ func Connect(ctx context.Context, dsn string) (*Store, error) {
 	return &Store{pool: pool}, nil
 }
 
-// Close menutup pool.
+// Close closes the pool.
 func (s *Store) Close() { s.pool.Close() }
 
-// Pool mengembalikan pool koneksi (dipakai paket auth agar berbagi pool yang sama).
+// Pool returns the connection pool (used by the auth package so it shares the same pool).
 func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
 const insertEventSQL = `
@@ -60,8 +60,8 @@ INSERT INTO events (
 	$31
 )`
 
-// InsertEvent menulis satu event DCS ke hypertable events. Field yang belum diisi
-// dibiarkan NULL/default.
+// InsertEvent writes one DCS event into the events hypertable. Unset fields are
+// left NULL/default.
 func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	var (
 		srcIP, srcPort, srcGeoCountry any = nil, nil, nil
@@ -138,7 +138,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	return nil
 }
 
-// CountEvents mengembalikan jumlah baris di tabel events.
+// CountEvents returns the number of rows in the events table.
 func (s *Store) CountEvents(ctx context.Context) (int64, error) {
 	var n int64
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&n); err != nil {
@@ -147,7 +147,7 @@ func (s *Store) CountEvents(ctx context.Context) (int64, error) {
 	return n, nil
 }
 
-// CountByLabel menghitung event dengan deuswatch.label tertentu (mis. "bruteforce").
+// CountByLabel counts events with a given deuswatch.label (e.g. "bruteforce").
 func (s *Store) CountByLabel(ctx context.Context, label string) (int64, error) {
 	var n int64
 	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events WHERE dw_label = $1`, label).Scan(&n)
@@ -157,7 +157,7 @@ func (s *Store) CountByLabel(ctx context.Context, label string) (int64, error) {
 	return n, nil
 }
 
-// CountBySourceIP menghitung event dari source IP tertentu.
+// CountBySourceIP counts events from a given source IP.
 func (s *Store) CountBySourceIP(ctx context.Context, ip string) (int64, error) {
 	var n int64
 	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events WHERE source_ip = $1::inet`, ip).Scan(&n)
@@ -167,7 +167,7 @@ func (s *Store) CountBySourceIP(ctx context.Context, ip string) (int64, error) {
 	return n, nil
 }
 
-// CountByLabelAndSourceIP menghitung event berlabel tertentu dari source IP tertentu.
+// CountByLabelAndSourceIP counts events with a given label from a given source IP.
 func (s *Store) CountByLabelAndSourceIP(ctx context.Context, label, ip string) (int64, error) {
 	var n int64
 	err := s.pool.QueryRow(ctx,
