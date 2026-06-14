@@ -27,26 +27,26 @@ func TestBruteForceThreshold(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		if a := d.Inspect(failedLogin("203.0.113.10", "root", base.Add(time.Duration(i)*time.Second))); a != nil {
-			t.Fatalf("kegagalan ke-%d seharusnya belum memicu alert", i+1)
+			t.Fatalf("failure #%d should not trigger an alert yet", i+1)
 		}
 	}
 	alert := d.Inspect(failedLogin("203.0.113.10", "root", base.Add(5*time.Second)))
 	if alert == nil {
-		t.Fatal("kegagalan ke-5 seharusnya memicu alert")
+		t.Fatal("failure #5 should trigger an alert")
 	}
 	if alert.DeusWatch.Label != "bruteforce" {
-		t.Fatalf("label salah: %q", alert.DeusWatch.Label)
+		t.Fatalf("wrong label: %q", alert.DeusWatch.Label)
 	}
 	if alert.Threat.Technique.ID != "T1110" {
-		t.Fatalf("MITRE technique salah: %q", alert.Threat.Technique.ID)
+		t.Fatalf("wrong MITRE technique: %q", alert.Threat.Technique.ID)
 	}
 	if alert.Event.Severity != ingest.SeverityHigh {
-		t.Fatalf("severity salah: %v", alert.Event.Severity)
+		t.Fatalf("wrong severity: %v", alert.Event.Severity)
 	}
 	if alert.Source.IP != "203.0.113.10" {
-		t.Fatalf("source IP salah: %q", alert.Source.IP)
+		t.Fatalf("wrong source IP: %q", alert.Source.IP)
 	}
-	t.Logf("OK: alert terpicu (label=%s, %s/%s, severity=%s)",
+	t.Logf("OK: alert triggered (label=%s, %s/%s, severity=%s)",
 		alert.DeusWatch.Label, alert.Threat.Technique.ID, alert.Threat.TacticName, alert.Event.Severity)
 }
 
@@ -61,7 +61,7 @@ func TestBruteForceCooldown(t *testing.T) {
 		}
 	}
 	if alerts != 1 {
-		t.Fatalf("harusnya tepat 1 alert karena cooldown, dapat %d", alerts)
+		t.Fatalf("should be exactly 1 alert due to cooldown, got %d", alerts)
 	}
 }
 
@@ -74,14 +74,14 @@ func TestIgnoresSuccessAndOtherIPs(t *testing.T) {
 	}
 	for i := 0; i < 20; i++ {
 		if d.Inspect(success) != nil {
-			t.Fatal("login sukses tidak boleh memicu alert")
+			t.Fatal("a successful login must not trigger an alert")
 		}
 	}
-	// IP berbeda dihitung independen: 4 dari satu IP tak memicu (threshold default 5).
+	// Different IPs are counted independently: 4 from one IP do not trigger (default threshold 5).
 	base := time.Now()
 	for i := 0; i < 4; i++ {
 		if d.Inspect(failedLogin("192.0.2.7", "root", base.Add(time.Duration(i)*time.Second))) != nil {
-			t.Fatal("4 kegagalan (< threshold 5) tidak boleh memicu")
+			t.Fatal("4 failures (< threshold 5) must not trigger")
 		}
 	}
 }

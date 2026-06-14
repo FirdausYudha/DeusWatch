@@ -18,28 +18,28 @@ func mustParseAgg(t *testing.T, y string) *AggRule {
 	return r
 }
 
-// Rule agregasi brute-force asli dari berkas: parse + compile SQL.
+// The real brute-force aggregation rule from file: parse + compile SQL.
 func TestRealAggRuleBruteForce(t *testing.T) {
 	data, err := os.ReadFile("../../../rules/sigma/agg/ssh_bruteforce.yml")
 	if err != nil {
-		t.Fatalf("baca rule: %v", err)
+		t.Fatalf("read rule: %v", err)
 	}
 	if !isAggregation(data) {
-		t.Fatal("ssh_bruteforce.yml harus terdeteksi sebagai agregasi")
+		t.Fatal("ssh_bruteforce.yml must be detected as an aggregation")
 	}
 	r := mustParseAgg(t, string(data))
 
 	if r.GroupByField != "source.ip" || r.Op != ">" || r.Threshold != 5 {
-		t.Fatalf("parse salah: by=%q op=%q thr=%d", r.GroupByField, r.Op, r.Threshold)
+		t.Fatalf("wrong parse: by=%q op=%q thr=%d", r.GroupByField, r.Op, r.Threshold)
 	}
 	if r.Window != time.Minute {
-		t.Fatalf("timeframe salah: %v", r.Window)
+		t.Fatalf("wrong timeframe: %v", r.Window)
 	}
 	if tech, tactic := r.MITRE(); tech != "T1110" || tactic != "Credential Access" {
-		t.Fatalf("MITRE salah: %q/%q", tech, tactic)
+		t.Fatalf("wrong MITRE: %q/%q", tech, tactic)
 	}
 	if r.Severity() != ingest.SeverityHigh {
-		t.Fatalf("severity salah: %v", r.Severity())
+		t.Fatalf("wrong severity: %v", r.Severity())
 	}
 
 	query, args := r.CompileSQL()
@@ -48,15 +48,15 @@ func TestRealAggRuleBruteForce(t *testing.T) {
 		"event_dataset", "event_outcome", "time > now() -",
 	} {
 		if !strings.Contains(query, want) {
-			t.Fatalf("query tak memuat %q:\n%s", want, query)
+			t.Fatalf("query does not contain %q:\n%s", want, query)
 		}
 	}
-	// argumen: 2 nilai selection + 1 interval di akhir.
+	// arguments: 2 selection values + 1 interval at the end.
 	if len(args) != 3 {
-		t.Fatalf("jumlah args salah: %d (%v)", len(args), args)
+		t.Fatalf("wrong number of args: %d (%v)", len(args), args)
 	}
 	if args[len(args)-1] != "60 seconds" {
-		t.Fatalf("interval window salah: %v", args[len(args)-1])
+		t.Fatalf("wrong window interval: %v", args[len(args)-1])
 	}
 }
 
@@ -72,16 +72,16 @@ detection:
 
 	query, args := r.CompileSQL()
 	if !strings.Contains(query, "event_original ILIKE") {
-		t.Fatalf("keyword harus jadi ILIKE event_original:\n%s", query)
+		t.Fatalf("keyword must become ILIKE event_original:\n%s", query)
 	}
 	if !strings.Contains(query, "HAVING count(*) > 10") {
-		t.Fatalf("ambang salah:\n%s", query)
+		t.Fatalf("wrong threshold:\n%s", query)
 	}
 	if args[0] != "%invalid user%" {
-		t.Fatalf("arg keyword salah: %v", args[0])
+		t.Fatalf("wrong keyword arg: %v", args[0])
 	}
 	if args[len(args)-1] != "300 seconds" {
-		t.Fatalf("window 5m salah: %v", args[len(args)-1])
+		t.Fatalf("wrong 5m window: %v", args[len(args)-1])
 	}
 }
 
@@ -97,10 +97,10 @@ detection:
 
 	query, _ := r.CompileSQL()
 	if strings.Contains(query, "GROUP BY") {
-		t.Fatalf("agregasi global tak boleh punya GROUP BY:\n%s", query)
+		t.Fatalf("a global aggregation must not have GROUP BY:\n%s", query)
 	}
 	if !strings.Contains(query, "HAVING count(*) > 100") {
-		t.Fatalf("ambang salah:\n%s", query)
+		t.Fatalf("wrong threshold:\n%s", query)
 	}
 }
 
@@ -112,7 +112,7 @@ detection:
     event.outcome: failure
   condition: selection | count(user.name) by source.ip > 5`))
 	if err == nil {
-		t.Fatal("count(field) distinct belum didukung -> harus error")
+		t.Fatal("distinct count(field) is not yet supported -> must error")
 	}
 }
 
@@ -124,25 +124,25 @@ detection:
     nonexistent.field: x
   condition: selection | count() by source.ip > 5`))
 	if err == nil {
-		t.Fatal("field tanpa kolom DCS -> harus error compile")
+		t.Fatal("a field without a DCS column -> must fail to compile")
 	}
 }
 
 func TestLoadAggDirSeparatesRules(t *testing.T) {
-	// dir rules/sigma berisi single-event + sub-dir agg/.
+	// the rules/sigma dir contains single-event rules + an agg/ sub-dir.
 	agg, err := LoadAggDir("../../../rules/sigma")
 	if err != nil {
 		t.Fatalf("LoadAggDir: %v", err)
 	}
 	if len(agg) < 2 {
-		t.Fatalf("harap >=2 rule agregasi, dapat %d", len(agg))
+		t.Fatalf("expected >=2 aggregation rules, got %d", len(agg))
 	}
 	single, err := LoadDir("../../../rules/sigma")
 	if err != nil {
 		t.Fatalf("LoadDir: %v", err)
 	}
-	// rule single-event tidak boleh mengandung rule agregasi.
+	// single-event rules must not include aggregation rules.
 	if len(single) == 0 {
-		t.Fatal("harap ada rule single-event")
+		t.Fatal("expected at least one single-event rule")
 	}
 }

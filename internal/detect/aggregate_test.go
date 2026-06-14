@@ -9,8 +9,8 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// fakeAgg memenuhi AggExecutor: mengembalikan grup yang sudah ditentukan dan
-// mencatat berapa kali dipanggil.
+// fakeAgg satisfies AggExecutor: returns predetermined groups and records how many
+// times it was called.
 type fakeAgg struct {
 	groups []AggGroup
 	calls  int
@@ -32,7 +32,7 @@ func loadBruteForceAgg(t *testing.T) *sigma.AggRule {
 			return r
 		}
 	}
-	t.Fatal("rule agregasi brute-force tak ditemukan")
+	t.Fatal("brute-force aggregation rule not found")
 	return nil
 }
 
@@ -48,20 +48,20 @@ func TestAggregateRunnerEmitsAlert(t *testing.T) {
 		t.Fatalf("RunOnce: %v", err)
 	}
 	if len(alerts) != 1 {
-		t.Fatalf("harap 1 alert, dapat %d", len(alerts))
+		t.Fatalf("expected 1 alert, got %d", len(alerts))
 	}
 	a := alerts[0]
 	if a.Source == nil || a.Source.IP != "203.0.113.7" {
-		t.Fatalf("source IP grup tak terbawa: %+v", a.Source)
+		t.Fatalf("group source IP not carried over: %+v", a.Source)
 	}
 	if a.Event.Severity != ingest.SeverityHigh {
-		t.Fatalf("severity salah: %v", a.Event.Severity)
+		t.Fatalf("wrong severity: %v", a.Event.Severity)
 	}
 	if a.Threat.Technique.ID != "T1110" {
-		t.Fatalf("MITRE salah: %q", a.Threat.Technique.ID)
+		t.Fatalf("wrong MITRE: %q", a.Threat.Technique.ID)
 	}
 	if a.Rule == nil || a.Rule.ID == "" {
-		t.Fatal("alert tanpa rule id")
+		t.Fatal("alert without a rule id")
 	}
 }
 
@@ -72,15 +72,15 @@ func TestAggregateRunnerCooldown(t *testing.T) {
 
 	now := time.Now()
 	if a, _ := r.RunOnce(context.Background(), now); len(a) != 1 {
-		t.Fatalf("siklus 1 harus 1 alert, dapat %d", len(a))
+		t.Fatalf("cycle 1 must be 1 alert, got %d", len(a))
 	}
-	// Dalam cooldown: grup yang sama tak boleh memicu lagi.
+	// Within cooldown: the same group must not trigger again.
 	if a, _ := r.RunOnce(context.Background(), now.Add(time.Minute)); len(a) != 0 {
-		t.Fatalf("dalam cooldown tak boleh ada alert, dapat %d", len(a))
+		t.Fatalf("within cooldown there must be no alert, got %d", len(a))
 	}
-	// Setelah cooldown: memicu lagi.
+	// After cooldown: triggers again.
 	if a, _ := r.RunOnce(context.Background(), now.Add(6*time.Minute)); len(a) != 1 {
-		t.Fatalf("setelah cooldown harus memicu lagi, dapat %d", len(a))
+		t.Fatalf("after cooldown it must trigger again, got %d", len(a))
 	}
 }
 
@@ -97,10 +97,10 @@ func TestAggregateRunnerDryRun(t *testing.T) {
 		t.Fatalf("DryRun: %v", err)
 	}
 	if len(groups) != 2 {
-		t.Fatalf("dry-run harus mengembalikan 2 grup, dapat %d", len(groups))
+		t.Fatalf("dry-run must return 2 groups, got %d", len(groups))
 	}
-	// Dry-run tak boleh mengubah state cooldown.
+	// Dry-run must not change cooldown state.
 	if a, _ := r.RunOnce(context.Background(), time.Now()); len(a) != 2 {
-		t.Fatalf("dry-run tak boleh konsumsi cooldown; harap 2 alert, dapat %d", len(a))
+		t.Fatalf("dry-run must not consume cooldown; expected 2 alerts, got %d", len(a))
 	}
 }
