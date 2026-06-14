@@ -4,11 +4,11 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-// totpIssuer muncul di aplikasi authenticator (Google Authenticator, dll.).
+// totpIssuer appears in authenticator apps (Google Authenticator, etc.).
 const totpIssuer = "DeusWatch"
 
-// GenerateTOTPSecret membuat secret TOTP baru untuk username. Mengembalikan
-// secret base32 dan URI otpauth:// (untuk QR / entri manual di authenticator).
+// GenerateTOTPSecret creates a new TOTP secret for the username. Returns the
+// base32 secret and the otpauth:// URI (for QR / manual entry in an authenticator).
 func GenerateTOTPSecret(username string) (secret, otpauthURL string, err error) {
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      totpIssuer,
@@ -20,7 +20,7 @@ func GenerateTOTPSecret(username string) (secret, otpauthURL string, err error) 
 	return key.Secret(), key.URL(), nil
 }
 
-// ValidateTOTP memverifikasi kode 6-digit terhadap secret (toleransi skew ±1 langkah).
+// ValidateTOTP verifies a 6-digit code against the secret (±1 step skew tolerance).
 func ValidateTOTP(secret, code string) bool {
 	return totp.Validate(code, secret)
 }

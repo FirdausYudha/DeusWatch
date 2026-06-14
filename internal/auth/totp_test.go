@@ -17,19 +17,19 @@ func TestTOTPGenerateValidate(t *testing.T) {
 		t.Fatalf("GenerateTOTPSecret: %v", err)
 	}
 	if secret == "" || url == "" {
-		t.Fatal("secret/otpauth URL kosong")
+		t.Fatal("secret/otpauth URL empty")
 	}
 	code, err := totp.GenerateCode(secret, time.Now())
 	if err != nil {
 		t.Fatalf("GenerateCode: %v", err)
 	}
 	if !ValidateTOTP(secret, code) {
-		t.Fatal("kode TOTP saat ini seharusnya valid")
+		t.Fatal("the current TOTP code should be valid")
 	}
-	// Kode dari 1970 jauh di luar jendela -> tidak valid.
+	// A code from 1970 is far outside the window -> invalid.
 	old, _ := totp.GenerateCode(secret, time.Unix(0, 0))
 	if ValidateTOTP(secret, old) {
-		t.Fatal("kode TOTP lama (1970) tidak boleh valid sekarang")
+		t.Fatal("an old TOTP code (1970) must not be valid now")
 	}
 }
 
@@ -39,23 +39,23 @@ func Test2FALoginFlow(t *testing.T) {
 
 	pool, err := pgxpool.New(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("Postgres tak tersedia: %v", err)
+		t.Skipf("Postgres unavailable: %v", err)
 	}
 
 	s := NewStore(pool)
 	username := fmt.Sprintf("test2fa-%d", time.Now().UnixNano())
 	defer pool.Exec(ctx, `DELETE FROM users WHERE username=$1`, username)
 
-	if err := s.CreateUser(ctx, username, "rahasia123", RoleViewer); err != nil {
+	if err := s.CreateUser(ctx, username, "secret123", RoleViewer); err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
 	var id string
 	if err := pool.QueryRow(ctx, `SELECT id FROM users WHERE username=$1`, username).Scan(&id); err != nil {
-		t.Fatalf("ambil id: %v", err)
+		t.Fatalf("fetch id: %v", err)
 	}
 
 	secret, _, _ := GenerateTOTPSecret(username)
@@ -63,18 +63,18 @@ func Test2FALoginFlow(t *testing.T) {
 		t.Fatalf("SetTOTPSecret: %v", err)
 	}
 
-	// Tanpa kode -> Err2FARequired.
-	if _, _, err := s.Login(ctx, username, "rahasia123", "", time.Hour); !errors.Is(err, Err2FARequired) {
-		t.Fatalf("login tanpa kode harus Err2FARequired, dapat: %v", err)
+	// No code -> Err2FARequired.
+	if _, _, err := s.Login(ctx, username, "secret123", "", time.Hour); !errors.Is(err, Err2FARequired) {
+		t.Fatalf("login without a code must be Err2FARequired, got: %v", err)
 	}
-	// Kode salah -> ErrAuth.
-	if _, _, err := s.Login(ctx, username, "rahasia123", "000000", time.Hour); err == nil {
-		t.Fatal("login kode salah seharusnya gagal")
+	// Wrong code -> ErrAuth.
+	if _, _, err := s.Login(ctx, username, "secret123", "000000", time.Hour); err == nil {
+		t.Fatal("login with a wrong code should fail")
 	}
-	// Kode valid -> sukses.
+	// Valid code -> success.
 	code, _ := totp.GenerateCode(secret, time.Now())
-	if _, tok, err := s.Login(ctx, username, "rahasia123", code, time.Hour); err != nil || tok == "" {
-		t.Fatalf("login dengan kode valid seharusnya sukses: %v", err)
+	if _, tok, err := s.Login(ctx, username, "secret123", code, time.Hour); err != nil || tok == "" {
+		t.Fatalf("login with a valid code should succeed: %v", err)
 	}
-	t.Logf("OK: alur login 2FA (tanpa kode->required, salah->gagal, valid->sukses) untuk %s", username)
+	t.Logf("OK: 2FA login flow (no code->required, wrong->fail, valid->success) for %s", username)
 }

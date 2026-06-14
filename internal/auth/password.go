@@ -1,5 +1,5 @@
-// Package auth menyediakan autentikasi (Argon2id), RBAC, sesi, dan audit log
-// untuk DeusWatch (design doc bagian 4).
+// Package auth provides authentication (Argon2id), RBAC, sessions, and an audit log
+// for DeusWatch (design doc section 4).
 package auth
 
 import (
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Parameter Argon2id. Disetel wajar untuk server; dapat dinaikkan seiring hardware.
+// Argon2id parameters. Reasonable for a server; can be raised as hardware improves.
 const (
 	argonTime    = 2
 	argonMemory  = 64 * 1024 // 64 MiB
@@ -22,15 +22,15 @@ const (
 	argonSaltLen = 16
 )
 
-// ErrMismatch dikembalikan saat password tidak cocok.
-var ErrMismatch = errors.New("auth: password tidak cocok")
+// ErrMismatch is returned when the password does not match.
+var ErrMismatch = errors.New("auth: password mismatch")
 
-// HashPassword mengembalikan hash Argon2id ber-encoding standar
+// HashPassword returns a standard-encoded Argon2id hash
 // ($argon2id$v=19$m=...,t=...,p=...$salt$hash).
 func HashPassword(password string) (string, error) {
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
-		return "", fmt.Errorf("auth: baca salt: %w", err)
+		return "", fmt.Errorf("auth: read salt: %w", err)
 	}
 	hash := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
@@ -40,30 +40,30 @@ func HashPassword(password string) (string, error) {
 	), nil
 }
 
-// VerifyPassword membandingkan password dengan hash ber-encoding (konstan-waktu).
+// VerifyPassword compares a password against an encoded hash (constant-time).
 func VerifyPassword(password, encoded string) error {
 	parts := strings.Split(encoded, "$")
 	// ["", "argon2id", "v=19", "m=..,t=..,p=..", salt, hash]
 	if len(parts) != 6 || parts[1] != "argon2id" {
-		return fmt.Errorf("auth: format hash tidak valid")
+		return fmt.Errorf("auth: invalid hash format")
 	}
 	var version int
 	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil || version != argon2.Version {
-		return fmt.Errorf("auth: versi argon2 tidak didukung")
+		return fmt.Errorf("auth: unsupported argon2 version")
 	}
 	var mem uint32
 	var time uint32
 	var threads uint8
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &mem, &time, &threads); err != nil {
-		return fmt.Errorf("auth: parameter argon2 tidak valid")
+		return fmt.Errorf("auth: invalid argon2 parameters")
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return fmt.Errorf("auth: salt tidak valid")
+		return fmt.Errorf("auth: invalid salt")
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return fmt.Errorf("auth: hash tidak valid")
+		return fmt.Errorf("auth: invalid hash")
 	}
 
 	got := argon2.IDKey([]byte(password), salt, time, mem, threads, uint32(len(want)))

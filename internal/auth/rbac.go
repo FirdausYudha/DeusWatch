@@ -2,16 +2,16 @@ package auth
 
 import "fmt"
 
-// Role bawaan (design doc bagian 4).
+// Built-in roles (design doc section 4).
 type Role string
 
 const (
-	RoleViewer  Role = "viewer"  // read-only: dashboard & alert
-	RoleAnalyst Role = "analyst" // investigasi, ack alert, approve remediasi — tak bisa kelola
+	RoleViewer  Role = "viewer"  // read-only: dashboard & alerts
+	RoleAnalyst Role = "analyst" // investigate, ack alerts, approve remediation — cannot manage
 	RoleAdmin   Role = "admin"   // full read-write-execute
 )
 
-// Permission granular. Mode pro (custom role builder) akan merakit role dari ini.
+// Granular permission. Pro mode (custom role builder) will assemble roles from these.
 type Permission string
 
 const (
@@ -25,7 +25,7 @@ const (
 	PermExecuteBlock       Permission = "execute_block"
 )
 
-// rolePermissions memetakan role bawaan ke izinnya.
+// rolePermissions maps each built-in role to its permissions.
 var rolePermissions = map[Role]map[Permission]bool{
 	RoleViewer: {
 		PermViewDashboard: true,
@@ -47,22 +47,22 @@ var rolePermissions = map[Role]map[Permission]bool{
 	},
 }
 
-// Can melaporkan apakah role memiliki permission p.
+// Can reports whether the role has permission p.
 func (r Role) Can(p Permission) bool {
 	return rolePermissions[r][p]
 }
 
-// Valid melaporkan apakah r adalah role bawaan yang dikenal.
+// Valid reports whether r is a known built-in role.
 func (r Role) Valid() bool {
 	_, ok := rolePermissions[r]
 	return ok
 }
 
-// ParseRole memvalidasi string menjadi Role.
+// ParseRole validates a string into a Role.
 func ParseRole(s string) (Role, error) {
 	r := Role(s)
 	if !r.Valid() {
-		return "", fmt.Errorf("auth: role tidak dikenal: %q", s)
+		return "", fmt.Errorf("auth: unknown role: %q", s)
 	}
 	return r, nil
 }

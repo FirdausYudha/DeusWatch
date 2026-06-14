@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 )
 
-// newToken menghasilkan token sesi acak (256-bit) beserta hash SHA-256-nya.
-// Token mentah dikirim ke client; HANYA hash yang disimpan di database.
+// newToken generates a random session token (256-bit) along with its SHA-256 hash.
+// The raw token is sent to the client; ONLY the hash is stored in the database.
 func newToken() (raw, hash string) {
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)

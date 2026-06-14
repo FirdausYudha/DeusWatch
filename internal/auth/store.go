@@ -10,15 +10,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ErrAuth dikembalikan untuk kegagalan autentikasi (kredensial/token tidak valid).
-// Sengaja generik agar tidak membocorkan apakah username ada (anti user-enumeration).
-var ErrAuth = errors.New("auth: kredensial tidak valid")
+// ErrAuth is returned for authentication failures (invalid credentials/token).
+// Deliberately generic so it does not leak whether a username exists (anti user-enumeration).
+var ErrAuth = errors.New("auth: invalid credentials")
 
-// Err2FARequired: password benar tetapi user mengaktifkan 2FA dan kode TOTP
-// belum/ tidak disertakan. Client harus meminta kode lalu coba lagi.
-var Err2FARequired = errors.New("auth: kode 2FA diperlukan")
+// Err2FARequired: the password is correct but the user has 2FA enabled and the TOTP
+// code is missing/not provided. The client must request the code and try again.
+var Err2FARequired = errors.New("auth: 2FA code required")
 
-// User adalah identitas terautentikasi.
+// User is an authenticated identity.
 type User struct {
 	ID       string
 	Username string
@@ -26,18 +26,18 @@ type User struct {
 	Disabled bool
 }
 
-// Store adalah repository auth (users, sessions, audit_log) di Postgres.
+// Store is the auth repository (users, sessions, audit_log) in Postgres.
 type Store struct {
 	pool *pgxpool.Pool
 }
 
-// NewStore membungkus pool yang sudah ada (berbagi dengan store utama).
+// NewStore wraps an existing pool (shared with the main store).
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// dummyHash dipakai untuk menyamakan waktu saat username tidak ditemukan.
+// dummyHash is used to equalize timing when a username is not found.
 var dummyHash, _ = HashPassword("deuswatch-timing-equalizer")
 
-// UserInfo adalah ringkasan user untuk API (tanpa hash password).
+// UserInfo is a user summary for the API (without the password hash).
 type UserInfo struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`
@@ -46,7 +46,7 @@ type UserInfo struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// ListUsers mengembalikan semua user (tanpa hash), terurut waktu buat.
+// ListUsers returns all users (without hash), ordered by creation time.
 func (s *Store) ListUsers(ctx context.Context) ([]UserInfo, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, username, role, disabled, created_at FROM users ORDER BY created_at`)
@@ -67,17 +67,17 @@ func (s *Store) ListUsers(ctx context.Context) ([]UserInfo, error) {
 	return out, rows.Err()
 }
 
-// UserCount mengembalikan jumlah user.
+// UserCount returns the number of users.
 func (s *Store) UserCount(ctx context.Context) (int64, error) {
 	var n int64
 	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM users`).Scan(&n)
 	return n, err
 }
 
-// CreateUser membuat user dengan password yang di-hash Argon2id.
+// CreateUser creates a user with an Argon2id-hashed password.
 func (s *Store) CreateUser(ctx context.Context, username, password string, role Role) error {
 	if !role.Valid() {
-		return fmt.Errorf("auth: role tidak valid: %q", role)
+		return fmt.Errorf("auth: invalid role: %q", role)
 	}
 	h, err := HashPassword(password)
 	if err != nil {
@@ -86,12 +86,12 @@ func (s *Store) CreateUser(ctx context.Context, username, password string, role 
 	if _, err := s.pool.Exec(ctx,
 		`INSERT INTO users (username, password_hash, role) VALUES ($1,$2,$3)`,
 		username, h, string(role)); err != nil {
-		return fmt.Errorf("auth: buat user: %w", err)
+		return fmt.Errorf("auth: create user: %w", err)
 	}
 	return nil
 }
 
-// EnsureAdmin membuat user admin bila tabel users masih kosong.
+// EnsureAdmin creates the admin user if the users table is still empty.
 func (s *Store) EnsureAdmin(ctx context.Context, username, password string) (created bool, err error) {
 	n, err := s.UserCount(ctx)
 	if err != nil {
@@ -106,7 +106,7 @@ func (s *Store) EnsureAdmin(ctx context.Context, username, password string) (cre
 	return true, nil
 }
 
-// Login memverifikasi kredensial (+ kode TOTP bila 2FA aktif) lalu membuat sesi.
+// Login verifies credentials (+ TOTP code if 2FA is enabled) then creates a session.
 func (s *Store) Login(ctx context.Context, username, password, totpCode string, ttl time.Duration) (*User, string, error) {
 	var (
 		u          User
@@ -118,16 +118,16 @@ func (s *Store) Login(ctx context.Context, username, password, totpCode string, 
 		`SELECT id, username, password_hash, role, disabled, totp_secret FROM users WHERE username=$1`, username).
 		Scan(&u.ID, &u.Username, &hash, &roleStr, &u.Disabled, &totpSecret)
 	if errors.Is(err, pgx.ErrNoRows) {
-		_ = VerifyPassword(password, dummyHash) // samakan waktu
+		_ = VerifyPassword(password, dummyHash) // equalize timing
 		return nil, "", ErrAuth
 	}
 	if err != nil {
-		return nil, "", fmt.Errorf("auth: ambil user: %w", err)
+		return nil, "", fmt.Errorf("auth: fetch user: %w", err)
 	}
 	if u.Disabled || VerifyPassword(password, hash) != nil {
 		return nil, "", ErrAuth
 	}
-	// 2FA: bila secret terpasang, wajib kode TOTP valid.
+	// 2FA: if a secret is set, a valid TOTP code is required.
 	if totpSecret != nil && *totpSecret != "" {
 		if totpCode == "" {
 			return nil, "", Err2FARequired
@@ -142,12 +142,12 @@ func (s *Store) Login(ctx context.Context, username, password, totpCode string, 
 	if _, err := s.pool.Exec(ctx,
 		`INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1,$2,$3)`,
 		u.ID, th, time.Now().Add(ttl)); err != nil {
-		return nil, "", fmt.Errorf("auth: buat sesi: %w", err)
+		return nil, "", fmt.Errorf("auth: create session: %w", err)
 	}
 	return &u, raw, nil
 }
 
-// SessionUser memvalidasi token mentah dan mengembalikan user pemiliknya.
+// SessionUser validates a raw token and returns its owning user.
 func (s *Store) SessionUser(ctx context.Context, rawToken string) (*User, error) {
 	if rawToken == "" {
 		return nil, ErrAuth
@@ -176,13 +176,13 @@ func (s *Store) SessionUser(ctx context.Context, rawToken string) (*User, error)
 	return &u, nil
 }
 
-// Logout menghapus sesi untuk token tertentu.
+// Logout deletes the session for the given token.
 func (s *Store) Logout(ctx context.Context, rawToken string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE token_hash = $1`, hashToken(rawToken))
 	return err
 }
 
-// HasTOTP melaporkan apakah user (by id) sudah mengaktifkan 2FA.
+// HasTOTP reports whether the user (by id) has enabled 2FA.
 func (s *Store) HasTOTP(ctx context.Context, userID string) (bool, error) {
 	var secret *string
 	if err := s.pool.QueryRow(ctx, `SELECT totp_secret FROM users WHERE id=$1`, userID).Scan(&secret); err != nil {
@@ -191,21 +191,21 @@ func (s *Store) HasTOTP(ctx context.Context, userID string) (bool, error) {
 	return secret != nil && *secret != "", nil
 }
 
-// SetTOTPSecret mengaktifkan 2FA dengan menyimpan secret untuk user.
+// SetTOTPSecret enables 2FA by storing the secret for the user.
 func (s *Store) SetTOTPSecret(ctx context.Context, userID, secret string) error {
 	_, err := s.pool.Exec(ctx,
 		`UPDATE users SET totp_secret=$1, updated_at=now() WHERE id=$2`, secret, userID)
 	return err
 }
 
-// ClearTOTPSecret menonaktifkan 2FA.
+// ClearTOTPSecret disables 2FA.
 func (s *Store) ClearTOTPSecret(ctx context.Context, userID string) error {
 	_, err := s.pool.Exec(ctx,
 		`UPDATE users SET totp_secret=NULL, updated_at=now() WHERE id=$1`, userID)
 	return err
 }
 
-// totpSecretOf mengambil secret tersimpan (untuk verifikasi disable).
+// totpSecretOf fetches the stored secret (for disable verification).
 func (s *Store) totpSecretOf(ctx context.Context, userID string) (string, error) {
 	var secret *string
 	if err := s.pool.QueryRow(ctx, `SELECT totp_secret FROM users WHERE id=$1`, userID).Scan(&secret); err != nil {
@@ -217,7 +217,7 @@ func (s *Store) totpSecretOf(ctx context.Context, userID string) (string, error)
 	return *secret, nil
 }
 
-// Audit menulis satu entri audit append-only (best-effort).
+// Audit writes one append-only audit entry (best-effort).
 func (s *Store) Audit(ctx context.Context, actor, role, action, target, detail, sourceIP string) {
 	var ip any
 	if sourceIP != "" {

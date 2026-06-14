@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// SessionTTL adalah masa berlaku sesi (token rotasi/refresh menyusul).
+// SessionTTL is the session lifetime (token rotation/refresh to follow).
 const SessionTTL = 24 * time.Hour
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -16,7 +16,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// LoginHandler memverifikasi username/password dan mengembalikan token sesi.
+// LoginHandler verifies username/password and returns a session token.
 func (s *Store) LoginHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -29,18 +29,18 @@ func (s *Store) LoginHandler() http.HandlerFunc {
 			TOTP     string `json:"totp"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
 		u, token, err := s.Login(r.Context(), req.Username, req.Password, req.TOTP, SessionTTL)
 		if errors.Is(err, Err2FARequired) {
-			// Password benar; minta kode 2FA (UI menampilkan field kode).
+			// Password correct; ask for the 2FA code (the UI shows a code field).
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "2fa_required"})
 			return
 		}
 		if err != nil {
 			s.Audit(r.Context(), req.Username, "", "login_failed", "", "", ClientIP(r))
-			http.Error(w, "kredensial tidak valid", http.StatusUnauthorized)
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}
 		s.Audit(r.Context(), u.Username, string(u.Role), "login", "", "", ClientIP(r))
@@ -50,9 +50,9 @@ func (s *Store) LoginHandler() http.HandlerFunc {
 	}
 }
 
-// RegisterHandler (PUBLIK): registrasi mandiri membuat akun role viewer lalu
-// auto-login (mengembalikan token). Pengaktifan endpoint diatur di cmd/api lewat
-// REGISTRATION_ENABLED. Pesan error sengaja generik (anti user-enumeration).
+// RegisterHandler (PUBLIC): self-registration creates a viewer-role account then
+// auto-logs in (returning a token). Whether the endpoint is enabled is controlled in
+// cmd/api via REGISTRATION_ENABLED. Error messages are deliberately generic (anti user-enumeration).
 func (s *Store) RegisterHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -64,20 +64,20 @@ func (s *Store) RegisterHandler() http.HandlerFunc {
 			Password string `json:"password"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
 		if len(req.Username) < 3 || len(req.Password) < 8 {
-			http.Error(w, "username minimal 3 & password minimal 8 karakter", http.StatusBadRequest)
+			http.Error(w, "username must be at least 3 and password at least 8 characters", http.StatusBadRequest)
 			return
 		}
 		if err := s.CreateUser(r.Context(), req.Username, req.Password, RoleViewer); err != nil {
-			http.Error(w, "registrasi gagal (username mungkin sudah dipakai)", http.StatusBadRequest)
+			http.Error(w, "registration failed (username may already be taken)", http.StatusBadRequest)
 			return
 		}
 		s.Audit(r.Context(), req.Username, string(RoleViewer), "register", req.Username, "", ClientIP(r))
 
-		// Auto-login agar pengguna langsung masuk setelah daftar.
+		// Auto-login so the user is signed in right after registering.
 		u, token, err := s.Login(r.Context(), req.Username, req.Password, "", SessionTTL)
 		if err != nil {
 			writeJSON(w, http.StatusCreated, map[string]any{"username": req.Username, "role": RoleViewer})
@@ -87,7 +87,7 @@ func (s *Store) RegisterHandler() http.HandlerFunc {
 	}
 }
 
-// LogoutHandler menghapus sesi pemanggil.
+// LogoutHandler deletes the caller's session.
 func (s *Store) LogoutHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if tok := bearerToken(r); tok != "" {
@@ -97,8 +97,8 @@ func (s *Store) LogoutHandler() http.HandlerFunc {
 	}
 }
 
-// UsersHandler: GET = daftar user, POST = buat user. WAJIB dibungkus
-// Middleware + RequirePermission(PermManageUsers) — hanya admin.
+// UsersHandler: GET = list users, POST = create user. MUST be wrapped with
+// Middleware + RequirePermission(PermManageUsers) — admin only.
 func (s *Store) UsersHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -117,7 +117,7 @@ func (s *Store) UsersHandler() http.HandlerFunc {
 				Role     string `json:"role"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "body tidak valid", http.StatusBadRequest)
+				http.Error(w, "invalid body", http.StatusBadRequest)
 				return
 			}
 			role, err := ParseRole(req.Role)
@@ -126,11 +126,11 @@ func (s *Store) UsersHandler() http.HandlerFunc {
 				return
 			}
 			if len(req.Username) < 3 || len(req.Password) < 8 {
-				http.Error(w, "username minimal 3 & password minimal 8 karakter", http.StatusBadRequest)
+				http.Error(w, "username must be at least 3 and password at least 8 characters", http.StatusBadRequest)
 				return
 			}
 			if err := s.CreateUser(r.Context(), req.Username, req.Password, role); err != nil {
-				http.Error(w, "gagal membuat user (username sudah dipakai?)", http.StatusBadRequest)
+				http.Error(w, "failed to create user (username already taken?)", http.StatusBadRequest)
 				return
 			}
 			actor, _ := UserFrom(r.Context())
@@ -157,8 +157,8 @@ func actorRole(u *User) string {
 	return ""
 }
 
-// Setup2FAHandler menghasilkan secret TOTP baru (BELUM diaktifkan sampai
-// dikonfirmasi via Enable2FAHandler). Self-service untuk akun sendiri.
+// Setup2FAHandler generates a new TOTP secret (NOT enabled until confirmed via
+// Enable2FAHandler). Self-service for the caller's own account.
 func (s *Store) Setup2FAHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFrom(r.Context())
@@ -168,14 +168,14 @@ func (s *Store) Setup2FAHandler() http.HandlerFunc {
 		}
 		secret, otpauthURL, err := GenerateTOTPSecret(u.Username)
 		if err != nil {
-			http.Error(w, "gagal membuat secret", http.StatusInternalServerError)
+			http.Error(w, "failed to generate secret", http.StatusInternalServerError)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"secret": secret, "otpauth_url": otpauthURL})
 	}
 }
 
-// Enable2FAHandler mengaktifkan 2FA setelah memverifikasi kode terhadap secret.
+// Enable2FAHandler enables 2FA after verifying the code against the secret.
 func (s *Store) Enable2FAHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFrom(r.Context())
@@ -188,15 +188,15 @@ func (s *Store) Enable2FAHandler() http.HandlerFunc {
 			Code   string `json:"code"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
 		if req.Secret == "" || !ValidateTOTP(req.Secret, req.Code) {
-			http.Error(w, "kode 2FA tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid 2FA code", http.StatusBadRequest)
 			return
 		}
 		if err := s.SetTOTPSecret(r.Context(), u.ID, req.Secret); err != nil {
-			http.Error(w, "gagal menyimpan", http.StatusInternalServerError)
+			http.Error(w, "failed to save", http.StatusInternalServerError)
 			return
 		}
 		s.Audit(r.Context(), u.Username, string(u.Role), "enable_2fa", u.Username, "", ClientIP(r))
@@ -204,7 +204,7 @@ func (s *Store) Enable2FAHandler() http.HandlerFunc {
 	}
 }
 
-// Disable2FAHandler menonaktifkan 2FA setelah memverifikasi kode saat ini.
+// Disable2FAHandler disables 2FA after verifying the current code.
 func (s *Store) Disable2FAHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFrom(r.Context())
@@ -216,20 +216,20 @@ func (s *Store) Disable2FAHandler() http.HandlerFunc {
 			Code string `json:"code"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "body tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
 		secret, err := s.totpSecretOf(r.Context(), u.ID)
 		if err != nil || secret == "" {
-			http.Error(w, "2FA tidak aktif", http.StatusBadRequest)
+			http.Error(w, "2FA not enabled", http.StatusBadRequest)
 			return
 		}
 		if !ValidateTOTP(secret, req.Code) {
-			http.Error(w, "kode 2FA tidak valid", http.StatusBadRequest)
+			http.Error(w, "invalid 2FA code", http.StatusBadRequest)
 			return
 		}
 		if err := s.ClearTOTPSecret(r.Context(), u.ID); err != nil {
-			http.Error(w, "gagal menyimpan", http.StatusInternalServerError)
+			http.Error(w, "failed to save", http.StatusInternalServerError)
 			return
 		}
 		s.Audit(r.Context(), u.Username, string(u.Role), "disable_2fa", u.Username, "", ClientIP(r))
@@ -237,7 +237,7 @@ func (s *Store) Disable2FAHandler() http.HandlerFunc {
 	}
 }
 
-// MeHandler mengembalikan identitas user terautentikasi saat ini + status 2FA.
+// MeHandler returns the currently authenticated user's identity + 2FA status.
 func (s *Store) MeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFrom(r.Context())

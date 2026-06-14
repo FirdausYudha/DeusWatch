@@ -15,7 +15,7 @@ func withUser(ctx context.Context, u *User) context.Context {
 	return context.WithValue(ctx, userCtxKey, u)
 }
 
-// UserFrom mengambil user terautentikasi dari context (bila ada).
+// UserFrom retrieves the authenticated user from the context (if present).
 func UserFrom(ctx context.Context) (*User, bool) {
 	u, ok := ctx.Value(userCtxKey).(*User)
 	return u, ok
@@ -30,7 +30,7 @@ func bearerToken(r *http.Request) string {
 	return ""
 }
 
-// ClientIP mengembalikan alamat IP pemanggil (tanpa port).
+// ClientIP returns the caller's IP address (without port).
 func ClientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -39,7 +39,7 @@ func ClientIP(r *http.Request) string {
 	return host
 }
 
-// Middleware mewajibkan token sesi valid dan menaruh user ke context (401 bila gagal).
+// Middleware requires a valid session token and puts the user into the context (401 on failure).
 func (s *Store) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, err := s.SessionUser(r.Context(), bearerToken(r))
@@ -51,7 +51,7 @@ func (s *Store) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// RequirePermission menolak (403) bila user di context tak memiliki permission p.
+// RequirePermission denies (403) if the user in the context lacks permission p.
 func RequirePermission(p Permission, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFrom(r.Context())
