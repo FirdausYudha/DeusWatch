@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-// collectJournald stub: journald hanya tersedia di Linux.
+// collectJournald stub: journald is only available on Linux.
 func collectJournald(_ context.Context, _ Source, _ chan<- Line) error {
-	return fmt.Errorf("source journald hanya didukung di Linux")
+	return fmt.Errorf("the journald source is only supported on Linux")
 }

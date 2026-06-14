@@ -2,7 +2,7 @@
 
 package agent
 
-// DefaultSources untuk Windows: channel Event Log Security & System.
+// DefaultSources for Windows: the Security & System Event Log channels.
 func DefaultSources() []Source {
 	return []Source{
 		{Dataset: "windows-security", Type: "wineventlog", Path: "Security"},

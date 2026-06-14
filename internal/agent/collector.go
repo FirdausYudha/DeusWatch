@@ -7,31 +7,31 @@ import (
 	"sync"
 )
 
-// Line adalah satu baris log mentah dari sebuah source, beserta dataset-nya.
+// Line is a single raw log line from a source, along with its dataset.
 type Line struct {
 	Dataset string
 	Message string
 }
 
-// Source mendeskripsikan satu sumber log yang dikumpulkan agent.
+// Source describes a single log source collected by the agent.
 //
-// Type menentukan kolektor yang dipakai:
-//   - "file"        : tail berkas (lintas-OS); Path = path berkas
-//   - "journald"    : systemd journal (Linux saja); Path = unit (opsional)
-//   - "wineventlog" : Windows Event Log (Windows saja); Path = nama channel
-//   - "fim"         : File Integrity Monitoring (lintas-OS); Path = berkas/direktori
-//                     (beberapa dipisah koma) — lihat fim.go
+// Type selects the collector used:
+//   - "file"        : file tail (cross-OS); Path = file path
+//   - "journald"    : systemd journal (Linux only); Path = unit (optional)
+//   - "wineventlog" : Windows Event Log (Windows only); Path = channel name
+//   - "fim"         : File Integrity Monitoring (cross-OS); Path = file/directory
+//                     (several comma-separated) — see fim.go
 //
-// Kolektor native dipilih saat KOMPILASI lewat build tag (lihat collect_*_*.go),
-// sehingga tiap OS punya implementasi sendiri — mirip arsitektur agent Wazuh.
+// The native collector is selected at COMPILE time via build tags (see collect_*_*.go),
+// so each OS has its own implementation — similar to the Wazuh agent architecture.
 type Source struct {
 	Dataset string `json:"dataset"`
 	Type    string `json:"type"`
 	Path    string `json:"path"`
 }
 
-// Collect menjalankan semua source secara konkuren, mengirim Line ke out hingga
-// ctx dibatalkan. Source yang gagal dicatat tanpa menghentikan source lain.
+// Collect runs all sources concurrently, sending Lines to out until ctx is cancelled.
+// A failing source is logged without stopping the others.
 func Collect(ctx context.Context, sources []Source, fromStart bool, out chan<- Line) {
 	var wg sync.WaitGroup
 	for _, src := range sources {
@@ -39,7 +39,7 @@ func Collect(ctx context.Context, sources []Source, fromStart bool, out chan<- L
 		go func(s Source) {
 			defer wg.Done()
 			if err := runSource(ctx, s, fromStart, out); err != nil && ctx.Err() == nil {
-				log.Printf("agent: source %q (%s) berhenti: %v", s.Dataset, s.Type, err)
+				log.Printf("agent: source %q (%s) stopped: %v", s.Dataset, s.Type, err)
 			}
 		}(src)
 	}
@@ -53,11 +53,11 @@ func runSource(ctx context.Context, s Source, fromStart bool, out chan<- Line) e
 	case "fim":
 		return collectFIM(ctx, s, out)
 	case "journald":
-		return collectJournald(ctx, s, out) // impl per-OS (build tag)
+		return collectJournald(ctx, s, out) // per-OS impl (build tag)
 	case "wineventlog":
-		return collectWinEventLog(ctx, s, out) // impl per-OS (build tag)
+		return collectWinEventLog(ctx, s, out) // per-OS impl (build tag)
 	default:
-		return fmt.Errorf("tipe source tidak didukung: %q", s.Type)
+		return fmt.Errorf("unsupported source type: %q", s.Type)
 	}
 }
 

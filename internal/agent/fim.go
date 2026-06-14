@@ -1,12 +1,12 @@
 package agent
 
-// File Integrity Monitoring (FIM) — design doc roadmap agent.
+// File Integrity Monitoring (FIM) — design doc agent roadmap.
 //
-// Source bertipe "fim" memantau berkas/direktori: tiap interval di-hash (SHA-256)
-// dan dibandingkan dengan baseline. Perubahan (dibuat/diubah/dihapus) di-emit
-// sebagai Line dataset "fim" dengan payload JSON, lalu dinormalkan gateway menjadi
-// Event DCS dengan field file.* (lihat ingest.normalizeFIM). Pendekatan ini menumpang
-// pipeline RawLog yang sudah ada alih-alih jalur biner terpisah.
+// A source of type "fim" monitors files/directories: every interval they are hashed
+// (SHA-256) and compared to a baseline. Changes (created/modified/deleted) are emitted
+// as a Line with dataset "fim" carrying a JSON payload, then normalized by the gateway
+// into a DCS Event with file.* fields (see ingest.normalizeFIM). This approach rides on
+// the existing RawLog pipeline instead of a separate binary path.
 
 import (
 	"context"
@@ -23,14 +23,14 @@ import (
 	"time"
 )
 
-// fimScanInterval default antar-pemindaian FIM.
+// fimScanInterval is the default interval between FIM scans.
 const fimScanInterval = 60 * time.Second
 
-// maxHashBytes membatasi ukuran berkas yang di-hash (berkas raksasa di-skip dari hash,
-// hanya metadata yang dilacak) agar pemindaian tidak membebani I/O.
+// maxHashBytes limits the size of a file that gets hashed (huge files skip hashing,
+// only metadata is tracked) so scans don't overload I/O.
 const maxHashBytes = 64 << 20 // 64 MiB
 
-// FIMChange adalah satu perubahan integritas berkas (payload JSON dataset "fim").
+// FIMChange is a single file-integrity change (the JSON payload of dataset "fim").
 type FIMChange struct {
 	Path   string `json:"path"`
 	Action string `json:"action"` // created | modified | deleted
@@ -45,20 +45,20 @@ type fileState struct {
 	mode   string
 }
 
-// FIMScanner melacak baseline integritas untuk sekumpulan root (berkas/direktori)
-// dan menghitung perubahan tiap kali Scan dipanggil.
+// FIMScanner tracks an integrity baseline for a set of roots (files/directories)
+// and computes changes each time Scan is called.
 type FIMScanner struct {
 	roots    []string
 	baseline map[string]fileState
 	primed   bool
 }
 
-// NewFIMScanner membuat scanner untuk root yang diberikan (berkas atau direktori).
+// NewFIMScanner creates a scanner for the given roots (files or directories).
 func NewFIMScanner(roots ...string) *FIMScanner {
 	return &FIMScanner{roots: roots, baseline: map[string]fileState{}}
 }
 
-// splitFIMPaths memecah Path source FIM menjadi daftar root (pemisah koma).
+// splitFIMPaths splits a FIM source's Path into a list of roots (comma-separated).
 func splitFIMPaths(path string) []string {
 	var out []string
 	for _, p := range strings.Split(path, ",") {
@@ -69,9 +69,9 @@ func splitFIMPaths(path string) []string {
 	return out
 }
 
-// Scan memindai semua root dan mengembalikan perubahan sejak Scan sebelumnya.
-// Pemanggilan PERTAMA hanya membangun baseline (mengembalikan nil) agar berkas yang
-// sudah ada tidak salah dilaporkan sebagai "created".
+// Scan scans all roots and returns the changes since the previous Scan. The FIRST
+// call only builds the baseline (returns nil) so existing files are not mistakenly
+// reported as "created".
 func (s *FIMScanner) Scan() ([]FIMChange, error) {
 	current := map[string]fileState{}
 	for _, root := range s.roots {
@@ -113,13 +113,13 @@ func change(path, action string, st fileState) FIMChange {
 	return c
 }
 
-// walk mengisi dst dengan state tiap berkas reguler di bawah root (berkas tunggal
-// juga didukung). Berkas yang tak terbaca dilewati dengan log, tidak menggagalkan scan.
+// walk fills dst with the state of each regular file under root (a single file is
+// also supported). Unreadable files are skipped with a log, not failing the scan.
 func (s *FIMScanner) walk(root string, dst map[string]fileState) error {
 	info, err := os.Lstat(root)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // root belum ada — perubahan terdeteksi saat dibuat nanti
+			return nil // root doesn't exist yet — change detected when created later
 		}
 		return err
 	}
@@ -133,7 +133,7 @@ func (s *FIMScanner) walk(root string, dst map[string]fileState) error {
 	}
 	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			log.Printf("agent: fim: lewati %s: %v", p, err)
+			log.Printf("agent: fim: skip %s: %v", p, err)
 			return nil
 		}
 		if d.IsDir() || !d.Type().IsRegular() {
@@ -156,7 +156,7 @@ func stateOf(path string, info os.FileInfo) (fileState, bool) {
 		if h, err := hashFile(path); err == nil {
 			st.sha256 = h
 		} else {
-			log.Printf("agent: fim: hash %s gagal: %v", path, err)
+			log.Printf("agent: fim: hash %s failed: %v", path, err)
 			return fileState{}, false
 		}
 	}
@@ -176,16 +176,16 @@ func hashFile(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// collectFIM menjalankan pemindaian FIM periodik untuk satu source, meng-emit Line
-// dataset source untuk tiap perubahan hingga ctx dibatalkan.
+// collectFIM runs periodic FIM scans for one source, emitting a Line with the source's
+// dataset for each change until ctx is cancelled.
 func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	roots := splitFIMPaths(s.Path)
 	if len(roots) == 0 {
-		return fmt.Errorf("source fim %q: Path kosong", s.Dataset)
+		return fmt.Errorf("fim source %q: empty Path", s.Dataset)
 	}
 	scanner := NewFIMScanner(roots...)
-	if _, err := scanner.Scan(); err != nil { // bangun baseline awal
-		log.Printf("agent: fim %q: scan baseline: %v", s.Dataset, err)
+	if _, err := scanner.Scan(); err != nil { // build the initial baseline
+		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}
 
 	t := time.NewTicker(fimScanInterval)

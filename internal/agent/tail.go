@@ -1,5 +1,5 @@
-// Package agent adalah kolektor log endpoint DeusWatch: men-tail berkas log dan
-// mengirim baris mentah ke gateway lewat mTLS.
+// Package agent is the DeusWatch endpoint log collector: it tails log files and
+// sends raw lines to the gateway over mTLS.
 package agent
 
 import (
@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-// FollowFile membaca baris dari path dan mengirimkannya ke out. Bila fromStart
-// true mulai dari awal berkas; selain itu dari akhir. Setelah mencapai EOF ia
-// terus mengikuti (poll) baris baru hingga ctx dibatalkan.
+// FollowFile reads lines from path and sends them to out. If fromStart is true it
+// starts from the beginning of the file; otherwise from the end. After reaching EOF
+// it keeps following (polling) for new lines until ctx is cancelled.
 func FollowFile(ctx context.Context, path string, fromStart bool, out chan<- string) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -44,7 +44,7 @@ func FollowFile(ctx context.Context, path string, fromStart bool, out chan<- str
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-time.After(300 * time.Millisecond): // tunggu data baru
+			case <-time.After(300 * time.Millisecond): // wait for new data
 			}
 		case err != nil:
 			return err

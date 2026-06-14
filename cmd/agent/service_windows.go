@@ -2,9 +2,9 @@
 
 package main
 
-// Integrasi Windows Service NATIVE (menggantikan Scheduled Task). Agent berjalan di
-// bawah Service Control Manager (SCM): lapor status, tangani Stop/Shutdown, dan
-// minta restart saat config push berubah lewat recovery action.
+// NATIVE Windows Service integration (replacing Scheduled Task). The agent runs under
+// the Service Control Manager (SCM): it reports status, handles Stop/Shutdown, and
+// requests a restart when the pushed config changes via a recovery action.
 
 import (
 	"context"
@@ -19,18 +19,18 @@ import (
 
 const serviceName = "DeusWatchAgent"
 
-// runningAsService melaporkan apakah proses dijalankan oleh SCM (bukan konsol).
+// runningAsService reports whether the process was launched by the SCM (not the console).
 func runningAsService() bool {
 	is, err := svc.IsWindowsService()
 	return err == nil && is
 }
 
-// agentService memenuhi svc.Handler.
+// agentService satisfies svc.Handler.
 type agentService struct{}
 
-// Execute adalah loop utama service: menjalankan runAgent dan merespons perintah SCM.
-// Bila runAgent berhenti karena config push baru, kami keluar dengan kode != 0 agar
-// recovery action SCM me-restart service (sehingga config baru diterapkan).
+// Execute is the service main loop: it runs runAgent and responds to SCM commands.
+// If runAgent stops due to a new pushed config, we exit with a non-zero code so the
+// SCM recovery action restarts the service (applying the new config).
 func (m *agentService) Execute(_ []string, r <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	const accepted = svc.AcceptStop | svc.AcceptShutdown
 	status <- svc.Status{State: svc.StartPending}
@@ -65,19 +65,19 @@ loop:
 	cancel()
 	<-done
 	if configChanged {
-		return false, 1 // exit error -> SCM recovery me-restart untuk menerapkan config
+		return false, 1 // exit error -> SCM recovery restarts to apply the config
 	}
 	return false, 0
 }
 
-// runService menjalankan agent di bawah SCM.
+// runService runs the agent under the SCM.
 func runService() {
 	if err := svc.Run(serviceName, &agentService{}); err != nil {
 		os.Exit(1)
 	}
 }
 
-// controlService menangani sub-perintah -service install|uninstall|start|stop.
+// controlService handles the -service install|uninstall|start|stop sub-commands.
 func controlService(cmd string) error {
 	switch cmd {
 	case "install":
@@ -89,7 +89,7 @@ func controlService(cmd string) error {
 	case "stop":
 		return stopService()
 	default:
-		return fmt.Errorf("perintah tak dikenal %q (install|uninstall|start|stop)", cmd)
+		return fmt.Errorf("unknown command %q (install|uninstall|start|stop)", cmd)
 	}
 }
 
@@ -108,12 +108,12 @@ func installService() error {
 
 	if s, err := m.OpenService(serviceName); err == nil {
 		_ = s.Close()
-		return fmt.Errorf("service %q sudah terpasang", serviceName)
+		return fmt.Errorf("service %q is already installed", serviceName)
 	}
 
 	s, err := m.CreateService(serviceName, exe, mgr.Config{
 		DisplayName:  "DeusWatch Agent",
-		Description:  "Kolektor log endpoint DeusWatch (mTLS).",
+		Description:  "DeusWatch endpoint log collector (mTLS).",
 		StartType:    mgr.StartAutomatic,
 		ErrorControl: mgr.ErrorNormal,
 	})
@@ -122,8 +122,8 @@ func installService() error {
 	}
 	defer s.Close()
 
-	// Recovery: restart pada kegagalan (termasuk exit code config-change) — interval 5s,
-	// reset hitungan kegagalan tiap 1 jam.
+	// Recovery: restart on failure (including the config-change exit code) — 5s interval,
+	// reset the failure count every 1 hour.
 	if err := s.SetRecoveryActions([]mgr.RecoveryAction{
 		{Type: mgr.ServiceRestart, Delay: 5 * time.Second},
 		{Type: mgr.ServiceRestart, Delay: 5 * time.Second},
@@ -131,8 +131,8 @@ func installService() error {
 	}, uint32((time.Hour).Seconds())); err != nil {
 		return fmt.Errorf("set recovery: %w", err)
 	}
-	fmt.Printf("Service %q terpasang (otomatis saat boot, SYSTEM).\n", serviceName)
-	fmt.Println("Set GATEWAY_URL & CERT_DIR sebagai environment variable mesin, lalu: deuswatch-agent.exe -service start")
+	fmt.Printf("Service %q installed (automatic at boot, SYSTEM).\n", serviceName)
+	fmt.Println("Set GATEWAY_URL & CERT_DIR as machine environment variables, then: deuswatch-agent.exe -service start")
 	return nil
 }
 
@@ -144,13 +144,13 @@ func removeService() error {
 	defer m.Disconnect()
 	s, err := m.OpenService(serviceName)
 	if err != nil {
-		return fmt.Errorf("service %q tak ditemukan: %w", serviceName, err)
+		return fmt.Errorf("service %q not found: %w", serviceName, err)
 	}
 	defer s.Close()
 	if err := s.Delete(); err != nil {
 		return err
 	}
-	fmt.Printf("Service %q dihapus.\n", serviceName)
+	fmt.Printf("Service %q removed.\n", serviceName)
 	return nil
 }
 
@@ -162,13 +162,13 @@ func startService() error {
 	defer m.Disconnect()
 	s, err := m.OpenService(serviceName)
 	if err != nil {
-		return fmt.Errorf("service %q tak ditemukan: %w", serviceName, err)
+		return fmt.Errorf("service %q not found: %w", serviceName, err)
 	}
 	defer s.Close()
 	if err := s.Start(); err != nil {
 		return err
 	}
-	fmt.Printf("Service %q dijalankan.\n", serviceName)
+	fmt.Printf("Service %q started.\n", serviceName)
 	return nil
 }
 
@@ -180,12 +180,12 @@ func stopService() error {
 	defer m.Disconnect()
 	s, err := m.OpenService(serviceName)
 	if err != nil {
-		return fmt.Errorf("service %q tak ditemukan: %w", serviceName, err)
+		return fmt.Errorf("service %q not found: %w", serviceName, err)
 	}
 	defer s.Close()
 	if _, err := s.Control(svc.Stop); err != nil {
 		return err
 	}
-	fmt.Printf("Sinyal stop dikirim ke service %q.\n", serviceName)
+	fmt.Printf("Stop signal sent to service %q.\n", serviceName)
 	return nil
 }

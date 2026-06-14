@@ -9,8 +9,8 @@ import (
 	"os/exec"
 )
 
-// collectJournald men-tail systemd journal lewat `journalctl -f`. Path (bila ada)
-// dipakai sebagai filter unit (-u). Hanya dikompilasi di Linux.
+// collectJournald tails the systemd journal via `journalctl -f`. Path (if present)
+// is used as the unit filter (-u). Compiled on Linux only.
 func collectJournald(ctx context.Context, s Source, out chan<- Line) error {
 	args := []string{"-f", "-o", "cat", "--no-pager"}
 	if s.Path != "" {

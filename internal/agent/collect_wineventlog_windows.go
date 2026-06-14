@@ -16,9 +16,9 @@ type winEvent struct {
 	Message  string `json:"Message"`
 }
 
-// collectWinEventLog mem-poll Windows Event Log channel (Path) dan mengirim event
-// baru. Memakai PowerShell Get-WinEvent; melacak RecordId tertinggi agar tidak
-// mengirim ulang. Hanya dikompilasi di Windows.
+// collectWinEventLog polls a Windows Event Log channel (Path) and sends new events.
+// Uses PowerShell Get-WinEvent; tracks the highest RecordId to avoid resending.
+// Compiled on Windows only.
 func collectWinEventLog(ctx context.Context, s Source, out chan<- Line) error {
 	channel := s.Path
 	if channel == "" {
@@ -40,9 +40,9 @@ func collectWinEventLog(ctx context.Context, s Source, out chan<- Line) error {
 				}
 			}
 			if !primed {
-				lastID, primed = maxID, true // lewati histori; hanya kirim yang baru
+				lastID, primed = maxID, true // skip history; only send new ones
 			} else {
-				for i := len(events) - 1; i >= 0; i-- { // ascending (Get-WinEvent: terbaru dulu)
+				for i := len(events) - 1; i >= 0; i-- { // ascending (Get-WinEvent: newest first)
 					if e := events[i]; e.RecordID > lastID {
 						select {
 						case out <- Line{Dataset: s.Dataset, Message: strings.TrimSpace(e.Message)}:

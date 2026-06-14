@@ -4,13 +4,13 @@ package main
 
 import "fmt"
 
-// Di non-Windows, supervisi diserahkan ke systemd (lihat deploy/agent). Stub ini
-// memastikan jalur service Windows tidak ikut ter-compile.
+// On non-Windows, supervision is handled by systemd (see deploy/agent). This stub
+// ensures the Windows service path is not compiled in.
 
 func runningAsService() bool { return false }
 
 func runService() {}
 
 func controlService(string) error {
-	return fmt.Errorf("kontrol service hanya tersedia di Windows (gunakan systemd di Linux)")
+	return fmt.Errorf("service control is only available on Windows (use systemd on Linux)")
 }

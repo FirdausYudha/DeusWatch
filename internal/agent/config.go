@@ -1,8 +1,7 @@
 package agent
 
-// Config adalah desired-state pengumpulan yang dikelola manager (config push,
-// design doc bagian 12). Version dinaikkan tiap perubahan agar agent tahu kapan
-// harus menerapkan ulang.
+// Config is the manager-managed desired collection state (config push, design doc
+// section 12). Version is bumped on each change so the agent knows when to re-apply.
 type Config struct {
 	Version int      `json:"version"`
 	Sources []Source `json:"sources"`

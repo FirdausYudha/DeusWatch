@@ -39,8 +39,8 @@ func (c *capturePub) count() int {
 	return len(c.events)
 }
 
-// TestAgentTailAndShipOverMTLS membuktikan irisan 5.4: agent men-tail berkas log,
-// mengirim baris lewat mTLS ke gateway, dan gateway menormalkannya. Self-contained.
+// TestAgentTailAndShipOverMTLS proves the 5.4 slice: the agent tails a log file,
+// sends lines over mTLS to the gateway, and the gateway normalizes them. Self-contained.
 func TestAgentTailAndShipOverMTLS(t *testing.T) {
 	dir := t.TempDir()
 	paths, err := mtls.GenerateBundle(mtls.Options{
@@ -63,7 +63,7 @@ func TestAgentTailAndShipOverMTLS(t *testing.T) {
 	ts.StartTLS()
 	defer ts.Close()
 
-	// Seed sebuah auth.log.
+	// Seed an auth.log.
 	logPath := filepath.Join(dir, "auth.log")
 	content := "Failed password for root from 198.51.100.23 port 4444 ssh2\n" +
 		"Failed password for invalid user oracle from 198.51.100.23 port 4445 ssh2\n" +
@@ -72,7 +72,7 @@ func TestAgentTailAndShipOverMTLS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Tail dari awal (timeout singkat) lalu kumpulkan jadi batch.
+	// Tail from the start (short timeout) then collect into a batch.
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 	defer cancel()
 	lines := make(chan string, 16)
@@ -85,7 +85,7 @@ func TestAgentTailAndShipOverMTLS(t *testing.T) {
 		batch = append(batch, ingest.RawLog{Timestamp: time.Now(), Host: "web01", Dataset: "sshd", Message: l})
 	}
 	if len(batch) != 3 {
-		t.Fatalf("tail dapat %d baris, mau 3", len(batch))
+		t.Fatalf("tail got %d lines, want 3", len(batch))
 	}
 
 	shipper, err := NewShipper(ts.URL, paths)
@@ -97,13 +97,13 @@ func TestAgentTailAndShipOverMTLS(t *testing.T) {
 	}
 
 	if pub.count() != 3 {
-		t.Fatalf("gateway menerima %d event, mau 3", pub.count())
+		t.Fatalf("gateway received %d events, want 3", pub.count())
 	}
 	pub.mu.Lock()
 	e0 := pub.events[0]
 	pub.mu.Unlock()
 	if e0.Event.Outcome != "failure" || e0.Source == nil || e0.Source.IP != "198.51.100.23" {
-		t.Fatalf("normalisasi event pertama salah: %+v", e0)
+		t.Fatalf("wrong normalization of the first event: %+v", e0)
 	}
-	t.Logf("OK: agent tail 3 baris -> ship mTLS -> gateway normalisasi (failed login dari %s)", e0.Source.IP)
+	t.Logf("OK: agent tail 3 lines -> ship mTLS -> gateway normalization (failed login from %s)", e0.Source.IP)
 }

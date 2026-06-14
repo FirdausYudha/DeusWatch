@@ -13,13 +13,13 @@ import (
 	"deuswatch/internal/mtls"
 )
 
-// Shipper mengirim batch RawLog ke gateway lewat mTLS.
+// Shipper sends RawLog batches to the gateway over mTLS.
 type Shipper struct {
 	url    string
 	client *http.Client
 }
 
-// NewShipper membuat shipper yang menyodorkan sertifikat client dari certs.
+// NewShipper creates a shipper that presents the client certificate from certs.
 func NewShipper(gatewayURL string, certs mtls.CertPaths) (*Shipper, error) {
 	cfg, err := mtls.ClientConfig(certs)
 	if err != nil {
@@ -34,7 +34,7 @@ func NewShipper(gatewayURL string, certs mtls.CertPaths) (*Shipper, error) {
 	}, nil
 }
 
-// Send memarshal batch lalu mengirimkannya ke POST {url}/v1/logs.
+// Send marshals the batch then sends it to POST {url}/v1/logs.
 func (s *Shipper) Send(ctx context.Context, batch []ingest.RawLog) error {
 	body, err := json.Marshal(batch)
 	if err != nil {
@@ -43,8 +43,8 @@ func (s *Shipper) Send(ctx context.Context, batch []ingest.RawLog) error {
 	return s.SendRaw(ctx, body)
 }
 
-// SendRaw mengirim body JSON yang sudah ter-marshal (dipakai juga untuk batch
-// dari buffer disk).
+// SendRaw sends an already-marshaled JSON body (also used for batches from the disk
+// buffer).
 func (s *Shipper) SendRaw(ctx context.Context, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/logs", bytes.NewReader(body))
 	if err != nil {
@@ -53,17 +53,17 @@ func (s *Shipper) SendRaw(ctx context.Context, body []byte) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("agent: kirim ke gateway: %w", err)
+		return fmt.Errorf("agent: send to gateway: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("agent: gateway menolak (status %d)", resp.StatusCode)
+		return fmt.Errorf("agent: gateway rejected (status %d)", resp.StatusCode)
 	}
 	return nil
 }
 
-// Heartbeat mengirim sinyal hidup ke POST {url}/v1/heartbeat (manager memperbarui
-// last_seen agent).
+// Heartbeat sends a liveness signal to POST {url}/v1/heartbeat (the manager updates
+// the agent's last_seen).
 func (s *Shipper) Heartbeat(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/heartbeat", nil)
 	if err != nil {
@@ -75,13 +75,13 @@ func (s *Shipper) Heartbeat(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("agent: heartbeat ditolak (status %d)", resp.StatusCode)
+		return fmt.Errorf("agent: heartbeat rejected (status %d)", resp.StatusCode)
 	}
 	return nil
 }
 
-// FetchConfig mengambil config push untuk agent ini dari manager (GET /v1/config).
-// Mengembalikan (nil, nil) bila manager belum menetapkan config (HTTP 204).
+// FetchConfig retrieves this agent's push-config from the manager (GET /v1/config).
+// Returns (nil, nil) when the manager has not set a config yet (HTTP 204).
 func (s *Shipper) FetchConfig(ctx context.Context) (*Config, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/v1/config", nil)
 	if err != nil {
@@ -96,7 +96,7 @@ func (s *Shipper) FetchConfig(ctx context.Context) (*Config, error) {
 		return nil, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("agent: ambil config (status %d)", resp.StatusCode)
+		return nil, fmt.Errorf("agent: fetch config (status %d)", resp.StatusCode)
 	}
 	var cfg Config
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&cfg); err != nil {

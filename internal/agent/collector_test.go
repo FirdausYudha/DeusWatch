@@ -37,18 +37,18 @@ func TestCollectMultipleFiles(t *testing.T) {
 		got[l.Dataset] = append(got[l.Dataset], l.Message)
 	}
 	if len(got["da"]) != 2 || len(got["db"]) != 1 {
-		t.Fatalf("hasil collect tak terduga: %+v", got)
+		t.Fatalf("unexpected collect result: %+v", got)
 	}
 }
 
 func TestUnsupportedSourceType(t *testing.T) {
 	if err := runSource(context.Background(), Source{Type: "bogus"}, false, make(chan Line, 1)); err == nil {
-		t.Fatal("tipe source tak dikenal seharusnya error")
+		t.Fatal("an unknown source type should error")
 	}
 }
 
 func TestDefaultSourcesNonEmptyOnHostOS(t *testing.T) {
-	// Di Linux & Windows DefaultSources harus terisi (build tag).
-	// Di OS lain boleh kosong — cukup pastikan tidak panic.
+	// On Linux & Windows DefaultSources must be populated (build tag).
+	// On other OSes it may be empty — just make sure it doesn't panic.
 	_ = DefaultSources()
 }

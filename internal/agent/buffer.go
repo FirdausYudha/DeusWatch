@@ -11,17 +11,17 @@ import (
 	"time"
 )
 
-// Buffer adalah store-and-forward berbasis disk (design doc bagian 13): batch yang
-// gagal dikirim disimpan sebagai berkas dan dikirim ulang saat manager kembali online.
+// Buffer is a disk-based store-and-forward (design doc section 13): batches that fail
+// to send are stored as files and resent when the manager comes back online.
 type Buffer struct {
 	dir string
-	max int // jumlah berkas maksimum; yang tertua dibuang bila melebihi
+	max int // max number of files; the oldest are dropped when exceeded
 	mu  sync.Mutex
 }
 
 var bufSeq atomic.Uint64
 
-// NewBuffer membuat buffer di dir (dibuat bila belum ada).
+// NewBuffer creates a buffer in dir (created if it doesn't exist).
 func NewBuffer(dir string, max int) (*Buffer, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func NewBuffer(dir string, max int) (*Buffer, error) {
 	return &Buffer{dir: dir, max: max}, nil
 }
 
-// Save menulis satu batch (JSON mentah) ke buffer lalu memangkas bila melebihi max.
+// Save writes one batch (raw JSON) to the buffer then prunes if it exceeds max.
 func (b *Buffer) Save(body []byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -43,7 +43,7 @@ func (b *Buffer) Save(body []byte) error {
 	return b.prune()
 }
 
-// Pending mengembalikan path berkas buffer, tertua lebih dulu.
+// Pending returns the buffer file paths, oldest first.
 func (b *Buffer) Pending() ([]string, error) {
 	entries, err := os.ReadDir(b.dir)
 	if err != nil {
@@ -55,14 +55,14 @@ func (b *Buffer) Pending() ([]string, error) {
 			files = append(files, filepath.Join(b.dir, e.Name()))
 		}
 	}
-	sort.Strings(files) // prefix timestamp -> urut tertua dulu
+	sort.Strings(files) // timestamp prefix -> oldest-first order
 	return files, nil
 }
 
-// Remove menghapus satu berkas buffer (setelah berhasil dikirim ulang).
+// Remove deletes one buffer file (after a successful resend).
 func (b *Buffer) Remove(path string) error { return os.Remove(path) }
 
-// prune membuang berkas tertua bila jumlah melebihi max. (dipanggil saat lock dipegang)
+// prune drops the oldest files when the count exceeds max. (called while holding the lock)
 func (b *Buffer) prune() error {
 	files, err := b.Pending()
 	if err != nil || len(files) <= b.max {

@@ -1,8 +1,8 @@
-// Command agent adalah kolektor log endpoint DeusWatch (Linux & Windows).
+// Command agent is the DeusWatch endpoint log collector (Linux & Windows).
 //
-// Source default dipilih per-OS saat kompilasi (Linux: berkas auth/syslog;
-// Windows: Event Log) — lihat internal/agent. Override sumber tunggal lewat
-// LOG_FILE. Semua baris dikirim ke manager (gateway) lewat mTLS.
+// Default sources are selected per-OS at compile time (Linux: auth/syslog files;
+// Windows: Event Log) — see internal/agent. Override with a single source via
+// LOG_FILE. All lines are sent to the manager (gateway) over mTLS.
 package main
 
 import (
@@ -28,12 +28,12 @@ import (
 )
 
 func main() {
-	enrollMode := flag.Bool("enroll", false, "tukar token enrollment jadi sertifikat lalu keluar")
-	enrollToken := flag.String("token", "", "token enrollment (mode -enroll)")
-	enrollName := flag.String("name", "", "nama agent (mode -enroll)")
-	enrollManager := flag.String("manager", "http://localhost:8080", "URL manager untuk enroll")
-	outDir := flag.String("out", "", "direktori output sertifikat (default CERT_DIR)")
-	serviceCmd := flag.String("service", "", "kontrol Windows Service: install|uninstall|start|stop (Windows saja)")
+	enrollMode := flag.Bool("enroll", false, "exchange an enrollment token for a certificate then exit")
+	enrollToken := flag.String("token", "", "enrollment token (-enroll mode)")
+	enrollName := flag.String("name", "", "agent name (-enroll mode)")
+	enrollManager := flag.String("manager", "http://localhost:8080", "manager URL for enroll")
+	outDir := flag.String("out", "", "certificate output directory (default CERT_DIR)")
+	serviceCmd := flag.String("service", "", "Windows Service control: install|uninstall|start|stop (Windows only)")
 	flag.Parse()
 
 	if *enrollMode {
@@ -42,12 +42,12 @@ func main() {
 			dir = getenv("CERT_DIR", "deploy/certs")
 		}
 		if err := doEnroll(*enrollManager, *enrollToken, *enrollName, dir); err != nil {
-			log.Fatalf("agent: enroll gagal: %v", err)
+			log.Fatalf("agent: enroll failed: %v", err)
 		}
 		return
 	}
 
-	// Kontrol service (install/uninstall/start/stop) — implementasi per-OS.
+	// Service control (install/uninstall/start/stop) — per-OS implementation.
 	if *serviceCmd != "" {
 		if err := controlService(*serviceCmd); err != nil {
 			log.Fatalf("agent: service %s: %v", *serviceCmd, err)
@@ -55,8 +55,8 @@ func main() {
 		return
 	}
 
-	// Bila dijalankan oleh Service Control Manager Windows, jalankan sebagai service
-	// native (runService menyiapkan ctx & lapor status). Selain itu jalan di konsol.
+	// When launched by the Windows Service Control Manager, run as a native service
+	// (runService sets up ctx & reports status). Otherwise run in the console.
 	if runningAsService() {
 		runService()
 		return
@@ -67,9 +67,9 @@ func main() {
 	runAgent(ctx, stopSignals)
 }
 
-// runAgent menjalankan loop kolektor agent hingga ctx dibatalkan. onConfigChange
-// dipanggil saat manager mendorong config versi baru (memicu shutdown agar
-// supervisor — systemd/SCM — me-restart agent dengan config baru).
+// runAgent runs the agent collector loop until ctx is cancelled. onConfigChange is
+// called when the manager pushes a new config version (triggers shutdown so the
+// supervisor — systemd/SCM — restarts the agent with the new config).
 func runAgent(ctx context.Context, onConfigChange func()) {
 	gatewayURL := getenv("GATEWAY_URL", "https://localhost:8443")
 	certDir := getenv("CERT_DIR", "deploy/certs")
@@ -78,7 +78,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 
 	shipper, err := agent.NewShipper(gatewayURL, mtls.Paths(certDir))
 	if err != nil {
-		log.Fatalf("agent: shipper (sertifikat di %q?): %v", certDir, err)
+		log.Fatalf("agent: shipper (certificates in %q?): %v", certDir, err)
 	}
 
 	buf, err := agent.NewBuffer(getenv("BUFFER_DIR", "agent-buffer"), 1000)
@@ -86,22 +86,22 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		log.Fatalf("agent: buffer: %v", err)
 	}
 
-	// Sumber: config push dari manager bila ada, selain itu default per-OS / LOG_FILE.
+	// Sources: pushed config from the manager if present, otherwise per-OS defaults / LOG_FILE.
 	sources := resolveSources()
 	var configVersion int
 	if cfg, err := shipper.FetchConfig(ctx); err != nil {
-		log.Printf("agent: gagal ambil config push (pakai default): %v", err)
+		log.Printf("agent: failed to fetch pushed config (using defaults): %v", err)
 	} else if cfg != nil && len(cfg.Sources) > 0 {
 		sources, configVersion = cfg.Sources, cfg.Version
-		log.Printf("agent: config push v%d diterapkan dari manager", cfg.Version)
+		log.Printf("agent: pushed config v%d applied from the manager", cfg.Version)
 	}
 	if len(sources) == 0 {
-		log.Fatalf("agent: tidak ada source log — set LOG_FILE atau jalankan di OS yang didukung")
+		log.Fatalf("agent: no log sources — set LOG_FILE or run on a supported OS")
 	}
 
-	// Pantau perubahan config; versi baru -> shutdown agar service-manager restart & terapkan.
+	// Watch for config changes; a new version -> shutdown so the service-manager restarts & applies it.
 	go watchConfig(ctx, shipper, configVersion, onConfigChange)
-	// Kirim ulang batch yang ter-buffer (store-and-forward) + heartbeat.
+	// Resend buffered batches (store-and-forward) + heartbeat.
 	go drainBuffer(ctx, shipper, buf)
 	go heartbeatLoop(ctx, shipper)
 
@@ -111,7 +111,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		close(lines)
 	}()
 
-	log.Printf("DeusWatch agent: host=%s, %d source -> %s", host, len(sources), gatewayURL)
+	log.Printf("DeusWatch agent: host=%s, %d sources -> %s", host, len(sources), gatewayURL)
 	for _, s := range sources {
 		log.Printf("  source: dataset=%s type=%s path=%s", s.Dataset, s.Type, s.Path)
 	}
@@ -124,12 +124,12 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		if body, err := json.Marshal(batch); err == nil {
 			if serr := shipper.SendRaw(ctx, body); serr != nil {
 				if berr := buf.Save(body); berr == nil {
-					log.Printf("agent: manager offline — %d baris di-buffer (%v)", len(batch), serr)
+					log.Printf("agent: manager offline — %d lines buffered (%v)", len(batch), serr)
 				} else {
-					log.Printf("agent: gagal kirim & buffer: %v / %v", serr, berr)
+					log.Printf("agent: failed to send & buffer: %v / %v", serr, berr)
 				}
 			} else {
-				log.Printf("agent: terkirim %d baris", len(batch))
+				log.Printf("agent: sent %d lines", len(batch))
 			}
 		}
 		batch = batch[:0]
@@ -159,7 +159,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	}
 }
 
-// resolveSources: LOG_FILE (sumber tunggal) bila diset, selain itu default per-OS.
+// resolveSources: LOG_FILE (a single source) if set, otherwise per-OS defaults.
 func resolveSources() []agent.Source {
 	if lf := os.Getenv("LOG_FILE"); lf != "" {
 		return []agent.Source{{Dataset: getenv("DATASET", "file"), Type: "file", Path: lf}}
@@ -167,8 +167,9 @@ func resolveSources() []agent.Source {
 	return agent.DefaultSources()
 }
 
-// watchConfig mem-poll config push; bila versi naik, memicu shutdown agar
-// service-manager me-restart agent dengan config baru (apply atomik sederhana).
+// watchConfig polls the pushed config; if the version increases, it triggers a
+// shutdown so the service-manager restarts the agent with the new config (simple
+// atomic apply).
 func watchConfig(ctx context.Context, shipper *agent.Shipper, current int, stop func()) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
@@ -182,7 +183,7 @@ func watchConfig(ctx context.Context, shipper *agent.Shipper, current int, stop 
 				continue
 			}
 			if cfg.Version > current {
-				log.Printf("agent: config baru v%d terdeteksi — restart untuk menerapkan", cfg.Version)
+				log.Printf("agent: new config v%d detected — restarting to apply", cfg.Version)
 				stop()
 				return
 			}
@@ -190,7 +191,7 @@ func watchConfig(ctx context.Context, shipper *agent.Shipper, current int, stop 
 	}
 }
 
-// drainBuffer mengirim ulang batch yang ter-buffer di disk saat manager kembali online.
+// drainBuffer resends disk-buffered batches when the manager comes back online.
 func drainBuffer(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer) {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
@@ -210,16 +211,16 @@ func drainBuffer(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer)
 					continue
 				}
 				if serr := shipper.SendRaw(ctx, body); serr != nil {
-					break // manager masih offline; coba lagi nanti
+					break // manager still offline; retry later
 				}
 				_ = buf.Remove(f)
-				log.Printf("agent: buffer terkirim ulang (%s)", filepath.Base(f))
+				log.Printf("agent: buffer resent (%s)", filepath.Base(f))
 			}
 		}
 	}
 }
 
-// heartbeatLoop mengirim heartbeat berkala ke manager.
+// heartbeatLoop sends periodic heartbeats to the manager.
 func heartbeatLoop(ctx context.Context, shipper *agent.Shipper) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
@@ -229,17 +230,17 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper) {
 			return
 		case <-t.C:
 			if err := shipper.Heartbeat(ctx); err != nil {
-				log.Printf("agent: heartbeat gagal: %v", err)
+				log.Printf("agent: heartbeat failed: %v", err)
 			}
 		}
 	}
 }
 
-// doEnroll menukar token enrollment menjadi sertifikat client unik dan
-// menyimpannya (ca.crt, client.crt, client.key) ke dir.
+// doEnroll exchanges an enrollment token for a unique client certificate and
+// saves it (ca.crt, client.crt, client.key) to dir.
 func doEnroll(manager, token, name, dir string) error {
 	if token == "" || name == "" {
-		return fmt.Errorf("-token dan -name wajib")
+		return fmt.Errorf("-token and -name are required")
 	}
 	body, _ := json.Marshal(map[string]string{"token": token, "name": name, "os": runtime.GOOS})
 	resp, err := http.Post(strings.TrimRight(manager, "/")+"/api/enroll", "application/json", bytes.NewReader(body))
@@ -249,7 +250,7 @@ func doEnroll(manager, token, name, dir string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("manager menolak (%d): %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return fmt.Errorf("manager rejected (%d): %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 	var bundle struct {
 		AgentID    string `json:"agent_id"`
@@ -273,7 +274,7 @@ func doEnroll(manager, token, name, dir string) error {
 	if err := os.WriteFile(p.ClientKey, []byte(bundle.ClientKey), 0o600); err != nil {
 		return err
 	}
-	log.Printf("agent: enrolled sebagai %q (id=%s); sertifikat tersimpan di %s", name, bundle.AgentID, dir)
+	log.Printf("agent: enrolled as %q (id=%s); certificates saved in %s", name, bundle.AgentID, dir)
 	return nil
 }
 

@@ -17,17 +17,17 @@ func TestBufferOrderAndRemove(t *testing.T) {
 	}
 	files, err := b.Pending()
 	if err != nil || len(files) != 3 {
-		t.Fatalf("Pending = %d (err %v), mau 3", len(files), err)
+		t.Fatalf("Pending = %d (err %v), want 3", len(files), err)
 	}
-	// Tertua dulu -> isi pertama "a".
+	// Oldest first -> first content is "a".
 	if first, _ := os.ReadFile(files[0]); string(first) != "a" {
-		t.Fatalf("urutan salah: %q", first)
+		t.Fatalf("wrong order: %q", first)
 	}
 	if err := b.Remove(files[0]); err != nil {
 		t.Fatal(err)
 	}
 	if files, _ = b.Pending(); len(files) != 2 {
-		t.Fatalf("setelah Remove = %d, mau 2", len(files))
+		t.Fatalf("after Remove = %d, want 2", len(files))
 	}
 }
 
@@ -38,12 +38,12 @@ func TestBufferPrune(t *testing.T) {
 	}
 	files, _ := b.Pending()
 	if len(files) != 2 {
-		t.Fatalf("prune: %d berkas tersisa, mau 2", len(files))
+		t.Fatalf("prune: %d files remaining, want 2", len(files))
 	}
-	// Yang tersisa adalah dua terbaru: "3","4".
+	// The remaining ones are the two newest: "3","4".
 	c0, _ := os.ReadFile(files[0])
 	c1, _ := os.ReadFile(files[1])
 	if string(c0) != "3" || string(c1) != "4" {
-		t.Fatalf("prune membuang yang salah: %q,%q", c0, c1)
+		t.Fatalf("prune dropped the wrong ones: %q,%q", c0, c1)
 	}
 }
