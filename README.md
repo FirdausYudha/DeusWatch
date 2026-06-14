@@ -1,6 +1,6 @@
 <div align="center">
 
-# DeusWatch
+# DEUSWATCH
 
 **All-in-One, Open Source, Self-Hosted Security Platform.**
 
