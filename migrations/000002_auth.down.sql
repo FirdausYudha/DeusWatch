@@ -1,4 +1,4 @@
--- Rollback migrasi 000002.
+﻿-- Rollback migration 000002.
 
 DROP TRIGGER IF EXISTS trg_audit_log_immutable ON audit_log;
 DROP FUNCTION IF EXISTS audit_log_immutable();

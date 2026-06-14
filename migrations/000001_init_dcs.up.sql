@@ -1,13 +1,13 @@
--- Migrasi 000001 — DeusWatch Core Schema (DCS): hypertable events.
+-- Migration 000001 — DeusWatch Core Schema (DCS): events hypertable.
 --
--- Sumber kebenaran schema (sisi Go) ada di internal/ingest/schema.go. Kolom di
--- bawah = nama dotted ECS yang di-snake_case-kan. Penambahan field WAJIB serentak
--- di kedua tempat (design doc bagian 7).
+-- The schema source of truth (Go side) is internal/ingest/schema.go. The columns
+-- below = dotted ECS names, snake_cased. Adding a field MUST happen in both places
+-- at once (design doc section 7).
 
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 CREATE TABLE IF NOT EXISTS events (
-    -- identitas & waktu
+    -- identity & time
     id                              uuid        NOT NULL DEFAULT gen_random_uuid(),
     time                            timestamptz NOT NULL,            -- ECS @timestamp
 
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS events (
     event_outcome                   text,
     event_severity                  smallint,                        -- 0..4 (info..critical)
     event_dataset                   text,
-    event_original                  text,                            -- baris log mentah
+    event_original                  text,                            -- raw log line
 
     -- source.* / destination.*
     source_ip                       inet,
@@ -48,25 +48,25 @@ CREATE TABLE IF NOT EXISTS events (
     file_owner                      text,
     file_mode                       text,
 
-    -- process.* (Fase 2+)
+    -- process.* (Phase 2+)
     process_name                    text,
     process_pid                     integer,
     process_command_line            text,
 
-    -- rule.* / threat.* (deteksi + auto-label MITRE)
+    -- rule.* / threat.* (detection + MITRE auto-label)
     rule_id                         text,
     rule_name                       text,
     threat_technique_id             text,
     threat_technique_name           text,
     threat_tactic_name              text,
 
-    -- threat.indicator.* (enrichment CTI — Fase 2, kolom disiapkan sekarang)
+    -- threat.indicator.* (CTI enrichment — Phase 2, columns prepared now)
     threat_indicator_ip             inet,
     threat_indicator_confidence     smallint,
     threat_feed_name                text,
     threat_indicator_last_seen      timestamptz,
 
-    -- deuswatch.* (namespace custom)
+    -- deuswatch.* (custom namespace)
     dw_enrichment_status            text DEFAULT 'pending',
     dw_enrichment_abuse_confidence  smallint,
     dw_enrichment_otx_pulse_count   integer,
@@ -79,19 +79,19 @@ CREATE TABLE IF NOT EXISTS events (
     dw_remediation_action           text,
     dw_remediation_source           text,
     dw_remediation_status           text
-    -- NB: kolom embedding pgvector untuk RAG/LLM menyusul di Fase 3.
+    -- NB: pgvector embedding column for RAG/LLM follows in Phase 3.
 );
 
--- Hypertable dengan chunk per-HARI (bagian 8): tiap hari = partisi fisik terpisah,
--- sehingga penghapusan data lama = drop chunk yang instan.
+-- Hypertable with per-DAY chunks (section 8): each day = a separate physical
+-- partition, so deleting old data = an instant chunk drop.
 SELECT create_hypertable(
     'events', 'time',
     chunk_time_interval => INTERVAL '1 day',
     if_not_exists       => TRUE
 );
 
--- Indeks untuk pola query dashboard tersering (selalu disertai time DESC karena
--- TimescaleDB mengurut chunk berdasarkan waktu).
+-- Indexes for the most frequent dashboard query patterns (always paired with time
+-- DESC, since TimescaleDB orders chunks by time).
 CREATE INDEX IF NOT EXISTS idx_events_source_ip_time  ON events (source_ip, time DESC);
 CREATE INDEX IF NOT EXISTS idx_events_severity_time   ON events (event_severity, time DESC);
 CREATE INDEX IF NOT EXISTS idx_events_category_time   ON events (event_category, time DESC);
@@ -100,8 +100,8 @@ CREATE INDEX IF NOT EXISTS idx_events_host_name_time  ON events (host_name, time
 CREATE INDEX IF NOT EXISTS idx_events_dw_label_time   ON events (dw_label, time DESC);
 CREATE INDEX IF NOT EXISTS idx_events_enrich_status   ON events (dw_enrichment_status, time DESC);
 
--- Kompresi kolumnar untuk chunk > 7 hari (bagian 8): hemat ~90%, data tetap bisa
--- di-query. segmentby memakai event_dataset (kardinalitas rendah) — bisa di-tune.
+-- Columnar compression for chunks > 7 days (section 8): ~90% savings, data stays
+-- queryable. segmentby uses event_dataset (low cardinality) — tunable.
 ALTER TABLE events SET (
     timescaledb.compress,
     timescaledb.compress_segmentby = 'event_dataset',
@@ -109,6 +109,6 @@ ALTER TABLE events SET (
 );
 SELECT add_compression_policy('events', INTERVAL '7 days', if_not_exists => TRUE);
 
--- Retensi default raw logs 30 hari (bagian 8). Dapat diubah dari UI nanti;
--- alert/enriched (1 tahun) & audit (2 tahun) akan punya kebijakan/tabel sendiri.
+-- Default raw-logs retention 30 days (section 8). Can be changed from the UI later;
+-- alert/enriched (1 year) & audit (2 years) will have their own policies/tables.
 SELECT add_retention_policy('events', INTERVAL '30 days', if_not_exists => TRUE);

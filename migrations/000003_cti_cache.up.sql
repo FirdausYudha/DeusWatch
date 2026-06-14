@@ -1,18 +1,18 @@
--- Migrasi 000003 — cache CTI ber-TTL (design doc bagian 3).
+-- Migration 000003 — TTL-based CTI cache (design doc section 3).
 --
--- Hasil lookup CTI disimpan sebagai BARIS di Postgres dengan kolom TTL (expires_at),
--- BUKAN cache in-memory. Worker mengecek tabel ini sebelum memanggil API eksternal;
--- PRIMARY KEY pada ip + UPSERT (ON CONFLICT) menyelesaikan race antar-worker secara
--- deterministik — tidak pernah "tabrakan cache".
+-- CTI lookup results are stored as ROWS in Postgres with a TTL column (expires_at),
+-- NOT an in-memory cache. The worker checks this table before calling external APIs;
+-- the PRIMARY KEY on ip + UPSERT (ON CONFLICT) resolves cross-worker races
+-- deterministically — there is never a "cache collision".
 
 CREATE TABLE IF NOT EXISTS cti_indicators (
     ip               inet        PRIMARY KEY,
     abuse_confidence smallint    NOT NULL DEFAULT 0,   -- 0..100 (AbuseIPDB)
-    otx_pulse_count  integer     NOT NULL DEFAULT 0,   -- jumlah pulse OTX
+    otx_pulse_count  integer     NOT NULL DEFAULT 0,   -- number of OTX pulses
     country_iso      text,
     feed_name        text,
     checked_at       timestamptz NOT NULL DEFAULT now(),
-    expires_at       timestamptz NOT NULL              -- TTL: baris dianggap basi setelah ini
+    expires_at       timestamptz NOT NULL              -- TTL: row is stale after this
 );
 
 CREATE INDEX IF NOT EXISTS idx_cti_expires ON cti_indicators (expires_at);

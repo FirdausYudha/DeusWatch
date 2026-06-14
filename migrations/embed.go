@@ -1,11 +1,11 @@
-// Package migrations menyematkan berkas SQL migrasi ke dalam biner sehingga dapat
-// diterapkan otomatis saat start (lihat internal/migrate). Menjadikan folder ini
-// satu paket Go juga membuat path embed valid (go:embed tak boleh memakai "..").
+// Package migrations embeds the SQL migration files into the binary so they can be
+// applied automatically at start (see internal/migrate). Making this folder a single
+// Go package also keeps the embed path valid (go:embed may not use "..").
 package migrations
 
 import "embed"
 
-// FS berisi semua berkas migrasi (*.up.sql / *.down.sql).
+// FS holds all migration files (*.up.sql / *.down.sql).
 //
 //go:embed *.sql
 var FS embed.FS

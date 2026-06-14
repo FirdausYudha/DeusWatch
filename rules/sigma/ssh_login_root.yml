@@ -1,7 +1,7 @@
 title: SSH Login as Root
 id: 9b8e2f1a-0c4d-4a2b-9f3e-1d7c6b5a4e30
 status: experimental
-description: Mendeteksi login SSH berhasil sebagai akun root.
+description: Detects a successful SSH login as the root account.
 references:
   - https://attack.mitre.org/techniques/T1078/003/
 author: DeusWatch

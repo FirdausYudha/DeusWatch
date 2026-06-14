@@ -1,23 +1,23 @@
--- Migrasi 000006 — response engine (Fase 2): aksi blokir dengan approval workflow
--- & ban progresif (design doc bagian 9, namespace deuswatch.remediation.*).
+-- Migration 000006 — response engine (Phase 2): block actions with an approval workflow
+-- & progressive ban (design doc section 9, namespace deuswatch.remediation.*).
 --
--- Tiap rekomendasi blokir dicatat di sini sebagai 'recommended'. Analyst/admin
--- meng-approve -> engine mengeksekusi via responder (nftables/Mikrotik/CrowdSec) ->
--- 'executed'. Riwayat per-IP dipakai menghitung ban progresif (offense_count).
+-- Each block recommendation is recorded here as 'recommended'. An analyst/admin
+-- approves -> the engine executes via a responder (nftables/Mikrotik/CrowdSec) ->
+-- 'executed'. Per-IP history drives the progressive ban (offense_count).
 
 CREATE TABLE IF NOT EXISTS response_actions (
     id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at    timestamptz NOT NULL DEFAULT now(),
     source_ip     inet        NOT NULL,
-    action        text        NOT NULL DEFAULT 'block',  -- block (unblock menyusul)
-    reason        text,                                  -- rule/label pemicu
+    action        text        NOT NULL DEFAULT 'block',  -- block (unblock to follow)
+    reason        text,                                  -- triggering rule/label
     rule_id       text,
-    ban_seconds   integer     NOT NULL DEFAULT 0,        -- 0 = permanen
-    offense_count integer     NOT NULL DEFAULT 1,        -- ke-berapa kali IP ini diblok
+    ban_seconds   integer     NOT NULL DEFAULT 0,        -- 0 = permanent
+    offense_count integer     NOT NULL DEFAULT 1,        -- how many times this IP was blocked
     source        text        NOT NULL DEFAULT 'playbook', -- playbook | llm
     status        text        NOT NULL DEFAULT 'recommended', -- recommended|approved|executed|dismissed|failed
-    responder     text,                                  -- backend yang mengeksekusi
-    decided_by    text,                                  -- username yang approve/dismiss
+    responder     text,                                  -- backend that executes
+    decided_by    text,                                  -- username that approved/dismissed
     decided_at    timestamptz,
     executed_at   timestamptz,
     error         text

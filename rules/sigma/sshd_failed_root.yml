@@ -2,9 +2,9 @@ title: Failed SSH Login as root
 id: a3e8c0f7-5b14-4d62-8e90-1c7a2f6b9d35
 status: experimental
 description: >
-  Kegagalan autentikasi SSH yang menargetkan akun root secara langsung — login root
-  jarak jauh umumnya dilarang, sehingga upaya ini patut dicurigai. Contoh field match
-  yang menggabungkan beberapa selection lewat condition.
+  SSH authentication failure targeting the root account directly — remote root login is
+  generally disallowed, so these attempts are suspicious. Example of field matching that
+  combines several selections via condition.
 author: DeusWatch
 level: medium
 logsource:

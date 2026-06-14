@@ -2,10 +2,10 @@ title: Monitored File Modified or Deleted (FIM)
 id: 2e8b5f31-9c47-4a0d-8b62-3f1d7a9e4c08
 status: experimental
 description: >
-  File Integrity Monitoring mendeteksi berkas yang dipantau berubah isi/atribut atau
-  dihapus. Perubahan pada berkas konfigurasi/biner sensitif sering menandai tampering
-  atau penghapusan jejak. Pembuatan berkas baru (file_created) sengaja tidak di-alert
-  di sini untuk mengurangi noise.
+  File Integrity Monitoring detects a monitored file whose content/attributes changed or
+  that was deleted. Changes to sensitive config/binary files often indicate tampering or
+  track-covering. New file creation (file_created) is intentionally not alerted here to
+  reduce noise.
 references:
   - https://attack.mitre.org/techniques/T1565/001/
   - https://attack.mitre.org/techniques/T1070/004/

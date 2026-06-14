@@ -2,10 +2,10 @@ title: SSH Brute Force (aggregation)
 id: 9f2c1b04-7a3e-4d51-9c88-2b6f0e1a4d77
 status: experimental
 description: >
-  Banyak kegagalan login SSH dari source IP yang sama dalam jendela singkat —
-  indikasi serangan brute force / password guessing. Rule AGREGASI: dijalankan via
-  jalur SQL (count() by source.ip) terhadap hypertable events, menggantikan detektor
-  brute-force hardcoded dengan rule berformat Sigma (lihat ADR 0001).
+  Many SSH login failures from the same source IP within a short window — an indication
+  of a brute-force / password-guessing attack. AGGREGATION rule: runs via the SQL path
+  (count() by source.ip) against the events hypertable, replacing the hardcoded
+  brute-force detector with a Sigma-formatted rule (see ADR 0001).
 references:
   - https://attack.mitre.org/techniques/T1110/
 author: DeusWatch
