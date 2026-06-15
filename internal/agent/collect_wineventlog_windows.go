@@ -25,7 +25,7 @@ func collectWinEventLog(ctx context.Context, s Source, out chan<- Line) error {
 		channel = "System"
 	}
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(s.scanInterval(5 * time.Second))
 	defer ticker.Stop()
 
 	var lastID int64

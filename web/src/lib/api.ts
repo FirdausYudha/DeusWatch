@@ -277,7 +277,7 @@ export async function updateUser(id: string, role: string, permissions: string[]
 
 // ── Agents (enrollment, config push, revoke) ──────────────
 
-export type AgentSource = { dataset: string; type: string; path: string }
+export type AgentSource = { dataset: string; type: string; path: string; interval?: number }
 
 export type AgentInfo = {
   id: string

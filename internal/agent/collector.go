@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 // Line is a single raw log line from a source, along with its dataset.
@@ -28,6 +29,17 @@ type Source struct {
 	Dataset string `json:"dataset"`
 	Type    string `json:"type"`
 	Path    string `json:"path"`
+	// Interval is the polling/scan interval in seconds for poll-based collectors
+	// (fim, wineventlog). 0 = the per-type default. Higher = lighter on the endpoint.
+	Interval int `json:"interval,omitempty"`
+}
+
+// scanInterval resolves a source's effective poll interval, falling back to def.
+func (s Source) scanInterval(def time.Duration) time.Duration {
+	if s.Interval > 0 {
+		return time.Duration(s.Interval) * time.Second
+	}
+	return def
 }
 
 // Collect runs all sources concurrently, sending Lines to out until ctx is cancelled.

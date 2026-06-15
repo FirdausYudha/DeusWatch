@@ -188,7 +188,7 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}
 
-	t := time.NewTicker(fimScanInterval)
+	t := time.NewTicker(s.scanInterval(fimScanInterval))
 	defer t.Stop()
 	for {
 		select {
