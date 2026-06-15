@@ -107,7 +107,12 @@ export const SEVERITY: Record<number, { label: string; cls: string }> = {
 
 const TOKEN_KEY = 'deuswatch_token'
 
-export type Me = { username: string; role: string; twofa_enabled?: boolean }
+export type Me = { username: string; role: string; twofa_enabled?: boolean; permissions: string[] }
+
+// can reports whether the signed-in user holds a given permission (drives menu gating).
+export function can(me: Me | null, perm: string): boolean {
+  return !!me && Array.isArray(me.permissions) && me.permissions.includes(perm)
+}
 
 // Thrown when the password is correct but 2FA is enabled and the code is missing/invalid.
 export class TwoFactorRequired extends Error {}
@@ -148,7 +153,7 @@ export async function login(username: string, password: string, totp?: string): 
   if (!res.ok) throw new Error(`login: HTTP ${res.status}`)
   const data = await res.json()
   setToken(data.token)
-  return { username: data.username, role: data.role }
+  return { username: data.username, role: data.role, permissions: data.permissions ?? [] }
 }
 
 export async function register(username: string, password: string): Promise<Me> {
@@ -161,7 +166,7 @@ export async function register(username: string, password: string): Promise<Me> 
   const data = await res.json()
   if (!data.token) throw new Error('Account created — please sign in')
   setToken(data.token)
-  return { username: data.username, role: data.role }
+  return { username: data.username, role: data.role, permissions: data.permissions ?? [] }
 }
 
 export async function fetchAuthConfig(): Promise<{ registration_enabled: boolean }> {
@@ -217,13 +222,18 @@ export async function logout(): Promise<void> {
 
 // ── User management (admin) ───────────────────────────────
 
+// permissions: null = inherit the role's defaults; an array = an explicit custom set.
 export type UserInfo = {
   id: string
   username: string
   role: string
   disabled: boolean
   created_at: string
+  permissions: string[] | null
 }
+
+export type PermissionInfo = { key: string; label: string; group: string }
+export type PermissionCatalog = { catalog: PermissionInfo[]; role_defaults: Record<string, string[]> }
 
 export async function fetchUsers(): Promise<UserInfo[]> {
   const res = await authFetch('/api/users')
@@ -231,15 +241,38 @@ export async function fetchUsers(): Promise<UserInfo[]> {
   return res.json()
 }
 
-export async function createUser(username: string, password: string, role: string): Promise<void> {
+// The permission catalog + per-role defaults used to render & prefill the RBAC checklist.
+export async function fetchPermissions(): Promise<PermissionCatalog> {
+  const res = await authFetch('/api/permissions')
+  if (!res.ok) throw new Error(`permissions: HTTP ${res.status}`)
+  return res.json()
+}
+
+// permissions: pass null to inherit the role's defaults, or an array for a custom set.
+export async function createUser(
+  username: string,
+  password: string,
+  role: string,
+  permissions: string[] | null = null,
+): Promise<void> {
   const res = await authFetch('/api/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, role }),
+    body: JSON.stringify({ username, password, role, permissions }),
   })
   if (!res.ok) {
     throw new Error((await res.text()) || `HTTP ${res.status}`)
   }
+}
+
+// Update an existing user's role and permission override (null = inherit role).
+export async function updateUser(id: string, role: string, permissions: string[] | null): Promise<void> {
+  const res = await authFetch(`/api/users/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role, permissions }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 // ── Agents (enrollment, config push, revoke) ──────────────

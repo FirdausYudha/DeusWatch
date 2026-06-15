@@ -50,7 +50,7 @@ func Test2FALoginFlow(t *testing.T) {
 	username := fmt.Sprintf("test2fa-%d", time.Now().UnixNano())
 	defer pool.Exec(ctx, `DELETE FROM users WHERE username=$1`, username)
 
-	if err := s.CreateUser(ctx, username, "secret123", RoleViewer); err != nil {
+	if err := s.CreateUser(ctx, username, "secret123", RoleViewer, nil); err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
 	var id string

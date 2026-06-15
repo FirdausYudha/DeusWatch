@@ -46,6 +46,7 @@ func (s *Store) LoginHandler() http.HandlerFunc {
 		s.Audit(r.Context(), u.Username, string(u.Role), "login", "", "", ClientIP(r))
 		writeJSON(w, http.StatusOK, map[string]any{
 			"token": token, "username": u.Username, "role": u.Role,
+			"permissions": u.EffectivePermissions(),
 		})
 	}
 }
@@ -71,7 +72,7 @@ func (s *Store) RegisterHandler() http.HandlerFunc {
 			http.Error(w, "username must be at least 3 and password at least 8 characters", http.StatusBadRequest)
 			return
 		}
-		if err := s.CreateUser(r.Context(), req.Username, req.Password, RoleViewer); err != nil {
+		if err := s.CreateUser(r.Context(), req.Username, req.Password, RoleViewer, nil); err != nil {
 			http.Error(w, "registration failed (username may already be taken)", http.StatusBadRequest)
 			return
 		}
@@ -83,7 +84,10 @@ func (s *Store) RegisterHandler() http.HandlerFunc {
 			writeJSON(w, http.StatusCreated, map[string]any{"username": req.Username, "role": RoleViewer})
 			return
 		}
-		writeJSON(w, http.StatusCreated, map[string]any{"token": token, "username": u.Username, "role": u.Role})
+		writeJSON(w, http.StatusCreated, map[string]any{
+			"token": token, "username": u.Username, "role": u.Role,
+			"permissions": u.EffectivePermissions(),
+		})
 	}
 }
 
@@ -112,9 +116,10 @@ func (s *Store) UsersHandler() http.HandlerFunc {
 
 		case http.MethodPost:
 			var req struct {
-				Username string `json:"username"`
-				Password string `json:"password"`
-				Role     string `json:"role"`
+				Username    string    `json:"username"`
+				Password    string    `json:"password"`
+				Role        string    `json:"role"`
+				Permissions *[]string `json:"permissions"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "invalid body", http.StatusBadRequest)
@@ -125,11 +130,16 @@ func (s *Store) UsersHandler() http.HandlerFunc {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			perms, err := parsePermissions(req.Permissions)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			if len(req.Username) < 3 || len(req.Password) < 8 {
 				http.Error(w, "username must be at least 3 and password at least 8 characters", http.StatusBadRequest)
 				return
 			}
-			if err := s.CreateUser(r.Context(), req.Username, req.Password, role); err != nil {
+			if err := s.CreateUser(r.Context(), req.Username, req.Password, role, perms); err != nil {
 				http.Error(w, "failed to create user (username already taken?)", http.StatusBadRequest)
 				return
 			}
@@ -140,6 +150,76 @@ func (s *Store) UsersHandler() http.HandlerFunc {
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
+	}
+}
+
+// parsePermissions validates a list of permission keys. A nil pointer (key absent in
+// the request) returns nil = "inherit the role's defaults"; a non-nil list (even empty)
+// returns an explicit custom set.
+func parsePermissions(raw *[]string) ([]Permission, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	out := make([]Permission, 0, len(*raw))
+	for _, s := range *raw {
+		p, err := ParsePermission(s)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// UpdateUserHandler (admin): updates a user's role and permission override set.
+// MUST be wrapped with Middleware + RequirePermission(PermManageUsers).
+func (s *Store) UpdateUserHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			http.Error(w, "id is required", http.StatusBadRequest)
+			return
+		}
+		var req struct {
+			Role        string    `json:"role"`
+			Permissions *[]string `json:"permissions"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		role, err := ParseRole(req.Role)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		perms, err := parsePermissions(req.Permissions)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := s.UpdateUser(r.Context(), id, role, perms); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		actor, _ := UserFrom(r.Context())
+		s.Audit(r.Context(), actorName(actor), actorRole(actor), "update_user", id, "role="+req.Role, ClientIP(r))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "id": id})
+	}
+}
+
+// PermissionsHandler returns the permission catalog + each role's default permission
+// set — everything the UI needs to render and prefill the RBAC checklist.
+func (s *Store) PermissionsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"catalog": AllPermissions,
+			"role_defaults": map[Role][]Permission{
+				RoleViewer:  RoleViewer.Permissions(),
+				RoleAnalyst: RoleAnalyst.Permissions(),
+				RoleAdmin:   RoleAdmin.Permissions(),
+			},
+		})
 	}
 }
 
@@ -248,6 +328,7 @@ func (s *Store) MeHandler() http.HandlerFunc {
 		enabled, _ := s.HasTOTP(r.Context(), u.ID)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"username": u.Username, "role": u.Role, "twofa_enabled": enabled,
+			"permissions": u.EffectivePermissions(),
 		})
 	}
 }

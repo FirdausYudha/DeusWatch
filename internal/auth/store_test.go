@@ -35,7 +35,7 @@ func TestStoreLoginSession(t *testing.T) {
 	username := fmt.Sprintf("test-%d", time.Now().UnixNano())
 	defer pool.Exec(ctx, `DELETE FROM users WHERE username=$1`, username) // cascade-deletes sessions
 
-	if err := s.CreateUser(ctx, username, "secret123", RoleAnalyst); err != nil {
+	if err := s.CreateUser(ctx, username, "secret123", RoleAnalyst, nil); err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
 

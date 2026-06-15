@@ -55,7 +55,7 @@ func (s *Store) Middleware(next http.Handler) http.Handler {
 func RequirePermission(p Permission, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFrom(r.Context())
-		if !ok || !u.Role.Can(p) {
+		if !ok || !u.Can(p) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}

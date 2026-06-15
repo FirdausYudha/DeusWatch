@@ -7,7 +7,7 @@ import Report from './report/Report'
 import Users from './users/Users'
 import Settings from './settings/Settings'
 import Login from './components/Login'
-import { fetchMe, getToken, type Me } from './lib/api'
+import { fetchMe, getToken, can, type Me } from './lib/api'
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
@@ -42,7 +42,7 @@ export default function App() {
           <Response me={me} />
         ) : view === 'report' ? (
           <Report />
-        ) : view === 'users' && me.role === 'admin' ? (
+        ) : view === 'users' && can(me, 'manage_users') ? (
           <Users />
         ) : view === 'settings' ? (
           <Settings />

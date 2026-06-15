@@ -18,12 +18,38 @@ var ErrAuth = errors.New("auth: invalid credentials")
 // code is missing/not provided. The client must request the code and try again.
 var Err2FARequired = errors.New("auth: 2FA code required")
 
-// User is an authenticated identity.
+// User is an authenticated identity. Permissions is the per-user override set:
+// nil means "inherit the role's defaults", non-nil means an explicit custom set.
 type User struct {
-	ID       string
-	Username string
-	Role     Role
-	Disabled bool
+	ID          string
+	Username    string
+	Role        Role
+	Disabled    bool
+	Permissions []Permission
+}
+
+// toPerms converts a stored text[] column into a []Permission (nil stays nil = inherit).
+func toPerms(ss []string) []Permission {
+	if ss == nil {
+		return nil
+	}
+	out := make([]Permission, len(ss))
+	for i, s := range ss {
+		out[i] = Permission(s)
+	}
+	return out
+}
+
+// permsArg converts a []Permission to a pgx array arg (nil → NULL = inherit role).
+func permsArg(ps []Permission) any {
+	if ps == nil {
+		return nil
+	}
+	ss := make([]string, len(ps))
+	for i, p := range ps {
+		ss[i] = string(p)
+	}
+	return ss
 }
 
 // Store is the auth repository (users, sessions, audit_log) in Postgres.
@@ -37,19 +63,21 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 // dummyHash is used to equalize timing when a username is not found.
 var dummyHash, _ = HashPassword("deuswatch-timing-equalizer")
 
-// UserInfo is a user summary for the API (without the password hash).
+// UserInfo is a user summary for the API (without the password hash). Permissions is
+// the explicit override set (null in JSON = inherits the role's defaults).
 type UserInfo struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username"`
-	Role      Role      `json:"role"`
-	Disabled  bool      `json:"disabled"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string       `json:"id"`
+	Username    string       `json:"username"`
+	Role        Role         `json:"role"`
+	Disabled    bool         `json:"disabled"`
+	CreatedAt   time.Time    `json:"created_at"`
+	Permissions []Permission `json:"permissions"`
 }
 
 // ListUsers returns all users (without hash), ordered by creation time.
 func (s *Store) ListUsers(ctx context.Context) ([]UserInfo, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, username, role, disabled, created_at FROM users ORDER BY created_at`)
+		`SELECT id, username, role, disabled, created_at, permissions FROM users ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("auth: list users: %w", err)
 	}
@@ -58,10 +86,12 @@ func (s *Store) ListUsers(ctx context.Context) ([]UserInfo, error) {
 	for rows.Next() {
 		var u UserInfo
 		var roleStr string
-		if err := rows.Scan(&u.ID, &u.Username, &roleStr, &u.Disabled, &u.CreatedAt); err != nil {
+		var perms []string
+		if err := rows.Scan(&u.ID, &u.Username, &roleStr, &u.Disabled, &u.CreatedAt, &perms); err != nil {
 			return nil, err
 		}
 		u.Role = Role(roleStr)
+		u.Permissions = toPerms(perms)
 		out = append(out, u)
 	}
 	return out, rows.Err()
@@ -74,8 +104,9 @@ func (s *Store) UserCount(ctx context.Context) (int64, error) {
 	return n, err
 }
 
-// CreateUser creates a user with an Argon2id-hashed password.
-func (s *Store) CreateUser(ctx context.Context, username, password string, role Role) error {
+// CreateUser creates a user with an Argon2id-hashed password. perms is the optional
+// per-user permission override (nil = inherit the role's defaults).
+func (s *Store) CreateUser(ctx context.Context, username, password string, role Role, perms []Permission) error {
 	if !role.Valid() {
 		return fmt.Errorf("auth: invalid role: %q", role)
 	}
@@ -84,9 +115,26 @@ func (s *Store) CreateUser(ctx context.Context, username, password string, role 
 		return err
 	}
 	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO users (username, password_hash, role) VALUES ($1,$2,$3)`,
-		username, h, string(role)); err != nil {
+		`INSERT INTO users (username, password_hash, role, permissions) VALUES ($1,$2,$3,$4)`,
+		username, h, string(role), permsArg(perms)); err != nil {
 		return fmt.Errorf("auth: create user: %w", err)
+	}
+	return nil
+}
+
+// UpdateUser sets a user's role and permission override set (perms nil = inherit role).
+func (s *Store) UpdateUser(ctx context.Context, id string, role Role, perms []Permission) error {
+	if !role.Valid() {
+		return fmt.Errorf("auth: invalid role: %q", role)
+	}
+	ct, err := s.pool.Exec(ctx,
+		`UPDATE users SET role=$1, permissions=$2, updated_at=now() WHERE id=$3`,
+		string(role), permsArg(perms), id)
+	if err != nil {
+		return fmt.Errorf("auth: update user: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("auth: user not found")
 	}
 	return nil
 }
@@ -100,7 +148,7 @@ func (s *Store) EnsureAdmin(ctx context.Context, username, password string) (cre
 	if n > 0 {
 		return false, nil
 	}
-	if err := s.CreateUser(ctx, username, password, RoleAdmin); err != nil {
+	if err := s.CreateUser(ctx, username, password, RoleAdmin, nil); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -113,10 +161,11 @@ func (s *Store) Login(ctx context.Context, username, password, totpCode string, 
 		hash       string
 		roleStr    string
 		totpSecret *string
+		perms      []string
 	)
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, role, disabled, totp_secret FROM users WHERE username=$1`, username).
-		Scan(&u.ID, &u.Username, &hash, &roleStr, &u.Disabled, &totpSecret)
+		`SELECT id, username, password_hash, role, disabled, totp_secret, permissions FROM users WHERE username=$1`, username).
+		Scan(&u.ID, &u.Username, &hash, &roleStr, &u.Disabled, &totpSecret, &perms)
 	if errors.Is(err, pgx.ErrNoRows) {
 		_ = VerifyPassword(password, dummyHash) // equalize timing
 		return nil, "", ErrAuth
@@ -137,6 +186,7 @@ func (s *Store) Login(ctx context.Context, username, password, totpCode string, 
 		}
 	}
 	u.Role = Role(roleStr)
+	u.Permissions = toPerms(perms)
 
 	raw, th := newToken()
 	if _, err := s.pool.Exec(ctx,
@@ -156,12 +206,13 @@ func (s *Store) SessionUser(ctx context.Context, rawToken string) (*User, error)
 	var (
 		u       User
 		roleStr string
+		perms   []string
 	)
 	err := s.pool.QueryRow(ctx, `
-		SELECT u.id, u.username, u.role, u.disabled
+		SELECT u.id, u.username, u.role, u.disabled, u.permissions
 		FROM sessions s JOIN users u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, th).
-		Scan(&u.ID, &u.Username, &roleStr, &u.Disabled)
+		Scan(&u.ID, &u.Username, &roleStr, &u.Disabled, &perms)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrAuth
 	}
@@ -172,6 +223,7 @@ func (s *Store) SessionUser(ctx context.Context, rawToken string) (*User, error)
 		return nil, ErrAuth
 	}
 	u.Role = Role(roleStr)
+	u.Permissions = toPerms(perms)
 	_, _ = s.pool.Exec(ctx, `UPDATE sessions SET last_seen_at = now() WHERE token_hash = $1`, th)
 	return &u, nil
 }

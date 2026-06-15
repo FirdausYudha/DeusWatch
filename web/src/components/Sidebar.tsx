@@ -1,17 +1,17 @@
-import { logout, type Me } from '../lib/api'
+import { logout, can, type Me } from '../lib/api'
 
 export type View = 'dashboard' | 'agents' | 'response' | 'report' | 'users' | 'settings'
 
-type NavItem = { id: string; label: string; icon: string; view?: View; adminOnly?: boolean }
+type NavItem = { id: string; label: string; icon: string; view?: View; perm?: string }
 
 const NAV: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '▣', view: 'dashboard' },
-  { id: 'response', label: 'Response', icon: '◈', view: 'response' },
-  { id: 'report', label: 'Report', icon: '▦', view: 'report' },
-  { id: 'agents', label: 'Agents', icon: '▤', view: 'agents' },
-  { id: 'rules', label: 'Rules', icon: '⌘' },
-  { id: 'users', label: 'Users', icon: '◉', view: 'users', adminOnly: true },
-  { id: 'settings', label: 'Settings', icon: '⚙', view: 'settings' },
+  { id: 'dashboard', label: 'Dashboard', icon: '▣', view: 'dashboard', perm: 'view_dashboard' },
+  { id: 'response', label: 'Response', icon: '◈', view: 'response', perm: 'approve_remediation' },
+  { id: 'report', label: 'Report', icon: '▦', view: 'report', perm: 'view_dashboard' },
+  { id: 'agents', label: 'Agents', icon: '▤', view: 'agents', perm: 'view_dashboard' },
+  { id: 'rules', label: 'Rules', icon: '⌘', perm: 'manage_rules' },
+  { id: 'users', label: 'Users', icon: '◉', view: 'users', perm: 'manage_users' },
+  { id: 'settings', label: 'Settings', icon: '⚙', view: 'settings', perm: 'manage_settings' },
 ]
 
 export default function Sidebar({
@@ -44,7 +44,7 @@ export default function Sidebar({
 
       <nav className="flex-1 space-y-1 px-3 py-2">
         {NAV.map((n) => {
-          if (n.adminOnly && me.role !== 'admin') return null
+          if (n.perm && !can(me, n.perm)) return null
           const clickable = !!n.view
           const active = clickable && n.view === view
           return (
