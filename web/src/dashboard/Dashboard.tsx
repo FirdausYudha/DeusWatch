@@ -131,6 +131,11 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
   const [edit, setEdit] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [addSource, setAddSource] = useState('severity')
+  // Drag-and-drop reorder state: which widget is dragging, which is the drop target,
+  // and which one's grip handle armed the drag.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+  const [grip, setGrip] = useState<string | null>(null)
 
   // Load the saved layout once.
   useEffect(() => {
@@ -170,6 +175,18 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
       ;[next[i], next[j]] = [next[j], next[i]]
       return next
     })
+  // reorder moves the dragged widget to the drop target's position.
+  const reorder = (fromId: string, toId: string) =>
+    mutate((ws) => {
+      const from = ws.findIndex((w) => w.id === fromId)
+      const to = ws.findIndex((w) => w.id === toId)
+      if (from < 0 || to < 0 || from === to) return ws
+      const next = [...ws]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  const clearDrag = () => { setDragId(null); setOverId(null); setGrip(null) }
   const add = () => {
     const meta = SOURCES.find((s) => s.source === addSource)!
     mutate((ws) => [...ws, { id: uid(), kind: meta.kind, source: meta.source, title: meta.label.replace(/ \(.*\)$/, ''), color: '#6366f1', wide: meta.kind === 'line' || meta.kind === 'map' }])
@@ -227,20 +244,43 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
             {SOURCES.map((s) => <option key={s.source} value={s.source}>{s.label}</option>)}
           </select>
           <button onClick={add} className="rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-400">+ Add</button>
-          <span className="text-xs text-slate-600">· drag-free: use ↑ ↓ on each widget to reorder, the swatches to recolor, and the type menu to switch chart.</span>
+          <span className="text-xs text-slate-600">· drag the ⠿ handle to reorder (or use ↑ ↓); swatches recolor, the type menu switches chart.</span>
         </div>
       )}
 
       {/* Customizable widget grid */}
       <section className="mb-8 grid gap-3 lg:grid-cols-2">
         {widgets.map((w) => (
-          <div key={w.id} className={`rounded-xl border border-slate-800 bg-slate-900/60 p-4 ${w.wide ? 'lg:col-span-2' : ''}`}>
+          <div
+            key={w.id}
+            draggable={edit && grip === w.id}
+            onDragStart={(e) => { setDragId(w.id); e.dataTransfer.effectAllowed = 'move' }}
+            onDragOver={(e) => { if (edit && dragId && dragId !== w.id) { e.preventDefault(); setOverId(w.id) } }}
+            onDragLeave={() => setOverId((o) => (o === w.id ? null : o))}
+            onDrop={(e) => { e.preventDefault(); if (dragId) reorder(dragId, w.id); clearDrag() }}
+            onDragEnd={clearDrag}
+            className={`rounded-xl border bg-slate-900/60 p-4 transition-all ${w.wide ? 'lg:col-span-2' : ''} ${
+              overId === w.id ? 'border-indigo-400 ring-2 ring-indigo-400/40' : 'border-slate-800'
+            } ${dragId === w.id ? 'opacity-40' : ''}`}
+          >
             <div className="mb-3 flex items-center justify-between gap-2">
-              {edit ? (
-                <input value={w.title} onChange={(e) => patch(w.id, { title: e.target.value })} className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500" />
-              ) : (
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{w.title}</h2>
-              )}
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                {edit && (
+                  <span
+                    onMouseDown={() => setGrip(w.id)}
+                    onMouseUp={() => setGrip(null)}
+                    className="cursor-grab select-none text-base leading-none text-slate-600 hover:text-slate-300 active:cursor-grabbing"
+                    title="Drag to reorder"
+                  >
+                    ⠿
+                  </span>
+                )}
+                {edit ? (
+                  <input value={w.title} onChange={(e) => patch(w.id, { title: e.target.value })} className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500" />
+                ) : (
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{w.title}</h2>
+                )}
+              </div>
               {edit && (
                 <div className="flex shrink-0 items-center gap-1">
                   {kindsFor(w.source).length > 1 && (
