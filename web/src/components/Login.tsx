@@ -63,14 +63,12 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
   return (
     <div className="grid h-screen place-items-center bg-slate-950 text-slate-200">
       <form onSubmit={submit} className="w-80 space-y-5 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-500 text-lg font-bold text-white shadow-lg shadow-indigo-500/30">
-            D
+        <div className="flex flex-col items-center gap-2 text-center">
+          <img src="/deuswatch-eye.png" alt="DeusWatch" className="h-12 w-auto" />
+          <div className="text-lg font-semibold tracking-tight text-white">
+            <span className="text-indigo-400">DEUS</span>WATCH
           </div>
-          <div className="leading-tight">
-            <div className="font-semibold tracking-tight text-white">DeusWatch</div>
-            <div className="text-xs text-slate-500">{isRegister ? 'Create a new account' : 'Sign in to continue'}</div>
-          </div>
+          <div className="text-xs text-slate-500">{isRegister ? 'Create a new account' : 'Sign in to continue'}</div>
         </div>
 
         {canRegister && !need2fa && (

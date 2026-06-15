@@ -1,12 +1,13 @@
 import { logout, can, type Me } from '../lib/api'
 
-export type View = 'dashboard' | 'agents' | 'response' | 'report' | 'integrations' | 'users' | 'settings'
+export type View = 'dashboard' | 'agents' | 'response' | 'report' | 'tickets' | 'integrations' | 'users' | 'settings'
 
 type NavItem = { id: string; label: string; icon: string; view?: View; perm?: string }
 
 const NAV: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '▣', view: 'dashboard', perm: 'view_dashboard' },
   { id: 'response', label: 'Response', icon: '◈', view: 'response', perm: 'approve_remediation' },
+  { id: 'tickets', label: 'Tickets', icon: '◰', view: 'tickets', perm: 'view_tickets' },
   { id: 'report', label: 'Report', icon: '▦', view: 'report', perm: 'view_dashboard' },
   { id: 'agents', label: 'Agents', icon: '▤', view: 'agents', perm: 'view_dashboard' },
   { id: 'rules', label: 'Rules', icon: '⌘', perm: 'manage_rules' },
@@ -34,11 +35,11 @@ export default function Sidebar({
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900">
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-500 text-lg font-bold text-white shadow-lg shadow-indigo-500/30">
-          D
-        </div>
+        <img src="/deuswatch-eye.png" alt="DeusWatch" className="h-9 w-auto shrink-0" />
         <div className="leading-tight">
-          <div className="font-semibold tracking-tight text-white">DeusWatch</div>
+          <div className="font-semibold tracking-tight text-white">
+            <span className="text-indigo-400">DEUS</span>WATCH
+          </div>
           <div className="text-xs text-slate-500">Security Platform</div>
         </div>
       </div>

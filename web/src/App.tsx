@@ -4,16 +4,24 @@ import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
 import Response from './response/Response'
 import Report from './report/Report'
+import Tickets from './tickets/Tickets'
 import Integrations from './integrations/Integrations'
 import Users from './users/Users'
 import Settings from './settings/Settings'
 import Login from './components/Login'
-import { fetchMe, getToken, can, type Me } from './lib/api'
+import { fetchMe, getToken, can, type Me, type NewTicketInput } from './lib/api'
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [checked, setChecked] = useState(false)
   const [view, setView] = useState<View>('dashboard')
+  const [ticketPrefill, setTicketPrefill] = useState<NewTicketInput | null>(null)
+
+  // Triggered from an alert ("Create ticket") — jump to Tickets with the form prefilled.
+  const createTicketFrom = (prefill: NewTicketInput) => {
+    setTicketPrefill(prefill)
+    setView('tickets')
+  }
 
   useEffect(() => {
     if (!getToken()) {
@@ -41,6 +49,8 @@ export default function App() {
           <Agents me={me} />
         ) : view === 'response' ? (
           <Response me={me} />
+        ) : view === 'tickets' && can(me, 'view_tickets') ? (
+          <Tickets me={me} prefill={ticketPrefill} onPrefillConsumed={() => setTicketPrefill(null)} />
         ) : view === 'report' ? (
           <Report />
         ) : view === 'integrations' && can(me, 'manage_integrations') ? (
@@ -50,7 +60,7 @@ export default function App() {
         ) : view === 'settings' ? (
           <Settings />
         ) : (
-          <Dashboard />
+          <Dashboard onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
         )}
       </main>
     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   fetchHealth, fetchStats, fetchAlerts,
-  SEVERITY, type DepState, type Health, type Stats, type EventRow,
+  SEVERITY, type DepState, type Health, type Stats, type EventRow, type NewTicketInput,
 } from '../lib/api'
 
 type DotState = 'good' | 'bad' | 'unknown'
@@ -82,7 +82,26 @@ function StatCard({ label, value, accent }: { label: string; value: number | str
   )
 }
 
-export default function Dashboard() {
+// alertToTicket builds a prefilled ticket from an alert row (raise a DFIR case).
+function alertToTicket(a: EventRow): NewTicketInput {
+  const lines = [
+    `Source IP: ${a.source_ip || 'unknown'}`,
+    `Rule: ${a.rule_name || a.rule_id || a.dw_label || '—'}`,
+    a.threat_technique_id ? `MITRE: ${a.threat_technique_id} · ${a.threat_tactic_name}` : '',
+    a.dw_llm_verdict ? `LLM verdict: ${a.dw_llm_verdict}` : '',
+    '',
+    a.event_original || '',
+  ].filter(Boolean)
+  return {
+    title: `${a.rule_name || a.dw_label || 'Alert'}${a.source_ip ? ` from ${a.source_ip}` : ''}`,
+    description: lines.join('\n'),
+    severity: a.event_severity,
+    source_ip: a.source_ip || '',
+    rule_id: a.rule_id || '',
+  }
+}
+
+export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: NewTicketInput) => void }) {
   const [health, setHealth] = useState<Health | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const [alerts, setAlerts] = useState<EventRow[]>([])
@@ -192,6 +211,7 @@ export default function Dashboard() {
                 <th className="px-4 py-2 font-medium">Threat Intel</th>
                 <th className="px-4 py-2 font-medium">LLM</th>
                 <th className="px-4 py-2 font-medium">Severity</th>
+                {onCreateTicket && <th className="px-4 py-2 font-medium"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-900/40">
@@ -205,11 +225,22 @@ export default function Dashboard() {
                     <td className="px-4 py-2"><ThreatIntel a={a} /></td>
                     <td className="px-4 py-2"><LLMVerdict a={a} /></td>
                     <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
+                    {onCreateTicket && (
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => onCreateTicket(alertToTicket(a))}
+                          className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+                          title="Raise a Tier-2 ticket from this alert"
+                        >
+                          + Ticket
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-600">
+                  <td colSpan={onCreateTicket ? 8 : 7} className="px-4 py-6 text-center text-sm text-slate-600">
                     {health?.api === 'down' ? 'API unreachable — run docker compose up' : 'No alerts yet. Trigger an SSH brute-force to see them here.'}
                   </td>
                 </tr>

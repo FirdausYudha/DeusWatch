@@ -424,6 +424,83 @@ export async function dismissResponse(id: string): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+// ── Ticketing (Tier-2 DFIR case management) ───────────────
+
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+
+export type Ticket = {
+  id: string
+  title: string
+  description: string
+  severity: number
+  status: TicketStatus
+  assignee: string | null
+  created_by: string
+  source_ip: string | null
+  rule_id: string | null
+  created_at: string
+  updated_at: string
+  resolved_at: string | null
+  closed_at: string | null
+}
+
+export type TicketComment = { id: number; author: string; body: string; created_at: string }
+
+export type NewTicketInput = {
+  title: string
+  description?: string
+  severity?: number
+  assignee?: string
+  source_ip?: string
+  rule_id?: string
+}
+
+export async function fetchTickets(status = ''): Promise<Ticket[]> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  const res = await authFetch(`/api/tickets${q}`)
+  if (!res.ok) throw new Error(`tickets: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function fetchTicket(id: string): Promise<{ ticket: Ticket; comments: TicketComment[] }> {
+  const res = await authFetch(`/api/tickets/${id}`)
+  if (!res.ok) throw new Error(`ticket: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function createTicket(input: NewTicketInput): Promise<Ticket> {
+  const res = await authFetch('/api/tickets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function updateTicket(
+  id: string,
+  patch: Partial<{ title: string; description: string; severity: number; status: TicketStatus; assignee: string }>,
+): Promise<Ticket> {
+  const res = await authFetch(`/api/tickets/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function addTicketComment(id: string, body: string): Promise<TicketComment> {
+  const res = await authFetch(`/api/tickets/${id}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // ── Report ────────────────────────────────────────────────
 
 export type ReportCount = { label: string; count: number }

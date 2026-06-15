@@ -24,6 +24,7 @@ import (
 	"deuswatch/internal/respond"
 	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
+	"deuswatch/internal/tickets"
 	"deuswatch/migrations"
 )
 
@@ -131,6 +132,14 @@ func main() {
 			mux.Handle("/api/integrations", protect(auth.PermManageIntegrations, intStore.CollectionHandler()))
 			mux.Handle("/api/integrations/{id}", protect(auth.PermManageIntegrations, intStore.ItemHandler()))
 		}
+
+		// Tier-2 DFIR ticketing (case management).
+		ticketStore := tickets.NewStore(st.Pool())
+		mux.Handle("GET /api/tickets", protect(auth.PermViewTickets, ticketStore.ListHandler()))
+		mux.Handle("POST /api/tickets", protect(auth.PermManageTickets, ticketStore.CreateHandler()))
+		mux.Handle("GET /api/tickets/{id}", protect(auth.PermViewTickets, ticketStore.GetHandler()))
+		mux.Handle("PUT /api/tickets/{id}", protect(auth.PermManageTickets, ticketStore.UpdateHandler()))
+		mux.Handle("POST /api/tickets/{id}/comments", protect(auth.PermManageTickets, ticketStore.CommentHandler()))
 	} else {
 		// Without a DB: endpoints reply 503.
 		mux.HandleFunc("/api/events", eventsHandler(nil))
