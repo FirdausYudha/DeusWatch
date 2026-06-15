@@ -424,6 +424,44 @@ export async function dismissResponse(id: string): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+// ── Customizable dashboard (data + per-user widget layout) ─
+
+export type SeriesPoint = { label: string; count: number }
+export type TimelinePoint = { time: string; count: number }
+
+export type DashboardData = {
+  total_events: number
+  total_alerts: number
+  alerts_24h: number
+  series: Record<string, SeriesPoint[]>
+  timeline: TimelinePoint[]
+}
+
+export async function fetchDashboardData(hours = 24): Promise<DashboardData> {
+  const res = await authFetch(`/api/dashboard?hours=${hours}`)
+  if (!res.ok) throw new Error(`dashboard: HTTP ${res.status}`)
+  return res.json()
+}
+
+export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map'
+export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide: boolean }
+export type DashLayout = { widgets: DashWidget[] }
+
+export async function fetchLayout(): Promise<DashLayout | null> {
+  const res = await authFetch('/api/dashboard/layout')
+  if (!res.ok) throw new Error(`layout: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveLayout(layout: DashLayout): Promise<void> {
+  const res = await authFetch('/api/dashboard/layout', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(layout),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // ── Ticketing (Tier-2 DFIR case management) ───────────────
 
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'

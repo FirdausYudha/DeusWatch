@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -110,6 +111,11 @@ func main() {
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
 		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
+
+		// Customizable dashboard: aggregated series + per-user widget layout.
+		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st)))
+		mux.Handle("GET /api/dashboard/layout", protect(auth.PermViewDashboard, getLayoutHandler(st)))
+		mux.Handle("PUT /api/dashboard/layout", protect(auth.PermViewDashboard, saveLayoutHandler(st)))
 
 		// Response engine: the block approval workflow (executed via the same responder
 		// as the worker — RESPONDER/RESPONSE_LIVE). See internal/respond.
@@ -297,6 +303,66 @@ func reportHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, rep)
+	}
+}
+
+func dashboardDataHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
+		if err != nil || hours <= 0 {
+			hours = 24
+		}
+		d, err := st.Dashboard(r.Context(), hours)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, d)
+	}
+}
+
+func getLayoutHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, _ := auth.UserFrom(r.Context())
+		if u == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		raw, err := st.GetDashboardLayout(r.Context(), u.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if raw == nil {
+			_, _ = w.Write([]byte("null"))
+			return
+		}
+		_, _ = w.Write(raw)
+	}
+}
+
+func saveLayoutHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, _ := auth.UserFrom(r.Context())
+		if u == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256<<10))
+		if err != nil {
+			http.Error(w, "read body", http.StatusBadRequest)
+			return
+		}
+		if !json.Valid(body) {
+			http.Error(w, "invalid JSON layout", http.StatusBadRequest)
+			return
+		}
+		if err := st.SaveDashboardLayout(r.Context(), u.ID, body); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 	}
 }
 
