@@ -4,6 +4,7 @@ import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
 import Response from './response/Response'
 import Report from './report/Report'
+import Integrations from './integrations/Integrations'
 import Users from './users/Users'
 import Settings from './settings/Settings'
 import Login from './components/Login'
@@ -42,6 +43,8 @@ export default function App() {
           <Response me={me} />
         ) : view === 'report' ? (
           <Report />
+        ) : view === 'integrations' && can(me, 'manage_integrations') ? (
+          <Integrations />
         ) : view === 'users' && can(me, 'manage_users') ? (
           <Users />
         ) : view === 'settings' ? (

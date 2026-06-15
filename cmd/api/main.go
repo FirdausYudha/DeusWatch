@@ -17,10 +17,12 @@ import (
 
 	"deuswatch/internal/auth"
 	"deuswatch/internal/enroll"
+	"deuswatch/internal/integrations"
 	"deuswatch/internal/migrate"
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
+	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
 	"deuswatch/migrations"
 )
@@ -115,6 +117,20 @@ func main() {
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
+
+		// Integrations registry (firewalls, bouncers, CTI providers). Secret config
+		// fields are encrypted at rest with the secrets cipher.
+		if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
+			log.Printf("api: secrets cipher unavailable — integrations disabled: %v", cerr)
+		} else {
+			if dev {
+				log.Printf("api: SECRETS_KEY not set — using a DEV key (set SECRETS_KEY for production!)")
+			}
+			intStore := integrations.NewStore(st.Pool(), cipher)
+			mux.Handle("/api/integrations/types", protect(auth.PermManageIntegrations, intStore.TypesHandler()))
+			mux.Handle("/api/integrations", protect(auth.PermManageIntegrations, intStore.CollectionHandler()))
+			mux.Handle("/api/integrations/{id}", protect(auth.PermManageIntegrations, intStore.ItemHandler()))
+		}
 	} else {
 		// Without a DB: endpoints reply 503.
 		mux.HandleFunc("/api/events", eventsHandler(nil))

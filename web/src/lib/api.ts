@@ -323,7 +323,69 @@ export async function setAgentConfig(id: string, sources: AgentSource[]): Promis
   return res.json()
 }
 
-// ── Response engine (aksi blokir, approval workflow) ──────
+// ── Integrations (firewalls, bouncers, CTI providers) ─────
+
+export type IntegrationField = { key: string; label: string; secret?: boolean; optional?: boolean; help?: string }
+export type IntegrationType = { type: string; label: string; category: string; desc: string; fields: IntegrationField[] }
+
+export type Integration = {
+  id: string
+  type: string
+  name: string
+  enabled: boolean
+  config: Record<string, string>
+  secrets_set: Record<string, boolean>
+  created_at: string
+  updated_at: string
+}
+
+export async function fetchIntegrationTypes(): Promise<IntegrationType[]> {
+  const res = await authFetch('/api/integrations/types')
+  if (!res.ok) throw new Error(`integration types: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function fetchIntegrations(): Promise<Integration[]> {
+  const res = await authFetch('/api/integrations')
+  if (!res.ok) throw new Error(`integrations: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function createIntegration(
+  type: string,
+  name: string,
+  config: Record<string, string>,
+): Promise<Integration> {
+  const res = await authFetch('/api/integrations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, name, config }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function updateIntegration(
+  id: string,
+  name: string,
+  enabled: boolean,
+  config: Record<string, string>,
+): Promise<Integration> {
+  const res = await authFetch(`/api/integrations/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, enabled, config }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteIntegration(id: string): Promise<void> {
+  const res = await authFetch(`/api/integrations/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+// ── Response engine (block actions, approval workflow) ────
 
 export type ResponseStatus = 'recommended' | 'approved' | 'executed' | 'dismissed' | 'failed'
 
