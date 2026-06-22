@@ -56,7 +56,7 @@ export default function App() {
         ) : view === 'integrations' && can(me, 'manage_integrations') ? (
           <Integrations />
         ) : view === 'users' && can(me, 'manage_users') ? (
-          <Users />
+          <Users me={me} />
         ) : view === 'settings' ? (
           <Settings />
         ) : (

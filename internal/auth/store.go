@@ -154,6 +154,18 @@ func (s *Store) EnsureAdmin(ctx context.Context, username, password string) (cre
 	return true, nil
 }
 
+// DeleteUser removes a user; their sessions cascade away (FK ON DELETE CASCADE).
+func (s *Store) DeleteUser(ctx context.Context, id string) error {
+	ct, err := s.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
+	if err != nil {
+		return fmt.Errorf("auth: delete user: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("auth: user not found")
+	}
+	return nil
+}
+
 // Login verifies credentials (+ TOTP code if 2FA is enabled) then creates a session.
 func (s *Store) Login(ctx context.Context, username, password, totpCode string, ttl time.Duration) (*User, string, error) {
 	var (

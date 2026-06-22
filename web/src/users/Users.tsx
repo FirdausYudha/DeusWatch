@@ -3,9 +3,11 @@ import {
   fetchUsers,
   createUser,
   updateUser,
+  deleteUser,
   fetchPermissions,
   type UserInfo,
   type PermissionInfo,
+  type Me,
 } from '../lib/api'
 
 const ROLE_BADGE: Record<string, string> = {
@@ -60,7 +62,7 @@ function Checklist({
   )
 }
 
-export default function Users() {
+export default function Users({ me }: { me: Me }) {
   const [users, setUsers] = useState<UserInfo[]>([])
   const [catalog, setCatalog] = useState<PermissionInfo[]>([])
   const [roleDefaults, setRoleDefaults] = useState<Record<string, string[]>>({})
@@ -158,6 +160,17 @@ export default function Users() {
       return next
     })
   }
+  const remove = async (u: UserInfo) => {
+    if (!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return
+    setError('')
+    try {
+      await deleteUser(u.id)
+      load()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
   const saveEdit = async () => {
     if (!editId) return
     setEditBusy(true)
@@ -270,12 +283,22 @@ export default function Users() {
                 <td className="px-4 py-2 text-slate-400">{u.disabled ? 'disabled' : 'active'}</td>
                 <td className="px-4 py-2 text-slate-400">{new Date(u.created_at).toLocaleString('en-US')}</td>
                 <td className="px-4 py-2 text-right">
-                  <button
-                    onClick={() => startEdit(u)}
-                    className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800"
-                  >
-                    Edit access
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => startEdit(u)}
+                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+                    >
+                      Edit access
+                    </button>
+                    {u.username !== me.username && (
+                      <button
+                        onClick={() => remove(u)}
+                        className="rounded-md border border-rose-900/60 px-2 py-1 text-xs text-rose-300 transition-colors hover:bg-rose-500/10"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -275,6 +275,12 @@ export async function updateUser(id: string, role: string, permissions: string[]
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+// Delete a user (you cannot delete your own account — the API rejects it).
+export async function deleteUser(id: string): Promise<void> {
+  const res = await authFetch(`/api/users/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // ── Agents (enrollment, config push, revoke) ──────────────
 
 export type AgentSource = { dataset: string; type: string; path: string; interval?: number }

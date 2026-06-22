@@ -208,6 +208,29 @@ func (s *Store) UpdateUserHandler() http.HandlerFunc {
 	}
 }
 
+// DeleteUserHandler (admin): deletes a user. You cannot delete your own account.
+// MUST be wrapped with Middleware + RequirePermission(PermManageUsers).
+func (s *Store) DeleteUserHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			http.Error(w, "id is required", http.StatusBadRequest)
+			return
+		}
+		if u, ok := UserFrom(r.Context()); ok && u.ID == id {
+			http.Error(w, "you cannot delete your own account", http.StatusBadRequest)
+			return
+		}
+		if err := s.DeleteUser(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		actor, _ := UserFrom(r.Context())
+		s.Audit(r.Context(), actorName(actor), actorRole(actor), "delete_user", id, "", ClientIP(r))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": id})
+	}
+}
+
 // PermissionsHandler returns the permission catalog + each role's default permission
 // set — everything the UI needs to render and prefill the RBAC checklist.
 func (s *Store) PermissionsHandler() http.HandlerFunc {

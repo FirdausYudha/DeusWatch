@@ -89,6 +89,7 @@ func main() {
 		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
 		mux.Handle("/api/users", protect(auth.PermManageUsers, authStore.UsersHandler()))
 		mux.Handle("PUT /api/users/{id}", protect(auth.PermManageUsers, authStore.UpdateUserHandler()))
+		mux.Handle("DELETE /api/users/{id}", protect(auth.PermManageUsers, authStore.DeleteUserHandler()))
 		mux.Handle("/api/permissions", protect(auth.PermManageUsers, authStore.PermissionsHandler()))
 
 		// 2FA self-service (own account; authenticated is enough).
