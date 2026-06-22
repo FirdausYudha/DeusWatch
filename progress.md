@@ -48,7 +48,7 @@ All tests (unit + integration + e2e) pass; gosec & govulncheck clean. Sigma ADR:
 - **Migrations 000007–000010**: `users.permissions text[]` (RBAC), `integrations`, `tickets`+`ticket_comments`, `user_dashboards`.
 - **Permissions**: `view_dashboard, ack_alert, approve_remediation, execute_block, view_tickets, manage_tickets, manage_rules, manage_agents, manage_integrations, manage_users, manage_settings`. Roles: viewer=dashboard; analyst=+ack/approve/tickets; admin=all. NULL `users.permissions` = inherit role, non-NULL = explicit custom set. `GET /api/permissions` = catalog + role defaults; `PUT /api/users/{id}` updates role/perms.
 - **Secrets**: `internal/secret` AES-256-GCM via `SECRETS_KEY` (base64 32 bytes); no key → DEV key + warning. Integration secret fields encrypted at rest, never returned (a `secrets_set` map flags which are set); blank-on-edit preserves them.
-- **Integrations are a registry only for now** — the response/enrichment engines still read config from **env vars**, not yet from the stored connectors, and **agent-side nftables auto-block** isn't wired to a block-decision feed. That enforcement wiring is the main TODO.
+- **Integrations enforcement is wired** — the worker builds the CTI provider & MikroTik responder from the registry (`resolveCTIKeys`/`resolveResponder`, DB > env). Agent-side nftables auto-block: gateway `GET /v1/blocklist` (mTLS) serves the response engine's active blocks when an `nftables_agent` integration is enabled; the agent polls it (`AGENT_FIREWALL=nftables`) and applies to a local nft set (`internal/agent/firewall_linux.go`, root/CAP_NET_ADMIN; Linux only). Manager side verified over mTLS; nft application runs on a real Linux agent.
 - **Agent intensity**: `agent.Source.Interval` (seconds) honoured by poll collectors (fim, wineventlog) via `Source.scanInterval`; file/journald stay live-streamed.
 - **Dashboard**: drag a widget by its ⠿ grip (native HTML5 DnD) to reorder; layout persists per user. Free-form X/Y positioning + drag-to-resize would need `react-grid-layout` (not added).
 - **Logo**: `web/public/deuswatch-eye.png` (resized) in sidebar + login; source art in `logo/`.
@@ -135,11 +135,11 @@ Full i18n (codebase → English); granular per-user RBAC; Integrations registry 
 secrets); central agent monitoring config + OS/arch enrollment wizard; Tier-2 DFIR
 ticketing; customizable drag-and-drop dashboard; eye logo wired in.
 
-## Follow-up ideas (the main TODO first)
+## Follow-up ideas
 
-- **Enforcement wiring (next up)**: response/enrichment engines should consume the
-  Integrations registry (DB) instead of env vars; agent-side nftables auto-block needs a
-  block-decision feed (manager → agent → local nft rules).
+- Enforcement wiring is **done** (CTI/MikroTik from registry; agent nftables block feed).
+  Possible refinements: per-agent block scoping (gateway filters by `agent_scope` + CN);
+  CrowdSec/Mikrotik config fully from DB; run the agent nft applier on a real Linux box.
 - Dashboard: free-form X/Y + drag-to-resize via `react-grid-layout`; a real geographic
   world map for the attack-origins widget.
 - Sigma: mature Go fork for single-event; expand datasets (process/web); rules from the UI.
