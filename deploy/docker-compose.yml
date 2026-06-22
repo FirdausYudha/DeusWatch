@@ -73,12 +73,11 @@ services:
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-thewatcher}"
       # CA for issuing agent certificates during enrollment (mounted read-only).
       CERT_DIR: "/certs"
-      # Cross-compiled agent binaries served by the one-line installer (build into ../dist
-      # with scripts/build-agent). Mounted read-only below.
+      # Cross-compiled agent binaries served by the one-line installer. They are baked
+      # into the api image (see deploy/Dockerfile), so no host build step is needed.
       AGENT_BIN_DIR: "/agents"
     volumes:
       - ./certs:/certs:ro
-      - ../dist:/agents:ro
     ports:
       - "8080:8080"
     depends_on:
