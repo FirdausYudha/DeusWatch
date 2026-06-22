@@ -1,14 +1,17 @@
 # DeusWatch — Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-06-14.
+> Last updated: 2026-06-22.
 
 ## Status summary
 
-The security detection platform **runs end-to-end**, Phases 1–3 complete. Stack: Go
-(agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS JetStream, React+Vite+Tailwind.
-Verified live: the pipeline event→detection(Sigma single+aggregation)→enrich→alert→
-response(dry-run)→LLM triage→report.
+The security detection platform **runs end-to-end**, Phases 1–3 complete **plus a Phase 4
+admin/UX layer** (granular RBAC, Integrations registry, central agent management +
+enrollment wizard, Tier-2 ticketing, customizable drag-and-drop dashboard). The **entire
+codebase is in English** (i18n pass done — UI, Go comments/logs/errors, tests, SQL, Sigma
+YAML, docs). Stack: Go (agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS JetStream,
+React+Vite+Tailwind. Verified live: the pipeline event→detection(Sigma single+aggregation)→
+enrich→alert→response(dry-run)→LLM triage→report.
 
 ```
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI
@@ -29,11 +32,26 @@ agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect)
 | **LLM worker** (Phase 3) | `internal/llm`: triage alert→verdict (Claude SDK / heuristic) → `deuswatch.llm.*` | ✅ + UI |
 | **Report** (Phase 3) | `internal/report` + `GET /api/report` (JSON/Markdown) | ✅ |
 | Auth | login, sessions, **RBAC**, **append-only audit log**, user management, **TOTP 2FA** | ✅ + UI |
-| Web UI | Login, Dashboard (stats/alerts/threat-intel/LLM live), **Agents**, Users, Settings | ✅ |
+| Web UI | Login, Dashboard, **Agents**, **Integrations**, **Tickets**, Users, Settings, Response, Report | ✅ |
 | Agent | per-agent enrollment, config push, heartbeat+offline buffer, **FIM**, **native Windows Service**, per-OS collectors, cross-compile | ✅ |
 | Infra | **automatic migration runner** (embed), **CI** (vet/test/govulncheck/gosec/web), pinned images, gateway+worker in compose | ✅ |
+| **Granular RBAC** (Phase 4) | per-user permission overrides on top of roles (`users.permissions`), checklist UI, menus gated by permission; catalog `internal/auth/rbac.go` | ✅ + UI |
+| **Integrations** (Phase 4) | admin-managed registry (`internal/integrations`): MikroTik / CrowdSec / nftables-agent / AbuseIPDB / OTX; secrets AES-256-GCM encrypted at rest (`internal/secret`, `SECRETS_KEY`), write-only | ✅ + UI |
+| **Agent mgmt** (Phase 4) | central monitoring config (sources + per-source scan `interval`), Wazuh-style OS/arch enrollment wizard | ✅ + UI |
+| **Ticketing/DFIR** (Phase 4) | `internal/tickets`: open→in_progress→resolved→closed, assignee, case notes, time-to-resolve; "+ Ticket" from an alert | ✅ + UI |
+| **Customizable dashboard** (Phase 4) | per-user widget layout (`user_dashboards`), `GET /api/dashboard` series + timeline; SVG widgets (stat/bar/donut/line/table/attack-map), edit mode with **drag-and-drop** reorder, type/color/size | ✅ + UI |
 
 All tests (unit + integration + e2e) pass; gosec & govulncheck clean. Sigma ADR: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
+
+## Phase 4 notes (admin & UX)
+
+- **Migrations 000007–000010**: `users.permissions text[]` (RBAC), `integrations`, `tickets`+`ticket_comments`, `user_dashboards`.
+- **Permissions**: `view_dashboard, ack_alert, approve_remediation, execute_block, view_tickets, manage_tickets, manage_rules, manage_agents, manage_integrations, manage_users, manage_settings`. Roles: viewer=dashboard; analyst=+ack/approve/tickets; admin=all. NULL `users.permissions` = inherit role, non-NULL = explicit custom set. `GET /api/permissions` = catalog + role defaults; `PUT /api/users/{id}` updates role/perms.
+- **Secrets**: `internal/secret` AES-256-GCM via `SECRETS_KEY` (base64 32 bytes); no key → DEV key + warning. Integration secret fields encrypted at rest, never returned (a `secrets_set` map flags which are set); blank-on-edit preserves them.
+- **Integrations are a registry only for now** — the response/enrichment engines still read config from **env vars**, not yet from the stored connectors, and **agent-side nftables auto-block** isn't wired to a block-decision feed. That enforcement wiring is the main TODO.
+- **Agent intensity**: `agent.Source.Interval` (seconds) honoured by poll collectors (fim, wineventlog) via `Source.scanInterval`; file/journald stay live-streamed.
+- **Dashboard**: drag a widget by its ⠿ grip (native HTML5 DnD) to reorder; layout persists per user. Free-form X/Y positioning + drag-to-resize would need `react-grid-layout` (not added).
+- **Logo**: `web/public/deuswatch-eye.png` (resized) in sidebar + login; source art in `logo/`.
 
 ## Prerequisites on a new PC
 
@@ -111,16 +129,33 @@ Sigma aggregation→SQL+new rules (#4); FIM+native Windows Service+Agents page (
 real CTI clients+GeoIP+UI (#6); response engine+progressive ban (#7); infra migration/CI/
 compose (#8); notifications (#9); LLM worker+report+blocklist (#10).
 
-## Follow-up ideas (optional)
+## Phase 4 (admin & UX) — DONE ✅
 
-- Sigma: adopt a mature Go fork for single-event; expand datasets (process/web); escalation & ban rules from the UI.
-- UI: Response/Actions page (approve/dismiss from the UI), Report page, agent drift indicator.
+Full i18n (codebase → English); granular per-user RBAC; Integrations registry (encrypted
+secrets); central agent monitoring config + OS/arch enrollment wizard; Tier-2 DFIR
+ticketing; customizable drag-and-drop dashboard; eye logo wired in.
+
+## Follow-up ideas (the main TODO first)
+
+- **Enforcement wiring (next up)**: response/enrichment engines should consume the
+  Integrations registry (DB) instead of env vars; agent-side nftables auto-block needs a
+  block-decision feed (manager → agent → local nft rules).
+- Dashboard: free-form X/Y + drag-to-resize via `react-grid-layout`; a real geographic
+  world map for the attack-origins widget.
+- Sigma: mature Go fork for single-event; expand datasets (process/web); rules from the UI.
 - Agent: canary config deploy, real-time FIM (fsnotify) instead of polling.
 - pgvector for RAG/LLM (the embedding column is prepared in the schema).
 
 ## Commit map (newest → oldest, partial)
 
 ```
+feat(dashboard): drag-and-drop widget reordering
+feat(dashboard): customizable Kibana-style widget dashboard
+feat(tickets): Tier-2 DFIR ticketing + logo
+feat(agents): central monitoring config + OS/arch enrollment wizard
+feat(integrations): admin-managed connector registry
+feat(rbac): per-user granular permissions (checklist)
+i18n: translate entire codebase to English (UI, Go, SQL, rules, docs)
 (#10) feat(llm): LLM worker + report + community blocklist (Phase 3)
 (#9)  feat(notify): Telegram/email/webhook + dedup/throttle
 (#8)  feat(infra): automatic migration runner + CI + gateway/worker in compose
