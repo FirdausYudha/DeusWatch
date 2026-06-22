@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"time"
 
+	"deuswatch/internal/agentinstall"
 	"deuswatch/internal/auth"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/integrations"
@@ -63,6 +64,13 @@ func main() {
 	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/healthz", healthzHandler)
 	mux.HandleFunc("/readyz", readyzHandler)
+
+	// Public one-line agent installer: scripts + cross-compiled binaries (no auth;
+	// the enrollment token is the credential). Binaries come from AGENT_BIN_DIR.
+	ai := agentinstall.New(getenv("AGENT_BIN_DIR", "/agents"))
+	mux.HandleFunc("GET /api/agent/install.sh", ai.InstallSh)
+	mux.HandleFunc("GET /api/agent/install.ps1", ai.InstallPs1)
+	mux.HandleFunc("GET /api/agent/binary/{os}/{arch}", ai.Binary)
 
 	if st != nil {
 		authStore := auth.NewStore(st.Pool())

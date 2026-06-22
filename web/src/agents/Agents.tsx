@@ -153,8 +153,35 @@ export default function Agents({ me }: { me: Me }) {
   )
 }
 
-// EnrollWizard — Wazuh-style: pick OS + arch, generate a one-time token, and get the
-// tailored install/enroll command.
+// Copyable shows a command in a code block with a copy-to-clipboard button.
+function Copyable({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+  return (
+    <div className="relative">
+      <button
+        onClick={copy}
+        className="absolute right-2 top-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-indigo-300 hover:bg-slate-700"
+      >
+        {copied ? 'copied ✓' : 'copy'}
+      </button>
+      <code className="block whitespace-pre-wrap break-all rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-xs text-emerald-300">
+        {text}
+      </code>
+    </div>
+  )
+}
+
+// EnrollWizard — Wazuh-style: pick OS + arch, auto-generate a one-time token, and get a
+// single copy-paste command that downloads, enrolls, installs the service and connects.
 function EnrollWizard({ onClose }: { onClose: () => void }) {
   const [os, setOs] = useState('linux')
   const [arch, setArch] = useState('amd64')
@@ -163,13 +190,19 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   const [token, setToken] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
 
-  const win = os === 'windows'
-  const binary = `deuswatch-agent-${os}-${arch}${win ? '.exe' : ''}`
-  const certDir = win ? 'C:\\ProgramData\\DeusWatch\\certs' : '/etc/deuswatch/certs'
-  const exe = win ? `.\\${binary}` : `sudo ./${binary}`
-  const command = `${exe} -enroll -token ${token || '<TOKEN>'} -name ${name || '<agent-name>'} -manager http://${host} -out ${certDir}`
+  const managerIP = host.replace(/:\d+$/, '')
+  const tok = token || '<TOKEN>'
+  const nm = name || '<name>'
+  // One copy-paste command that downloads, enrolls, installs the service and connects.
+  const install =
+    os === 'windows'
+      ? `$env:MANAGER='${managerIP}'; $env:TOKEN='${tok}'; $env:NAME='${nm}'; iwr http://${host}/api/agent/install.ps1 -UseBasicParsing | iex`
+      : os === 'darwin'
+        ? `curl -fsSL http://${host}/api/agent/binary/darwin/${arch} -o deuswatch-agent && chmod +x deuswatch-agent && sudo ./deuswatch-agent -enroll -token ${tok} -name ${nm} -manager http://${host} -out /etc/deuswatch/certs && sudo GATEWAY_URL=https://${managerIP}:8443 CERT_DIR=/etc/deuswatch/certs ./deuswatch-agent`
+        : `curl -fsSL http://${host}/api/agent/install.sh | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} sh`
+  // Firewall command to run once on the manager host (Windows) so agents can reach it.
+  const managerFw = `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8080,8443`
 
   const gen = async () => {
     setBusy(true)
@@ -189,16 +222,6 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
     void gen()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(command)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard unavailable */
-    }
-  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
@@ -252,22 +275,26 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
           </label>
         </div>
 
-        <div className="mt-4">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">
-              Binary: <code className="text-slate-300">{binary}</code>{' '}
-              <span className="text-slate-600">(from dist/ — build with scripts/build-agent)</span>
-            </span>
-            <button onClick={copy} className="text-xs text-indigo-300 hover:text-indigo-200">
-              {copied ? 'copied ✓' : 'copy command'}
-            </button>
+        <div className="mt-5 space-y-4">
+          <div>
+            <div className="mb-1 text-xs font-medium text-slate-400">
+              1 · On the manager — open the firewall <span className="text-slate-600">(elevated PowerShell, once)</span>
+            </div>
+            <Copyable text={managerFw} />
           </div>
-          <code className="block whitespace-pre-wrap break-all rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-emerald-300">
-            {command}
-          </code>
-          {!token && (
-            <p className="mt-2 text-xs text-amber-400/80">{busy ? 'Generating token…' : 'No token yet — click “Generate token”.'}</p>
-          )}
+          <div>
+            <div className="mb-1 text-xs font-medium text-slate-400">
+              2 · On the endpoint — paste &amp; run{' '}
+              <span className="text-slate-600">{os === 'windows' ? '(elevated PowerShell)' : '(root; sudo is included)'}</span>
+            </div>
+            <Copyable text={install} />
+            {!token && (
+              <p className="mt-1 text-xs text-amber-400/80">{busy ? 'Generating token…' : 'No token yet — click “Generate token”.'}</p>
+            )}
+            <p className="mt-1 text-[11px] text-slate-600">
+              Downloads the agent, opens its firewall, enrolls with the token, installs an auto-start service, and connects to the gateway.
+            </p>
+          </div>
         </div>
 
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}

@@ -68,8 +68,12 @@ services:
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-thewatcher}"
       # CA for issuing agent certificates during enrollment (mounted read-only).
       CERT_DIR: "/certs"
+      # Cross-compiled agent binaries served by the one-line installer (build into ../dist
+      # with scripts/build-agent). Mounted read-only below.
+      AGENT_BIN_DIR: "/agents"
     volumes:
       - ./certs:/certs:ro
+      - ../dist:/agents:ro
     ports:
       - "8080:8080"
     depends_on:
@@ -81,7 +85,7 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # Ingest gateway (mTLS). Sertifikat server di ./certs dibuat service certgen.
+  # Ingest gateway (mTLS). Server certificate in ./certs is created by the certgen service.
   gateway:
     build:
       context: ..
