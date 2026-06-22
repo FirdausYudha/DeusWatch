@@ -184,6 +184,12 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Auto-generate a one-time token when the wizard opens, so the command is ready to copy.
+  useEffect(() => {
+    void gen()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(command)
@@ -260,7 +266,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             {command}
           </code>
           {!token && (
-            <p className="mt-2 text-xs text-amber-400/80">Generate a one-time enrollment token to fill in the command.</p>
+            <p className="mt-2 text-xs text-amber-400/80">{busy ? 'Generating token…' : 'No token yet — click “Generate token”.'}</p>
           )}
         </div>
 
