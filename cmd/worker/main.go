@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,9 +17,11 @@ import (
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/enrich"
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
 	"deuswatch/internal/notify"
 	"deuswatch/internal/respond"
+	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
 	"deuswatch/internal/worker"
 )
@@ -48,6 +51,18 @@ func main() {
 	}
 	defer b.Close()
 
+	// Integrations registry: CTI keys & responder config the admin manages in the UI
+	// take precedence over env vars. nil if the secrets cipher can't be built.
+	var intStore *integrations.Store
+	if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
+		log.Printf("worker: secrets cipher unavailable — using env-only integration config: %v", cerr)
+	} else {
+		if dev {
+			log.Printf("worker: SECRETS_KEY not set — using a DEV key (set SECRETS_KEY for production!)")
+		}
+		intStore = integrations.NewStore(st.Pool(), cipher)
+	}
+
 	bruteForce := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig())
 
 	sigmaDir := getenv("RULES_DIR", "rules/sigma")
@@ -65,21 +80,23 @@ func main() {
 	aggRunner := detect.NewAggregateRunner(st, aggRules, 0)
 	log.Printf("worker: %d aggregation Sigma rules loaded (SQL path)", aggRunner.RuleCount())
 
-	// CTI enrichment: TTL cache in Postgres + real provider when configured
-	// (ABUSEIPDB_API_KEY / OTX_API_KEY / GEOIP_ENABLED), otherwise mock for dev.
-	provider, real := enrich.ProviderFromEnv()
+	// CTI enrichment: TTL cache in Postgres + a real provider when AbuseIPDB/OTX keys are
+	// configured — from the Integrations registry first, then env (GEOIP via env), else mock.
+	abuseKey, otxKey := resolveCTIKeys(ctx, intStore)
+	geoOn, _ := strconv.ParseBool(os.Getenv("GEOIP_ENABLED"))
+	provider, real := enrich.BuildProvider(abuseKey, otxKey, geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")))
 	if real {
-		log.Printf("worker: real CTI provider active")
+		log.Printf("worker: real CTI provider active (abuseipdb=%v otx=%v geoip=%v)", abuseKey != "", otxKey != "", geoOn)
 	} else {
-		log.Printf("worker: mock CTI provider (set ABUSEIPDB_API_KEY/OTX_API_KEY/GEOIP_ENABLED for real)")
+		log.Printf("worker: mock CTI provider (add an AbuseIPDB/OTX integration or set the env keys for real)")
 	}
 	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), enrich.DefaultTTL, enrich.EscalationFromEnv())
 
 	// Response engine (Phase 2): block recommendations + approval + progressive ban.
-	// The responder is selected via RESPONDER (default dry-run); RESPONSE_AUTO_APPROVE=1
-	// executes without manual approval.
+	// The responder comes from the Integrations registry (MikroTik) first, else RESPONDER env
+	// (dry-run unless RESPONSE_LIVE=1). RESPONSE_AUTO_APPROVE=1 executes without manual approval.
 	var engine *respond.Engine
-	if responder := respond.ResponderFromEnv(); responder != nil {
+	if responder := resolveResponder(ctx, intStore); responder != nil {
 		autoApprove, _ := strconv.ParseBool(os.Getenv("RESPONSE_AUTO_APPROVE"))
 		engine = respond.NewEngine(respond.NewStore(st.Pool()), responder, respond.DefaultBanPolicy(), autoApprove)
 		log.Printf("worker: response engine active (responder=%s, auto_approve=%v)", responder.Name(), autoApprove)
@@ -229,4 +246,48 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// resolveCTIKeys returns the AbuseIPDB & OTX keys, preferring enabled Integrations
+// registry entries over the env vars.
+func resolveCTIKeys(ctx context.Context, intStore *integrations.Store) (abuseKey, otxKey string) {
+	abuseKey = os.Getenv("ABUSEIPDB_API_KEY")
+	otxKey = os.Getenv("OTX_API_KEY")
+	if intStore == nil {
+		return
+	}
+	if rows, err := intStore.Resolve(ctx, "abuseipdb"); err == nil && len(rows) > 0 {
+		if k := rows[0].Config["api_key"]; k != "" {
+			abuseKey = k
+		}
+	}
+	if rows, err := intStore.Resolve(ctx, "otx"); err == nil && len(rows) > 0 {
+		if k := rows[0].Config["api_key"]; k != "" {
+			otxKey = k
+		}
+	}
+	return
+}
+
+// resolveResponder builds the block responder from an enabled MikroTik integration if
+// present, otherwise falls back to the RESPONDER env selection.
+func resolveResponder(ctx context.Context, intStore *integrations.Store) respond.Responder {
+	if intStore != nil {
+		if rows, err := intStore.Resolve(ctx, "mikrotik"); err == nil && len(rows) > 0 {
+			c := rows[0].Config
+			log.Printf("worker: responder from Integrations MikroTik %q", rows[0].Name)
+			return respond.MikrotikResponderFromConfig(c["address"], c["username"], c["password"], c["address_list"])
+		}
+	}
+	return respond.ResponderFromEnv()
+}
+
+func splitCSV(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

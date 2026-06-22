@@ -213,6 +213,13 @@ func ResponderFromEnv() Responder {
 	}
 }
 
+// MikrotikResponderFromConfig builds a MikroTik responder from explicit config (used
+// when the connector comes from the Integrations registry). Wrapped in dry-run unless
+// RESPONSE_LIVE=1, like the env path.
+func MikrotikResponderFromConfig(baseURL, user, pass, list string) Responder {
+	return liveOrDry(NewMikrotikResponder(baseURL, user, pass, list))
+}
+
 func liveOrDry(r Responder) Responder {
 	if live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE")); live {
 		log.Printf("respond: LIVE responder active: %s", r.Name())

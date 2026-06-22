@@ -224,11 +224,14 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 //
 // If nothing is configured, it falls back to the demo MockProvider (dev) + false flag.
 func ProviderFromEnv() (Provider, bool) {
-	abuseKey := os.Getenv("ABUSEIPDB_API_KEY")
-	otxKey := os.Getenv("OTX_API_KEY")
 	geoOn, _ := strconv.ParseBool(os.Getenv("GEOIP_ENABLED"))
-	blURLs := splitCSV(os.Getenv("BLOCKLIST_URLS"))
+	return BuildProvider(os.Getenv("ABUSEIPDB_API_KEY"), os.Getenv("OTX_API_KEY"), geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")))
+}
 
+// BuildProvider assembles a CTI provider from explicit config (used by ProviderFromEnv
+// and by the worker when the keys come from the Integrations registry instead of env).
+// Returns the demo provider + false when nothing is configured.
+func BuildProvider(abuseKey, otxKey string, geoOn bool, blURLs []string) (Provider, bool) {
 	if abuseKey == "" && otxKey == "" && !geoOn && len(blURLs) == 0 {
 		return NewDemoProvider(), false
 	}
