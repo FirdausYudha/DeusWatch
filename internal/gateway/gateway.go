@@ -28,6 +28,24 @@ type ConfigFunc func(ctx context.Context, agentName string) ([]byte, error)
 // SeenFunc marks an agent (by CN) as just seen (heartbeat). nil = skip.
 type SeenFunc func(ctx context.Context, agentName string) error
 
+// BlocklistFunc returns the source IPs agents should block (empty when none/disabled).
+type BlocklistFunc func(ctx context.Context) ([]string, error)
+
+// BlocklistHandler serves the agent-side auto-block list over mTLS. Agents poll this and
+// apply the IPs to their local nftables set.
+func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ips := []string{}
+		if fn != nil {
+			if list, err := fn(r.Context()); err == nil && list != nil {
+				ips = list
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string][]string{"ips": ips})
+	}
+}
+
 // HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN).
 func HeartbeatHandler(seen SeenFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

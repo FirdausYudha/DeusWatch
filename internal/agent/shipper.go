@@ -80,6 +80,30 @@ func (s *Shipper) Heartbeat(ctx context.Context) error {
 	return nil
 }
 
+// FetchBlocklist retrieves the source IPs the manager wants this agent's firewall to
+// block (GET /v1/blocklist). Returns an empty slice when none/disabled.
+func (s *Shipper) FetchBlocklist(ctx context.Context) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/v1/blocklist", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("agent: fetch blocklist (status %d)", resp.StatusCode)
+	}
+	var body struct {
+		IPs []string `json:"ips"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return nil, err
+	}
+	return body.IPs, nil
+}
+
 // FetchConfig retrieves this agent's push-config from the manager (GET /v1/config).
 // Returns (nil, nil) when the manager has not set a config yet (HTTP 204).
 func (s *Shipper) FetchConfig(ctx context.Context) (*Config, error) {

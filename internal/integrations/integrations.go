@@ -81,6 +81,14 @@ var Catalog = []TypeInfo{
 	},
 }
 
+// HasEnabled reports whether any enabled integration of the given type exists. It reads
+// no secrets, so callers (e.g. the gateway) can use it without a cipher.
+func HasEnabled(ctx context.Context, pool *pgxpool.Pool, typ string) (bool, error) {
+	var ok bool
+	err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM integrations WHERE type=$1 AND enabled)`, typ).Scan(&ok)
+	return ok, err
+}
+
 func typeInfo(t string) (TypeInfo, bool) {
 	for _, ti := range Catalog {
 		if ti.Type == t {

@@ -14,7 +14,9 @@ import (
 	"deuswatch/internal/bus"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/gateway"
+	"deuswatch/internal/integrations"
 	"deuswatch/internal/mtls"
+	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
 )
 
@@ -37,10 +39,11 @@ func main() {
 	}
 	defer b.Close()
 
-	// Revocation + config push (optional): needs DB access.
+	// Revocation + config push + agent-block feed (optional): needs DB access.
 	var revoked gateway.RevokedFunc
 	var cfgFunc gateway.ConfigFunc
 	var seenFunc gateway.SeenFunc
+	var blockFunc gateway.BlocklistFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
@@ -50,7 +53,18 @@ func main() {
 			revoked = es.IsRevoked
 			cfgFunc = es.GetConfigByName
 			seenFunc = es.MarkSeen
-			log.Printf("gateway: revocation, config push & heartbeat enabled")
+			// Agent-side auto-block: only feed the blocklist when the admin has enabled an
+			// nftables_agent integration; the IPs are the active response-engine blocks.
+			rs := respond.NewStore(st.Pool())
+			pool := st.Pool()
+			blockFunc = func(ctx context.Context) ([]string, error) {
+				on, err := integrations.HasEnabled(ctx, pool, "nftables_agent")
+				if err != nil || !on {
+					return nil, err
+				}
+				return rs.ActiveBlocks(ctx)
+			}
+			log.Printf("gateway: revocation, config push, heartbeat & agent-block feed enabled")
 		}
 	}
 
@@ -58,6 +72,7 @@ func main() {
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
 	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc))
+	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistHandler(blockFunc))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))

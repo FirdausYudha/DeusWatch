@@ -104,6 +104,11 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	// Resend buffered batches (store-and-forward) + heartbeat.
 	go drainBuffer(ctx, shipper, buf)
 	go heartbeatLoop(ctx, shipper)
+	// Agent-side firewall auto-block (opt-in via AGENT_FIREWALL=nftables, Linux only):
+	// poll the manager's blocklist and apply it to a local nftables set.
+	if strings.EqualFold(os.Getenv("AGENT_FIREWALL"), "nftables") {
+		go runFirewall(ctx, shipper)
+	}
 
 	lines := make(chan agent.Line, 256)
 	go func() {
@@ -216,6 +221,38 @@ func drainBuffer(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer)
 				_ = buf.Remove(f)
 				log.Printf("agent: buffer resent (%s)", filepath.Base(f))
 			}
+		}
+	}
+}
+
+// runFirewall polls the manager's blocklist and syncs it into the local nftables set.
+// Table/set names come from NFT_TABLE/NFT_SET (defaults deuswatch/blocklist).
+func runFirewall(ctx context.Context, shipper *agent.Shipper) {
+	table := getenv("NFT_TABLE", "deuswatch")
+	set := getenv("NFT_SET", "blocklist")
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	last := ""
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			ips, err := shipper.FetchBlocklist(ctx)
+			if err != nil {
+				log.Printf("agent: fetch blocklist: %v", err)
+				continue
+			}
+			key := strings.Join(ips, ",")
+			if key == last {
+				continue // unchanged
+			}
+			if err := agent.ApplyBlocklist(table, set, ips); err != nil {
+				log.Printf("agent: apply blocklist: %v", err)
+				continue
+			}
+			last = key
+			log.Printf("agent: firewall synced %d blocked IP(s) into nft set %s/%s", len(ips), table, set)
 		}
 	}
 }

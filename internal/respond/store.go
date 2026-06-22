@@ -135,6 +135,30 @@ func (s *Store) List(ctx context.Context, status string, limit int) ([]Action, e
 	return out, rows.Err()
 }
 
+// ActiveBlocks returns the source IPs that should currently be blocked: approved or
+// executed block actions whose ban window has not expired (ban_seconds = 0 = permanent).
+// Used to feed agent-side firewalls.
+func (s *Store) ActiveBlocks(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT host(source_ip) FROM response_actions
+		WHERE action = 'block' AND status IN ('approved','executed')
+		  AND (ban_seconds = 0
+		       OR COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds) > now())`)
+	if err != nil {
+		return nil, fmt.Errorf("respond: active blocks: %w", err)
+	}
+	defer rows.Close()
+	out := make([]string, 0, 32)
+	for rows.Next() {
+		var ip string
+		if err := rows.Scan(&ip); err != nil {
+			return nil, err
+		}
+		out = append(out, ip)
+	}
+	return out, rows.Err()
+}
+
 func strOrNil(s string) any {
 	if s == "" {
 		return nil
