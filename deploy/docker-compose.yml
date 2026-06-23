@@ -50,7 +50,9 @@ services:
     # Run as root: on Linux the bind-mounted ./certs is host-root-owned, and the image's
     # nonroot user can't write the certs there (Windows ignores mount perms, so it worked).
     user: "0:0"
-    command: ["--out", "/certs"]
+    # MANAGER_IP (from .env) is added to the server-cert SAN so agents on OTHER machines
+    # reach the gateway by the host's LAN IP without a TLS error. Set it before first start.
+    command: ["--out", "/certs", "--dns", "localhost,gateway,api", "--ip", "127.0.0.1,::1,${MANAGER_IP:-127.0.0.1}"]
     volumes:
       - ./certs:/certs
     restart: "no"
