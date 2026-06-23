@@ -94,6 +94,7 @@ func main() {
 			return authStore.Middleware(auth.RequirePermission(p, h))
 		}
 		mux.Handle("/api/me", authStore.Middleware(authStore.MeHandler()))
+		mux.Handle("/api/me/password", authStore.Middleware(authStore.ChangePasswordHandler()))
 		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
 		mux.Handle("/api/users", protect(auth.PermManageUsers, authStore.UsersHandler()))
 		mux.Handle("PUT /api/users/{id}", protect(auth.PermManageUsers, authStore.UpdateUserHandler()))

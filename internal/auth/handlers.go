@@ -340,6 +340,39 @@ func (s *Store) Disable2FAHandler() http.HandlerFunc {
 	}
 }
 
+// ChangePasswordHandler lets the authenticated user change their own password.
+func (s *Store) ChangePasswordHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := UserFrom(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			CurrentPassword string `json:"current_password"`
+			NewPassword     string `json:"new_password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if len(req.NewPassword) < 8 {
+			http.Error(w, "new password must be at least 8 characters", http.StatusBadRequest)
+			return
+		}
+		if err := s.ChangePassword(r.Context(), u.ID, req.CurrentPassword, req.NewPassword); err != nil {
+			if errors.Is(err, ErrMismatch) {
+				http.Error(w, "current password is incorrect", http.StatusBadRequest)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		s.Audit(r.Context(), u.Username, string(u.Role), "change_password", u.Username, "", ClientIP(r))
+		writeJSON(w, http.StatusOK, map[string]string{"status": "changed"})
+	}
+}
+
 // MeHandler returns the currently authenticated user's identity + 2FA status.
 func (s *Store) MeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

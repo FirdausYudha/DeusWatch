@@ -1,0 +1,37 @@
+name: release
+
+# On a version tag (e.g. v0.1.0), cross-compile the agent binaries for all supported
+# OS/arch and publish them as a GitHub Release. Operators can then point the one-line
+# installer at the release assets instead of (or as well as) the manager-served binaries.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  agents:
+    name: Build & publish agent binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cross-compile agent binaries
+        run: sh scripts/build-agent.sh
+
+      - name: Generate checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/deuswatch-agent-*
+            dist/SHA256SUMS.txt
+          generate_release_notes: true

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { fetchMe, setup2FA, enable2FA, disable2FA } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword } from '../lib/api'
 
 export default function Settings() {
   const [enabled, setEnabled] = useState<boolean | null>(null)
@@ -8,6 +8,36 @@ export default function Settings() {
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // Change password.
+  const [curPw, setCurPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [pwError, setPwError] = useState('')
+  const [pwMsg, setPwMsg] = useState('')
+  const [pwBusy, setPwBusy] = useState(false)
+
+  const submitPassword = async (e: FormEvent) => {
+    e.preventDefault()
+    setPwError('')
+    setPwMsg('')
+    if (newPw !== confirmPw) {
+      setPwError('New password confirmation does not match')
+      return
+    }
+    setPwBusy(true)
+    try {
+      await changePassword(curPw, newPw)
+      setCurPw('')
+      setNewPw('')
+      setConfirmPw('')
+      setPwMsg('Password changed successfully.')
+    } catch (err) {
+      setPwError((err as Error).message)
+    } finally {
+      setPwBusy(false)
+    }
+  }
 
   const refresh = () => {
     fetchMe()
@@ -137,6 +167,45 @@ export default function Settings() {
 
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
         {msg && <p className="mt-3 text-sm text-emerald-400">{msg}</p>}
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <h2 className="mb-4 text-sm font-medium text-slate-200">Change password</h2>
+        <form onSubmit={submitPassword} className="space-y-3">
+          <input
+            type="password"
+            value={curPw}
+            onChange={(e) => setCurPw(e.target.value)}
+            placeholder="Current password"
+            autoComplete="current-password"
+            className="block w-72 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          />
+          <input
+            type="password"
+            value={newPw}
+            onChange={(e) => setNewPw(e.target.value)}
+            placeholder="New password (min 8)"
+            autoComplete="new-password"
+            className="block w-72 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          />
+          <input
+            type="password"
+            value={confirmPw}
+            onChange={(e) => setConfirmPw(e.target.value)}
+            placeholder="Confirm new password"
+            autoComplete="new-password"
+            className="block w-72 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          />
+          <button
+            type="submit"
+            disabled={pwBusy || !curPw || newPw.length < 8 || !confirmPw}
+            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
+          >
+            {pwBusy ? 'Saving…' : 'Change password'}
+          </button>
+        </form>
+        {pwError && <p className="mt-3 text-sm text-rose-400">{pwError}</p>}
+        {pwMsg && <p className="mt-3 text-sm text-emerald-400">{pwMsg}</p>}
       </section>
     </div>
   )

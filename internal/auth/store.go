@@ -154,6 +154,25 @@ func (s *Store) EnsureAdmin(ctx context.Context, username, password string) (cre
 	return true, nil
 }
 
+// ChangePassword verifies the user's current password and sets a new Argon2id hash.
+func (s *Store) ChangePassword(ctx context.Context, userID, current, newPass string) error {
+	var hash string
+	if err := s.pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id=$1`, userID).Scan(&hash); err != nil {
+		return fmt.Errorf("auth: fetch user: %w", err)
+	}
+	if VerifyPassword(current, hash) != nil {
+		return ErrMismatch
+	}
+	h, err := HashPassword(newPass)
+	if err != nil {
+		return err
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE users SET password_hash=$1, updated_at=now() WHERE id=$2`, h, userID); err != nil {
+		return fmt.Errorf("auth: change password: %w", err)
+	}
+	return nil
+}
+
 // DeleteUser removes a user; their sessions cascade away (FK ON DELETE CASCADE).
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	ct, err := s.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)

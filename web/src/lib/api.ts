@@ -205,6 +205,15 @@ export async function disable2FA(code: string): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await authFetch('/api/me/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 export async function fetchMe(): Promise<Me> {
   const res = await authFetch('/api/me')
   if (!res.ok) throw new Error(`me: HTTP ${res.status}`)

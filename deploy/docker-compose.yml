@@ -78,6 +78,8 @@ services:
       # Cross-compiled agent binaries served by the one-line installer. They are baked
       # into the api image (see deploy/Dockerfile), so no host build step is needed.
       AGENT_BIN_DIR: "/agents"
+      # Encrypts integration secrets at rest. Generate: openssl rand -base64 32
+      SECRETS_KEY: "${SECRETS_KEY:-}"
     volumes:
       - ./certs:/certs:ro
     ports:
@@ -129,17 +131,20 @@ services:
       NATS_URL: "nats://nats:4222"
       STORE_DSN: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
       RULES_DIR: "/rules/sigma"
-      # Enrichment CTI nyata (opsional): set kunci API & GeoIP.
+      # Decrypts integration secrets (CTI keys, MikroTik creds) from the registry.
+      SECRETS_KEY: "${SECRETS_KEY:-}"
+      # Real CTI enrichment (optional): API keys & GeoIP. The Integrations registry takes
+      # precedence over these env vars when configured.
       ABUSEIPDB_API_KEY: "${ABUSEIPDB_API_KEY:-}"
       OTX_API_KEY: "${OTX_API_KEY:-}"
       GEOIP_ENABLED: "${GEOIP_ENABLED:-0}"
-      # Community blocklist (opsional): URL feed IP/CIDR dipisah koma.
+      # Community blocklist (optional): comma-separated IP/CIDR feed URLs.
       BLOCKLIST_URLS: "${BLOCKLIST_URLS:-}"
-      # Worker LLM (Fase 3): ANTHROPIC_API_KEY -> Claude; LLM_ENABLED=1 -> heuristik.
+      # LLM worker (Phase 3): ANTHROPIC_API_KEY -> Claude; LLM_ENABLED=1 -> offline heuristic.
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       ANTHROPIC_MODEL: "${ANTHROPIC_MODEL:-claude-opus-4-8}"
       LLM_ENABLED: "${LLM_ENABLED:-0}"
-      # Response engine (opsional): dryrun default; set RESPONDER + RESPONSE_LIVE=1 utk nyata.
+      # Response engine (optional): dry-run by default; set RESPONDER + RESPONSE_LIVE=1 for real.
       RESPONDER: "${RESPONDER:-dryrun}"
       RESPONSE_LIVE: "${RESPONSE_LIVE:-0}"
       RESPONSE_AUTO_APPROVE: "${RESPONSE_AUTO_APPROVE:-0}"
