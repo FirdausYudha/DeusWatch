@@ -73,6 +73,8 @@ services:
       # The initial admin is seeded when the users table is empty. CHANGE for production.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-thewatcher}"
+      # Self-registration on the login page — off by default (admins add users in the UI).
+      REGISTRATION_ENABLED: "${REGISTRATION_ENABLED:-0}"
       # CA for issuing agent certificates during enrollment (mounted read-only).
       CERT_DIR: "/certs"
       # Cross-compiled agent binaries served by the one-line installer. They are baked

@@ -79,14 +79,17 @@ func main() {
 		// Public (no token).
 		mux.HandleFunc("/api/login", authStore.LoginHandler())
 
-		// Self-registration (optional, enabled by default): new accounts = viewer role.
-		registrationEnabled, _ := strconv.ParseBool(getenv("REGISTRATION_ENABLED", "1"))
+		// Self-registration (optional, DISABLED by default): admins create users in the UI.
+		// Set REGISTRATION_ENABLED=1 to allow new viewer-role accounts from the login page.
+		registrationEnabled, _ := strconv.ParseBool(getenv("REGISTRATION_ENABLED", "0"))
 		mux.HandleFunc("/api/auth/config", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]bool{"registration_enabled": registrationEnabled})
 		})
 		if registrationEnabled {
 			mux.HandleFunc("/api/register", authStore.RegisterHandler())
 			log.Printf("api: self-registration ENABLED (set REGISTRATION_ENABLED=0 to disable)")
+		} else {
+			log.Printf("api: self-registration disabled (set REGISTRATION_ENABLED=1 to enable)")
 		}
 
 		// Protected: requires a valid session + permission.
