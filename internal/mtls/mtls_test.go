@@ -69,3 +69,50 @@ func TestMTLSHandshake(t *testing.T) {
 		t.Logf("OK: client without a certificate was rejected as expected (%v)", err)
 	}
 }
+
+// TestMTLSClientTrustsCANotHostname proves the cross-host behavior: the client accepts
+// a server cert whose SAN does NOT cover the dialed address (as long as it is CA-signed),
+// but rejects a server cert signed by a DIFFERENT CA. This guards against regressing into
+// the "x509: certificate is valid for … not <ip>" pitfall on cross-host deployments.
+func TestMTLSClientTrustsCANotHostname(t *testing.T) {
+	dir := t.TempDir()
+	// Server SAN deliberately excludes localhost/127.0.0.1.
+	paths, err := GenerateBundle(Options{Dir: dir, ServerDNS: []string{"manager.example"}, ValidFor: time.Hour})
+	if err != nil {
+		t.Fatalf("GenerateBundle: %v", err)
+	}
+	srvCfg, err := ServerConfig(paths)
+	if err != nil {
+		t.Fatalf("ServerConfig: %v", err)
+	}
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok")
+	}))
+	ts.TLS = srvCfg
+	ts.StartTLS()
+	defer ts.Close()
+
+	// Same-CA client: ts.URL is https://127.0.0.1:PORT (not in the SAN) — must still connect.
+	cliCfg, err := ClientConfig(paths)
+	if err != nil {
+		t.Fatalf("ClientConfig: %v", err)
+	}
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: cliCfg}}
+	resp, err := client.Get(ts.URL)
+	if err != nil {
+		t.Fatalf("SAN mismatch should still connect via CA trust: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	// Client trusting a DIFFERENT CA must reject the server.
+	other, err := GenerateBundle(Options{Dir: t.TempDir(), ValidFor: time.Hour})
+	if err != nil {
+		t.Fatalf("GenerateBundle(other): %v", err)
+	}
+	otherCfg, _ := ClientConfig(other)
+	bad := &http.Client{Transport: &http.Transport{TLSClientConfig: otherCfg}}
+	if _, err := bad.Get(ts.URL); err == nil {
+		t.Fatal("a server cert signed by a different CA must be REJECTED")
+	}
+	t.Log("OK: CA-trust without hostname check; foreign CA rejected")
+}

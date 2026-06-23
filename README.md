@@ -60,6 +60,41 @@ docker compose -f deploy/docker-compose.yml up -d --build
 - **Default login:** `admin` / `thewatcher` (change via `ADMIN_PASSWORD`)
 - Self-registration is available on the login page (new accounts get the viewer role).
 
+## Deploying agents
+
+In the UI go to **Agents → + Add agent**, pick the OS/architecture, set **Manager host** to
+the address agents will reach (the LAN IP for cross-host, e.g. `192.168.1.10:8080`), and copy
+the generated one-liner. It downloads the agent, enrols with a one-time token, installs an
+auto-start service, and connects — e.g. on Linux:
+
+```bash
+curl -fsSL http://<manager>:8080/api/agent/install.sh | sudo MANAGER=<manager> TOKEN=<token> NAME=<name> sh
+```
+
+The manager must allow inbound **8080** (enrol/install) and **8443** (gateway, mTLS):
+
+- Linux manager: `sudo ufw allow 8080,8443/tcp` (if `ufw` is active)
+- Windows manager: `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8080,8443`
+
+Agents authenticate the manager by the deployment's **private CA**, not by hostname/IP, so
+cross-host deployments work without per-IP certificate tweaks. To additionally pin the
+manager's IP into the server certificate SAN (optional), set `MANAGER_IP` in `deploy/.env`
+before first start (e.g. `MANAGER_IP=192.168.1.10`); changing it later means regenerating
+certs (delete `deploy/certs/*` or run certgen with `-force`) and re-enrolling agents (a new
+CA invalidates old certs).
+
+### Troubleshooting an offline agent
+
+Online status is driven by the heartbeat to the gateway (`:8443`). If an agent shows
+**offline** while `systemctl status deuswatch-agent` looks healthy, check its logs:
+
+```bash
+sudo journalctl -u deuswatch-agent -n 30 --no-pager
+```
+
+- `connection refused` / timeout → the manager's firewall is blocking 8443, or the wrong `MANAGER`/host.
+- `x509: certificate signed by unknown authority` → the agent enrolled against a different CA; re-enrol after regenerating certs.
+
 ## Tech stack
 
 Go · PostgreSQL + TimescaleDB · pgvector · NATS JetStream · Sigma · React + Vite + Tailwind ·

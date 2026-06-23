@@ -118,6 +118,7 @@ Install the agent: `deploy/agent/` (systemd `install-linux.sh`, Windows `install
 - **bin/ & dist/ & deploy/certs/ are gitignored** — rebuild binaries & regen certs on a new PC.
 - When changing service code, **rebuild the binaries** before a demo (some demo bugs were from stale binaries).
 - `gateway` needs `STORE_DSN` for revocation/config-push/heartbeat (optional; without a DB those features are off).
+- **Cross-host mTLS**: the agent trusts the manager by the private CA, not by hostname/IP (`mtls.ClientConfig` verifies the chain via `VerifyPeerCertificate`, no SAN name check), so agents on other hosts connect without per-IP cert tweaks. `MANAGER_IP` (deploy/.env) optionally pins the IP into the server-cert SAN. Regen certs + re-enrol agents when the CA changes. See README "Deploying agents".
 - The `detect-worker` detector… the durable NATS consumer uses DeliverNew (no backlog replay).
 - The single-event Sigma engine = an interim evaluator; the aggregation path = an in-Go compiler to SQL (ADR 0001 addendum).
 - Changing the TimescaleDB image pin on an old volume created by a different version → clash (`$libdir`); use a fresh volume.
