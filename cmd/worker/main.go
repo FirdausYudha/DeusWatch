@@ -21,6 +21,7 @@ import (
 	"deuswatch/internal/llm"
 	"deuswatch/internal/notify"
 	"deuswatch/internal/respond"
+	"deuswatch/internal/rules"
 	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
 	"deuswatch/internal/worker"
@@ -65,20 +66,29 @@ func main() {
 
 	bruteForce := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig())
 
+	// Detection rules come from the DB (managed in the UI). Fall back to the bundled files
+	// if the DB has none yet. The runner re-reads the DB periodically (live reload).
+	ruleStore := rules.NewStore(st.Pool())
 	sigmaDir := getenv("RULES_DIR", "rules/sigma")
-	sigmaDet, err := detect.LoadSigmaDir(sigmaDir)
-	if err != nil {
-		log.Fatalf("worker: load Sigma rules from %q: %v", sigmaDir, err)
+	single, agg, rerr := ruleStore.Enabled(ctx)
+	if rerr != nil {
+		log.Printf("worker: load rules from DB: %v", rerr)
 	}
-	log.Printf("worker: %d single-event Sigma rules loaded from %q", sigmaDet.RuleCount(), sigmaDir)
+	if len(single) == 0 && len(agg) == 0 {
+		if rs, derr := sigma.LoadDir(sigmaDir); derr == nil {
+			single = rs
+		}
+		if ar, derr := sigma.LoadAggDir(sigmaDir); derr == nil {
+			agg = ar
+		}
+		log.Printf("worker: DB rules empty — loaded from disk %q", sigmaDir)
+	}
+	sigmaDet := detect.NewSigmaDetector(single)
+	aggRunner := detect.NewAggregateRunner(st, agg, 0)
+	log.Printf("worker: %d single-event + %d aggregation rules loaded", sigmaDet.RuleCount(), aggRunner.RuleCount())
 
-	// Aggregation SQL path (Sigma | count() by ... > N) — ADR 0001.
-	aggRules, err := sigma.LoadAggDir(sigmaDir)
-	if err != nil {
-		log.Fatalf("worker: load aggregation rules from %q: %v", sigmaDir, err)
-	}
-	aggRunner := detect.NewAggregateRunner(st, aggRules, 0)
-	log.Printf("worker: %d aggregation Sigma rules loaded (SQL path)", aggRunner.RuleCount())
+	// Live-reload rules from the DB so UI edits take effect without a restart.
+	go reloadRules(ctx, ruleStore, sigmaDet, aggRunner)
 
 	// CTI enrichment: TTL cache in Postgres + a real provider when AbuseIPDB/OTX keys are
 	// configured — from the Integrations registry first, then env (GEOIP via env), else mock.
@@ -239,6 +249,27 @@ func aggGroup(a *ingest.Event) string {
 		return a.User.Name
 	}
 	return "-"
+}
+
+// reloadRules re-reads the enabled rules from the DB every 30s and swaps them into the
+// live detectors, so rule edits in the UI take effect without restarting the worker.
+func reloadRules(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner) {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			single, agg, err := store.Enabled(ctx)
+			if err != nil {
+				log.Printf("worker: reload rules: %v", err)
+				continue
+			}
+			det.SetRules(single)
+			runner.SetRules(agg)
+		}
+	}
 }
 
 func getenv(key, fallback string) string {

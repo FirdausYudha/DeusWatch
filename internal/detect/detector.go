@@ -2,6 +2,7 @@ package detect
 
 import (
 	"strings"
+	"sync"
 
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/ingest"
@@ -17,6 +18,7 @@ type Detector interface {
 // The interim engine uses the internal/detect/sigma prototype behind this interface;
 // it can be swapped for a mature Go fork later without changing the worker (see ADR 0001).
 type SigmaDetector struct {
+	mu    sync.RWMutex
 	rules sigma.Ruleset
 }
 
@@ -34,17 +36,30 @@ func LoadSigmaDir(dir string) (*SigmaDetector, error) {
 	return &SigmaDetector{rules: rs}, nil
 }
 
+// SetRules atomically swaps the rule set (used for live reload from the DB).
+func (d *SigmaDetector) SetRules(rs sigma.Ruleset) {
+	d.mu.Lock()
+	d.rules = rs
+	d.mu.Unlock()
+}
+
 // RuleCount returns the number of loaded rules.
-func (d *SigmaDetector) RuleCount() int { return len(d.rules) }
+func (d *SigmaDetector) RuleCount() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return len(d.rules)
+}
 
 // Inspect returns an alert for the FIRST matching single-event rule (nil if none).
 // Multi-match support is coming later.
 func (d *SigmaDetector) Inspect(e *ingest.Event) *ingest.Event {
-	if e == nil || len(d.rules) == 0 {
+	d.mu.RLock()
+	rules := d.rules
+	d.mu.RUnlock()
+	if e == nil || len(rules) == 0 {
 		return nil
 	}
-	flat := sigma.FlattenEvent(e)
-	hits := d.rules.Match(flat)
+	hits := rules.Match(sigma.FlattenEvent(e))
 	if len(hits) == 0 {
 		return nil
 	}

@@ -56,7 +56,18 @@ func NewAggregateRunner(exec AggExecutor, rules []*sigma.AggRule, cooldown time.
 }
 
 // RuleCount returns the number of loaded aggregation rules.
-func (r *AggregateRunner) RuleCount() int { return len(r.rules) }
+func (r *AggregateRunner) RuleCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.rules)
+}
+
+// SetRules atomically swaps the aggregation rules (used for live reload from the DB).
+func (r *AggregateRunner) SetRules(rules []*sigma.AggRule) {
+	r.mu.Lock()
+	r.rules = rules
+	r.mu.Unlock()
+}
 
 // RunOnce runs all rules once and returns alerts for groups that crossed the
 // threshold & passed cooldown. Per-rule errors are logged by the caller; here the
@@ -64,7 +75,10 @@ func (r *AggregateRunner) RuleCount() int { return len(r.rules) }
 func (r *AggregateRunner) RunOnce(ctx context.Context, now time.Time) ([]*ingest.Event, error) {
 	var alerts []*ingest.Event
 	var firstErr error
-	for _, rule := range r.rules {
+	r.mu.Lock()
+	rules := r.rules
+	r.mu.Unlock()
+	for _, rule := range rules {
 		query, args := rule.CompileSQL()
 		groups, err := r.exec.QueryAgg(ctx, query, args)
 		if err != nil {

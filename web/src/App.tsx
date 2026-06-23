@@ -5,6 +5,7 @@ import Agents from './agents/Agents'
 import Response from './response/Response'
 import Report from './report/Report'
 import Tickets from './tickets/Tickets'
+import Rules from './rules/Rules'
 import Integrations from './integrations/Integrations'
 import Users from './users/Users'
 import Settings from './settings/Settings'
@@ -53,6 +54,8 @@ export default function App() {
           <Tickets me={me} prefill={ticketPrefill} onPrefillConsumed={() => setTicketPrefill(null)} />
         ) : view === 'report' ? (
           <Report />
+        ) : view === 'rules' && can(me, 'manage_rules') ? (
+          <Rules />
         ) : view === 'integrations' && can(me, 'manage_integrations') ? (
           <Integrations />
         ) : view === 'users' && can(me, 'manage_users') ? (

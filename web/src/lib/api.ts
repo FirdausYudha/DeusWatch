@@ -477,6 +477,50 @@ export async function saveLayout(layout: DashLayout): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+// ── Detection rules (Wazuh-style management) ──────────────
+
+export type Rule = {
+  id: string
+  name: string
+  kind: 'single' | 'aggregation'
+  yaml: string
+  enabled: boolean
+  builtin: boolean
+  created_at: string
+  updated_at: string
+}
+
+export async function fetchRules(): Promise<Rule[]> {
+  const res = await authFetch('/api/rules')
+  if (!res.ok) throw new Error(`rules: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function createRule(name: string, yaml: string): Promise<Rule> {
+  const res = await authFetch('/api/rules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, yaml }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function updateRule(id: string, name: string, yaml: string, enabled: boolean): Promise<Rule> {
+  const res = await authFetch(`/api/rules/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, yaml, enabled }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteRule(id: string): Promise<void> {
+  const res = await authFetch(`/api/rules/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // ── Ticketing (Tier-2 DFIR case management) ───────────────
 
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'

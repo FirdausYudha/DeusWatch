@@ -1,0 +1,20 @@
+title: New Local Account Created
+id: 5a9e3c70-1b48-4f2a-8c66-9d2f7b3e0a14
+status: experimental
+description: >
+  A new local user account was created (useradd). Attackers create accounts for
+  persistence — review whether this account is expected.
+references:
+  - https://attack.mitre.org/techniques/T1136/001/
+author: DeusWatch
+level: medium
+logsource:
+  product: linux
+  service: auth
+detection:
+  keywords:
+    - 'new user:'
+  condition: keywords
+tags:
+  - attack.t1136.001
+  - attack.persistence

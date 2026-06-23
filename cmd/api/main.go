@@ -24,6 +24,7 @@ import (
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
+	"deuswatch/internal/rules"
 	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
 	"deuswatch/internal/tickets"
@@ -75,6 +76,16 @@ func main() {
 	if st != nil {
 		authStore := auth.NewStore(st.Pool())
 		seedAdmin(authStore)
+
+		// Detection rules: seed the bundled rules into the DB on first start, then serve CRUD.
+		ruleStore := rules.NewStore(st.Pool())
+		sctx, scancel := context.WithTimeout(context.Background(), 20*time.Second)
+		if n, serr := ruleStore.SeedFromDir(sctx, getenv("RULES_DIR", "/rules/sigma")); serr != nil {
+			log.Printf("api: rule seed: %v", serr)
+		} else if n > 0 {
+			log.Printf("api: seeded %d builtin detection rules", n)
+		}
+		scancel()
 
 		// Public (no token).
 		mux.HandleFunc("/api/login", authStore.LoginHandler())
@@ -151,6 +162,10 @@ func main() {
 			mux.Handle("/api/integrations", protect(auth.PermManageIntegrations, intStore.CollectionHandler()))
 			mux.Handle("/api/integrations/{id}", protect(auth.PermManageIntegrations, intStore.ItemHandler()))
 		}
+
+		// Detection rules CRUD (Wazuh-style management).
+		mux.Handle("/api/rules", protect(auth.PermManageRules, ruleStore.CollectionHandler()))
+		mux.Handle("/api/rules/{id}", protect(auth.PermManageRules, ruleStore.ItemHandler()))
 
 		// Tier-2 DFIR ticketing (case management).
 		ticketStore := tickets.NewStore(st.Pool())

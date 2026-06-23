@@ -9,6 +9,28 @@ import (
 // Ruleset is a collection of parsed Sigma rules.
 type Ruleset []*Rule
 
+// Rule kinds (evaluation path).
+const (
+	KindSingle      = "single"
+	KindAggregation = "aggregation"
+)
+
+// Classify validates a Sigma rule's YAML and reports whether it is a single-event or an
+// aggregation rule. Returns an error if it is not a valid rule of either kind — used by
+// the DB rule store to reject bad input and pick the right evaluation path.
+func Classify(data []byte) (kind string, err error) {
+	if isAggregation(data) {
+		if _, err := ParseAggRule(data); err != nil {
+			return "", err
+		}
+		return KindAggregation, nil
+	}
+	if _, err := ParseRule(data); err != nil {
+		return "", err
+	}
+	return KindSingle, nil
+}
+
 // ruleFiles gathers *.yml / *.yaml paths in dir (recursive one level). A directory
 // that does not exist yields an empty list (not an error).
 func ruleFiles(dir string) ([]string, error) {
