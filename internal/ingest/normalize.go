@@ -18,11 +18,13 @@ type RawLog struct {
 }
 
 var (
-	// "Failed password for root from 1.2.3.4 port 54321 ssh2"
-	// "Failed password for invalid user admin from 1.2.3.4 port 22 ssh2"
-	reSSHFailed = regexp.MustCompile(`^Failed (?:password|publickey) for (?:invalid user )?(\S+) from (\S+) port (\d+)`)
+	// Matched ANYWHERE in the line so the leading syslog prefix (timestamp, host,
+	// "sshd[pid]:") doesn't prevent a match. Examples (after the prefix):
+	//   "Failed password for root from 1.2.3.4 port 54321 ssh2"
+	//   "Failed password for invalid user admin from 1.2.3.4 port 22 ssh2"
+	reSSHFailed = regexp.MustCompile(`Failed (?:password|publickey) for (?:invalid user )?(\S+) from (\S+) port (\d+)`)
 	// "Accepted password for deploy from 10.0.0.5 port 22 ssh2"
-	reSSHAccepted = regexp.MustCompile(`^Accepted \w+ for (\S+) from (\S+) port (\d+)`)
+	reSSHAccepted = regexp.MustCompile(`Accepted \w+ for (\S+) from (\S+) port (\d+)`)
 )
 
 // Normalize turns a RawLog into a DCS Event. Returns (event, true) when the line is

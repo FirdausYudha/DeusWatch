@@ -24,6 +24,23 @@ func TestNormalizeSSHDFailed(t *testing.T) {
 	}
 }
 
+// Real auth.log lines carry a syslog prefix (timestamp, host, "sshd[pid]:") — the
+// source IP must still be extracted from anywhere in the line.
+func TestNormalizeSSHDWithSyslogPrefix(t *testing.T) {
+	for _, msg := range []string{
+		"2026-06-23T11:49:41.123456+07:00 deus-vm sshd[1234]: Failed password for invalid user baduser from 192.168.81.135 port 54321 ssh2",
+		"Jun 23 11:49:41 deus-vm sshd[1234]: Failed password for root from 192.168.81.135 port 22 ssh2",
+	} {
+		e, ok := Normalize(RawLog{Dataset: "sshd", Message: msg})
+		if !ok {
+			t.Fatalf("prefixed line not recognized: %q", msg)
+		}
+		if e.Event.Outcome != "failure" || e.Source == nil || e.Source.IP != "192.168.81.135" {
+			t.Fatalf("source IP not extracted from %q: %+v", msg, e.Source)
+		}
+	}
+}
+
 func TestNormalizeSSHDInvalidUser(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "Failed password for invalid user admin from 1.2.3.4 port 22 ssh2"})
 	if !ok || e.User.Name != "admin" || e.Source.IP != "1.2.3.4" {
