@@ -505,6 +505,19 @@ export async function dismissResponse(id: string): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+// dismissPendingForIP bulk-dismisses every pending recommendation for one IP.
+// Returns how many were dismissed.
+export async function dismissPendingForIP(ip: string): Promise<number> {
+  const res = await authFetch('/api/responses/dismiss-ip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  const body = await res.json()
+  return body.dismissed ?? 0
+}
+
 // ── Customizable dashboard (data + per-user widget layout) ─
 
 export type SeriesPoint = { label: string; count: number }

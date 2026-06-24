@@ -147,6 +147,7 @@ func main() {
 		respEngine := respond.NewEngine(respStore, respond.ResponderFromEnv(), respond.DefaultBanPolicy(), false)
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("GET /api/responses/offenders", protect(auth.PermViewDashboard, offendersHandler(respStore)))
+		mux.Handle("POST /api/responses/dismiss-ip", protect(auth.PermApproveRemediation, dismissIPHandler(respStore)))
 		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
 
@@ -568,6 +569,29 @@ func offendersHandler(s *respond.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, list)
+	}
+}
+
+// dismissIPHandler bulk-dismisses every pending recommendation for one IP.
+func dismissIPHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			IP string `json:"ip"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if net.ParseIP(req.IP) == nil {
+			http.Error(w, "invalid IP", http.StatusBadRequest)
+			return
+		}
+		n, err := s.DismissPendingForIP(r.Context(), req.IP, currentUsername(r))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "dismissed", "dismissed": n})
 	}
 }
 

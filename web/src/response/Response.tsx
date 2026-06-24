@@ -4,6 +4,7 @@ import {
   fetchOffenders,
   approveResponse,
   dismissResponse,
+  dismissPendingForIP,
   fetchBanPolicy,
   saveBanPolicy,
   fetchWhitelist,
@@ -86,6 +87,21 @@ export default function Response({ me }: { me: Me }) {
     }
   }
 
+  // dismissAll bulk-dismisses every pending recommendation for one IP (with confirm).
+  const dismissAll = async (ip: string, count: number) => {
+    if (!confirm(`Dismiss all ${count} pending recommendation${count === 1 ? '' : 's'} for ${ip}?`)) return
+    setBusy(ip)
+    setError('')
+    try {
+      await dismissPendingForIP(ip)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
   const pending =
     view === 'ip'
       ? offenders.reduce((n, o) => n + o.pending, 0)
@@ -140,7 +156,7 @@ export default function Response({ me }: { me: Me }) {
       {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
 
       {view === 'ip' ? (
-        <OffendersTable offenders={offenders} canApprove={canApprove} busy={busy} act={act} />
+        <OffendersTable offenders={offenders} canApprove={canApprove} busy={busy} act={act} dismissAll={dismissAll} />
       ) : (
         <EventsTable actions={actions} canApprove={canApprove} busy={busy} act={act} />
       )}
@@ -159,11 +175,13 @@ function OffendersTable({
   canApprove,
   busy,
   act,
+  dismissAll,
 }: {
   offenders: Offender[]
   canApprove: boolean
   busy: string
   act: ActFn
+  dismissAll: (ip: string, count: number) => void
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-800">
@@ -223,11 +241,21 @@ function OffendersTable({
                     </button>
                     <button
                       onClick={() => act(o.pending_id, o.source_ip, o.last_ban_secs, 'dismiss')}
-                      disabled={busy === o.pending_id}
+                      disabled={busy === o.pending_id || busy === o.source_ip}
                       className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                     >
                       Dismiss
                     </button>
+                    {o.pending > 1 && (
+                      <button
+                        onClick={() => dismissAll(o.source_ip, o.pending)}
+                        disabled={busy === o.source_ip}
+                        className="rounded-md border border-amber-600/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
+                        title={`Dismiss all ${o.pending} pending recommendations for this IP`}
+                      >
+                        Dismiss all ({o.pending})
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <span className="text-xs text-slate-600">—</span>

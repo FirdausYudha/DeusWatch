@@ -53,6 +53,19 @@ func (s *Store) Offenses(ctx context.Context, ip string, since time.Time) (int, 
 	return n, nil
 }
 
+// DismissPendingForIP dismisses every still-recommended action for an IP in one
+// shot (the "dismiss all" bulk action). Returns how many rows were dismissed.
+func (s *Store) DismissPendingForIP(ctx context.Context, ip, by string) (int, error) {
+	ct, err := s.pool.Exec(ctx,
+		`UPDATE response_actions SET status='dismissed', decided_by=$2, decided_at=now()
+		 WHERE source_ip=$1::inet AND status='recommended'`,
+		ip, strOrNil(by))
+	if err != nil {
+		return 0, fmt.Errorf("respond: dismiss pending for ip: %w", err)
+	}
+	return int(ct.RowsAffected()), nil
+}
+
 // HasOpenAction reports whether an IP already has an "open" action: a pending
 // recommendation, or an active block (approved/executed whose ban window has not
 // expired; ban_seconds = 0 = permanent). Used to dedup — one open action per IP —
