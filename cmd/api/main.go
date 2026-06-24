@@ -149,6 +149,11 @@ func main() {
 		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
 
+		// Progressive-ban policy (escalation ladder). View for anyone with the dashboard;
+		// edit requires manage_settings. The worker live-reloads it.
+		mux.Handle("GET /api/ban-policy", protect(auth.PermViewDashboard, banPolicyGetHandler(respStore)))
+		mux.Handle("PUT /api/ban-policy", protect(auth.PermManageSettings, banPolicySetHandler(respStore)))
+
 		// Integrations registry (firewalls, bouncers, CTI providers). Secret config
 		// fields are encrypted at rest with the secrets cipher.
 		if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
@@ -391,6 +396,61 @@ func saveLayoutHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+	}
+}
+
+func banPolicyJSON(p respond.BanPolicy) map[string]any {
+	secs := make([]int, len(p.Durations))
+	for i, d := range p.Durations {
+		secs[i] = int(d.Seconds())
+	}
+	return map[string]any{"durations": secs, "permanent": p.Permanent, "window_secs": int(p.Window.Seconds())}
+}
+
+func banPolicyGetHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.LoadPolicy(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, banPolicyJSON(p))
+	}
+}
+
+func banPolicySetHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Durations  []int `json:"durations"`
+			Permanent  bool  `json:"permanent"`
+			WindowSecs int   `json:"window_secs"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if len(req.Durations) == 0 {
+			http.Error(w, "at least one ban duration is required", http.StatusBadRequest)
+			return
+		}
+		durs := make([]time.Duration, 0, len(req.Durations))
+		for _, secs := range req.Durations {
+			if secs <= 0 {
+				http.Error(w, "ban durations must be positive (seconds)", http.StatusBadRequest)
+				return
+			}
+			durs = append(durs, time.Duration(secs)*time.Second)
+		}
+		if req.WindowSecs < 0 {
+			http.Error(w, "window must be >= 0", http.StatusBadRequest)
+			return
+		}
+		p := respond.BanPolicy{Durations: durs, Permanent: req.Permanent, Window: time.Duration(req.WindowSecs) * time.Second}
+		if err := s.SavePolicy(r.Context(), p); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, banPolicyJSON(p))
 	}
 }
 

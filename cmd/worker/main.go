@@ -87,9 +87,6 @@ func main() {
 	aggRunner := detect.NewAggregateRunner(st, agg, 0)
 	log.Printf("worker: %d single-event + %d aggregation rules loaded", sigmaDet.RuleCount(), aggRunner.RuleCount())
 
-	// Live-reload rules from the DB so UI edits take effect without a restart.
-	go reloadRules(ctx, ruleStore, sigmaDet, aggRunner)
-
 	// CTI enrichment: TTL cache in Postgres + a real provider when AbuseIPDB/OTX keys are
 	// configured — from the Integrations registry first, then env (GEOIP via env), else mock.
 	abuseKey, otxKey := resolveCTIKeys(ctx, intStore)
@@ -105,14 +102,22 @@ func main() {
 	// Response engine (Phase 2): block recommendations + approval + progressive ban.
 	// The responder comes from the Integrations registry (MikroTik) first, else RESPONDER env
 	// (dry-run unless RESPONSE_LIVE=1). RESPONSE_AUTO_APPROVE=1 executes without manual approval.
+	respStore := respond.NewStore(st.Pool())
 	var engine *respond.Engine
 	if responder := resolveResponder(ctx, intStore); responder != nil {
 		autoApprove, _ := strconv.ParseBool(os.Getenv("RESPONSE_AUTO_APPROVE"))
-		engine = respond.NewEngine(respond.NewStore(st.Pool()), responder, respond.DefaultBanPolicy(), autoApprove)
+		policy, perr := respStore.LoadPolicy(ctx)
+		if perr != nil {
+			log.Printf("worker: load ban policy: %v", perr)
+		}
+		engine = respond.NewEngine(respStore, responder, policy, autoApprove)
 		log.Printf("worker: response engine active (responder=%s, auto_approve=%v)", responder.Name(), autoApprove)
 	} else {
 		log.Printf("worker: response engine disabled (RESPONDER=none)")
 	}
+
+	// Live-reload rules + ban policy from the DB so UI edits take effect without a restart.
+	go reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, respStore)
 
 	// Notifications (Phase 2): Telegram/email/webhook + dedup/throttle.
 	dispatcher, notifyOn := notify.DispatcherFromEnv()
@@ -251,9 +256,9 @@ func aggGroup(a *ingest.Event) string {
 	return "-"
 }
 
-// reloadRules re-reads the enabled rules from the DB every 30s and swaps them into the
-// live detectors, so rule edits in the UI take effect without restarting the worker.
-func reloadRules(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner) {
+// reloadConfig re-reads the enabled rules and ban policy from the DB every 30s and swaps
+// them into the live detectors/engine, so UI edits take effect without restarting the worker.
+func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner, engine *respond.Engine, respStore *respond.Store) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -261,13 +266,19 @@ func reloadRules(ctx context.Context, store *rules.Store, det *detect.SigmaDetec
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			single, agg, err := store.Enabled(ctx)
-			if err != nil {
+			if single, agg, err := store.Enabled(ctx); err != nil {
 				log.Printf("worker: reload rules: %v", err)
-				continue
+			} else {
+				det.SetRules(single)
+				runner.SetRules(agg)
 			}
-			det.SetRules(single)
-			runner.SetRules(agg)
+			if engine != nil {
+				if p, err := respStore.LoadPolicy(ctx); err != nil {
+					log.Printf("worker: reload ban policy: %v", err)
+				} else {
+					engine.SetPolicy(p)
+				}
+			}
 		}
 	}
 }

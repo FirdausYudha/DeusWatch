@@ -64,7 +64,9 @@ func (f *fakeStore) Insert(_ context.Context, a *Action) (string, error) {
 	f.lastIns = &cp
 	return id, nil
 }
-func (f *fakeStore) Offenses(_ context.Context, _ string) (int, error) { return f.offenses, nil }
+func (f *fakeStore) Offenses(_ context.Context, _ string, _ time.Time) (int, error) {
+	return f.offenses, nil
+}
 func (f *fakeStore) Get(_ context.Context, id string) (*Action, error) {
 	a, ok := f.actions[id]
 	if !ok {

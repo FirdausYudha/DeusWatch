@@ -3,14 +3,17 @@ package respond
 import (
 	"context"
 	"log"
+	"sync"
+	"time"
 
 	"deuswatch/internal/ingest"
 )
 
 // ActionStore is the persistence the Engine needs (satisfied by *Store; stubbed in tests).
+// Offenses counts prior executed blocks for an IP since `since` (zero = all history).
 type ActionStore interface {
 	Insert(ctx context.Context, a *Action) (string, error)
-	Offenses(ctx context.Context, ip string) (int, error)
+	Offenses(ctx context.Context, ip string, since time.Time) (int, error)
 	Get(ctx context.Context, id string) (*Action, error)
 	SetStatus(ctx context.Context, id string, status Status, decidedBy string) error
 	SetExecuted(ctx context.Context, id, responder string, execErr error) error
@@ -20,8 +23,10 @@ type ActionStore interface {
 type Engine struct {
 	store       ActionStore
 	responder   Responder // may be nil (execution disabled)
-	policy      BanPolicy
 	autoApprove bool
+
+	mu     sync.RWMutex
+	policy BanPolicy
 }
 
 // NewEngine creates an engine. autoApprove=true executes immediately without manual approval.
@@ -32,6 +37,16 @@ func NewEngine(store ActionStore, responder Responder, policy BanPolicy, autoApp
 	return &Engine{store: store, responder: responder, policy: policy, autoApprove: autoApprove}
 }
 
+// SetPolicy atomically swaps the ban policy (used for live reload from the DB).
+func (e *Engine) SetPolicy(p BanPolicy) {
+	if len(p.Durations) == 0 {
+		return
+	}
+	e.mu.Lock()
+	e.policy = p
+	e.mu.Unlock()
+}
+
 // Recommend creates a block recommendation from an alert (needs a source IP). The ban
 // duration is computed progressively from the IP's history. If autoApprove is on & a
 // responder exists, it executes immediately. Returns nil,nil for irrelevant events (no IP).
@@ -39,12 +54,20 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 	if ev == nil || ev.Source == nil || ev.Source.IP == "" {
 		return nil, nil
 	}
-	prior, err := e.store.Offenses(ctx, ev.Source.IP)
+	e.mu.RLock()
+	policy := e.policy
+	e.mu.RUnlock()
+
+	var since time.Time
+	if policy.Window > 0 {
+		since = time.Now().Add(-policy.Window)
+	}
+	prior, err := e.store.Offenses(ctx, ev.Source.IP, since)
 	if err != nil {
 		return nil, err
 	}
 	offense := prior + 1
-	dur := e.policy.Duration(offense)
+	dur := policy.Duration(offense)
 
 	a := &Action{
 		SourceIP:     ev.Source.IP,

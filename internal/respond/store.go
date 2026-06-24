@@ -34,15 +34,62 @@ func (s *Store) Insert(ctx context.Context, a *Action) (string, error) {
 }
 
 // Offenses counts how many times this IP has ALREADY been blocked (status executed) —
-// used for the progressive ban.
-func (s *Store) Offenses(ctx context.Context, ip string) (int, error) {
+// used for the progressive ban. When `since` is non-zero, only offenses within that
+// window are counted (the ban policy's observation window).
+func (s *Store) Offenses(ctx context.Context, ip string, since time.Time) (int, error) {
 	var n int
-	err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM response_actions WHERE source_ip = $1::inet AND status = 'executed'`, ip).Scan(&n)
+	var err error
+	if since.IsZero() {
+		err = s.pool.QueryRow(ctx,
+			`SELECT count(*) FROM response_actions WHERE source_ip = $1::inet AND status = 'executed'`, ip).Scan(&n)
+	} else {
+		err = s.pool.QueryRow(ctx,
+			`SELECT count(*) FROM response_actions WHERE source_ip = $1::inet AND status = 'executed'
+			 AND COALESCE(executed_at, created_at) >= $2`, ip, since).Scan(&n)
+	}
 	if err != nil {
 		return 0, fmt.Errorf("respond: offenses: %w", err)
 	}
 	return n, nil
+}
+
+// LoadPolicy reads the configurable ban policy (falls back to the default when unset).
+func (s *Store) LoadPolicy(ctx context.Context) (BanPolicy, error) {
+	var (
+		secs      []int32
+		permanent bool
+		window    int
+	)
+	err := s.pool.QueryRow(ctx,
+		`SELECT durations, permanent, window_secs FROM ban_policy WHERE id = 1`).
+		Scan(&secs, &permanent, &window)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DefaultBanPolicy(), nil
+	}
+	if err != nil {
+		return DefaultBanPolicy(), fmt.Errorf("respond: load ban policy: %w", err)
+	}
+	durs := make([]time.Duration, len(secs))
+	for i, sx := range secs {
+		durs[i] = time.Duration(sx) * time.Second
+	}
+	return BanPolicy{Durations: durs, Permanent: permanent, Window: time.Duration(window) * time.Second}, nil
+}
+
+// SavePolicy upserts the ban policy (single row).
+func (s *Store) SavePolicy(ctx context.Context, p BanPolicy) error {
+	secs := make([]int32, len(p.Durations))
+	for i, d := range p.Durations {
+		secs[i] = int32(d.Seconds())
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO ban_policy (id, durations, permanent, window_secs) VALUES (1,$1,$2,$3)
+		 ON CONFLICT (id) DO UPDATE SET durations=$1, permanent=$2, window_secs=$3, updated_at=now()`,
+		secs, p.Permanent, int(p.Window.Seconds()))
+	if err != nil {
+		return fmt.Errorf("respond: save ban policy: %w", err)
+	}
+	return nil
 }
 
 const actionCols = `id, created_at, host(source_ip), action, COALESCE(reason,''), COALESCE(rule_id,''),

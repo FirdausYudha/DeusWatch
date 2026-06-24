@@ -55,8 +55,9 @@ type Responder interface {
 
 // BanPolicy determines the progressive ban duration based on the offense count.
 type BanPolicy struct {
-	Durations []time.Duration // durations for the 1st, 2nd, ... offense
+	Durations []time.Duration // durations for the 1st, 2nd, ... offense (escalation ladder)
 	Permanent bool            // true: an offense beyond the list -> permanent (0)
+	Window    time.Duration   // only count prior offenses within this window (0 = all history)
 }
 
 // DefaultBanPolicy: 10m, 1h, 24h, then permanent.

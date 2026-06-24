@@ -46,7 +46,7 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 
 	// Offenses initially 0 (none executed yet).
-	if n, _ := s.Offenses(ctx, ip); n != 0 {
+	if n, _ := s.Offenses(ctx, ip, time.Time{}); n != 0 {
 		t.Fatalf("initial offenses %d, want 0", n)
 	}
 
@@ -75,7 +75,7 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 
 	// Now offenses = 1 (one executed).
-	if n, _ := s.Offenses(ctx, ip); n != 1 {
+	if n, _ := s.Offenses(ctx, ip, time.Time{}); n != 1 {
 		t.Fatalf("offenses after executed %d, want 1", n)
 	}
 

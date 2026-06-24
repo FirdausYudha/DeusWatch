@@ -429,6 +429,27 @@ export async function fetchResponses(status = ''): Promise<ResponseAction[]> {
   return (await res.json()) ?? []
 }
 
+// Progressive-ban policy: the escalation ladder (durations in seconds for the 1st, 2nd,
+// … offense), whether offenses beyond the ladder are permanent, and the observation
+// window in seconds (0 = count all history).
+export type BanPolicy = { durations: number[]; permanent: boolean; window_secs: number }
+
+export async function fetchBanPolicy(): Promise<BanPolicy> {
+  const res = await authFetch('/api/ban-policy')
+  if (!res.ok) throw new Error(`ban policy: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveBanPolicy(p: BanPolicy): Promise<BanPolicy> {
+  const res = await authFetch('/api/ban-policy', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(p),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function approveResponse(id: string): Promise<void> {
   const res = await authFetch(`/api/responses/${id}/approve`, { method: 'POST' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
