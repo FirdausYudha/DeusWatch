@@ -3,6 +3,7 @@ package respond
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -162,6 +163,27 @@ func TestEngineRecommendAutoApprove(t *testing.T) {
 	}
 	if len(store.execLog) != 1 || store.execLog[0] != "executed" {
 		t.Fatalf("execution not recorded as executed: %+v", store.execLog)
+	}
+}
+
+func TestEngineRecommendSkipsWhitelisted(t *testing.T) {
+	store := newFakeStore(0)
+	resp := &fakeResponder{}
+	e := NewEngine(store, resp, DefaultBanPolicy(), true)
+	_, ipnet, _ := net.ParseCIDR("192.168.81.0/24")
+	e.SetWhitelist([]*net.IPNet{ipnet})
+
+	a, err := e.Recommend(context.Background(), alertEvent("192.168.81.135"))
+	if err != nil || a != nil {
+		t.Fatalf("a whitelisted IP must be skipped: a=%+v err=%v", a, err)
+	}
+	if len(resp.blocked) != 0 || store.lastIns != nil {
+		t.Fatalf("whitelisted IP must produce no block and no row: blocked=%v ins=%+v", resp.blocked, store.lastIns)
+	}
+
+	// A non-whitelisted IP still gets recommended/blocked.
+	if a, err := e.Recommend(context.Background(), alertEvent("203.0.113.9")); err != nil || a == nil {
+		t.Fatalf("non-whitelisted IP must still be handled: a=%+v err=%v", a, err)
 	}
 }
 

@@ -471,6 +471,30 @@ export async function saveBanPolicy(p: BanPolicy): Promise<BanPolicy> {
   return res.json()
 }
 
+// IP whitelist: trusted IPs/CIDRs the response engine never bans.
+export type WhitelistEntry = { id: string; cidr: string; note: string; created_at: string }
+
+export async function fetchWhitelist(): Promise<WhitelistEntry[]> {
+  const res = await authFetch('/api/whitelist')
+  if (!res.ok) throw new Error(`whitelist: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function addWhitelist(cidr: string, note: string): Promise<WhitelistEntry> {
+  const res = await authFetch('/api/whitelist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cidr, note }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteWhitelist(id: string): Promise<void> {
+  const res = await authFetch(`/api/whitelist/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 export async function approveResponse(id: string): Promise<void> {
   const res = await authFetch(`/api/responses/${id}/approve`, { method: 'POST' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)

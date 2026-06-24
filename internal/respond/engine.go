@@ -3,6 +3,7 @@ package respond
 import (
 	"context"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -25,8 +26,9 @@ type Engine struct {
 	responder Responder // may be nil (execution disabled)
 	envAuto   bool      // RESPONSE_AUTO_APPROVE=1 forces auto-approve regardless of the DB policy
 
-	mu     sync.RWMutex
-	policy BanPolicy
+	mu        sync.RWMutex
+	policy    BanPolicy
+	whitelist []*net.IPNet // trusted IPs/CIDRs that are never banned
 }
 
 // NewEngine creates an engine. autoApprove=true forces immediate execution without
@@ -55,6 +57,13 @@ func (e *Engine) SetPolicy(p BanPolicy) {
 	e.mu.Unlock()
 }
 
+// SetWhitelist atomically swaps the trusted-IP list (live reload from the DB).
+func (e *Engine) SetWhitelist(nets []*net.IPNet) {
+	e.mu.Lock()
+	e.whitelist = nets
+	e.mu.Unlock()
+}
+
 // Recommend creates a block recommendation from an alert (needs a source IP). The ban
 // duration is computed progressively from the IP's history. If autoApprove is on & a
 // responder exists, it executes immediately. Returns nil,nil for irrelevant events (no IP).
@@ -64,7 +73,13 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 	}
 	e.mu.RLock()
 	policy := e.policy
+	wl := e.whitelist
 	e.mu.RUnlock()
+
+	// Whitelisted IPs are never banned (detection/alerting/notifications still fire).
+	if ipInNets(ev.Source.IP, wl) {
+		return nil, nil
+	}
 
 	var since time.Time
 	if policy.Window > 0 {

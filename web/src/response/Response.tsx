@@ -6,10 +6,14 @@ import {
   dismissResponse,
   fetchBanPolicy,
   saveBanPolicy,
+  fetchWhitelist,
+  addWhitelist,
+  deleteWhitelist,
   can,
   type ResponseAction,
   type ResponseStatus,
   type Offender,
+  type WhitelistEntry,
   type Me,
 } from '../lib/api'
 
@@ -113,6 +117,7 @@ export default function Response({ me }: { me: Me }) {
       </header>
 
       <BanPolicyEditor canManage={can(me, 'manage_settings')} />
+      <WhitelistEditor canManage={can(me, 'manage_settings')} />
 
       {view === 'events' && (
         <div className="mb-4 flex flex-wrap gap-2">
@@ -548,6 +553,157 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
             </button>
           ) : (
             <p className="text-xs text-slate-600">Editing the ban policy requires the manage-settings permission.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── IP whitelist editor ─────────────────────────────────────
+// Trusted IPs/CIDRs that the response engine never bans. Detection, alerting
+// and notifications still fire for them — only the ban is skipped.
+
+function WhitelistEditor({ canManage }: { canManage: boolean }) {
+  const [entries, setEntries] = useState<WhitelistEntry[]>([])
+  const [cidr, setCidr] = useState('')
+  const [note, setNote] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  const load = () => {
+    fetchWhitelist()
+      .then((e) => {
+        setEntries(e)
+        setLoaded(true)
+      })
+      .catch((e) => {
+        setError((e as Error).message)
+        setLoaded(true)
+      })
+  }
+  useEffect(load, [])
+
+  const add = async () => {
+    if (!cidr.trim()) return
+    setBusy(true)
+    setError('')
+    try {
+      await addWhitelist(cidr.trim(), note.trim())
+      setCidr('')
+      setNote('')
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async (id: string) => {
+    setError('')
+    try {
+      await deleteWhitelist(id)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  if (!loaded) return null
+
+  return (
+    <div className="mb-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-800/40"
+      >
+        <span className="text-sm font-medium text-slate-200">
+          IP whitelist
+          <span className="ml-2 text-xs text-slate-500">{entries.length} trusted · never banned</span>
+        </span>
+        <span className="text-xs text-slate-500">{open ? '▲ hide' : '▼ configure'}</span>
+      </button>
+
+      {open && (
+        <div className="space-y-4 border-t border-slate-800 px-4 py-4">
+          <p className="text-xs text-slate-500">
+            A matching source IP is never banned (single IP like <code className="text-slate-400">192.168.81.10</code> or a
+            range like <code className="text-slate-400">10.0.0.0/8</code>). Alerts and notifications still fire — only the
+            block is skipped.
+          </p>
+
+          {canManage && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={cidr}
+                onChange={(e) => setCidr(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && add()}
+                placeholder="IP or CIDR"
+                className="w-44 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200 outline-none focus:border-indigo-500"
+              />
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && add()}
+                placeholder="note (optional)"
+                className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200 outline-none focus:border-indigo-500"
+              />
+              <button
+                onClick={add}
+                disabled={busy || !cidr.trim()}
+                className="rounded-lg bg-indigo-500/90 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              >
+                + Add
+              </button>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-rose-400">{error}</p>}
+
+          <div className="overflow-hidden rounded-lg border border-slate-800">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">IP / CIDR</th>
+                  <th className="px-3 py-2 font-medium">Note</th>
+                  <th className="px-3 py-2 font-medium">Added</th>
+                  {canManage && <th className="px-3 py-2 font-medium"></th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                {entries.length === 0 && (
+                  <tr>
+                    <td colSpan={canManage ? 4 : 3} className="px-3 py-6 text-center text-slate-500">
+                      No whitelisted IPs.
+                    </td>
+                  </tr>
+                )}
+                {entries.map((e) => (
+                  <tr key={e.id} className="hover:bg-slate-800/40">
+                    <td className="px-3 py-2 font-mono text-slate-300">{e.cidr}</td>
+                    <td className="px-3 py-2 text-slate-400">{e.note || '—'}</td>
+                    <td className="px-3 py-2 text-slate-500">{new Date(e.created_at).toLocaleString('en-US')}</td>
+                    {canManage && (
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => remove(e.id)}
+                          className="rounded-md border border-rose-900/60 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10"
+                        >
+                          remove
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {!canManage && (
+            <p className="text-xs text-slate-600">Editing the whitelist requires the manage-settings permission.</p>
           )}
         </div>
       )}

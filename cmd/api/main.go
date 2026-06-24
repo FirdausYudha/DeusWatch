@@ -155,6 +155,11 @@ func main() {
 		mux.Handle("GET /api/ban-policy", protect(auth.PermViewDashboard, banPolicyGetHandler(respStore)))
 		mux.Handle("PUT /api/ban-policy", protect(auth.PermManageSettings, banPolicySetHandler(respStore)))
 
+		// IP whitelist: trusted IPs/CIDRs the response engine never bans.
+		mux.Handle("GET /api/whitelist", protect(auth.PermViewDashboard, whitelistListHandler(respStore)))
+		mux.Handle("POST /api/whitelist", protect(auth.PermManageSettings, whitelistAddHandler(respStore)))
+		mux.Handle("DELETE /api/whitelist/{id}", protect(auth.PermManageSettings, whitelistDeleteHandler(respStore)))
+
 		// Integrations registry (firewalls, bouncers, CTI providers). Secret config
 		// fields are encrypted at rest with the secrets cipher.
 		if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
@@ -496,6 +501,50 @@ func banPolicySetHandler(s *respond.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, banPolicyJSON(p))
+	}
+}
+
+func whitelistListHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		list, err := s.ListWhitelist(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	}
+}
+
+func whitelistAddHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			CIDR string `json:"cidr"`
+			Note string `json:"note"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if _, err := respond.NormalizeCIDR(req.CIDR); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		e, err := s.AddWhitelist(r.Context(), req.CIDR, req.Note)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, e)
+	}
+}
+
+func whitelistDeleteHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := s.DeleteWhitelist(r.Context(), r.PathValue("id")); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 	}
 }
 

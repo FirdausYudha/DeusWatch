@@ -111,6 +111,12 @@ func main() {
 			log.Printf("worker: load ban policy: %v", perr)
 		}
 		engine = respond.NewEngine(respStore, responder, policy, autoApprove)
+		if nets, werr := respStore.WhitelistNets(ctx); werr != nil {
+			log.Printf("worker: load IP whitelist: %v", werr)
+		} else {
+			engine.SetWhitelist(nets)
+			log.Printf("worker: IP whitelist loaded (%d entries)", len(nets))
+		}
 		log.Printf("worker: response engine active (responder=%s, auto_approve=%v)", responder.Name(), autoApprove)
 	} else {
 		log.Printf("worker: response engine disabled (RESPONDER=none)")
@@ -256,8 +262,8 @@ func aggGroup(a *ingest.Event) string {
 	return "-"
 }
 
-// reloadConfig re-reads the enabled rules and ban policy from the DB every 30s and swaps
-// them into the live detectors/engine, so UI edits take effect without restarting the worker.
+// reloadConfig re-reads the enabled rules, ban policy and IP whitelist from the DB every
+// 30s and swaps them into the live detectors/engine, so UI edits take effect without restarting.
 func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner, engine *respond.Engine, respStore *respond.Store) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
@@ -277,6 +283,11 @@ func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDete
 					log.Printf("worker: reload ban policy: %v", err)
 				} else {
 					engine.SetPolicy(p)
+				}
+				if nets, err := respStore.WhitelistNets(ctx); err != nil {
+					log.Printf("worker: reload IP whitelist: %v", err)
+				} else {
+					engine.SetWhitelist(nets)
 				}
 			}
 		}
