@@ -45,6 +45,7 @@ func TestBanPolicyCapNoPermanent(t *testing.T) {
 
 type fakeStore struct {
 	offenses  int
+	open      bool // HasOpenAction result (dedup)
 	actions   map[string]*Action
 	nextID    int
 	lastIns   *Action
@@ -67,6 +68,9 @@ func (f *fakeStore) Insert(_ context.Context, a *Action) (string, error) {
 }
 func (f *fakeStore) Offenses(_ context.Context, _ string, _ time.Time) (int, error) {
 	return f.offenses, nil
+}
+func (f *fakeStore) HasOpenAction(_ context.Context, _ string) (bool, error) {
+	return f.open, nil
 }
 func (f *fakeStore) Get(_ context.Context, id string) (*Action, error) {
 	a, ok := f.actions[id]
@@ -135,7 +139,7 @@ func TestEngineRecommendNoAutoApprove(t *testing.T) {
 	if a == nil || a.Status != StatusRecommended {
 		t.Fatalf("should be recommended: %+v", a)
 	}
-	if a.OffenseCount != 1 || a.BanSeconds != int((10 * time.Minute).Seconds()) {
+	if a.OffenseCount != 1 || a.BanSeconds != int((10*time.Minute).Seconds()) {
 		t.Fatalf("wrong progressive ban: offense=%d sec=%d", a.OffenseCount, a.BanSeconds)
 	}
 	if len(resp.blocked) != 0 {
@@ -152,7 +156,7 @@ func TestEngineRecommendAutoApprove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Recommend: %v", err)
 	}
-	if a.OffenseCount != 3 || a.BanSeconds != int((24 * time.Hour).Seconds()) {
+	if a.OffenseCount != 3 || a.BanSeconds != int((24*time.Hour).Seconds()) {
 		t.Fatalf("wrong progression: offense=%d sec=%d", a.OffenseCount, a.BanSeconds)
 	}
 	if len(resp.blocked) != 1 || resp.blocked[0] != "45.155.205.99" {
@@ -163,6 +167,27 @@ func TestEngineRecommendAutoApprove(t *testing.T) {
 	}
 	if len(store.execLog) != 1 || store.execLog[0] != "executed" {
 		t.Fatalf("execution not recorded as executed: %+v", store.execLog)
+	}
+}
+
+func TestEngineRecommendDedupsOpenAction(t *testing.T) {
+	store := newFakeStore(1)
+	store.open = true // already has a pending recommendation or active block
+	resp := &fakeResponder{}
+	e := NewEngine(store, resp, DefaultBanPolicy(), true)
+
+	a, err := e.Recommend(context.Background(), alertEvent("198.51.100.7"))
+	if err != nil || a != nil {
+		t.Fatalf("an IP with an open action must be skipped: a=%+v err=%v", a, err)
+	}
+	if store.lastIns != nil || len(resp.blocked) != 0 {
+		t.Fatalf("dedup must not insert or block: ins=%+v blocked=%v", store.lastIns, resp.blocked)
+	}
+
+	// Once the open action clears, a new event is handled again (escalated).
+	store.open = false
+	if a, err := e.Recommend(context.Background(), alertEvent("198.51.100.7")); err != nil || a == nil {
+		t.Fatalf("after the open action clears it must recommend again: a=%+v err=%v", a, err)
 	}
 }
 

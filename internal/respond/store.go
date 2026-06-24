@@ -53,6 +53,30 @@ func (s *Store) Offenses(ctx context.Context, ip string, since time.Time) (int, 
 	return n, nil
 }
 
+// HasOpenAction reports whether an IP already has an "open" action: a pending
+// recommendation, or an active block (approved/executed whose ban window has not
+// expired; ban_seconds = 0 = permanent). Used to dedup — one open action per IP —
+// so a brute-force burst doesn't pile up hundreds of identical rows. Once the ban
+// expires, the next event produces a fresh (escalated) recommendation.
+func (s *Store) HasOpenAction(ctx context.Context, ip string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM response_actions
+			WHERE source_ip = $1::inet
+			  AND (
+			      status = 'recommended'
+			      OR (status IN ('approved','executed')
+			          AND (ban_seconds = 0
+			               OR COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds) > now()))
+			  )
+		)`, ip).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("respond: has open action: %w", err)
+	}
+	return exists, nil
+}
+
 // LoadPolicy reads the configurable ban policy (falls back to the default when unset).
 func (s *Store) LoadPolicy(ctx context.Context) (BanPolicy, error) {
 	var (

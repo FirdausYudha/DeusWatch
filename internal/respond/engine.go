@@ -15,6 +15,7 @@ import (
 type ActionStore interface {
 	Insert(ctx context.Context, a *Action) (string, error)
 	Offenses(ctx context.Context, ip string, since time.Time) (int, error)
+	HasOpenAction(ctx context.Context, ip string) (bool, error)
 	Get(ctx context.Context, id string) (*Action, error)
 	SetStatus(ctx context.Context, id string, status Status, decidedBy string) error
 	SetExecuted(ctx context.Context, id, responder string, execErr error) error
@@ -78,6 +79,14 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 
 	// Whitelisted IPs are never banned (detection/alerting/notifications still fire).
 	if ipInNets(ev.Source.IP, wl) {
+		return nil, nil
+	}
+
+	// Dedup: if the IP already has a pending recommendation or an active block,
+	// don't create another — a brute-force burst collapses to one open action.
+	if open, err := e.store.HasOpenAction(ctx, ev.Source.IP); err != nil {
+		return nil, err
+	} else if open {
 		return nil, nil
 	}
 
