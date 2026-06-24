@@ -34,12 +34,14 @@ type DashboardData struct {
 	Timeline    []TimePoint        `json:"timeline"`
 }
 
-// Dashboard assembles all dashboard series for the last `hours` hours.
-func (s *Store) Dashboard(ctx context.Context, hours int) (DashboardData, error) {
-	if hours <= 0 || hours > 24*30 {
-		hours = 24
+// Dashboard assembles all dashboard series for the window [since, until].
+func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (DashboardData, error) {
+	if until.IsZero() {
+		until = time.Now()
 	}
-	since := time.Now().Add(-time.Duration(hours) * time.Hour)
+	if since.IsZero() || !since.Before(until) {
+		since = until.Add(-24 * time.Hour)
+	}
 	d := DashboardData{Series: map[string][]Count{}}
 
 	for _, q := range []struct {
@@ -55,7 +57,7 @@ func (s *Store) Dashboard(ctx context.Context, hours int) (DashboardData, error)
 		}
 	}
 
-	sev, err := s.dashSeverity(ctx, since)
+	sev, err := s.dashSeverity(ctx, since, until)
 	if err != nil {
 		return d, err
 	}
@@ -63,39 +65,39 @@ func (s *Store) Dashboard(ctx context.Context, hours int) (DashboardData, error)
 
 	for key, q := range map[string]string{
 		"source_ips": `SELECT host(source_ip), count(*) FROM events
-			WHERE time >= $1 AND source_ip IS NOT NULL AND dw_label IS NOT NULL
+			WHERE time >= $1 AND time <= $2 AND source_ip IS NOT NULL AND dw_label IS NOT NULL
 			GROUP BY source_ip ORDER BY count(*) DESC LIMIT 10`,
 		"rules": `SELECT COALESCE(rule_name, rule_id), count(*) FROM events
-			WHERE time >= $1 AND dw_label IS NOT NULL AND rule_id IS NOT NULL
+			WHERE time >= $1 AND time <= $2 AND dw_label IS NOT NULL AND rule_id IS NOT NULL
 			GROUP BY COALESCE(rule_name, rule_id) ORDER BY count(*) DESC LIMIT 10`,
 		"techniques": `SELECT trim(COALESCE(threat_technique_id,'')||' '||COALESCE(threat_tactic_name,'')), count(*) FROM events
-			WHERE time >= $1 AND threat_technique_id IS NOT NULL
+			WHERE time >= $1 AND time <= $2 AND threat_technique_id IS NOT NULL
 			GROUP BY threat_technique_id, threat_tactic_name ORDER BY count(*) DESC LIMIT 10`,
 		"countries": `SELECT source_geo_country_iso, count(*) FROM events
-			WHERE time >= $1 AND source_geo_country_iso IS NOT NULL
+			WHERE time >= $1 AND time <= $2 AND source_geo_country_iso IS NOT NULL
 			GROUP BY source_geo_country_iso ORDER BY count(*) DESC LIMIT 20`,
 		"verdicts": `SELECT dw_llm_verdict, count(*) FROM events
-			WHERE time >= $1 AND dw_llm_verdict IS NOT NULL
+			WHERE time >= $1 AND time <= $2 AND dw_llm_verdict IS NOT NULL
 			GROUP BY dw_llm_verdict ORDER BY count(*) DESC`,
 	} {
-		c, err := s.dashCounts(ctx, q, since)
+		c, err := s.dashCounts(ctx, q, since, until)
 		if err != nil {
 			return d, err
 		}
 		d.Series[key] = c
 	}
 
-	if d.Timeline, err = s.dashTimeline(ctx, since); err != nil {
+	if d.Timeline, err = s.dashTimeline(ctx, since, until); err != nil {
 		return d, err
 	}
 	return d, nil
 }
 
-func (s *Store) dashSeverity(ctx context.Context, since time.Time) ([]Count, error) {
+func (s *Store) dashSeverity(ctx context.Context, since, until time.Time) ([]Count, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT event_severity, count(*) FROM events
-		 WHERE time >= $1 AND event_severity IS NOT NULL
-		 GROUP BY event_severity ORDER BY event_severity DESC`, since)
+		 WHERE time >= $1 AND time <= $2 AND event_severity IS NOT NULL
+		 GROUP BY event_severity ORDER BY event_severity DESC`, since, until)
 	if err != nil {
 		return nil, fmt.Errorf("store: dashboard severity: %w", err)
 	}
@@ -112,8 +114,8 @@ func (s *Store) dashSeverity(ctx context.Context, since time.Time) ([]Count, err
 	return out, rows.Err()
 }
 
-func (s *Store) dashCounts(ctx context.Context, query string, since time.Time) ([]Count, error) {
-	rows, err := s.pool.Query(ctx, query, since)
+func (s *Store) dashCounts(ctx context.Context, query string, since, until time.Time) ([]Count, error) {
+	rows, err := s.pool.Query(ctx, query, since, until)
 	if err != nil {
 		return nil, fmt.Errorf("store: dashboard series: %w", err)
 	}
@@ -129,15 +131,41 @@ func (s *Store) dashCounts(ctx context.Context, query string, since time.Time) (
 	return out, rows.Err()
 }
 
-func (s *Store) dashTimeline(ctx context.Context, since time.Time) ([]TimePoint, error) {
+// bucketFor picks a timeline bucket width so the chart always has a sensible
+// number of points (~24-150) regardless of the selected window.
+func bucketFor(span time.Duration) string {
+	switch {
+	case span <= 2*time.Hour:
+		return "1 minute"
+	case span <= 12*time.Hour:
+		return "10 minutes"
+	case span <= 3*24*time.Hour:
+		return "1 hour"
+	case span <= 21*24*time.Hour:
+		return "6 hours"
+	default:
+		return "1 day"
+	}
+}
+
+// dashTimeline returns a gap-filled series: every bucket across [since, until]
+// is present (zero where there were no events) so the line renders continuously
+// even when activity is sparse or confined to a single bucket.
+func (s *Store) dashTimeline(ctx context.Context, since, until time.Time) ([]TimePoint, error) {
+	bucket := bucketFor(until.Sub(since))
 	rows, err := s.pool.Query(ctx,
-		`SELECT time_bucket('1 hour', time) AS bucket, count(*) FROM events
-		 WHERE time >= $1 GROUP BY bucket ORDER BY bucket`, since)
+		`SELECT g AS bucket, COALESCE(e.cnt, 0)
+		 FROM generate_series(time_bucket($3::interval, $1), time_bucket($3::interval, $2), $3::interval) AS g
+		 LEFT JOIN (
+		     SELECT time_bucket($3::interval, time) AS b, count(*) AS cnt
+		     FROM events WHERE time >= $1 AND time <= $2 GROUP BY b
+		 ) e ON e.b = g
+		 ORDER BY g`, since, until, bucket)
 	if err != nil {
 		return nil, fmt.Errorf("store: dashboard timeline: %w", err)
 	}
 	defer rows.Close()
-	out := make([]TimePoint, 0, 24)
+	out := make([]TimePoint, 0, 48)
 	for rows.Next() {
 		var p TimePoint
 		if err := rows.Scan(&p.Time, &p.Count); err != nil {

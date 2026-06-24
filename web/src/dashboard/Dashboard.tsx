@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   fetchHealth, fetchAlerts, fetchDashboardData, fetchLayout, saveLayout,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
-  type DashboardData, type DashWidget, type WidgetKind,
+  type DashboardData, type DashWidget, type WidgetKind, type DashRange,
 } from '../lib/api'
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, WIDGET_COLORS } from './widgets'
 
@@ -122,11 +122,100 @@ function WidgetBody({ w, data }: { w: DashWidget; data: DashboardData | null }) 
   }
 }
 
+// ── Time-range picker ──────────────────────────────────────
+const RANGE_PRESETS: { label: string; hours: number }[] = [
+  { label: '1h', hours: 1 },
+  { label: '6h', hours: 6 },
+  { label: '24h', hours: 24 },
+  { label: '7d', hours: 24 * 7 },
+  { label: '30d', hours: 24 * 30 },
+]
+
+// localInput formats a Date for a datetime-local input (local time, minute precision).
+function localInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+// resolveRange turns the picker state into a DashRange, or null if the custom
+// inputs are incomplete/invalid (caller skips fetching until valid).
+function resolveRange(preset: number | 'custom', from: string, to: string): DashRange | null {
+  if (preset !== 'custom') return { hours: preset }
+  if (!from || !to) return null
+  const f = new Date(from)
+  const t = new Date(to)
+  if (isNaN(+f) || isNaN(+t)) return null
+  return { from: f, to: t }
+}
+
+function TimeRangePicker({
+  preset, from, to, onPreset, onFrom, onTo,
+}: {
+  preset: number | 'custom'
+  from: string
+  to: string
+  onPreset: (h: number | 'custom') => void
+  onFrom: (v: string) => void
+  onTo: (v: string) => void
+}) {
+  const startCustom = () => {
+    if (!to) onTo(localInput(new Date()))
+    if (!from) onFrom(localInput(new Date(Date.now() - 24 * 3600 * 1000)))
+    onPreset('custom')
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {RANGE_PRESETS.map((r) => (
+        <button
+          key={r.label}
+          onClick={() => onPreset(r.hours)}
+          className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+            preset === r.hours ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+          }`}
+        >
+          {r.label}
+        </button>
+      ))}
+      <button
+        onClick={startCustom}
+        className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+          preset === 'custom' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+        }`}
+      >
+        Custom
+      </button>
+      {preset === 'custom' && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <input
+            type="datetime-local"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => onFrom(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]"
+          />
+          <span className="text-xs text-slate-500">→</span>
+          <input
+            type="datetime-local"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => onTo(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: NewTicketInput) => void }) {
   const [health, setHealth] = useState<Health | null>(null)
   const [alerts, setAlerts] = useState<EventRow[]>([])
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
+  // Time range: a preset number of hours, or 'custom' with from/to (datetime-local strings).
+  const [preset, setPreset] = useState<number | 'custom'>(24)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [widgets, setWidgets] = useState<DashWidget[]>(defaultWidgets())
   const [edit, setEdit] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -144,24 +233,28 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
       .catch(() => {})
   }, [])
 
-  // Poll live data.
+  // Poll live data for the selected time range. Re-subscribes when the range
+  // changes; a custom range with incomplete inputs simply skips the data fetch.
   useEffect(() => {
     let active = true
     const tick = async () => {
       const h = await fetchHealth()
       if (active) setHealth(h)
-      try {
-        const [d, a] = await Promise.all([fetchDashboardData(24), fetchAlerts(15)])
-        if (active) { setData(d); setAlerts(a) }
-      } catch {
-        /* API/DB not ready */
+      const range = resolveRange(preset, from, to)
+      if (range) {
+        try {
+          const [d, a] = await Promise.all([fetchDashboardData(range), fetchAlerts(15)])
+          if (active) { setData(d); setAlerts(a) }
+        } catch {
+          /* API/DB not ready */
+        }
       }
       if (active) setUpdated(new Date())
     }
     void tick()
     const id = setInterval(tick, 5000)
     return () => { active = false; clearInterval(id) }
-  }, [])
+  }, [preset, from, to])
 
   const mutate = (fn: (ws: DashWidget[]) => DashWidget[]) => { setWidgets(fn); setDirty(true) }
   const patch = (id: string, p: Partial<DashWidget>) => mutate((ws) => ws.map((w) => (w.id === id ? { ...w, ...p } : w)))
@@ -214,6 +307,16 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
           <p className="mt-1 text-sm text-slate-500">DeusWatch detection · updates every 5s</p>
+          <div className="mt-3">
+            <TimeRangePicker
+              preset={preset}
+              from={from}
+              to={to}
+              onPreset={(h) => setPreset(h)}
+              onFrom={setFrom}
+              onTo={setTo}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {edit && (

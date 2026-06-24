@@ -59,10 +59,11 @@ func (s *Store) LoadPolicy(ctx context.Context) (BanPolicy, error) {
 		secs      []int32
 		permanent bool
 		window    int
+		autoApp   bool
 	)
 	err := s.pool.QueryRow(ctx,
-		`SELECT durations, permanent, window_secs FROM ban_policy WHERE id = 1`).
-		Scan(&secs, &permanent, &window)
+		`SELECT durations, permanent, window_secs, auto_approve FROM ban_policy WHERE id = 1`).
+		Scan(&secs, &permanent, &window, &autoApp)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DefaultBanPolicy(), nil
 	}
@@ -73,7 +74,7 @@ func (s *Store) LoadPolicy(ctx context.Context) (BanPolicy, error) {
 	for i, sx := range secs {
 		durs[i] = time.Duration(sx) * time.Second
 	}
-	return BanPolicy{Durations: durs, Permanent: permanent, Window: time.Duration(window) * time.Second}, nil
+	return BanPolicy{Durations: durs, Permanent: permanent, Window: time.Duration(window) * time.Second, AutoApprove: autoApp}, nil
 }
 
 // SavePolicy upserts the ban policy (single row).
@@ -83,13 +84,72 @@ func (s *Store) SavePolicy(ctx context.Context, p BanPolicy) error {
 		secs[i] = int32(d.Seconds())
 	}
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO ban_policy (id, durations, permanent, window_secs) VALUES (1,$1,$2,$3)
-		 ON CONFLICT (id) DO UPDATE SET durations=$1, permanent=$2, window_secs=$3, updated_at=now()`,
-		secs, p.Permanent, int(p.Window.Seconds()))
+		`INSERT INTO ban_policy (id, durations, permanent, window_secs, auto_approve) VALUES (1,$1,$2,$3,$4)
+		 ON CONFLICT (id) DO UPDATE SET durations=$1, permanent=$2, window_secs=$3, auto_approve=$4, updated_at=now()`,
+		secs, p.Permanent, int(p.Window.Seconds()), p.AutoApprove)
 	if err != nil {
 		return fmt.Errorf("respond: save ban policy: %w", err)
 	}
 	return nil
+}
+
+// Offender is a per-IP rollup of response actions for the IP-centric view.
+type Offender struct {
+	SourceIP     string     `json:"source_ip"`
+	Offenses     int        `json:"offenses"`      // executed blocks (drives the progressive ladder)
+	Total        int        `json:"total"`         // all actions for this IP
+	Pending      int        `json:"pending"`       // recommendations awaiting a decision
+	LastSeen     time.Time  `json:"last_seen"`     // most recent action
+	LastStatus   string     `json:"last_status"`   // status of the most recent action
+	LastReason   string     `json:"last_reason"`   // reason of the most recent action
+	LastBanSecs  int        `json:"last_ban_secs"` // ban duration of the most recent action
+	PendingID    string     `json:"pending_id"`    // newest recommended action id (for approve/dismiss), "" if none
+	BlockedUntil *time.Time `json:"blocked_until"` // when the current block expires (nil = none / permanent)
+	Blocked      bool       `json:"blocked"`       // currently enforced
+}
+
+// Offenders returns one rollup row per source IP, most-recently-active first.
+func (s *Store) Offenders(ctx context.Context, limit int) ([]Offender, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 200
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT host(source_ip),
+		       count(*) FILTER (WHERE status = 'executed')                                     AS offenses,
+		       count(*)                                                                         AS total,
+		       count(*) FILTER (WHERE status = 'recommended')                                   AS pending,
+		       max(created_at)                                                                  AS last_seen,
+		       (array_agg(status      ORDER BY created_at DESC))[1]                             AS last_status,
+		       (array_agg(COALESCE(reason,'') ORDER BY created_at DESC))[1]                     AS last_reason,
+		       (array_agg(ban_seconds ORDER BY created_at DESC))[1]                             AS last_ban,
+		       (array_agg(id ORDER BY created_at DESC) FILTER (WHERE status = 'recommended'))[1] AS pending_id,
+		       max(COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds))
+		           FILTER (WHERE status IN ('approved','executed') AND ban_seconds > 0)         AS blocked_until,
+		       bool_or(status IN ('approved','executed')
+		               AND (ban_seconds = 0
+		                    OR COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds) > now())) AS blocked
+		FROM response_actions
+		GROUP BY source_ip
+		ORDER BY last_seen DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("respond: offenders: %w", err)
+	}
+	defer rows.Close()
+	out := make([]Offender, 0, 64)
+	for rows.Next() {
+		var o Offender
+		var pendingID *string
+		if err := rows.Scan(&o.SourceIP, &o.Offenses, &o.Total, &o.Pending, &o.LastSeen,
+			&o.LastStatus, &o.LastReason, &o.LastBanSecs, &pendingID, &o.BlockedUntil, &o.Blocked); err != nil {
+			return nil, err
+		}
+		if pendingID != nil {
+			o.PendingID = *pendingID
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
 }
 
 const actionCols = `id, created_at, host(source_ip), action, COALESCE(reason,''), COALESCE(rule_id,''),

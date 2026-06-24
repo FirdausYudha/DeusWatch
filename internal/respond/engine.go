@@ -21,26 +21,34 @@ type ActionStore interface {
 
 // Engine turns alerts into block recommendations & executes them after approval.
 type Engine struct {
-	store       ActionStore
-	responder   Responder // may be nil (execution disabled)
-	autoApprove bool
+	store     ActionStore
+	responder Responder // may be nil (execution disabled)
+	envAuto   bool      // RESPONSE_AUTO_APPROVE=1 forces auto-approve regardless of the DB policy
 
 	mu     sync.RWMutex
 	policy BanPolicy
 }
 
-// NewEngine creates an engine. autoApprove=true executes immediately without manual approval.
+// NewEngine creates an engine. autoApprove=true forces immediate execution without
+// manual approval (an environment override on top of the DB policy's AutoApprove).
 func NewEngine(store ActionStore, responder Responder, policy BanPolicy, autoApprove bool) *Engine {
 	if len(policy.Durations) == 0 {
 		policy = DefaultBanPolicy()
 	}
-	return &Engine{store: store, responder: responder, policy: policy, autoApprove: autoApprove}
+	if autoApprove {
+		policy.AutoApprove = true
+	}
+	return &Engine{store: store, responder: responder, policy: policy, envAuto: autoApprove}
 }
 
 // SetPolicy atomically swaps the ban policy (used for live reload from the DB).
+// The RESPONSE_AUTO_APPROVE env override, if set, keeps auto-approve forced on.
 func (e *Engine) SetPolicy(p BanPolicy) {
 	if len(p.Durations) == 0 {
 		return
+	}
+	if e.envAuto {
+		p.AutoApprove = true
 	}
 	e.mu.Lock()
 	e.policy = p
@@ -87,7 +95,7 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 	}
 	a.ID = id
 
-	if e.autoApprove && e.responder != nil {
+	if policy.AutoApprove && e.responder != nil {
 		if err := e.execute(ctx, a, "auto"); err != nil {
 			log.Printf("respond: auto-execute %s failed: %v", a.SourceIP, err)
 		}
@@ -146,8 +154,10 @@ func reasonFor(ev *ingest.Event) string {
 
 type statusError struct{ s Status }
 
-func (e statusError) Error() string { return "respond: action is already " + string(e.s) + " (not recommended)" }
-func errStatus(s Status) error      { return statusError{s} }
+func (e statusError) Error() string {
+	return "respond: action is already " + string(e.s) + " (not recommended)"
+}
+func errStatus(s Status) error { return statusError{s} }
 
 type simpleError string
 

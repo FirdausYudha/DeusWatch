@@ -146,6 +146,7 @@ func main() {
 		respStore := respond.NewStore(st.Pool())
 		respEngine := respond.NewEngine(respStore, respond.ResponderFromEnv(), respond.DefaultBanPolicy(), false)
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
+		mux.Handle("GET /api/responses/offenders", protect(auth.PermViewDashboard, offendersHandler(respStore)))
 		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
 
@@ -341,17 +342,55 @@ func reportHandler(st *store.Store) http.HandlerFunc {
 
 func dashboardDataHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
-		if err != nil || hours <= 0 {
-			hours = 24
-		}
-		d, err := st.Dashboard(r.Context(), hours)
+		since, until := dashboardWindow(r)
+		d, err := st.Dashboard(r.Context(), since, until)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		writeJSON(w, http.StatusOK, d)
 	}
+}
+
+// dashboardWindow resolves the time window from the request: an explicit
+// from/to (RFC3339) range takes precedence, otherwise a relative ?hours= window
+// (default 24h). The span is clamped to at most 90 days.
+func dashboardWindow(r *http.Request) (since, until time.Time) {
+	q := r.URL.Query()
+	from, fOK := parseTime(q.Get("from"))
+	to, tOK := parseTime(q.Get("to"))
+	if fOK || tOK {
+		if !tOK {
+			to = time.Now()
+		}
+		if !fOK {
+			from = to.Add(-24 * time.Hour)
+		}
+		if from.After(to) {
+			from, to = to, from
+		}
+		if to.Sub(from) > 90*24*time.Hour {
+			from = to.Add(-90 * 24 * time.Hour)
+		}
+		return from, to
+	}
+	hours, err := strconv.Atoi(q.Get("hours"))
+	if err != nil || hours <= 0 || hours > 24*90 {
+		hours = 24
+	}
+	now := time.Now()
+	return now.Add(-time.Duration(hours) * time.Hour), now
+}
+
+// parseTime accepts an RFC3339 timestamp (with or without a numeric offset).
+func parseTime(s string) (time.Time, bool) {
+	if s == "" {
+		return time.Time{}, false
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, true
+	}
+	return time.Time{}, false
 }
 
 func getLayoutHandler(st *store.Store) http.HandlerFunc {
@@ -404,7 +443,12 @@ func banPolicyJSON(p respond.BanPolicy) map[string]any {
 	for i, d := range p.Durations {
 		secs[i] = int(d.Seconds())
 	}
-	return map[string]any{"durations": secs, "permanent": p.Permanent, "window_secs": int(p.Window.Seconds())}
+	return map[string]any{
+		"durations":    secs,
+		"permanent":    p.Permanent,
+		"window_secs":  int(p.Window.Seconds()),
+		"auto_approve": p.AutoApprove,
+	}
 }
 
 func banPolicyGetHandler(s *respond.Store) http.HandlerFunc {
@@ -421,9 +465,10 @@ func banPolicyGetHandler(s *respond.Store) http.HandlerFunc {
 func banPolicySetHandler(s *respond.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Durations  []int `json:"durations"`
-			Permanent  bool  `json:"permanent"`
-			WindowSecs int   `json:"window_secs"`
+			Durations   []int `json:"durations"`
+			Permanent   bool  `json:"permanent"`
+			WindowSecs  int   `json:"window_secs"`
+			AutoApprove bool  `json:"auto_approve"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid body", http.StatusBadRequest)
@@ -445,7 +490,7 @@ func banPolicySetHandler(s *respond.Store) http.HandlerFunc {
 			http.Error(w, "window must be >= 0", http.StatusBadRequest)
 			return
 		}
-		p := respond.BanPolicy{Durations: durs, Permanent: req.Permanent, Window: time.Duration(req.WindowSecs) * time.Second}
+		p := respond.BanPolicy{Durations: durs, Permanent: req.Permanent, Window: time.Duration(req.WindowSecs) * time.Second, AutoApprove: req.AutoApprove}
 		if err := s.SavePolicy(r.Context(), p); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -457,6 +502,18 @@ func banPolicySetHandler(s *respond.Store) http.HandlerFunc {
 func responsesHandler(s *respond.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := s.List(r.Context(), r.URL.Query().Get("status"), queryLimit(r, 100, 500))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	}
+}
+
+// offendersHandler returns the per-IP rollup for the IP-centric response view.
+func offendersHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		list, err := s.Offenders(r.Context(), queryLimit(r, 200, 1000))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

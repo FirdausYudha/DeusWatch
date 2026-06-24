@@ -432,7 +432,28 @@ export async function fetchResponses(status = ''): Promise<ResponseAction[]> {
 // Progressive-ban policy: the escalation ladder (durations in seconds for the 1st, 2nd,
 // … offense), whether offenses beyond the ladder are permanent, and the observation
 // window in seconds (0 = count all history).
-export type BanPolicy = { durations: number[]; permanent: boolean; window_secs: number }
+export type BanPolicy = { durations: number[]; permanent: boolean; window_secs: number; auto_approve: boolean }
+
+// Offender is a per-IP rollup of response actions (the IP-centric Response view).
+export type Offender = {
+  source_ip: string
+  offenses: number
+  total: number
+  pending: number
+  last_seen: string
+  last_status: ResponseStatus
+  last_reason: string
+  last_ban_secs: number
+  pending_id: string
+  blocked_until: string | null
+  blocked: boolean
+}
+
+export async function fetchOffenders(): Promise<Offender[]> {
+  const res = await authFetch('/api/responses/offenders')
+  if (!res.ok) throw new Error(`offenders: HTTP ${res.status}`)
+  return res.json()
+}
 
 export async function fetchBanPolicy(): Promise<BanPolicy> {
   const res = await authFetch('/api/ban-policy')
@@ -473,8 +494,20 @@ export type DashboardData = {
   timeline: TimelinePoint[]
 }
 
-export async function fetchDashboardData(hours = 24): Promise<DashboardData> {
-  const res = await authFetch(`/api/dashboard?hours=${hours}`)
+// DashRange selects the dashboard window: either a relative number of hours, or an
+// explicit from/to (Date) range for precise calendar+time selection.
+export type DashRange = { hours?: number; from?: Date; to?: Date }
+
+export async function fetchDashboardData(range: number | DashRange = 24): Promise<DashboardData> {
+  const r: DashRange = typeof range === 'number' ? { hours: range } : range
+  const qs = new URLSearchParams()
+  if (r.from && r.to) {
+    qs.set('from', r.from.toISOString())
+    qs.set('to', r.to.toISOString())
+  } else {
+    qs.set('hours', String(r.hours ?? 24))
+  }
+  const res = await authFetch(`/api/dashboard?${qs.toString()}`)
   if (!res.ok) throw new Error(`dashboard: HTTP ${res.status}`)
   return res.json()
 }
