@@ -40,15 +40,15 @@ func main() {
 	// 503, but liveness stays up.
 	var st *store.Store
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if s, err := store.Connect(ctx, dsn); err != nil {
-			log.Printf("api: store unavailable (continuing without DB): %v", err)
+		if s := connectStoreWithRetry(dsn); s == nil {
+			log.Printf("api: store unavailable after retries (continuing without DB)")
 		} else {
 			st = s
 			defer s.Close()
 			log.Printf("api: store connected")
 			// Automatic migration runner (idempotent) — unless RUN_MIGRATIONS=0.
 			if run, _ := strconv.ParseBool(getenv("RUN_MIGRATIONS", "1")); run {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				if n, merr := migrate.Apply(ctx, s.Pool(), migrations.FS); merr != nil {
 					log.Printf("api: migration failed: %v", merr)
 				} else if n > 0 {
@@ -56,9 +56,9 @@ func main() {
 				} else {
 					log.Printf("api: database schema up to date")
 				}
+				cancel()
 			}
 		}
-		cancel()
 	}
 
 	mux := http.NewServeMux()
@@ -210,6 +210,35 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// connectStoreWithRetry dials the store, retrying with backoff so the API survives
+// starting before Postgres is ready — e.g. after a host/Docker Desktop reboot, where
+// compose `depends_on` ordering is NOT honored and the API can win the race against
+// the DB. Without this, a one-shot connect failure leaves every DB-backed route
+// (including /api/login) unregistered → 404 until a manual restart. Returns nil only
+// if the DB never becomes reachable within the window.
+func connectStoreWithRetry(dsn string) *store.Store {
+	const maxWait = 90 * time.Second
+	deadline := time.Now().Add(maxWait)
+	delay := time.Second
+	for attempt := 1; ; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		s, err := store.Connect(ctx, dsn)
+		cancel()
+		if err == nil {
+			return s
+		}
+		if time.Now().After(deadline) {
+			log.Printf("api: store connect gave up after %s: %v", maxWait, err)
+			return nil
+		}
+		log.Printf("api: store not ready (attempt %d): %v — retrying in %s", attempt, err, delay)
+		time.Sleep(delay)
+		if delay < 8*time.Second {
+			delay *= 2
+		}
+	}
 }
 
 // seedAdmin creates the initial admin user if there are no users yet.
