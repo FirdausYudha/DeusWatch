@@ -1,7 +1,10 @@
+import { QRCodeSVG } from 'qrcode.react'
+
 // Support / donation modal. Saweria is wired now; Ko-fi can be added later once a
 // slug is available (leave KOFI_PAGE empty to hide its button).
+// The QR is generated locally from the donation page URL (Saweria refuses to be
+// embedded in an iframe), so scanning it opens the donate page — no external calls.
 const SAWERIA_PAGE = 'https://saweria.co/DeusLoVult1'
-const SAWERIA_QR = 'https://saweria.co/widgets/qr?streamKey=a3662ae6b331bb4049033c8e421a1881'
 const KOFI_PAGE = '' // e.g. 'https://ko-fi.com/<slug>'
 
 export default function SupportModal({ onClose }: { onClose: () => void }) {
@@ -54,18 +57,10 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-5">
-          <p className="mb-2 text-center text-xs text-slate-500">or scan the QR</p>
-          <div className="mx-auto h-56 w-56 overflow-hidden rounded-lg bg-white">
-            <iframe src={SAWERIA_QR} title="Saweria donation QR" className="h-full w-full border-0" />
+          <p className="mb-2 text-center text-xs text-slate-500">or scan to open the donate page</p>
+          <div className="mx-auto w-fit rounded-lg bg-white p-3">
+            <QRCodeSVG value={SAWERIA_PAGE} size={200} level="M" />
           </div>
-          <a
-            href={SAWERIA_QR}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 block text-center text-xs text-slate-500 hover:text-slate-300"
-          >
-            QR not showing? Open it in a new tab
-          </a>
         </div>
       </div>
     </div>
