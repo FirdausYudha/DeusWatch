@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { logout, can, type Me } from '../lib/api'
+import SupportModal from './SupportModal'
 
 export type View = 'dashboard' | 'agents' | 'response' | 'report' | 'tickets' | 'rules' | 'integrations' | 'users' | 'settings'
 
@@ -27,6 +29,7 @@ export default function Sidebar({
   onNavigate: (v: View) => void
   onLogout: () => void
 }) {
+  const [showSupport, setShowSupport] = useState(false)
   const handleLogout = async () => {
     await logout()
     onLogout()
@@ -88,10 +91,15 @@ export default function Sidebar({
             Logout
           </button>
         </div>
-        <div className="px-2 pt-2 text-xs text-slate-600">
+        <button
+          onClick={() => setShowSupport(true)}
+          className="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-500 transition-colors hover:bg-slate-800 hover:text-rose-300"
+        >
           <span className="text-rose-400">♥</span> Support DeusWatch
-        </div>
+        </button>
       </div>
+
+      {showSupport && <SupportModal onClose={() => setShowSupport(false)} />}
     </aside>
   )
 }
