@@ -7,13 +7,19 @@
 SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis — in one lightweight, modular system.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Phase%201–3%20complete-green.svg)]()
+[![Status](https://img.shields.io/badge/status-Phase%201–3%20complete%20·%20Phase%204%20in%20progress-green.svg)]()
+[![Made with Go](https://img.shields.io/badge/Go-backend-00ADD8.svg)]()
+[![Web: React + Vite](https://img.shields.io/badge/Web-React%20%2B%20Vite-61DAFB.svg)]()
+
+[Features](#features) · [Integrations](#integrations) · [Quick start](#quick-start) · [Documentation](#documentation) · [Support ♥](#support)
 
 </div>
 
 ---
 
-> ⚠️ **Status: active development.** Phases 1–3 are implemented end-to-end; not yet hardened for production.
+> ⚠️ **Status: active development.** Phases 1–3 are implemented end-to-end and Phase 4 (admin/UX,
+> full i18n, detection & response management) is in progress. Functional for labs and self-hosting;
+> not yet hardened for production.
 
 ## What is DeusWatch?
 
@@ -25,14 +31,26 @@ Core principle: **don't reinvent the wheel.** We build on mature standards (Sigm
 CrowdSec bouncer protocol, PostgreSQL, NATS) and focus on the integration layer and user
 experience that no single vendor packages together.
 
-## Features (roadmap)
+## Features
+
+**Collect → Detect → Enrich → Decide → Respond**, with a human-friendly UI over every step.
+
+- **Ingest** — lightweight Go agents ship logs over mTLS (Linux/Windows/macOS); a gateway normalizes them into a common event schema on NATS JetStream.
+- **Detect** — [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete — built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
+- **Enrich** — source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM triage** (Claude) produces a verdict + summary per alert.
+- **Respond (SOAR)** — a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), and a **per-IP response view** with bulk dismiss. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
+- **Visualize** — a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, plus automated reports.
+- **Operate** — RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook), and full **i18n**.
+
+### Roadmap
 
 | Phase | Scope | Status |
 |---|---|---|
-| **Phase 1** | Linux agent, mTLS ingest, gateway + normalization, NATS, Postgres+TimescaleDB, Sigma detection (SSH brute force, etc.) + auto MITRE labeling, API + RBAC + audit log, base Web UI | ✅ |
+| **Phase 1** | Linux agent, mTLS ingest, gateway + normalization, NATS, Postgres+TimescaleDB, Sigma detection + auto MITRE labeling, API + RBAC + audit log, base Web UI | ✅ |
 | **Phase 2** | Windows/macOS agent, CTI enrichment (AbuseIPDB/OTX/GeoIP), response engine (nftables/Mikrotik/CrowdSec LAPI), TOTP 2FA, notifications (Telegram/email/webhook) | ✅ |
 | **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
-| Phase 4 | Android agent, rule/integration marketplace, Helm chart | planned |
+| **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban policy + auto-ban + IP whitelist, per-IP response view, dashboard time-range picker | 🚧 in progress |
+| Phase 5 | File Integrity Monitoring (FIM) + file-hash reputation, agent self-uninstall on revoke, Android agent, rule/integration marketplace, Helm chart | planned |
 
 ## Architecture
 
@@ -46,6 +64,23 @@ Agent (Go) ──mTLS──> Ingest Gateway ──> NATS JetStream ──> Worke
 
 Full design details: see [DeusWatch.md](DeusWatch.md).
 
+## Integrations
+
+Connectors are added and configured from the **Integrations** menu in the UI (secrets are
+encrypted at rest and write-only). Currently available:
+
+| Type | Integration | What it does |
+|---|---|---|
+| 🛡️ Firewall | **nftables (agent-side)** | Endpoint auto-block: the agent adds the active blocklist to a local nftables set and drops matching traffic. |
+| 🛡️ Firewall | **MikroTik RouterOS** | Pushes blocked IPs to a RouterOS address-list via the REST API. |
+| 🛡️ Bouncer | **CrowdSec LAPI** | Creates/removes ban decisions via `cscli` so CrowdSec bouncers enforce them. |
+| 🔎 CTI | **AbuseIPDB** | Enriches source IPs with an abuse-confidence score. |
+| 🔎 CTI | **AlienVault OTX** | Enriches source IPs with threat-intel pulse counts. |
+| 🔔 Notify | **Telegram · Email (SMTP) · Webhook** | Real-time alerts with dedup/throttle (configured via env). |
+| 🤖 LLM | **Anthropic Claude** | Per-alert triage: verdict + summary (heuristic fallback when no key). |
+
+Threat-intel also includes **GeoIP** (attack-origin map) and an opt-in **community blocklist**.
+
 ## Quick start
 
 One command brings up the whole stack (db, NATS, cert generation, API, gateway, worker, web UI):
@@ -57,8 +92,8 @@ docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
 - **Web UI:** http://localhost:5173 · **API:** http://localhost:8080
-- **Default login:** `admin` / `thewatcher` (change via `ADMIN_PASSWORD`)
-- Self-registration is available on the login page (new accounts get the viewer role).
+- **Default login:** `admin` / `thewatcher` (change via `ADMIN_PASSWORD`, or in **Users**/**Settings** after first login)
+- Self-registration is **disabled by default** (admins create users in the UI); set `REGISTRATION_ENABLED=1` to allow viewer-role sign-ups from the login page.
 
 ## Deploying agents
 
@@ -95,6 +130,19 @@ sudo journalctl -u deuswatch-agent -n 30 --no-pager
 - `connection refused` / timeout → the manager's firewall is blocking 8443, or the wrong `MANAGER`/host.
 - `x509: certificate signed by unknown authority` → the agent enrolled against a different CA; re-enrol after regenerating certs.
 
+## Documentation
+
+| Doc | Purpose |
+|---|---|
+| [DeusWatch.md](DeusWatch.md) | Full architecture & design reference |
+| [SECURITY.md](SECURITY.md) | Threat model & responsible-disclosure policy |
+| [LICENSE](LICENSE) | AGPL-3.0 |
+| In-app **Settings → docs** | Operator guidance, surfaced in the UI |
+
+The fastest way to learn DeusWatch is to run the Quick start, log in, and trigger an SSH
+brute force against a monitored host — you'll watch it flow from alert → enrichment → MITRE
+label → progressive-ban recommendation in real time.
+
 ## Tech stack
 
 Go · PostgreSQL + TimescaleDB · pgvector · NATS JetStream · Sigma · React + Vite + Tailwind ·
@@ -112,5 +160,12 @@ responsible-disclosure policy.
 
 ## Support
 
-♥ Like DeusWatch? Consider supporting via the **Sponsor** button on this repo
-(Saweria for Indonesia, Ko-fi for international).
+DeusWatch is built and maintained in the open, for free. If it's useful to you, a small
+donation keeps the lights on and is hugely appreciated — thank you! 🙏
+
+[![Saweria](https://img.shields.io/badge/Saweria-donate-FF5E5B.svg)](https://saweria.co/DeusLoVult1) — 🇮🇩 Indonesia (QRIS / GoPay / OVO / DANA)
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B.svg)](https://ko-fi.com/deuslovult1) — 🌏 International (PayPal / card)
+
+You can also use the **Sponsor ♥** button at the top of this repo, or the **♥ Support DeusWatch**
+link inside the app.

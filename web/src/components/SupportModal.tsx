@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react'
 // The QR is generated locally from the donation page URL (Saweria refuses to be
 // embedded in an iframe), so scanning it opens the donate page — no external calls.
 const SAWERIA_PAGE = 'https://saweria.co/DeusLoVult1'
-const KOFI_PAGE = '' // e.g. 'https://ko-fi.com/<slug>'
+const KOFI_PAGE = 'https://ko-fi.com/deuslovult1'
 
 export default function SupportModal({ onClose }: { onClose: () => void }) {
   return (

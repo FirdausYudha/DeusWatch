@@ -1,10 +1,9 @@
 # GitHub shows a "Sponsor" button automatically from this file.
-# Fill the placeholders below with real usernames/URLs before publishing the repo.
 
 # Ko-fi (international audience — PayPal, withdraw to an Indonesian bank account)
-ko_fi: # TODO: Ko-fi username, e.g. deuswatch
+ko_fi: deuslovult1
 
 # Saweria (Indonesian audience — QRIS/GoPay/OVO) is not a built-in GitHub platform,
 # so it goes under "custom" as a full URL.
 custom:
-  - "https://saweria.co/" # TODO: complete with the Saweria username
+  - "https://saweria.co/DeusLoVult1"
