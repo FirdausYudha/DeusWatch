@@ -19,7 +19,7 @@ Core principle: **don't reinvent the wheel**. We leverage standards and ecosyste
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                          ENDPOINTS                              │
-│   Agent (Go, single binary) — Linux / Windows / macOS          │
+│   Agent (Go, single binary) — Linux / Windows / macOS           │
 │   Sends: raw logs, FIM events, system metrics                   │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ mTLS (mandatory, no plaintext option)
@@ -33,7 +33,7 @@ Core principle: **don't reinvent the wheel**. We leverage standards and ecosyste
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │              NATS JetStream (message bus + persistence)         │
-│   Streams: logs.raw → logs.normalized → logs.enriched → alerts │
+│   Streams: logs.raw → logs.normalized → logs.enriched → alerts  │
 │   No cache, no cache collisions. Pure streaming.                │
 └───────┬──────────────┬───────────────┬──────────────┬───────────┘
         ▼              ▼               ▼              ▼
@@ -57,7 +57,7 @@ Core principle: **don't reinvent the wheel**. We leverage standards and ecosyste
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │   API SERVER (Go) ── REST + WebSocket, RBAC, audit log          │
-│   WEB UI (React + Vite) ── customizable dashboard (grid          │
+│   WEB UI (React + Vite) ── customizable dashboard (grid         │
 │   drag-and-drop), dark mode, modern, real-time via WebSocket    │
 └─────────────────────────────────────────────────────────────────┘
 ```
