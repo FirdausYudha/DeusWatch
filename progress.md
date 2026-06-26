@@ -13,6 +13,12 @@ YAML, docs). Stack: Go (agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS 
 React+Vite+Tailwind. Verified live: the pipeline event→detection(Sigma single+aggregation)→
 enrich→alert→response(dry-run)→LLM triage→report.
 
+> **Detection tested on Linux only (so far).** The end-to-end detection/response above is
+> validated with Linux/sshd. Windows agents already ship their Event Log (Security/System)
+> and ingest works, but Windows event **normalization + Sigma rules are not built yet**, so
+> Windows brute-force (4625/RDP/SMB) shows up as raw `info` events without alerts/ban.
+> macOS detection is likewise unverified. Windows/macOS detection = experimental/WIP.
+
 ```
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI
 ```

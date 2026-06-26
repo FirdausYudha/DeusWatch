@@ -52,6 +52,23 @@ experience that no single vendor packages together.
 | **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban policy + auto-ban + IP whitelist, per-IP response view, dashboard time-range picker | 🚧 in progress |
 | Phase 5 | File Integrity Monitoring (FIM) + file-hash reputation, agent self-uninstall on revoke, Android agent, rule/integration marketplace, Helm chart | planned |
 
+### Detection coverage by platform
+
+The detection pipeline (log parsing → Sigma rules → enrichment → progressive ban) is
+**verified end-to-end on Linux**. Other platforms collect and ship logs, but their event
+parsing + detection rules are still in progress.
+
+| Platform | Log collection | Detection (parse + rules) | End-to-end verified |
+|---|---|---|---|
+| **Linux** (sshd / journald) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM | ✅ tested |
+| **Windows** (Event Log: Security/System) | ✅ ships events | 🚧 4625/RDP-SMB brute-force parsing + rules WIP | ❌ not yet tested |
+| **macOS** | ✅ ships logs | 🚧 rules WIP | ❌ not yet tested |
+
+> So far DeusWatch's detection & response have been validated on Linux. Windows agents
+> already stream their Event Log to the manager (ingest works), but Windows-specific
+> normalization and Sigma rules are not finished — treat Windows/macOS detection as
+> experimental until marked verified here.
+
 ## Architecture
 
 ```
