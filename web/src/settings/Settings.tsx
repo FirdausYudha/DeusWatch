@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword } from '../lib/api'
 
 export default function Settings() {
@@ -120,13 +121,19 @@ export default function Settings() {
         {enabled === false && setup && (
           <form onSubmit={confirmEnable} className="space-y-3">
             <p className="text-sm text-slate-400">
-              Add to your authenticator app (scan / paste the URL), then enter the 6-digit code:
+              Scan this QR with your authenticator app (Google Authenticator, Authy, 1Password…),
+              then enter the 6-digit code:
             </p>
-            <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-xs">
-              <div className="text-slate-500">Secret</div>
-              <div className="select-all break-all font-mono text-slate-200">{setup.secret}</div>
-              <div className="mt-2 text-slate-500">otpauth URL</div>
-              <div className="select-all break-all font-mono text-slate-300">{setup.otpauth_url}</div>
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="w-fit rounded-lg bg-white p-3">
+                <QRCodeSVG value={setup.otpauth_url} size={160} level="M" />
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-800 p-3 text-xs">
+                <div className="text-slate-500">Can't scan? Enter this secret manually:</div>
+                <div className="mt-1 select-all break-all font-mono text-slate-200">{setup.secret}</div>
+                <div className="mt-2 text-slate-500">otpauth URL</div>
+                <div className="select-all break-all font-mono text-slate-300">{setup.otpauth_url}</div>
+              </div>
             </div>
             <input
               value={code}
