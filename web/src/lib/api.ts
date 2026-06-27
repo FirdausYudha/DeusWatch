@@ -87,6 +87,37 @@ export type Stats = {
   by_severity: SeverityCount[] | null
 }
 
+// EventSearch are the optional filters for the dashboard's Events/Alerts table.
+export type EventSearch = {
+  q?: string
+  ip?: string
+  rule?: string
+  technique?: string
+  category?: string
+  severity?: number // min level 0..4 (-1/undefined = any)
+  alerts?: boolean // labeled events only
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export async function searchEvents(f: EventSearch): Promise<EventRow[]> {
+  const qs = new URLSearchParams()
+  if (f.q) qs.set('q', f.q)
+  if (f.ip) qs.set('ip', f.ip)
+  if (f.rule) qs.set('rule', f.rule)
+  if (f.technique) qs.set('technique', f.technique)
+  if (f.category) qs.set('category', f.category)
+  if (f.severity != null && f.severity >= 0) qs.set('severity', String(f.severity))
+  if (f.alerts) qs.set('alerts', '1')
+  if (f.from) qs.set('from', f.from)
+  if (f.to) qs.set('to', f.to)
+  qs.set('limit', String(f.limit ?? 50))
+  const res = await authFetch(`/api/events/search?${qs.toString()}`)
+  if (!res.ok) throw new Error(`events: HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function fetchAlerts(limit = 20): Promise<EventRow[]> {
   const res = await authFetch(`/api/alerts?limit=${limit}`)
   if (!res.ok) throw new Error(`alerts: HTTP ${res.status}`)

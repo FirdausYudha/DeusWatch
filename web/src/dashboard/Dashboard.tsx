@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
-  fetchHealth, fetchAlerts, fetchDashboardData, fetchLayout, saveLayout,
+  fetchHealth, searchEvents, fetchDashboardData, fetchLayout, saveLayout,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
-  type DashboardData, type DashWidget, type WidgetKind, type DashRange,
+  type DashboardData, type DashWidget, type WidgetKind, type DashRange, type EventSearch,
 } from '../lib/api'
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, WIDGET_COLORS } from './widgets'
 
@@ -223,7 +223,6 @@ function TimeRangePicker({
 
 export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: NewTicketInput) => void }) {
   const [health, setHealth] = useState<Health | null>(null)
-  const [alerts, setAlerts] = useState<EventRow[]>([])
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
   // Time range: a preset number of hours, or 'custom' with from/to (datetime-local strings).
@@ -257,8 +256,8 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
       const range = resolveRange(preset, from, to)
       if (range) {
         try {
-          const [d, a] = await Promise.all([fetchDashboardData(range), fetchAlerts(15)])
-          if (active) { setData(d); setAlerts(a) }
+          const d = await fetchDashboardData(range)
+          if (active) setData(d)
         } catch {
           /* API/DB not ready */
         }
@@ -427,53 +426,8 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
         )}
       </section>
 
-      {/* Recent alerts (fixed) — raise tickets from here */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Recent alerts</h2>
-        <div className="overflow-hidden rounded-xl border border-slate-800">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="px-4 py-2 font-medium">Time</th>
-                <th className="px-4 py-2 font-medium">Source IP</th>
-                <th className="px-4 py-2 font-medium">Rule</th>
-                <th className="px-4 py-2 font-medium">MITRE</th>
-                <th className="px-4 py-2 font-medium">Threat Intel</th>
-                <th className="px-4 py-2 font-medium">LLM</th>
-                <th className="px-4 py-2 font-medium">Severity</th>
-                {onCreateTicket && <th className="px-4 py-2 font-medium"></th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-              {alerts.length ? (
-                alerts.map((a, i) => (
-                  <tr key={i} className="hover:bg-slate-800/40">
-                    <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('en-US')}</td>
-                    <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
-                    <td className="px-4 py-2 text-slate-300">{a.rule_name || a.dw_label}</td>
-                    <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
-                    <td className="px-4 py-2"><ThreatIntel a={a} /></td>
-                    <td className="px-4 py-2"><LLMVerdict a={a} /></td>
-                    <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
-                    {onCreateTicket && (
-                      <td className="px-4 py-2 text-right">
-                        <button onClick={() => onCreateTicket(alertToTicket(a))} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800" title="Raise a Tier-2 ticket from this alert">+ Ticket</button>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={onCreateTicket ? 8 : 7} className="px-4 py-6 text-center text-sm text-slate-600">
-                    {health?.api === 'down' ? 'API unreachable — run docker compose up' : 'No alerts yet. Trigger an SSH brute-force to see them here.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-3 text-xs text-slate-600">{updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Connecting to API…'}</p>
-      </section>
+      {/* Searchable events & alerts — filter by IP / rule / MITRE / level / time */}
+      <EventsPanel onCreateTicket={onCreateTicket} apiDown={health?.api === 'down'} />
 
       {/* System Health (fixed) */}
       <section>
@@ -492,5 +446,170 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
         </div>
       </section>
     </div>
+  )
+}
+
+// ── Searchable events & alerts table ───────────────────────
+const ROW_OPTIONS = [5, 20, 50, 100]
+const SEV_OPTIONS: { label: string; value: number }[] = [
+  { label: 'Any level', value: -1 },
+  { label: 'Info+', value: 0 },
+  { label: 'Low+', value: 1 },
+  { label: 'Medium+', value: 2 },
+  { label: 'High+', value: 3 },
+  { label: 'Critical', value: 4 },
+]
+const fieldCls =
+  'rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]'
+
+function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTicketInput) => void; apiDown: boolean }) {
+  const [rows, setRows] = useState<EventRow[]>([])
+  const [q, setQ] = useState('')
+  const [ip, setIp] = useState('')
+  const [rule, setRule] = useState('')
+  const [technique, setTechnique] = useState('')
+  const [severity, setSeverity] = useState(-1)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [alertsOnly, setAlertsOnly] = useState(false)
+  const [limit, setLimit] = useState(20)
+  const [updated, setUpdated] = useState<Date | null>(null)
+  const [open, setOpen] = useState(false)
+
+  // Fetch on any filter change (debounced) + a periodic refresh.
+  useEffect(() => {
+    let active = true
+    const load = () => {
+      const f: EventSearch = {
+        q: q || undefined,
+        ip: ip || undefined,
+        rule: rule || undefined,
+        technique: technique || undefined,
+        severity: severity >= 0 ? severity : undefined,
+        alerts: alertsOnly || undefined,
+        from: from ? new Date(from).toISOString() : undefined,
+        to: to ? new Date(to).toISOString() : undefined,
+        limit,
+      }
+      searchEvents(f)
+        .then((r) => { if (active) { setRows(r); setUpdated(new Date()) } })
+        .catch(() => {})
+    }
+    const t = setTimeout(load, 300)
+    const id = setInterval(load, 10_000)
+    return () => { active = false; clearTimeout(t); clearInterval(id) }
+  }, [q, ip, rule, technique, severity, from, to, alertsOnly, limit])
+
+  const hasFilter = !!(ip || rule || technique || severity >= 0 || from || to || alertsOnly)
+  const reset = () => {
+    setIp(''); setRule(''); setTechnique(''); setSeverity(-1); setFrom(''); setTo(''); setAlertsOnly(false)
+  }
+
+  return (
+    <section className="mb-8">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Events &amp; Alerts
+          <span className="ml-2 normal-case text-slate-600">{rows.length} shown</span>
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search logs… (IP, rule, host, file, message)"
+            className={`${fieldCls} w-64`}
+          />
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${hasFilter || open ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+          >
+            ⛃ Filters{hasFilter ? ' ·' : ''}
+          </button>
+          <label className="flex items-center gap-1 text-xs text-slate-400">
+            Show
+            <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} className={fieldCls}>
+              {ROW_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {open && (
+        <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 px-4 py-3">
+          <Field label="Source IP"><input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="e.g. 45.155" className={`${fieldCls} w-32`} /></Field>
+          <Field label="Rule"><input value={rule} onChange={(e) => setRule(e.target.value)} placeholder="rule id/name" className={`${fieldCls} w-36`} /></Field>
+          <Field label="MITRE ID"><input value={technique} onChange={(e) => setTechnique(e.target.value)} placeholder="e.g. T1110" className={`${fieldCls} w-28`} /></Field>
+          <Field label="Min level">
+            <select value={severity} onChange={(e) => setSeverity(Number(e.target.value))} className={fieldCls}>
+              {SEV_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </Field>
+          <Field label="From"><input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={fieldCls} /></Field>
+          <Field label="To"><input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className={fieldCls} /></Field>
+          <label className="flex items-center gap-1.5 px-1 text-xs text-slate-300">
+            <input type="checkbox" checked={alertsOnly} onChange={(e) => setAlertsOnly(e.target.checked)} className="h-4 w-4 accent-indigo-500" />
+            Alerts only
+          </label>
+          {hasFilter && (
+            <button onClick={reset} className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-rose-300">Clear</button>
+          )}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-slate-800">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th className="px-4 py-2 font-medium">Time</th>
+              <th className="px-4 py-2 font-medium">Source IP</th>
+              <th className="px-4 py-2 font-medium">Rule / Event</th>
+              <th className="px-4 py-2 font-medium">MITRE</th>
+              <th className="px-4 py-2 font-medium">Threat Intel</th>
+              <th className="px-4 py-2 font-medium">LLM</th>
+              <th className="px-4 py-2 font-medium">Severity</th>
+              {onCreateTicket && <th className="px-4 py-2 font-medium"></th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+            {rows.length ? (
+              rows.map((a, i) => (
+                <tr key={i} className="hover:bg-slate-800/40">
+                  <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('en-US')}</td>
+                  <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
+                  <td className="px-4 py-2 text-slate-300">{a.rule_name || a.dw_label || a.file_path || a.event_action || a.event_category || '—'}</td>
+                  <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
+                  <td className="px-4 py-2"><ThreatIntel a={a} /></td>
+                  <td className="px-4 py-2"><LLMVerdict a={a} /></td>
+                  <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
+                  {onCreateTicket && (
+                    <td className="px-4 py-2 text-right">
+                      <button onClick={() => onCreateTicket(alertToTicket(a))} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800" title="Raise a Tier-2 ticket from this event">+ Ticket</button>
+                    </td>
+                  )}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={onCreateTicket ? 8 : 7} className="px-4 py-6 text-center text-sm text-slate-600">
+                  {apiDown ? 'API unreachable — run docker compose up' : hasFilter || q ? 'No events match these filters.' : 'No events yet.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-xs text-slate-600">{updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Loading…'}</p>
+    </section>
+  )
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-slate-500">
+      {label}
+      {children}
+    </label>
   )
 }

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -93,6 +94,85 @@ func (s *Store) RecentAlerts(ctx context.Context, limit int) ([]EventRow, error)
 		`SELECT `+selectCols+` FROM events WHERE dw_label IS NOT NULL ORDER BY time DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: recent alerts: %w", err)
+	}
+	return scanEventRows(rows)
+}
+
+// EventFilter holds the optional search criteria for SearchEvents. Zero-value fields
+// are ignored, so any combination narrows the result.
+type EventFilter struct {
+	Text        string    // free text over original/rule/host/user/file/label
+	SourceIP    string    // substring match on the source IP
+	RuleID      string    // substring on rule_id OR rule_name
+	TechniqueID string    // substring on the MITRE technique id
+	Category    string    // exact event.category
+	MinSeverity int       // event_severity >= this (-1 = any)
+	AlertsOnly  bool      // only labeled events (alerts)
+	From, To    time.Time // time window (zero = unbounded)
+	Limit       int
+}
+
+// SearchEvents returns events matching the filter, most recent first. It is the backing
+// query for the dashboard's searchable Events/Alerts table.
+func (s *Store) SearchEvents(ctx context.Context, f EventFilter) ([]EventRow, error) {
+	if f.Limit <= 0 || f.Limit > 500 {
+		f.Limit = 50
+	}
+	var conds []string
+	var args []any
+	like := func(col, val string) {
+		args = append(args, "%"+val+"%")
+		conds = append(conds, fmt.Sprintf("%s ILIKE $%d", col, len(args)))
+	}
+	if f.AlertsOnly {
+		conds = append(conds, "dw_label IS NOT NULL")
+	}
+	if f.Text != "" {
+		args = append(args, "%"+f.Text+"%")
+		n := len(args)
+		conds = append(conds, fmt.Sprintf(
+			"(event_original ILIKE $%d OR rule_name ILIKE $%d OR host_name ILIKE $%d OR user_name ILIKE $%d OR file_path ILIKE $%d OR dw_label ILIKE $%d)",
+			n, n, n, n, n, n))
+	}
+	if f.SourceIP != "" {
+		args = append(args, "%"+f.SourceIP+"%")
+		conds = append(conds, fmt.Sprintf("host(source_ip) ILIKE $%d", len(args)))
+	}
+	if f.RuleID != "" {
+		args = append(args, "%"+f.RuleID+"%")
+		n := len(args)
+		conds = append(conds, fmt.Sprintf("(rule_id ILIKE $%d OR rule_name ILIKE $%d)", n, n))
+	}
+	if f.TechniqueID != "" {
+		like("threat_technique_id", f.TechniqueID)
+	}
+	if f.Category != "" {
+		args = append(args, f.Category)
+		conds = append(conds, fmt.Sprintf("event_category = $%d", len(args)))
+	}
+	if f.MinSeverity >= 0 {
+		args = append(args, f.MinSeverity)
+		conds = append(conds, fmt.Sprintf("event_severity >= $%d", len(args)))
+	}
+	if !f.From.IsZero() {
+		args = append(args, f.From)
+		conds = append(conds, fmt.Sprintf("time >= $%d", len(args)))
+	}
+	if !f.To.IsZero() {
+		args = append(args, f.To)
+		conds = append(conds, fmt.Sprintf("time <= $%d", len(args)))
+	}
+
+	q := `SELECT ` + selectCols + ` FROM events`
+	if len(conds) > 0 {
+		q += " WHERE " + strings.Join(conds, " AND ")
+	}
+	args = append(args, f.Limit)
+	q += fmt.Sprintf(" ORDER BY time DESC LIMIT $%d", len(args))
+
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: search events: %w", err)
 	}
 	return scanEventRows(rows)
 }

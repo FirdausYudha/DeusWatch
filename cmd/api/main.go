@@ -132,6 +132,7 @@ func main() {
 			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
 		}
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
+		mux.Handle("GET /api/events/search", protect(auth.PermViewDashboard, searchEventsHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
 		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
@@ -317,6 +318,46 @@ func eventsHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		rows, err := st.RecentEvents(r.Context(), queryLimit(r, 50, 500))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, rows)
+	}
+}
+
+// searchEventsHandler powers the dashboard's filterable Events/Alerts table.
+// Query params: q, ip, rule, technique, category, severity (min 0..4), alerts (bool),
+// from/to (RFC3339), limit. All optional.
+func searchEventsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if st == nil {
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		q := r.URL.Query()
+		f := store.EventFilter{
+			Text:        q.Get("q"),
+			SourceIP:    q.Get("ip"),
+			RuleID:      q.Get("rule"),
+			TechniqueID: q.Get("technique"),
+			Category:    q.Get("category"),
+			MinSeverity: -1,
+			Limit:       queryLimit(r, 50, 500),
+		}
+		if sev, err := strconv.Atoi(q.Get("severity")); err == nil && sev >= 0 {
+			f.MinSeverity = sev
+		}
+		if b, _ := strconv.ParseBool(q.Get("alerts")); b {
+			f.AlertsOnly = true
+		}
+		if t, ok := parseTime(q.Get("from")); ok {
+			f.From = t
+		}
+		if t, ok := parseTime(q.Get("to")); ok {
+			f.To = t
+		}
+		rows, err := st.SearchEvents(r.Context(), f)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
