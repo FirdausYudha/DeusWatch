@@ -53,3 +53,6 @@ Thumbs.db
 
 # ── Local editor / tooling settings ───────────────────────
 .claude/
+
+# ── Local-only demo/seed data (kept out of the repo) ──────
+scripts/demo-seed.sql
