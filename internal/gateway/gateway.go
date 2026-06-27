@@ -46,11 +46,22 @@ func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 	}
 }
 
-// HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN).
-func HeartbeatHandler(seen SeenFunc) http.HandlerFunc {
+// HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN). A revoked
+// agent gets HTTP 410 Gone — the signal for the agent to self-uninstall and stop.
+func HeartbeatHandler(seen SeenFunc, revoked RevokedFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && seen != nil {
-			_ = seen(r.Context(), r.TLS.PeerCertificates[0].Subject.CommonName)
+		var cn string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			cn = r.TLS.PeerCertificates[0].Subject.CommonName
+		}
+		if revoked != nil && cn != "" {
+			if rev, err := revoked(r.Context(), cn); err == nil && rev {
+				http.Error(w, "agent revoked", http.StatusGone)
+				return
+			}
+		}
+		if cn != "" && seen != nil {
+			_ = seen(r.Context(), cn)
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}

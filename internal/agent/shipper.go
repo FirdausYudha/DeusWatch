@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,10 @@ import (
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/mtls"
 )
+
+// ErrRevoked is returned when the manager reports this agent as revoked (HTTP 410 Gone).
+// The agent reacts by self-uninstalling.
+var ErrRevoked = errors.New("agent: revoked by the manager")
 
 // Shipper sends RawLog batches to the gateway over mTLS.
 type Shipper struct {
@@ -74,6 +79,9 @@ func (s *Shipper) Heartbeat(ctx context.Context) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusGone {
+		return ErrRevoked
+	}
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("agent: heartbeat rejected (status %d)", resp.StatusCode)
 	}

@@ -71,7 +71,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
-	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc))
+	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc, revoked))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistHandler(blockFunc))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -3,6 +3,8 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -15,6 +17,38 @@ import (
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/mtls"
 )
+
+func TestHeartbeatHandlerRevoked(t *testing.T) {
+	withCN := func(cn string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/v1/heartbeat", nil)
+		r.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{{Subject: pkix.Name{CommonName: cn}}}}
+		return r
+	}
+	seen := map[string]bool{}
+	seenFn := func(_ context.Context, cn string) error { seen[cn] = true; return nil }
+	revokedFn := func(_ context.Context, cn string) (bool, error) { return cn == "bad-agent", nil }
+	h := HeartbeatHandler(seenFn, revokedFn)
+
+	// A revoked agent gets 410 Gone (its cue to self-uninstall) and is not marked seen.
+	rr := httptest.NewRecorder()
+	h(rr, withCN("bad-agent"))
+	if rr.Code != http.StatusGone {
+		t.Fatalf("revoked agent: got %d, want 410", rr.Code)
+	}
+	if seen["bad-agent"] {
+		t.Fatal("a revoked agent must not be marked seen")
+	}
+
+	// A healthy agent gets 204 and is marked seen.
+	rr = httptest.NewRecorder()
+	h(rr, withCN("good-agent"))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("healthy agent: got %d, want 204", rr.Code)
+	}
+	if !seen["good-agent"] {
+		t.Fatal("a healthy agent should be marked seen")
+	}
+}
 
 type fakePublisher struct {
 	mu   sync.Mutex

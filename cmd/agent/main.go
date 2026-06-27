@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -34,7 +35,13 @@ func main() {
 	enrollManager := flag.String("manager", "http://localhost:8080", "manager URL for enroll")
 	outDir := flag.String("out", "", "certificate output directory (default CERT_DIR)")
 	serviceCmd := flag.String("service", "", "Windows Service control: install|uninstall|start|stop (Windows only)")
+	uninstall := flag.Bool("uninstall", false, "stop the agent service and remove all installed files, then exit")
 	flag.Parse()
+
+	if *uninstall {
+		selfUninstall()
+		return
+	}
 
 	if *enrollMode {
 		dir := *outDir
@@ -103,7 +110,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	go watchConfig(ctx, shipper, configVersion, onConfigChange)
 	// Resend buffered batches (store-and-forward) + heartbeat.
 	go drainBuffer(ctx, shipper, buf)
-	go heartbeatLoop(ctx, shipper)
+	go heartbeatLoop(ctx, shipper, onConfigChange)
 	// Agent-side firewall auto-block (opt-in via AGENT_FIREWALL=nftables, Linux only):
 	// poll the manager's blocklist and apply it to a local nftables set.
 	if strings.EqualFold(os.Getenv("AGENT_FIREWALL"), "nftables") {
@@ -257,8 +264,9 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper) {
 	}
 }
 
-// heartbeatLoop sends periodic heartbeats to the manager.
-func heartbeatLoop(ctx context.Context, shipper *agent.Shipper) {
+// heartbeatLoop sends periodic heartbeats to the manager. If the manager reports the
+// agent as revoked (ErrRevoked), the agent self-uninstalls and stops.
+func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, stop func()) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -267,6 +275,12 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper) {
 			return
 		case <-t.C:
 			if err := shipper.Heartbeat(ctx); err != nil {
+				if errors.Is(err, agent.ErrRevoked) {
+					log.Printf("agent: this agent was revoked by the manager — self-uninstalling")
+					selfUninstall()
+					stop()
+					return
+				}
 				log.Printf("agent: heartbeat failed: %v", err)
 			}
 		}
