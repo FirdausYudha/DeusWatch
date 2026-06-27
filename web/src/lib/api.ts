@@ -70,6 +70,10 @@ export type EventRow = {
   dw_severity_escalated_by: string
   dw_llm_verdict: string
   dw_llm_summary: string
+  file_path: string
+  file_hash_sha256: string
+  dw_filehash_verdict: string
+  dw_filehash_detail: string
 }
 
 export type IPCount = { ip: string; count: number }

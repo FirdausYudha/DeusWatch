@@ -4,9 +4,9 @@ import (
 	"context"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
+	"deuswatch/internal/hashrep"
 	"deuswatch/internal/ingest"
 )
 
@@ -39,11 +39,16 @@ func EscalationFromEnv() EscalationRules {
 }
 
 // Enricher combines a Provider + Cache. Check the cache first, then call the provider.
+// Optionally it also resolves FIM file-hash reputation (hashrep) for file events.
 type Enricher struct {
 	provider Provider
 	cache    *Cache
 	ttl      time.Duration
 	rules    EscalationRules
+
+	hashProvider hashrep.Provider // optional (FIM file-hash reputation)
+	hashCache    *hashrep.Cache
+	hashTTL      time.Duration
 }
 
 func NewEnricher(provider Provider, cache *Cache, ttl time.Duration, rules EscalationRules) *Enricher {
@@ -54,6 +59,14 @@ func NewEnricher(provider Provider, cache *Cache, ttl time.Duration, rules Escal
 		rules = DefaultEscalationRules()
 	}
 	return &Enricher{provider: provider, cache: cache, ttl: ttl, rules: rules}
+}
+
+// SetHashReputation enables FIM file-hash reputation lookups for file events.
+func (e *Enricher) SetHashReputation(p hashrep.Provider, cache *hashrep.Cache, ttl time.Duration) {
+	if ttl <= 0 {
+		ttl = DefaultTTL
+	}
+	e.hashProvider, e.hashCache, e.hashTTL = p, cache, ttl
 }
 
 // lookup returns the indicator for ip: a cache hit while the TTL is active, otherwise
@@ -70,24 +83,71 @@ func (e *Enricher) lookup(ctx context.Context, ip string) (Indicator, error) {
 	return ind, nil
 }
 
-// EnrichEvent enriches an event based on source.ip: it fills threat.* +
-// deuswatch.enrichment.* and escalates severity (section 9). Events without a
-// source IP are marked 'skipped'.
+// EnrichEvent enriches an event: it resolves FIM file-hash reputation (file events) and
+// CTI for source.ip — filling threat.* + deuswatch.* and escalating severity (section 9).
+// Either path can run independently; an event with neither a hash nor an IP is 'skipped'.
 func (e *Enricher) EnrichEvent(ctx context.Context, ev *ingest.Event) error {
-	if ev.Source == nil || ev.Source.IP == "" {
+	hasHash := e.hashProvider != nil && ev.File != nil && hashrep.IsSHA256(ev.File.HashSHA256)
+	hasIP := ev.Source != nil && ev.Source.IP != ""
+	if !hasHash && !hasIP {
 		ev.DeusWatch.Enrichment.Status = ingest.EnrichmentSkipped
 		return nil
 	}
-	ind, err := e.lookup(ctx, ev.Source.IP)
-	if err != nil {
-		ev.DeusWatch.Enrichment.Status = ingest.EnrichmentFailed
-		return err
+	// Capture the original severity once, before any escalation path runs.
+	ev.DeusWatch.Severity.Original = ev.Event.Severity
+
+	var firstErr error
+	enriched := false
+	if hasHash {
+		if err := e.enrichHash(ctx, ev); err != nil {
+			firstErr = err
+		} else {
+			enriched = true
+		}
 	}
-	applyToEvent(ev, ind, e.rules)
+	if hasIP {
+		if ind, err := e.lookup(ctx, ev.Source.IP); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			applyIPIndicator(ev, ind, e.rules)
+			enriched = true
+		}
+	}
+
+	if enriched {
+		ev.DeusWatch.Enrichment.Status = ingest.EnrichmentEnriched
+	} else {
+		ev.DeusWatch.Enrichment.Status = ingest.EnrichmentFailed
+	}
+	return firstErr
+}
+
+// enrichHash looks up the file's SHA-256 reputation (cache-first) and stores the verdict;
+// a known-bad file raises severity to at least High.
+func (e *Enricher) enrichHash(ctx context.Context, ev *ingest.Event) error {
+	h := ev.File.HashSHA256
+	ind, ok, _ := e.hashCache.Get(ctx, h)
+	if !ok {
+		var err error
+		if ind, err = e.hashProvider.LookupHash(ctx, h); err != nil {
+			return err
+		}
+		_ = e.hashCache.Put(ctx, h, ind, e.hashTTL)
+	}
+	ev.DeusWatch.FileHash.Verdict = string(ind.Verdict)
+	ev.DeusWatch.FileHash.Detail = ind.Detail
+	if ind.Verdict == hashrep.VerdictKnownBad {
+		if ev.Event.Severity < ingest.SeverityHigh {
+			ev.Event.Severity = ingest.SeverityHigh
+		}
+		addEscalationReason(ev, "file_hash_known_bad")
+	}
 	return nil
 }
 
-func applyToEvent(ev *ingest.Event, ind Indicator, rules EscalationRules) {
+func applyIPIndicator(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 	abuse, otx := ind.AbuseConfidence, ind.OTXPulseCount
 
 	ev.DeusWatch.Enrichment.Status = ingest.EnrichmentEnriched
@@ -112,24 +172,27 @@ func applyToEvent(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 		}
 	}
 
-	// Dynamic severity escalation (section 9). The original severity is kept separately.
-	orig := ev.Event.Severity
-	esc := orig
-	var reasons []string
+	// Dynamic severity escalation (section 9); cumulative with any FIM bump.
+	esc := ev.Event.Severity
 	if abuse >= rules.AbuseThreshold {
 		esc++
-		reasons = append(reasons, "abuse_confidence>="+strconv.Itoa(rules.AbuseThreshold))
+		addEscalationReason(ev, "abuse_confidence>="+strconv.Itoa(rules.AbuseThreshold))
 	}
 	if otx >= rules.OTXThreshold {
 		esc++
-		reasons = append(reasons, "otx_pulse_count>="+strconv.Itoa(rules.OTXThreshold))
+		addEscalationReason(ev, "otx_pulse_count>="+strconv.Itoa(rules.OTXThreshold))
 	}
 	if esc > ingest.SeverityCritical {
 		esc = ingest.SeverityCritical
 	}
-	ev.DeusWatch.Severity.Original = orig
-	if esc != orig {
-		ev.Event.Severity = esc
-		ev.DeusWatch.Severity.EscalatedBy = strings.Join(reasons, ",")
+	ev.Event.Severity = esc
+}
+
+// addEscalationReason appends one reason to deuswatch.severity.escalated_by (audit trail).
+func addEscalationReason(ev *ingest.Event, reason string) {
+	if ev.DeusWatch.Severity.EscalatedBy == "" {
+		ev.DeusWatch.Severity.EscalatedBy = reason
+	} else {
+		ev.DeusWatch.Severity.EscalatedBy += "," + reason
 	}
 }

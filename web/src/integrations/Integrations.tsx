@@ -15,12 +15,14 @@ const CATEGORY: Record<string, string> = {
   bouncer: 'Bouncer / IPS',
   cti: 'Threat Intel (CTI)',
   llm: 'LLM / AI',
+  fim: 'File Integrity (FIM)',
 }
 const CATEGORY_BADGE: Record<string, string> = {
   firewall: 'text-orange-300 bg-orange-500/15',
   bouncer: 'text-violet-300 bg-violet-500/15',
   cti: 'text-emerald-300 bg-emerald-500/15',
   llm: 'text-sky-300 bg-sky-500/15',
+  fim: 'text-rose-300 bg-rose-500/15',
 }
 
 // FieldInput renders one config field. For secret fields it shows a "configured"

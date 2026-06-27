@@ -35,6 +35,11 @@ type EventRow struct {
 	EscalatedBy     string `json:"dw_severity_escalated_by"`
 	LLMVerdict      string `json:"dw_llm_verdict"`
 	LLMSummary      string `json:"dw_llm_summary"`
+	// FIM file-hash reputation.
+	FilePath        string `json:"file_path"`
+	FileHash        string `json:"file_hash_sha256"`
+	FileHashVerdict string `json:"dw_filehash_verdict"`
+	FileHashDetail  string `json:"dw_filehash_detail"`
 }
 
 const selectCols = `
@@ -48,7 +53,9 @@ const selectCols = `
 	COALESCE(source_geo_country_iso,''), COALESCE(source_geo_city,''), COALESCE(threat_feed_name,''),
 	dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count,
 	COALESCE(dw_enrichment_status,''), COALESCE(dw_severity_escalated_by,''),
-	COALESCE(dw_llm_verdict,''), COALESCE(dw_llm_summary,'')`
+	COALESCE(dw_llm_verdict,''), COALESCE(dw_llm_summary,''),
+	COALESCE(file_path,''), COALESCE(file_hash_sha256,''),
+	COALESCE(dw_filehash_verdict,''), COALESCE(dw_filehash_detail,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -62,6 +69,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.GeoCountry, &e.GeoCity, &e.FeedName,
 			&e.AbuseConfidence, &e.OTXPulseCount, &e.EnrichStatus, &e.EscalatedBy,
 			&e.LLMVerdict, &e.LLMSummary,
+			&e.FilePath, &e.FileHash, &e.FileHashVerdict, &e.FileHashDetail,
 		); err != nil {
 			return nil, err
 		}

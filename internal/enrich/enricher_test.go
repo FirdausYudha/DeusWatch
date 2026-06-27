@@ -17,7 +17,8 @@ func TestApplyEscalation(t *testing.T) {
 		Event:  ingest.EventFields{Severity: ingest.SeverityLow},
 		Source: &ingest.Endpoint{IP: "45.155.205.99"},
 	}
-	applyToEvent(ev, Indicator{AbuseConfidence: 95, OTXPulseCount: 8, CountryISO: "RU", FeedName: "mock"}, DefaultEscalationRules())
+	ev.DeusWatch.Severity.Original = ev.Event.Severity // EnrichEvent captures this before escalation
+	applyIPIndicator(ev, Indicator{AbuseConfidence: 95, OTXPulseCount: 8, CountryISO: "RU", FeedName: "mock"}, DefaultEscalationRules())
 
 	if ev.Event.Severity != ingest.SeverityHigh { // low +1 (abuse) +1 (otx) = high
 		t.Fatalf("wrong escalated severity: %v (want high)", ev.Event.Severity)
@@ -47,7 +48,7 @@ func TestNoEscalationBenign(t *testing.T) {
 		Event:  ingest.EventFields{Severity: ingest.SeverityMedium},
 		Source: &ingest.Endpoint{IP: "10.0.0.5"},
 	}
-	applyToEvent(ev, Indicator{AbuseConfidence: 5, OTXPulseCount: 0}, DefaultEscalationRules())
+	applyIPIndicator(ev, Indicator{AbuseConfidence: 5, OTXPulseCount: 0}, DefaultEscalationRules())
 	if ev.Event.Severity != ingest.SeverityMedium || ev.DeusWatch.Severity.EscalatedBy != "" {
 		t.Fatal("a benign IP must not escalate severity")
 	}
@@ -59,7 +60,7 @@ func TestCustomEscalationThreshold(t *testing.T) {
 		Source: &ingest.Endpoint{IP: "1.2.3.4"},
 	}
 	// Stricter thresholds: abuse>=50 triggers escalation; otx>=100 does not.
-	applyToEvent(ev, Indicator{AbuseConfidence: 60, OTXPulseCount: 3}, EscalationRules{AbuseThreshold: 50, OTXThreshold: 100})
+	applyIPIndicator(ev, Indicator{AbuseConfidence: 60, OTXPulseCount: 3}, EscalationRules{AbuseThreshold: 50, OTXThreshold: 100})
 	if ev.Event.Severity != ingest.SeverityMedium { // low +1 (abuse only)
 		t.Fatalf("wrong severity: %v (want medium)", ev.Event.Severity)
 	}

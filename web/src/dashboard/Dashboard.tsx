@@ -31,16 +31,30 @@ function LLMVerdict({ a }: { a: EventRow }) {
   const cls = VERDICT_BADGE[a.dw_llm_verdict] ?? 'text-slate-400 bg-slate-700/40'
   return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`} title={a.dw_llm_summary || undefined}>{a.dw_llm_verdict}</span>
 }
+function FileHashBadge({ a }: { a: EventRow }) {
+  const v = a.dw_filehash_verdict
+  if (!v || v === 'unknown') return null
+  const bad = v === 'known_bad'
+  const cls = bad ? 'text-rose-300 bg-rose-500/15' : 'text-emerald-300 bg-emerald-500/15'
+  const title = `${a.file_path || 'file'}${a.dw_filehash_detail ? ` — ${a.dw_filehash_detail}` : ''}`
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`} title={title}>
+      {bad ? '☣ malware' : '✓ known-good'}
+    </span>
+  )
+}
 function ThreatIntel({ a }: { a: EventRow }) {
   const abuse = a.dw_enrichment_abuse_confidence
   const otx = a.dw_enrichment_otx_pulse_count
-  if (a.dw_enrichment_status !== 'enriched' && abuse == null) return <span className="text-slate-600">—</span>
+  const hasFileVerdict = !!a.dw_filehash_verdict && a.dw_filehash_verdict !== 'unknown'
+  if (a.dw_enrichment_status !== 'enriched' && abuse == null && !hasFileVerdict) return <span className="text-slate-600">—</span>
   const abuseCls = abuse == null ? '' : abuse >= 90 ? 'text-rose-300 bg-rose-500/15' : abuse >= 50 ? 'text-amber-300 bg-amber-500/15' : 'text-slate-400 bg-slate-700/40'
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {a.source_geo_country_iso && <span className="rounded bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300" title={a.source_geo_city || undefined}>{a.source_geo_country_iso}</span>}
       {abuse != null && <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${abuseCls}`} title="AbuseIPDB confidence">abuse {abuse}</span>}
       {otx != null && otx > 0 && <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-xs font-medium text-violet-300" title="OTX pulses">otx {otx}</span>}
+      <FileHashBadge a={a} />
       {a.dw_severity_escalated_by && <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-xs font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>↑</span>}
     </div>
   )

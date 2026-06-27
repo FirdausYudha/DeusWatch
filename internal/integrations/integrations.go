@@ -80,6 +80,18 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
+		Type: "circl_hashlookup", Label: "CIRCL hashlookup (file-hash reputation)", Category: "fim",
+		Desc:   "Free, no API key — classify FIM file hashes as known-good (NSRL) / known-bad / unknown.",
+		Fields: []Field{},
+	},
+	{
+		Type: "virustotal", Label: "VirusTotal (file-hash reputation)", Category: "fim",
+		Desc: "Look up FIM file hashes against 70+ AV engines. Free tier ≈4 req/min, 500/day; results are cached.",
+		Fields: []Field{
+			{Key: "api_key", Label: "API key", Secret: true},
+		},
+	},
+	{
 		Type: "llm", Label: "LLM analyzer (AI triage)", Category: "llm",
 		Desc: "AI triage of alerts (verdict + summary). Use a free, self-hosted, open-source model via Ollama / any OpenAI-compatible endpoint — or Anthropic Claude.",
 		Fields: []Field{

@@ -16,6 +16,7 @@ import (
 	"deuswatch/internal/detect"
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/enrich"
+	"deuswatch/internal/hashrep"
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
@@ -98,6 +99,15 @@ func main() {
 		log.Printf("worker: mock CTI provider (add an AbuseIPDB/OTX integration or set the env keys for real)")
 	}
 	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), enrich.DefaultTTL, enrich.EscalationFromEnv())
+
+	// FIM file-hash reputation (optional): CIRCL hashlookup (free) + VirusTotal, from the
+	// Integrations registry first, then env. Enables known-good/known-bad classification of
+	// hashed files (a known-bad file raises the event to High severity).
+	vtKey, circlOn := resolveHashRep(ctx, intStore)
+	if hp, hok := hashrep.BuildProvider(vtKey, circlOn); hok {
+		enricher.SetHashReputation(hp, hashrep.NewCache(st.Pool()), enrich.DefaultTTL)
+		log.Printf("worker: FIM hash reputation active (virustotal=%v, circl=%v)", vtKey != "", circlOn)
+	}
 
 	// Response engine (Phase 2): block recommendations + approval + progressive ban.
 	// The responder comes from the Integrations registry (MikroTik) first, else RESPONDER env
@@ -338,6 +348,26 @@ func resolveAnalyzer(ctx context.Context, intStore *integrations.Store) (llm.Ana
 		}
 	}
 	return llm.AnalyzerFromEnv()
+}
+
+// resolveHashRep returns the VirusTotal key & whether CIRCL hashlookup is on for FIM
+// file-hash reputation, preferring enabled Integrations entries over env vars
+// (VIRUSTOTAL_API_KEY, CIRCL_HASHLOOKUP_ENABLED).
+func resolveHashRep(ctx context.Context, intStore *integrations.Store) (vtKey string, circlOn bool) {
+	vtKey = os.Getenv("VIRUSTOTAL_API_KEY")
+	circlOn, _ = strconv.ParseBool(os.Getenv("CIRCL_HASHLOOKUP_ENABLED"))
+	if intStore == nil {
+		return
+	}
+	if rows, err := intStore.Resolve(ctx, "virustotal"); err == nil && len(rows) > 0 {
+		if k := rows[0].Config["api_key"]; k != "" {
+			vtKey = k
+		}
+	}
+	if rows, err := intStore.Resolve(ctx, "circl_hashlookup"); err == nil && len(rows) > 0 {
+		circlOn = true
+	}
+	return
 }
 
 // resolveResponder builds the block responder from an enabled MikroTik integration if

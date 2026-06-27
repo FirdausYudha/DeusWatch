@@ -170,10 +170,10 @@ type Indicator struct {
 
 // Threat = threat.* (MITRE detection + CTI enrichment).
 type Threat struct {
-	Technique Technique  `json:"technique,omitempty"`
-	TacticName string    `json:"tactic.name,omitempty"`
-	Indicator *Indicator `json:"indicator,omitempty"`
-	FeedName   string    `json:"feed.name,omitempty"`
+	Technique  Technique  `json:"technique,omitempty"`
+	TacticName string     `json:"tactic.name,omitempty"`
+	Indicator  *Indicator `json:"indicator,omitempty"`
+	FeedName   string     `json:"feed.name,omitempty"`
 }
 
 // ── Custom deuswatch.* namespace ──────────────────────────
@@ -194,8 +194,8 @@ type LLM struct {
 
 // SeverityMeta = deuswatch.severity.* (audit trail for dynamic escalation, section 9).
 type SeverityMeta struct {
-	Original   Severity `json:"original"`
-	EscalatedBy string  `json:"escalated_by,omitempty"`
+	Original    Severity `json:"original"`
+	EscalatedBy string   `json:"escalated_by,omitempty"`
 }
 
 // Remediation = deuswatch.remediation.* (playbook/LLM recommendation, section 9).
@@ -205,13 +205,20 @@ type Remediation struct {
 	Status RemediationStatus `json:"status,omitempty"`
 }
 
+// FileReputation = deuswatch.file_hash.* (FIM file-hash reputation result).
+type FileReputation struct {
+	Verdict string `json:"verdict,omitempty"` // known_good | known_bad | unknown
+	Detail  string `json:"detail,omitempty"`  // e.g. "12/70 engines flagged"
+}
+
 // DeusWatch = the entire deuswatch.* namespace.
 type DeusWatch struct {
-	Enrichment  Enrichment   `json:"enrichment,omitempty"`
-	Label       string       `json:"label,omitempty"` // bruteforce, password_guessing, mailscam, ...
-	LLM         LLM          `json:"llm,omitempty"`
-	Severity    SeverityMeta `json:"severity,omitempty"`
-	Remediation Remediation  `json:"remediation,omitempty"`
+	Enrichment  Enrichment     `json:"enrichment,omitempty"`
+	Label       string         `json:"label,omitempty"` // bruteforce, password_guessing, mailscam, ...
+	LLM         LLM            `json:"llm,omitempty"`
+	Severity    SeverityMeta   `json:"severity,omitempty"`
+	Remediation Remediation    `json:"remediation,omitempty"`
+	FileHash    FileReputation `json:"file_hash,omitempty"`
 }
 
 // ── Main record ───────────────────────────────────────────

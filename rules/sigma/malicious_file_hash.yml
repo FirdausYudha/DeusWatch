@@ -1,0 +1,20 @@
+title: Malicious File Detected (FIM hash reputation)
+id: 7c1f9a42-6d83-4e0b-9a17-2b5c8e4f1d39
+status: experimental
+description: >
+  A monitored file's SHA-256 matched a known-bad reputation source (VirusTotal detections
+  or a CIRCL known-malicious set). Unlike the plain FIM-change rule this fires on file
+  creation too, so a freshly dropped malware sample is caught immediately.
+references:
+  - https://attack.mitre.org/techniques/T1204/002/
+author: DeusWatch
+level: critical
+logsource:
+  category: file
+detection:
+  selection:
+    deuswatch.file_hash.verdict: known_bad
+  condition: selection
+tags:
+  - attack.t1204.002
+  - attack.execution

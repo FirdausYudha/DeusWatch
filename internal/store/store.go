@@ -46,7 +46,9 @@ INSERT INTO events (
 	threat_indicator_ip, threat_indicator_confidence, threat_feed_name, threat_indicator_last_seen,
 	dw_label, dw_severity_original, dw_severity_escalated_by,
 	dw_enrichment_status, dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count,
-	source_geo_city
+	source_geo_city,
+	file_path, file_hash_sha256, file_owner, file_mode,
+	dw_filehash_verdict, dw_filehash_detail
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -57,7 +59,9 @@ INSERT INTO events (
 	$21::inet, $22, $23, $24,
 	$25, $26, $27,
 	$28, $29, $30,
-	$31
+	$31,
+	$32, $33, $34, $35,
+	$36, $37
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
@@ -74,7 +78,18 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		tiIP, tiConf, tiLastSeen      any = nil, nil, nil
 		threatFeed                    any = nil
 		dwAbuse, dwOTX, dwEscalatedBy any = nil, nil, nil
+		filePath, fileHash            any = nil, nil
+		fileOwner, fileMode           any = nil, nil
+		fhVerdict, fhDetail           any = nil, nil
 	)
+	if e.File != nil {
+		filePath = strOrNil(e.File.Path)
+		fileHash = strOrNil(e.File.HashSHA256)
+		fileOwner = strOrNil(e.File.Owner)
+		fileMode = strOrNil(e.File.Mode)
+	}
+	fhVerdict = strOrNil(e.DeusWatch.FileHash.Verdict)
+	fhDetail = strOrNil(e.DeusWatch.FileHash.Detail)
 	if e.Source != nil {
 		srcIP = strOrNil(e.Source.IP)
 		srcPort = portOrNil(e.Source.Port)
@@ -131,6 +146,8 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		strOrNil(e.DeusWatch.Label), int16(e.DeusWatch.Severity.Original), dwEscalatedBy,
 		strOrNil(string(e.DeusWatch.Enrichment.Status)), dwAbuse, dwOTX,
 		srcGeoCity,
+		filePath, fileHash, fileOwner, fileMode,
+		fhVerdict, fhDetail,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

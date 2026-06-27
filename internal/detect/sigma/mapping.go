@@ -84,6 +84,8 @@ func FlattenEvent(e *ingest.Event) map[string]any {
 		put("file.path", e.File.Path)
 		put("file.hash.sha256", e.File.HashSHA256)
 	}
+	// FIM file-hash reputation verdict (set by the enrich worker), so rules can match it.
+	put("deuswatch.file_hash.verdict", e.DeusWatch.FileHash.Verdict)
 	if e.Network != nil {
 		put("network.protocol", e.Network.Protocol)
 		put("network.transport", e.Network.Transport)
