@@ -79,6 +79,16 @@ var Catalog = []TypeInfo{
 			{Key: "api_key", Label: "OTX API key", Secret: true},
 		},
 	},
+	{
+		Type: "llm", Label: "LLM analyzer (AI triage)", Category: "llm",
+		Desc: "AI triage of alerts (verdict + summary). Use a free, self-hosted, open-source model via Ollama / any OpenAI-compatible endpoint — or Anthropic Claude.",
+		Fields: []Field{
+			{Key: "provider", Label: "Provider", Help: "ollama | openai-compatible | anthropic"},
+			{Key: "base_url", Label: "Base URL", Optional: true, Help: "OpenAI-compatible endpoint, e.g. http://host.docker.internal:11434/v1 (Ollama). Leave blank for anthropic."},
+			{Key: "model", Label: "Model", Optional: true, Help: "e.g. llama3.1, qwen2.5, mistral, or claude-opus-4-8"},
+			{Key: "api_key", Label: "API key", Secret: true, Optional: true, Help: "Not needed for local Ollama; required for hosted providers / Anthropic."},
+		},
+	},
 }
 
 // HasEnabled reports whether any enabled integration of the given type exists. It reads

@@ -147,11 +147,12 @@ func main() {
 	}
 
 	// LLM worker (Phase 3): triage alerts -> verdict + summary (deuswatch.llm.*).
-	if analyzer, ok := llm.AnalyzerFromEnv(); ok {
+	// Prefer an enabled "llm" integration (UI-configured); fall back to env.
+	if analyzer, ok := resolveAnalyzer(ctx, intStore); ok {
 		log.Printf("worker: LLM analyzer active (%s)", analyzer.Name())
 		go runLLM(ctx, st, analyzer)
 	} else {
-		log.Printf("worker: LLM analyzer disabled (set ANTHROPIC_API_KEY or LLM_ENABLED=1)")
+		log.Printf("worker: LLM analyzer disabled (add an LLM integration, or set ANTHROPIC_API_KEY / LLM_BASE_URL / LLM_ENABLED=1)")
 	}
 
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
@@ -320,6 +321,23 @@ func resolveCTIKeys(ctx context.Context, intStore *integrations.Store) (abuseKey
 		}
 	}
 	return
+}
+
+// resolveAnalyzer builds the LLM analyzer from an enabled "llm" integration if present
+// (UI-configured: provider/base_url/model/api_key), otherwise falls back to the env path.
+func resolveAnalyzer(ctx context.Context, intStore *integrations.Store) (llm.Analyzer, bool) {
+	if intStore != nil {
+		if rows, err := intStore.Resolve(ctx, "llm"); err == nil && len(rows) > 0 {
+			c := rows[0].Config
+			if a, aerr := llm.NewAnalyzer(c["provider"], c["base_url"], c["api_key"], c["model"]); aerr == nil {
+				log.Printf("worker: LLM analyzer from Integrations %q", rows[0].Name)
+				return a, true
+			} else {
+				log.Printf("worker: LLM integration invalid, falling back to env: %v", aerr)
+			}
+		}
+	}
+	return llm.AnalyzerFromEnv()
 }
 
 // resolveResponder builds the block responder from an enabled MikroTik integration if

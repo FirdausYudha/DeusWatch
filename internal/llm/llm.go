@@ -135,14 +135,50 @@ func parseResult(text string) (Result, error) {
 	return r, nil
 }
 
-// ── construction from env ─────────────────────────────────
+// ── construction (provider-agnostic) ──────────────────────
 
-// AnalyzerFromEnv returns a ClaudeAnalyzer if ANTHROPIC_API_KEY is set (model via
-// ANTHROPIC_MODEL, default claude-opus-4-8), otherwise a HeuristicAnalyzer if
-// LLM_ENABLED=1. (analyzer, enabled).
+// NewAnalyzer builds an analyzer from a provider spec (used by both the env path and
+// the Integrations registry). Providers:
+//
+//	anthropic | claude                       -> Claude (Anthropic API, needs apiKey)
+//	ollama | openai | openai-compatible | "" -> any OpenAI-compatible Chat Completions
+//	                                            endpoint (Ollama/LM Studio/vLLM/…) via baseURL
+//
+// For "ollama" an empty baseURL defaults to http://host.docker.internal:11434/v1.
+func NewAnalyzer(provider, baseURL, apiKey, model string) (Analyzer, error) {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "anthropic", "claude":
+		if apiKey == "" {
+			return nil, fmt.Errorf("llm: the anthropic provider needs an api_key")
+		}
+		return NewClaudeAnalyzer(apiKey, model), nil
+	case "ollama":
+		if baseURL == "" {
+			baseURL = "http://host.docker.internal:11434/v1"
+		}
+		return NewOpenAICompatAnalyzer(baseURL, apiKey, model), nil
+	case "", "openai", "openai-compatible", "openai_compatible":
+		if baseURL == "" {
+			return nil, fmt.Errorf("llm: an OpenAI-compatible provider needs a base_url (e.g. http://host:11434/v1)")
+		}
+		return NewOpenAICompatAnalyzer(baseURL, apiKey, model), nil
+	default:
+		return nil, fmt.Errorf("llm: unknown provider %q (use anthropic | ollama | openai-compatible)", provider)
+	}
+}
+
+// AnalyzerFromEnv selects an analyzer from environment variables (dev / fallback when no
+// LLM integration is configured), in order: ANTHROPIC_API_KEY -> Claude; LLM_BASE_URL (or
+// LLM_PROVIDER) -> OpenAI-compatible (Ollama etc.); LLM_ENABLED=1 -> heuristic. (analyzer, enabled).
 func AnalyzerFromEnv() (Analyzer, bool) {
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		return NewClaudeAnalyzer(key, os.Getenv("ANTHROPIC_MODEL")), true
+	}
+	if base := os.Getenv("LLM_BASE_URL"); base != "" || os.Getenv("LLM_PROVIDER") != "" {
+		provider := os.Getenv("LLM_PROVIDER")
+		if a, err := NewAnalyzer(provider, base, os.Getenv("LLM_API_KEY"), os.Getenv("LLM_MODEL")); err == nil {
+			return a, true
+		}
 	}
 	if enabled, _ := parseBool(os.Getenv("LLM_ENABLED")); enabled {
 		return HeuristicAnalyzer{}, true
