@@ -46,6 +46,34 @@ func RenderMarkdown(r Report) string {
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }
 
+// SummaryPrompt renders the report data as a compact prompt for an LLM to summarize.
+func SummaryPrompt(r Report) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Security data for the last %d hours.\n", r.WindowHours)
+	fmt.Fprintf(&b, "Total events: %d. Total alerts: %d.\n", r.TotalEvents, r.TotalAlerts)
+	promptLine(&b, "Severity breakdown", r.BySeverity)
+	promptLine(&b, "Top source IPs", r.TopSourceIPs)
+	promptLine(&b, "Top rules", r.TopRules)
+	promptLine(&b, "Top MITRE techniques", r.TopTechniques)
+	promptLine(&b, "Verdicts", r.ByVerdict)
+	return b.String()
+}
+
+func promptLine(b *strings.Builder, title string, rows []Count) {
+	if len(rows) == 0 {
+		return
+	}
+	parts := make([]string, 0, len(rows))
+	for _, c := range rows {
+		label := c.Label
+		if label == "" {
+			label = "(none)"
+		}
+		parts = append(parts, fmt.Sprintf("%s: %d", label, c.Count))
+	}
+	fmt.Fprintf(b, "%s — %s.\n", title, strings.Join(parts, ", "))
+}
+
 func section(b *strings.Builder, title string, rows []Count) {
 	fmt.Fprintf(b, "## %s\n\n", title)
 	if len(rows) == 0 {

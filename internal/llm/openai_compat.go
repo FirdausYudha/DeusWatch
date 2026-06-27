@@ -46,6 +46,7 @@ type ocRequest struct {
 	Messages    []ocMessage `json:"messages"`
 	Stream      bool        `json:"stream"`
 	Temperature float64     `json:"temperature"`
+	MaxTokens   int         `json:"max_tokens,omitempty"`
 }
 
 type ocResponse struct {
@@ -57,43 +58,60 @@ type ocResponse struct {
 	} `json:"error"`
 }
 
-func (o *OpenAICompatAnalyzer) Analyze(ctx context.Context, in AlertInput) (Result, error) {
+// chat runs one OpenAI-compatible chat completion and returns the message content.
+func (o *OpenAICompatAnalyzer) chat(ctx context.Context, system, user string, maxTokens int) (string, error) {
 	reqBody, _ := json.Marshal(ocRequest{
 		Model:       o.model,
 		Stream:      false,
 		Temperature: 0,
+		MaxTokens:   maxTokens,
 		Messages: []ocMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: buildUserPrompt(in)},
+			{Role: "system", Content: system},
+			{Role: "user", Content: user},
 		},
 	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.baseURL+"/chat/completions", bytes.NewReader(reqBody))
 	if err != nil {
-		return Result{}, fmt.Errorf("llm: build request: %w", err)
+		return "", fmt.Errorf("llm: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if o.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+o.apiKey)
 	}
-
 	resp, err := o.hc.Do(req)
 	if err != nil {
-		return Result{}, fmt.Errorf("llm: call %s: %w", o.baseURL, err)
+		return "", fmt.Errorf("llm: call %s: %w", o.baseURL, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return Result{}, fmt.Errorf("llm: %s returned HTTP %d", o.baseURL, resp.StatusCode)
+		return "", fmt.Errorf("llm: %s returned HTTP %d", o.baseURL, resp.StatusCode)
 	}
-
 	var out ocResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return Result{}, fmt.Errorf("llm: decode response: %w", err)
+		return "", fmt.Errorf("llm: decode response: %w", err)
 	}
 	if out.Error != nil {
-		return Result{}, fmt.Errorf("llm: provider error: %s", out.Error.Message)
+		return "", fmt.Errorf("llm: provider error: %s", out.Error.Message)
 	}
 	if len(out.Choices) == 0 {
-		return Result{}, fmt.Errorf("llm: empty response (no choices)")
+		return "", fmt.Errorf("llm: empty response (no choices)")
 	}
-	return parseResult(out.Choices[0].Message.Content)
+	return out.Choices[0].Message.Content, nil
+}
+
+func (o *OpenAICompatAnalyzer) Analyze(ctx context.Context, in AlertInput) (Result, error) {
+	text, err := o.chat(ctx, systemPrompt, buildUserPrompt(in), 512)
+	if err != nil {
+		return Result{}, err
+	}
+	return parseResult(text)
+}
+
+// Summarize generates an executive report summary from the report data prompt.
+func (o *OpenAICompatAnalyzer) Summarize(ctx context.Context, prompt string) (string, error) {
+	text, err := o.chat(ctx, reportSystemPrompt, prompt, 700)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(text), nil
 }

@@ -2,12 +2,49 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/report"
 )
+
+// ReportSummary is one stored AI-generated executive summary.
+type ReportSummary struct {
+	Summary     string    `json:"summary"`
+	Model       string    `json:"model"`
+	PeriodHours int       `json:"period_hours"`
+	GeneratedAt time.Time `json:"generated_at"`
+}
+
+// SaveReportSummary stores a generated summary.
+func (s *Store) SaveReportSummary(ctx context.Context, periodHours int, summary, model string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO report_summaries (period_hours, summary, model) VALUES ($1,$2,$3)`,
+		periodHours, summary, model)
+	if err != nil {
+		return fmt.Errorf("store: save report summary: %w", err)
+	}
+	return nil
+}
+
+// LatestReportSummary returns the most recent stored summary (ok=false if none).
+func (s *Store) LatestReportSummary(ctx context.Context) (ReportSummary, bool, error) {
+	var rs ReportSummary
+	err := s.pool.QueryRow(ctx,
+		`SELECT summary, model, period_hours, generated_at FROM report_summaries ORDER BY generated_at DESC LIMIT 1`).
+		Scan(&rs.Summary, &rs.Model, &rs.PeriodHours, &rs.GeneratedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ReportSummary{}, false, nil
+	}
+	if err != nil {
+		return ReportSummary{}, false, fmt.Errorf("store: latest report summary: %w", err)
+	}
+	return rs, true, nil
+}
 
 // BuildReport assembles the summary for the last `hours` hours.
 func (s *Store) BuildReport(ctx context.Context, hours int) (report.Report, error) {

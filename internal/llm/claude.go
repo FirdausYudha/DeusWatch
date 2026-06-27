@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -27,6 +28,26 @@ func NewClaudeAnalyzer(apiKey, model string, opts ...option.RequestOption) *Clau
 }
 
 func (c *ClaudeAnalyzer) Name() string { return "claude(" + string(c.model) + ")" }
+
+// Summarize generates an executive report summary from the report data prompt.
+func (c *ClaudeAnalyzer) Summarize(ctx context.Context, prompt string) (string, error) {
+	resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     c.model,
+		MaxTokens: 700,
+		System:    []anthropic.TextBlockParam{{Text: reportSystemPrompt}},
+		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(prompt))},
+	})
+	if err != nil {
+		return "", fmt.Errorf("llm: call Claude: %w", err)
+	}
+	var text string
+	for _, block := range resp.Content {
+		if tb, ok := block.AsAny().(anthropic.TextBlock); ok {
+			text += tb.Text
+		}
+	}
+	return strings.TrimSpace(text), nil
+}
 
 func (c *ClaudeAnalyzer) Analyze(ctx context.Context, in AlertInput) (Result, error) {
 	resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{

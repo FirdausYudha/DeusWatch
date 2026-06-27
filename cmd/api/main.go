@@ -20,6 +20,7 @@ import (
 	"deuswatch/internal/auth"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/integrations"
+	"deuswatch/internal/llm"
 	"deuswatch/internal/migrate"
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/report"
@@ -136,6 +137,8 @@ func main() {
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
 		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
+		mux.Handle("GET /api/report/summary", protect(auth.PermViewDashboard, reportSummaryGetHandler(st)))
+		mux.Handle("POST /api/report/summary", protect(auth.PermViewDashboard, reportSummaryGenerateHandler(st)))
 
 		// Customizable dashboard: aggregated series + per-user widget layout.
 		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st)))
@@ -413,6 +416,68 @@ func reportHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, rep)
+	}
+}
+
+// apiResolveAnalyzer builds an LLM analyzer for on-demand report summaries, preferring an
+// enabled "llm" integration over env (mirrors the worker's resolveAnalyzer).
+func apiResolveAnalyzer(ctx context.Context, st *store.Store) (llm.Analyzer, bool) {
+	if cipher, _, err := secret.FromEnv(); err == nil {
+		intStore := integrations.NewStore(st.Pool(), cipher)
+		if rows, rerr := intStore.Resolve(ctx, "llm"); rerr == nil && len(rows) > 0 {
+			c := rows[0].Config
+			if a, aerr := llm.NewAnalyzer(c["provider"], c["base_url"], c["api_key"], c["model"]); aerr == nil {
+				return a, true
+			}
+		}
+	}
+	return llm.AnalyzerFromEnv()
+}
+
+// reportSummaryGetHandler returns the latest stored AI report summary (no LLM call).
+func reportSummaryGetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rs, ok, err := st.LatestReportSummary(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			writeJSON(w, http.StatusOK, map[string]any{"summary": "", "generated_at": nil})
+			return
+		}
+		writeJSON(w, http.StatusOK, rs)
+	}
+}
+
+// reportSummaryGenerateHandler generates a fresh AI summary on demand (one LLM call).
+func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
+		if err != nil || hours <= 0 {
+			hours = 24
+		}
+		analyzer, ok := apiResolveAnalyzer(r.Context(), st)
+		if !ok {
+			http.Error(w, "no LLM configured — add an LLM integration (Ollama/Claude) or set LLM_BASE_URL / ANTHROPIC_API_KEY", http.StatusBadRequest)
+			return
+		}
+		rep, err := st.BuildReport(r.Context(), hours)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+		defer cancel()
+		summary, err := analyzer.Summarize(ctx, report.SummaryPrompt(rep))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		if err := st.SaveReportSummary(r.Context(), hours, summary, analyzer.Name()); err != nil {
+			log.Printf("api: save report summary: %v", err)
+		}
+		writeJSON(w, http.StatusOK, store.ReportSummary{Summary: summary, Model: analyzer.Name(), PeriodHours: hours, GeneratedAt: time.Now()})
 	}
 }
 

@@ -752,3 +752,18 @@ export async function fetchReportMarkdown(hours = 24): Promise<string> {
   if (!res.ok) throw new Error(`report: HTTP ${res.status}`)
   return res.text()
 }
+
+// AI report summary (generated on demand or on a schedule).
+export type ReportSummary = { summary: string; model?: string; period_hours?: number; generated_at: string | null }
+
+export async function fetchReportSummary(): Promise<ReportSummary> {
+  const res = await authFetch('/api/report/summary')
+  if (!res.ok) throw new Error(`report summary: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function generateReportSummary(hours = 24): Promise<ReportSummary> {
+  const res = await authFetch(`/api/report/summary?hours=${hours}`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}

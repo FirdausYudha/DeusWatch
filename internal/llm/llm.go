@@ -34,11 +34,16 @@ type AlertInput struct {
 	OTXPulseCount   *int
 }
 
-// Analyzer analyzes one alert.
+// Analyzer analyzes one alert and writes a free-form executive summary for reports.
 type Analyzer interface {
 	Name() string
 	Analyze(ctx context.Context, in AlertInput) (Result, error)
+	// Summarize turns a report data prompt into a concise prose security summary.
+	Summarize(ctx context.Context, prompt string) (string, error)
 }
+
+// reportSystemPrompt steers the model for the periodic/on-demand report summary.
+const reportSystemPrompt = `You are a senior SOC analyst writing an executive security summary for a self-hosted security platform. Write concise plain prose (no markdown headings or bullet lists), about 4-7 sentences. Cover overall activity, the most notable threats (brute force, malware/FIM, anomalies), the most affected hosts/IPs, and 2-3 prioritized, actionable recommendations. Be specific and calm; never invent data beyond what is given.`
 
 // validVerdict reports whether v is a known verdict.
 func validVerdict(v ingest.LLMVerdict) bool {
@@ -55,6 +60,12 @@ func validVerdict(v ingest.LLMVerdict) bool {
 type HeuristicAnalyzer struct{}
 
 func (HeuristicAnalyzer) Name() string { return "heuristic" }
+
+// Summarize is not supported by the heuristic analyzer — report summaries need a
+// generative model (configure Ollama or another provider).
+func (HeuristicAnalyzer) Summarize(_ context.Context, _ string) (string, error) {
+	return "", fmt.Errorf("llm: report summary needs a generative model — configure an LLM provider (e.g. Ollama)")
+}
 
 func (HeuristicAnalyzer) Analyze(_ context.Context, in AlertInput) (Result, error) {
 	abuse := derefInt(in.AbuseConfidence)

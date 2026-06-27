@@ -156,11 +156,18 @@ func main() {
 		go runAggregation(ctx, aggRunner, st, onAlert)
 	}
 
-	// LLM worker (Phase 3): triage alerts -> verdict + summary (deuswatch.llm.*).
-	// Prefer an enabled "llm" integration (UI-configured); fall back to env.
+	// LLM worker (Phase 3): the analyzer powers report summaries (cost-controlled) and,
+	// only when explicitly enabled, continuous per-alert triage. Per-alert triage is OFF
+	// by default (LLM_PER_ALERT=1 to enable) so a paid API isn't called on every alert —
+	// AI is primarily a periodic/on-demand report (see the Report page + scheduler).
 	if analyzer, ok := resolveAnalyzer(ctx, intStore); ok {
-		log.Printf("worker: LLM analyzer active (%s)", analyzer.Name())
-		go runLLM(ctx, st, analyzer)
+		perAlert, _ := strconv.ParseBool(os.Getenv("LLM_PER_ALERT"))
+		if perAlert {
+			log.Printf("worker: LLM per-alert triage active (%s)", analyzer.Name())
+			go runLLM(ctx, st, analyzer)
+		} else {
+			log.Printf("worker: LLM analyzer ready for reports (%s); per-alert triage off (set LLM_PER_ALERT=1 to enable)", analyzer.Name())
+		}
 	} else {
 		log.Printf("worker: LLM analyzer disabled (add an LLM integration, or set ANTHROPIC_API_KEY / LLM_BASE_URL / LLM_ENABLED=1)")
 	}

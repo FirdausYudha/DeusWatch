@@ -1,5 +1,17 @@
 import { useEffect, useState } from 'react'
-import { fetchReport, fetchReportMarkdown, type SecurityReport, type ReportCount } from '../lib/api'
+import {
+  fetchReport, fetchReportMarkdown, fetchReportSummary, generateReportSummary,
+  type SecurityReport, type ReportCount, type ReportSummary,
+} from '../lib/api'
+
+const PRINT_CSS = `@media print {
+  body * { visibility: hidden; }
+  #report-print, #report-print * { visibility: visible; }
+  #report-print { position: absolute; inset: 0; padding: 16px; background: #fff; }
+  #report-print, #report-print * { color: #111 !important; }
+  #report-print .card-print { background: #fff !important; border: 1px solid #ddd !important; }
+  .no-print { display: none !important; }
+}`
 
 const WINDOWS: { label: string; hours: number }[] = [
   { label: '24h', hours: 24 },
@@ -9,7 +21,7 @@ const WINDOWS: { label: string; hours: number }[] = [
 
 function StatCard({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div className="card-print rounded-xl border border-slate-800 bg-slate-900/60 p-4">
       <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
       <div className={`mt-1 text-3xl font-semibold ${accent ?? 'text-white'}`}>{value}</div>
     </div>
@@ -19,7 +31,7 @@ function StatCard({ label, value, accent }: { label: string; value: number | str
 function BarList({ title, rows }: { title: string; rows: ReportCount[] | null }) {
   const max = Math.max(1, ...(rows ?? []).map((r) => r.count))
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <div className="card-print rounded-xl border border-slate-800 bg-slate-900/60 p-4">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
       {rows && rows.length > 0 ? (
         <ul className="space-y-2">
@@ -45,6 +57,9 @@ export default function Report() {
   const [report, setReport] = useState<SecurityReport | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [summary, setSummary] = useState<ReportSummary | null>(null)
+  const [genBusy, setGenBusy] = useState(false)
+  const [genError, setGenError] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -54,6 +69,23 @@ export default function Report() {
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
   }, [hours])
+
+  // Load the latest stored AI summary once (cheap — no LLM call).
+  useEffect(() => {
+    fetchReportSummary().then(setSummary).catch(() => {})
+  }, [])
+
+  const generate = async () => {
+    setGenBusy(true)
+    setGenError('')
+    try {
+      setSummary(await generateReportSummary(hours))
+    } catch (e) {
+      setGenError((e as Error).message)
+    } finally {
+      setGenBusy(false)
+    }
+  }
 
   const download = async () => {
     try {
@@ -70,7 +102,8 @@ export default function Report() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-5xl px-8 py-8" id="report-print">
+      <style>{PRINT_CSS}</style>
       <header className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Report</h1>
@@ -79,15 +112,54 @@ export default function Report() {
             {report && <span className="ml-1 text-slate-600">· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
           </p>
         </div>
-        <button
-          onClick={download}
-          className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
-        >
-          Download Markdown
-        </button>
+        <div className="no-print flex gap-2">
+          <button
+            onClick={() => window.print()}
+            className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+            title="Print or save as PDF"
+          >
+            ⬇ PDF
+          </button>
+          <button
+            onClick={download}
+            className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+          >
+            Markdown
+          </button>
+        </div>
       </header>
 
-      <div className="mb-6 flex gap-2">
+      {/* AI executive summary — generated on demand or on a schedule */}
+      <section className="card-print mb-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">AI executive summary</h2>
+          <button
+            onClick={generate}
+            disabled={genBusy}
+            className="no-print rounded-md border border-indigo-500/40 px-2.5 py-1 text-xs text-indigo-300 transition-colors hover:bg-indigo-500/10 disabled:opacity-50"
+          >
+            {genBusy ? 'Generating…' : '✨ Generate now'}
+          </button>
+        </div>
+        {summary?.summary ? (
+          <>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-200">{summary.summary}</p>
+            <p className="mt-3 text-xs text-slate-600">
+              {summary.model && <span>{summary.model} · </span>}
+              {summary.period_hours ? `last ${summary.period_hours}h · ` : ''}
+              {summary.generated_at ? new Date(summary.generated_at).toLocaleString('en-US') : ''}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-slate-600">
+            No AI summary yet. Click “Generate now” — needs an LLM integration (e.g. a free local Ollama). Runs on
+            demand, so there’s no per-alert API cost.
+          </p>
+        )}
+        {genError && <p className="mt-2 text-sm text-rose-400">{genError}</p>}
+      </section>
+
+      <div className="no-print mb-6 flex gap-2">
         {WINDOWS.map((wnd) => (
           <button
             key={wnd.hours}
