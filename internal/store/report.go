@@ -46,6 +46,45 @@ func (s *Store) LatestReportSummary(ctx context.Context) (ReportSummary, bool, e
 	return rs, true, nil
 }
 
+// ReportAIConfig is the schedule for auto-generating the AI report summary.
+type ReportAIConfig struct {
+	IntervalHours int `json:"interval_hours"` // 0 = disabled
+	PeriodHours   int `json:"period_hours"`   // window each summary covers
+}
+
+// LoadReportAIConfig reads the schedule (defaults: disabled, 24h window).
+func (s *Store) LoadReportAIConfig(ctx context.Context) (ReportAIConfig, error) {
+	c := ReportAIConfig{IntervalHours: 0, PeriodHours: 24}
+	err := s.pool.QueryRow(ctx,
+		`SELECT interval_hours, period_hours FROM report_ai_config WHERE id = 1`).
+		Scan(&c.IntervalHours, &c.PeriodHours)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return c, nil
+	}
+	if err != nil {
+		return c, fmt.Errorf("store: load report ai config: %w", err)
+	}
+	return c, nil
+}
+
+// SaveReportAIConfig upserts the schedule (single row).
+func (s *Store) SaveReportAIConfig(ctx context.Context, c ReportAIConfig) error {
+	if c.PeriodHours <= 0 {
+		c.PeriodHours = 24
+	}
+	if c.IntervalHours < 0 {
+		c.IntervalHours = 0
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO report_ai_config (id, interval_hours, period_hours) VALUES (1,$1,$2)
+		 ON CONFLICT (id) DO UPDATE SET interval_hours=$1, period_hours=$2, updated_at=now()`,
+		c.IntervalHours, c.PeriodHours)
+	if err != nil {
+		return fmt.Errorf("store: save report ai config: %w", err)
+	}
+	return nil
+}
+
 // BuildReport assembles the summary for the last `hours` hours.
 func (s *Store) BuildReport(ctx context.Context, hours int) (report.Report, error) {
 	if hours <= 0 || hours > 24*30 {

@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
   fetchReport, fetchReportMarkdown, fetchReportSummary, generateReportSummary,
-  type SecurityReport, type ReportCount, type ReportSummary,
+  fetchReportAIConfig, saveReportAIConfig,
+  type SecurityReport, type ReportCount, type ReportSummary, type ReportAIConfig,
 } from '../lib/api'
+
+const SCHEDULE_PRESETS: { label: string; hours: number }[] = [
+  { label: 'Auto: off', hours: 0 },
+  { label: 'Every 24h', hours: 24 },
+  { label: 'Every 3 days', hours: 72 },
+  { label: 'Every 7 days', hours: 168 },
+]
 
 const PRINT_CSS = `@media print {
   body * { visibility: hidden; }
@@ -60,6 +68,9 @@ export default function Report() {
   const [summary, setSummary] = useState<ReportSummary | null>(null)
   const [genBusy, setGenBusy] = useState(false)
   const [genError, setGenError] = useState('')
+  const [cfg, setCfg] = useState<ReportAIConfig>({ interval_hours: 0, period_hours: 24 })
+  const [customMode, setCustomMode] = useState(false)
+  const [customDays, setCustomDays] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -70,10 +81,30 @@ export default function Report() {
       .finally(() => setLoading(false))
   }, [hours])
 
-  // Load the latest stored AI summary once (cheap — no LLM call).
+  // Load the latest stored AI summary + the schedule once.
   useEffect(() => {
     fetchReportSummary().then(setSummary).catch(() => {})
+    fetchReportAIConfig().then(setCfg).catch(() => {})
   }, [])
+
+  const isCustom = cfg.interval_hours > 0 && !SCHEDULE_PRESETS.some((p) => p.hours === cfg.interval_hours)
+  const saveSchedule = async (hours: number) => {
+    try {
+      setCfg(await saveReportAIConfig({ interval_hours: Math.max(0, hours), period_hours: cfg.period_hours || 24 }))
+      setGenError('')
+    } catch (e) {
+      setGenError((e as Error).message)
+    }
+  }
+  const onScheduleChange = (v: string) => {
+    if (v === 'custom') {
+      setCustomMode(true)
+      setCustomDays(String(Math.max(1, Math.round((cfg.interval_hours || 24) / 24))))
+    } else {
+      setCustomMode(false)
+      void saveSchedule(Number(v))
+    }
+  }
 
   const generate = async () => {
     setGenBusy(true)
@@ -131,15 +162,43 @@ export default function Report() {
 
       {/* AI executive summary — generated on demand or on a schedule */}
       <section className="card-print mb-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">AI executive summary</h2>
-          <button
-            onClick={generate}
-            disabled={genBusy}
-            className="no-print rounded-md border border-indigo-500/40 px-2.5 py-1 text-xs text-indigo-300 transition-colors hover:bg-indigo-500/10 disabled:opacity-50"
-          >
-            {genBusy ? 'Generating…' : '✨ Generate now'}
-          </button>
+          <div className="no-print flex items-center gap-2">
+            <select
+              value={isCustom || customMode ? 'custom' : String(cfg.interval_hours)}
+              onChange={(e) => onScheduleChange(e.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300 outline-none focus:border-indigo-500"
+              title="Auto-generate the summary on a schedule"
+            >
+              {SCHEDULE_PRESETS.map((p) => (
+                <option key={p.hours} value={p.hours}>{p.label}</option>
+              ))}
+              <option value="custom">Custom…</option>
+            </select>
+            {(customMode || isCustom) && (
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                every
+                <input
+                  type="number"
+                  min={1}
+                  value={customMode ? customDays : String(Math.round(cfg.interval_hours / 24))}
+                  onChange={(e) => setCustomDays(e.target.value)}
+                  onBlur={() => customMode && customDays && saveSchedule(Number(customDays) * 24)}
+                  onKeyDown={(e) => e.key === 'Enter' && customDays && saveSchedule(Number(customDays) * 24)}
+                  className="w-14 rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                />
+                days
+              </span>
+            )}
+            <button
+              onClick={generate}
+              disabled={genBusy}
+              className="rounded-md border border-indigo-500/40 px-2.5 py-1 text-xs text-indigo-300 transition-colors hover:bg-indigo-500/10 disabled:opacity-50"
+            >
+              {genBusy ? 'Generating…' : '✨ Generate now'}
+            </button>
+          </div>
         </div>
         {summary?.summary ? (
           <>

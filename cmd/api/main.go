@@ -139,6 +139,8 @@ func main() {
 		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
 		mux.Handle("GET /api/report/summary", protect(auth.PermViewDashboard, reportSummaryGetHandler(st)))
 		mux.Handle("POST /api/report/summary", protect(auth.PermViewDashboard, reportSummaryGenerateHandler(st)))
+		mux.Handle("GET /api/report/ai-config", protect(auth.PermViewDashboard, reportAIConfigGetHandler(st)))
+		mux.Handle("PUT /api/report/ai-config", protect(auth.PermManageSettings, reportAIConfigSetHandler(st)))
 
 		// Customizable dashboard: aggregated series + per-user widget layout.
 		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st)))
@@ -478,6 +480,36 @@ func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
 			log.Printf("api: save report summary: %v", err)
 		}
 		writeJSON(w, http.StatusOK, store.ReportSummary{Summary: summary, Model: analyzer.Name(), PeriodHours: hours, GeneratedAt: time.Now()})
+	}
+}
+
+func reportAIConfigGetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := st.LoadReportAIConfig(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
+	}
+}
+
+func reportAIConfigSetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var c store.ReportAIConfig
+		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if c.IntervalHours < 0 || c.PeriodHours < 0 {
+			http.Error(w, "hours must be >= 0", http.StatusBadRequest)
+			return
+		}
+		if err := st.SaveReportAIConfig(r.Context(), c); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
 	}
 }
 

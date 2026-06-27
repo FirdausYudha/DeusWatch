@@ -767,3 +767,22 @@ export async function generateReportSummary(hours = 24): Promise<ReportSummary> 
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
 }
+
+// Schedule for auto-generating the AI summary (interval_hours: 0 = disabled).
+export type ReportAIConfig = { interval_hours: number; period_hours: number }
+
+export async function fetchReportAIConfig(): Promise<ReportAIConfig> {
+  const res = await authFetch('/api/report/ai-config')
+  if (!res.ok) throw new Error(`report ai config: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveReportAIConfig(c: ReportAIConfig): Promise<ReportAIConfig> {
+  const res = await authFetch('/api/report/ai-config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(c),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}

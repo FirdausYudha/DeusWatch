@@ -21,6 +21,7 @@ import (
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
 	"deuswatch/internal/notify"
+	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/rules"
 	"deuswatch/internal/secret"
@@ -168,6 +169,7 @@ func main() {
 		} else {
 			log.Printf("worker: LLM analyzer ready for reports (%s); per-alert triage off (set LLM_PER_ALERT=1 to enable)", analyzer.Name())
 		}
+		go runReportScheduler(ctx, st, analyzer) // configurable AI report summaries
 	} else {
 		log.Printf("worker: LLM analyzer disabled (add an LLM integration, or set ANTHROPIC_API_KEY / LLM_BASE_URL / LLM_ENABLED=1)")
 	}
@@ -226,6 +228,47 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				}
 			}
 			cancel()
+		}
+	}
+}
+
+// runReportScheduler generates an AI report summary on the configured cadence
+// (report_ai_config.interval_hours; 0 = disabled). It checks every 10 min and only
+// generates when enough time has passed since the last stored summary, so it is cheap
+// and survives restarts. The schedule is re-read each tick (live config).
+func runReportScheduler(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
+	t := time.NewTicker(10 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			cfg, err := st.LoadReportAIConfig(ctx)
+			if err != nil || cfg.IntervalHours <= 0 {
+				continue // disabled
+			}
+			if last, ok, _ := st.LatestReportSummary(ctx); ok &&
+				time.Since(last.GeneratedAt) < time.Duration(cfg.IntervalHours)*time.Hour {
+				continue // not due yet
+			}
+			rc, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			rep, err := st.BuildReport(rc, cfg.PeriodHours)
+			if err != nil {
+				cancel()
+				continue
+			}
+			summary, err := analyzer.Summarize(rc, report.SummaryPrompt(rep))
+			cancel()
+			if err != nil {
+				log.Printf("worker: scheduled report summary failed: %v", err)
+				continue
+			}
+			if err := st.SaveReportSummary(ctx, cfg.PeriodHours, summary, analyzer.Name()); err != nil {
+				log.Printf("worker: save scheduled summary: %v", err)
+				continue
+			}
+			log.Printf("worker: scheduled AI report summary generated (period=%dh, next in ~%dh)", cfg.PeriodHours, cfg.IntervalHours)
 		}
 	}
 }
