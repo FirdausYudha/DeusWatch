@@ -19,7 +19,7 @@ SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis — 
 
 > ⚠️ **Status: active development.** Phases 1–5 are implemented (ingest, detection, enrichment,
 > response, FIM + hash reputation, endpoint remediation, AI reports). Detection & response are
-> verified end-to-end on Linux; Windows/macOS detection is still in progress. Functional for labs
+> verified end-to-end on Linux; Windows detection is still in progress. Functional for labs
 > and self-hosting; not yet hardened for production.
 
 ## What is DeusWatch?
@@ -36,7 +36,7 @@ experience that no single vendor packages together.
 
 **Collect → Detect → Enrich → Decide → Respond**, with a human-friendly UI over every step.
 
-- **Ingest** — lightweight Go agents ship logs over mTLS (Linux/Windows/macOS); a gateway normalizes them into a common event schema on NATS JetStream.
+- **Ingest** — lightweight Go agents ship logs over mTLS (Linux/Windows); a gateway normalizes them into a common event schema on NATS JetStream.
 - **Detect** — [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete — built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
 - **Enrich** — source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM triage** (Claude) produces a verdict + summary per alert.
 - **Respond (SOAR)** — a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), and a **per-IP response view** with bulk dismiss. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
@@ -48,11 +48,11 @@ experience that no single vendor packages together.
 | Phase | Scope | Status |
 |---|---|---|
 | **Phase 1** | Linux agent, mTLS ingest, gateway + normalization, NATS, Postgres+TimescaleDB, Sigma detection + auto MITRE labeling, API + RBAC + audit log, base Web UI | ✅ |
-| **Phase 2** | Windows/macOS agent, CTI enrichment (AbuseIPDB/OTX/GeoIP), response engine (nftables/Mikrotik/CrowdSec LAPI), TOTP 2FA, notifications (Telegram/email/webhook) | ✅ |
+| **Phase 2** | Windows agent, CTI enrichment (AbuseIPDB/OTX/GeoIP), response engine (nftables/Mikrotik/CrowdSec LAPI), TOTP 2FA, notifications (Telegram/email/webhook) | ✅ |
 | **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
 | **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban (auto-ban + IP whitelist + dedup), per-IP response view, dashboard time-range picker + searchable events/alerts | ✅ |
 | **Phase 5** | FIM + file-hash reputation (CIRCL/VirusTotal), endpoint file quarantine/delete on known-bad hash, agent self-uninstall on revoke, open-source/self-hosted LLM (Ollama), AI report summary (on-demand + scheduled) | ✅ |
-| Phase 6 | Windows/macOS detection rules, Android agent, rule/integration marketplace, Helm chart | planned |
+| Phase 6 | Windows detection rules, rule/integration marketplace, config import/export, Helm chart | planned |
 
 ### Detection coverage by platform
 
@@ -64,11 +64,10 @@ parsing + detection rules are still in progress.
 |---|---|---|---|
 | **Linux** (sshd / journald) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM + malicious-hash | ✅ tested |
 | **Windows** (Event Log: Security/System) | ✅ ships events | 🚧 4625/RDP-SMB brute-force parsing + rules WIP | ❌ not yet tested |
-| **macOS** | ✅ ships logs | 🚧 rules WIP | ❌ not yet tested |
 
 > So far DeusWatch's detection & response have been validated on Linux. Windows agents
 > already stream their Event Log to the manager (ingest works), but Windows-specific
-> normalization and Sigma rules are not finished — treat Windows/macOS detection as
+> normalization and Sigma rules are not finished — treat Windows detection as
 > experimental until marked verified here.
 
 ## Architecture

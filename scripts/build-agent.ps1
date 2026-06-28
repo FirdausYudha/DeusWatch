@@ -5,7 +5,7 @@ $root = Resolve-Path "$PSScriptRoot\.."
 Push-Location $root
 try {
     New-Item -ItemType Directory -Force -Path dist | Out-Null
-    $targets = @("linux/amd64", "linux/arm64", "windows/amd64", "darwin/amd64", "darwin/arm64")
+    $targets = @("linux/amd64", "linux/arm64", "windows/amd64")
     foreach ($t in $targets) {
         $os, $arch = $t.Split("/")
         $ext = if ($os -eq "windows") { ".exe" } else { "" }

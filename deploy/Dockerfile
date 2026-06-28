@@ -21,7 +21,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/${CMD}
 # via the one-line installer (GET /api/agent/binary/{os}/{arch}). /agents stays empty
 # for the other services.
 RUN mkdir -p /agents && if [ "$CMD" = "api" ]; then \
-      for t in linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64; do \
+      for t in linux/amd64 linux/arm64 windows/amd64; do \
         os="${t%/*}"; arch="${t#*/}"; ext=""; [ "$os" = "windows" ] && ext=".exe"; \
         CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w" \
           -o "/agents/deuswatch-agent-$os-$arch$ext" ./cmd/agent; \

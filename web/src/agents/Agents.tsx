@@ -198,9 +198,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   const install =
     os === 'windows'
       ? `$env:MANAGER='${managerIP}'; $env:TOKEN='${tok}'; $env:NAME='${nm}'; iwr http://${host}/api/agent/install.ps1 -UseBasicParsing | iex`
-      : os === 'darwin'
-        ? `curl -fsSL http://${host}/api/agent/binary/darwin/${arch} -o deuswatch-agent && chmod +x deuswatch-agent && sudo ./deuswatch-agent -enroll -token ${tok} -name ${nm} -manager http://${host} -out /etc/deuswatch/certs && sudo GATEWAY_URL=https://${managerIP}:8443 CERT_DIR=/etc/deuswatch/certs ./deuswatch-agent`
-        : `curl -fsSL http://${host}/api/agent/install.sh | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} sh`
+      : `curl -fsSL http://${host}/api/agent/install.sh | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} sh`
   // Firewall command to run once on the manager host (Windows) so agents can reach it.
   const managerFw = `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8080,8443`
 
@@ -242,7 +240,6 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             >
               <option value="linux">Linux</option>
               <option value="windows">Windows</option>
-              <option value="darwin">macOS</option>
             </select>
           </label>
           <label className="block">

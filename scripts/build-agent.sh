@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 mkdir -p dist
 
-TARGETS="linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64"
+TARGETS="linux/amd64 linux/arm64 windows/amd64"
 for t in $TARGETS; do
   os="${t%/*}"; arch="${t#*/}"; ext=""
   [ "$os" = "windows" ] && ext=".exe"

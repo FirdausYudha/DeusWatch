@@ -42,7 +42,7 @@ func (h *Handler) InstallPs1(w http.ResponseWriter, _ *http.Request) {
 	h.script(w, "install.ps1", "text/plain; charset=utf-8")
 }
 
-var allowedOS = map[string]bool{"linux": true, "windows": true, "darwin": true}
+var allowedOS = map[string]bool{"linux": true, "windows": true}
 
 // Binary serves a cross-compiled agent binary (GET /api/agent/binary/{os}/{arch}).
 func (h *Handler) Binary(w http.ResponseWriter, r *http.Request) {
