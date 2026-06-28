@@ -41,7 +41,7 @@ experience that no single vendor packages together.
 - **Enrich** — source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM triage** (Claude) produces a verdict + summary per alert.
 - **Respond (SOAR)** — a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), and a **per-IP response view** with bulk dismiss. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
 - **Visualize** — a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, plus automated reports.
-- **Operate** — RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook), and full **i18n**.
+- **Operate** — RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook with a UI-configurable severity threshold + scheduled report delivery), JSON **webhook export** to external tools, **config profile import/export** to clone one server's setup onto another, and full **i18n**.
 
 ### Roadmap
 
@@ -51,8 +51,8 @@ experience that no single vendor packages together.
 | **Phase 2** | Windows agent, CTI enrichment (AbuseIPDB/OTX/GeoIP), response engine (nftables/Mikrotik/CrowdSec LAPI), TOTP 2FA, notifications (Telegram/email/webhook) | ✅ |
 | **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
 | **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban (auto-ban + IP whitelist + dedup), per-IP response view, dashboard time-range picker + searchable events/alerts | ✅ |
-| **Phase 5** | FIM + file-hash reputation (CIRCL/VirusTotal), endpoint file quarantine/delete on known-bad hash, agent self-uninstall on revoke, open-source/self-hosted LLM (Ollama), AI report summary (on-demand + scheduled) | ✅ |
-| Phase 6 | Windows detection rules, rule/integration marketplace, config import/export, Helm chart | planned |
+| **Phase 5** | FIM + file-hash reputation (CIRCL/VirusTotal), endpoint file quarantine/delete on known-bad hash, agent self-uninstall on revoke, open-source/self-hosted LLM (Ollama), AI report summary (on-demand + scheduled), **JSON webhook export, config-profile import/export, UI alert threshold + scheduled report delivery to Telegram/email** | ✅ |
+| Phase 6 | Windows detection rules, rule/integration marketplace, Helm chart | planned |
 
 ### Detection coverage by platform
 
@@ -94,7 +94,8 @@ encrypted at rest and write-only). Currently available:
 | 🛡️ Bouncer | **CrowdSec LAPI** | Creates/removes ban decisions via `cscli` so CrowdSec bouncers enforce them. |
 | 🔎 CTI | **AbuseIPDB** | Enriches source IPs with an abuse-confidence score. |
 | 🔎 CTI | **AlienVault OTX** | Enriches source IPs with threat-intel pulse counts. |
-| 🔔 Notify | **Telegram · Email (SMTP) · Webhook** | Real-time alerts with dedup/throttle (configured via env). |
+| 🔔 Notify | **Telegram · Email (SMTP) · Webhook** | Real-time alerts (severity threshold set in the UI) + **scheduled report delivery**. Channel credentials via env — see [docs/notifications.md](docs/notifications.md). |
+| 📤 Export | **Webhook (JSON)** | One-click POST of events/alerts or a report to an external tool (SIEM, n8n, Zapier, custom). |
 | 🤖 LLM | **Anthropic Claude** | Per-alert triage: verdict + summary (heuristic fallback when no key). |
 
 Threat-intel also includes **GeoIP** (attack-origin map) and an opt-in **community blocklist**.
@@ -115,7 +116,7 @@ docker compose -f deploy/docker-compose.yml up -d --build
 
 ## Deploying agents
 
-In the UI go to **Agents → + Add agent**, pick the OS/architecture, set **Manager host** to
+In the UI go to **Agents → + Add agent**, pick the OS (Linux / Windows), set **Manager host** to
 the address agents will reach (the LAN IP for cross-host, e.g. `192.168.1.10:8080`), and copy
 the generated one-liner. It downloads the agent, enrols with a one-time token, installs an
 auto-start service, and connects — e.g. on Linux:
@@ -153,6 +154,7 @@ sudo journalctl -u deuswatch-agent -n 30 --no-pager
 | Doc | Purpose |
 |---|---|
 | [DeusWatch.md](DeusWatch.md) | Full architecture & design reference |
+| [docs/notifications.md](docs/notifications.md) | Connect Telegram / email + scheduled report delivery |
 | [SECURITY.md](SECURITY.md) | Threat model & responsible-disclosure policy |
 | [LICENSE](LICENSE) | AGPL-3.0 |
 | In-app **Settings → docs** | Operator guidance, surfaced in the UI |
