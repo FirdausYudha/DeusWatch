@@ -101,7 +101,7 @@ export type EventSearch = {
   limit?: number
 }
 
-export async function searchEvents(f: EventSearch): Promise<EventRow[]> {
+function eventSearchParams(f: EventSearch): URLSearchParams {
   const qs = new URLSearchParams()
   if (f.q) qs.set('q', f.q)
   if (f.ip) qs.set('ip', f.ip)
@@ -113,9 +113,27 @@ export async function searchEvents(f: EventSearch): Promise<EventRow[]> {
   if (f.from) qs.set('from', f.from)
   if (f.to) qs.set('to', f.to)
   qs.set('limit', String(f.limit ?? 50))
-  const res = await authFetch(`/api/events/search?${qs.toString()}`)
+  return qs
+}
+
+export async function searchEvents(f: EventSearch): Promise<EventRow[]> {
+  const res = await authFetch(`/api/events/search?${eventSearchParams(f).toString()}`)
   if (!res.ok) throw new Error(`events: HTTP ${res.status}`)
   return res.json()
+}
+
+// Send the filtered events to the configured export webhook as JSON. Returns the count sent.
+export async function exportEventsToWebhook(f: EventSearch): Promise<number> {
+  const res = await authFetch(`/api/export/events?${eventSearchParams(f).toString()}`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  const b = await res.json()
+  return b.sent ?? 0
+}
+
+// Send the report to the configured export webhook as JSON.
+export async function exportReportToWebhook(hours = 24): Promise<void> {
+  const res = await authFetch(`/api/export/report?hours=${hours}`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 export async function fetchAlerts(limit = 20): Promise<EventRow[]> {

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  fetchHealth, searchEvents, fetchDashboardData, fetchLayout, saveLayout,
+  fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData, fetchLayout, saveLayout,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type DashWidget, type WidgetKind, type DashRange, type EventSearch,
 } from '../lib/api'
@@ -504,6 +504,20 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   const reset = () => {
     setIp(''); setRule(''); setTechnique(''); setSeverity(-1); setFrom(''); setTo(''); setAlertsOnly(false)
   }
+  const [whMsg, setWhMsg] = useState('')
+  const sendWebhook = async () => {
+    setWhMsg('Sending…')
+    try {
+      const n = await exportEventsToWebhook({
+        q: q || undefined, ip: ip || undefined, rule: rule || undefined, technique: technique || undefined,
+        severity: severity >= 0 ? severity : undefined, alerts: alertsOnly || undefined,
+        from: from ? new Date(from).toISOString() : undefined, to: to ? new Date(to).toISOString() : undefined, limit,
+      })
+      setWhMsg(`Sent ${n} ✓`)
+    } catch (e) {
+      setWhMsg((e as Error).message)
+    }
+  }
 
   return (
     <section className="mb-8">
@@ -525,6 +539,14 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
           >
             ⛃ Filters{hasFilter ? ' ·' : ''}
           </button>
+          <button
+            onClick={sendWebhook}
+            className="rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800"
+            title="Send these filtered events as JSON to the configured export webhook"
+          >
+            ↗ Webhook
+          </button>
+          {whMsg && <span className="text-xs text-slate-500">{whMsg}</span>}
           <label className="flex items-center gap-1 text-xs text-slate-400">
             Show
             <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} className={fieldCls}>

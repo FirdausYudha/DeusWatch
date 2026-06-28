@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   fetchReport, fetchReportMarkdown, fetchReportSummary, generateReportSummary,
-  fetchReportAIConfig, saveReportAIConfig,
+  fetchReportAIConfig, saveReportAIConfig, exportReportToWebhook,
   type SecurityReport, type ReportCount, type ReportSummary, type ReportAIConfig,
 } from '../lib/api'
 
@@ -118,6 +118,17 @@ export default function Report() {
     }
   }
 
+  const [whMsg, setWhMsg] = useState('')
+  const sendWebhook = async () => {
+    setWhMsg('Sending…')
+    try {
+      await exportReportToWebhook(hours)
+      setWhMsg('Sent to webhook ✓')
+    } catch (e) {
+      setWhMsg((e as Error).message)
+    }
+  }
+
   const download = async () => {
     try {
       const md = await fetchReportMarkdown(hours)
@@ -143,7 +154,15 @@ export default function Report() {
             {report && <span className="ml-1 text-slate-600">· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
           </p>
         </div>
-        <div className="no-print flex gap-2">
+        <div className="no-print flex items-center gap-2">
+          {whMsg && <span className="text-xs text-slate-500">{whMsg}</span>}
+          <button
+            onClick={sendWebhook}
+            className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+            title="Send this report as JSON to the configured export webhook"
+          >
+            ↗ Webhook
+          </button>
           <button
             onClick={() => window.print()}
             className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"

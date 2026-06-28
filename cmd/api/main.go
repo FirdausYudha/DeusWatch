@@ -5,9 +5,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -134,6 +136,8 @@ func main() {
 		}
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
 		mux.Handle("GET /api/events/search", protect(auth.PermViewDashboard, searchEventsHandler(st)))
+		mux.Handle("POST /api/export/events", protect(auth.PermViewDashboard, exportEventsHandler(st)))
+		mux.Handle("POST /api/export/report", protect(auth.PermViewDashboard, exportReportHandler(st)))
 		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
 		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
@@ -334,40 +338,128 @@ func eventsHandler(st *store.Store) http.HandlerFunc {
 // searchEventsHandler powers the dashboard's filterable Events/Alerts table.
 // Query params: q, ip, rule, technique, category, severity (min 0..4), alerts (bool),
 // from/to (RFC3339), limit. All optional.
+// parseEventFilter builds an EventFilter from the request query params (shared by the
+// search and webhook-export endpoints).
+func parseEventFilter(r *http.Request) store.EventFilter {
+	q := r.URL.Query()
+	f := store.EventFilter{
+		Text:        q.Get("q"),
+		SourceIP:    q.Get("ip"),
+		RuleID:      q.Get("rule"),
+		TechniqueID: q.Get("technique"),
+		Category:    q.Get("category"),
+		MinSeverity: -1,
+		Limit:       queryLimit(r, 50, 500),
+	}
+	if sev, err := strconv.Atoi(q.Get("severity")); err == nil && sev >= 0 {
+		f.MinSeverity = sev
+	}
+	if b, _ := strconv.ParseBool(q.Get("alerts")); b {
+		f.AlertsOnly = true
+	}
+	if t, ok := parseTime(q.Get("from")); ok {
+		f.From = t
+	}
+	if t, ok := parseTime(q.Get("to")); ok {
+		f.To = t
+	}
+	return f
+}
+
 func searchEventsHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if st == nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		q := r.URL.Query()
-		f := store.EventFilter{
-			Text:        q.Get("q"),
-			SourceIP:    q.Get("ip"),
-			RuleID:      q.Get("rule"),
-			TechniqueID: q.Get("technique"),
-			Category:    q.Get("category"),
-			MinSeverity: -1,
-			Limit:       queryLimit(r, 50, 500),
-		}
-		if sev, err := strconv.Atoi(q.Get("severity")); err == nil && sev >= 0 {
-			f.MinSeverity = sev
-		}
-		if b, _ := strconv.ParseBool(q.Get("alerts")); b {
-			f.AlertsOnly = true
-		}
-		if t, ok := parseTime(q.Get("from")); ok {
-			f.From = t
-		}
-		if t, ok := parseTime(q.Get("to")); ok {
-			f.To = t
-		}
-		rows, err := st.SearchEvents(r.Context(), f)
+		rows, err := st.SearchEvents(r.Context(), parseEventFilter(r))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		writeJSON(w, http.StatusOK, rows)
+	}
+}
+
+// apiResolveWebhook returns the configured export-webhook URL (webhook_export integration
+// or the WEBHOOK_EXPORT_URL env), or "" if none.
+func apiResolveWebhook(ctx context.Context, st *store.Store) string {
+	if cipher, _, err := secret.FromEnv(); err == nil {
+		intStore := integrations.NewStore(st.Pool(), cipher)
+		if rows, rerr := intStore.Resolve(ctx, "webhook_export"); rerr == nil && len(rows) > 0 {
+			if u := rows[0].Config["url"]; u != "" {
+				return u
+			}
+		}
+	}
+	return os.Getenv("WEBHOOK_EXPORT_URL")
+}
+
+// postJSON sends payload as a JSON POST to url.
+func postJSON(ctx context.Context, url string, payload any) error {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	hc := &http.Client{Timeout: 10 * time.Second}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// exportEventsHandler POSTs the filtered events to the configured export webhook as JSON.
+func exportEventsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		url := apiResolveWebhook(r.Context(), st)
+		if url == "" {
+			http.Error(w, "no export webhook configured — add a 'Webhook export' integration", http.StatusBadRequest)
+			return
+		}
+		rows, err := st.SearchEvents(r.Context(), parseEventFilter(r))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		payload := map[string]any{"source": "deuswatch", "type": "events", "generated_at": time.Now(), "count": len(rows), "events": rows}
+		if err := postJSON(r.Context(), url, payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sent": len(rows)})
+	}
+}
+
+// exportReportHandler POSTs the report to the configured export webhook as JSON.
+func exportReportHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		url := apiResolveWebhook(r.Context(), st)
+		if url == "" {
+			http.Error(w, "no export webhook configured — add a 'Webhook export' integration", http.StatusBadRequest)
+			return
+		}
+		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
+		if err != nil || hours <= 0 {
+			hours = 24
+		}
+		rep, err := st.BuildReport(r.Context(), hours)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		payload := map[string]any{"source": "deuswatch", "type": "report", "generated_at": time.Now(), "report": rep}
+		if err := postJSON(r.Context(), url, payload); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sent": 1})
 	}
 }
 

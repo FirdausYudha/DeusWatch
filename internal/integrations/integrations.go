@@ -99,6 +99,13 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
+		Type: "webhook_export", Label: "Webhook export (JSON)", Category: "export",
+		Desc: "Send events/alerts or a report to an external tool (SIEM, Slack, n8n, …) as JSON, on demand from the UI.",
+		Fields: []Field{
+			{Key: "url", Label: "Webhook URL", Help: "e.g. https://your-tool/ingest — receives a JSON POST"},
+		},
+	},
+	{
 		Type: "llm", Label: "LLM analyzer (AI triage)", Category: "llm",
 		Desc: "AI triage of alerts (verdict + summary). Use a free, self-hosted, open-source model via Ollama / any OpenAI-compatible endpoint — or Anthropic Claude.",
 		Fields: []Field{
