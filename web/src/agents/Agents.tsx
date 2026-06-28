@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   fetchAgents,
   createEnrollToken,
+  fetchInstallInfo,
   revokeAgent,
   setAgentConfig,
   agentOnline,
@@ -186,20 +187,34 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   const [os, setOs] = useState('linux')
   const [name, setName] = useState('')
   const [host, setHost] = useState(`${location.hostname}:8080`)
+  const [gwPort, setGwPort] = useState('8443')
   const [token, setToken] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // Learn the manager's host-published ports so the command points at the right ones even
+  // when they're remapped in docker-compose (DEUSWATCH_API_PORT / DEUSWATCH_GATEWAY_PORT).
+  useEffect(() => {
+    fetchInstallInfo()
+      .then((info) => {
+        setHost(`${location.hostname}:${info.api_port}`)
+        setGwPort(info.gateway_port)
+      })
+      .catch(() => {})
+  }, [])
+
   const managerIP = host.replace(/:\d+$/, '')
+  const apiPort = host.match(/:(\d+)$/)?.[1] ?? '8080' // follow the (editable) host field
   const tok = token || '<TOKEN>'
   const nm = name || '<name>'
   // One copy-paste command that downloads, enrolls, installs the service and connects.
+  // API_PORT/GW_PORT are passed so the agent reaches the manager on its remapped ports.
   const install =
     os === 'windows'
-      ? `$env:MANAGER='${managerIP}'; $env:TOKEN='${tok}'; $env:NAME='${nm}'; iwr http://${host}/api/agent/install.ps1 -UseBasicParsing | iex`
-      : `curl -fsSL http://${host}/api/agent/install.sh | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} sh`
+      ? `$env:MANAGER='${managerIP}'; $env:TOKEN='${tok}'; $env:NAME='${nm}'; $env:API_PORT='${apiPort}'; $env:GW_PORT='${gwPort}'; iwr http://${host}/api/agent/install.ps1 -UseBasicParsing | iex`
+      : `curl -fsSL http://${host}/api/agent/install.sh | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} API_PORT=${apiPort} GW_PORT=${gwPort} sh`
   // Firewall command to run once on the manager host (Windows) so agents can reach it.
-  const managerFw = `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8080,8443`
+  const managerFw = `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort ${apiPort},${gwPort}`
 
   const gen = async () => {
     setBusy(true)

@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deuswatch_dev}
       POSTGRES_DB: deuswatch
     ports:
-      - "5432:5432"
+      - "${DEUSWATCH_DB_PORT:-5432}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -82,10 +82,15 @@ services:
       AGENT_BIN_DIR: "/agents"
       # Encrypts integration secrets at rest. Generate: openssl rand -base64 32
       SECRETS_KEY: "${SECRETS_KEY:-}"
+      # External (host-published) ports agents must reach. The container always listens on
+      # 8080/8443 internally; these tell the agent-install wizard which host ports to use so
+      # the generated one-liner is correct when you remap the ports below.
+      PUBLIC_API_PORT: "${DEUSWATCH_API_PORT:-9080}"
+      PUBLIC_GATEWAY_PORT: "${DEUSWATCH_GATEWAY_PORT:-9443}"
     volumes:
       - ./certs:/certs:ro
     ports:
-      - "8080:8080"
+      - "${DEUSWATCH_API_PORT:-9080}:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -112,7 +117,7 @@ services:
     volumes:
       - ./certs:/certs:ro
     ports:
-      - "8443:8443"
+      - "${DEUSWATCH_GATEWAY_PORT:-9443}:8443"
     depends_on:
       db:
         condition: service_healthy
@@ -175,7 +180,7 @@ services:
       context: ../web
       dockerfile: Dockerfile
     ports:
-      - "5173:80"
+      - "${DEUSWATCH_WEB_PORT:-9173}:80"
     depends_on:
       - api
     restart: unless-stopped

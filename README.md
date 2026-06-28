@@ -110,25 +110,42 @@ cd DeusWatch
 docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
-- **Web UI:** http://localhost:5173 · **API:** http://localhost:8080
+- **Web UI:** http://localhost:9173 · **API:** http://localhost:9080
 - **Default login:** `admin` / `thewatcher` (change via `ADMIN_PASSWORD`, or in **Users**/**Settings** after first login)
 - Self-registration is **disabled by default** (admins create users in the UI); set `REGISTRATION_ENABLED=1` to allow viewer-role sign-ups from the login page.
+
+### Custom ports
+
+The host-published ports avoid the common `8080`/`5173` collisions and are all overridable in
+`deploy/.env` (the container ports never change, so nothing else needs touching):
+
+| Service | Env var | Default |
+|---|---|---|
+| Web UI | `DEUSWATCH_WEB_PORT` | `9173` |
+| API / agent enroll & install | `DEUSWATCH_API_PORT` | `9080` |
+| Gateway (mTLS ingest) | `DEUSWATCH_GATEWAY_PORT` | `9443` |
+| PostgreSQL | `DEUSWATCH_DB_PORT` | `5432` |
+
+The **Add agent** wizard reads these automatically, so the generated install one-liner always
+targets the right ports.
 
 ## Deploying agents
 
 In the UI go to **Agents → + Add agent**, pick the OS (Linux / Windows), set **Manager host** to
-the address agents will reach (the LAN IP for cross-host, e.g. `192.168.1.10:8080`), and copy
+the address agents will reach (the LAN IP for cross-host, e.g. `192.168.1.10:9080`), and copy
 the generated one-liner. It downloads the agent, enrols with a one-time token, installs an
-auto-start service, and connects — e.g. on Linux:
+auto-start service, and connects — e.g. on Linux (ports auto-filled from your config):
 
 ```bash
-curl -fsSL http://<manager>:8080/api/agent/install.sh | sudo MANAGER=<manager> TOKEN=<token> NAME=<name> sh
+curl -fsSL http://<manager>:9080/api/agent/install.sh | sudo MANAGER=<manager> TOKEN=<token> NAME=<name> API_PORT=9080 GW_PORT=9443 sh
 ```
 
-The manager must allow inbound **8080** (enrol/install) and **8443** (gateway, mTLS):
+The manager must allow inbound on the API port **9080** (enrol/install) and gateway port
+**9443** (mTLS) — substitute your own values if you changed `DEUSWATCH_API_PORT` /
+`DEUSWATCH_GATEWAY_PORT`:
 
-- Linux manager: `sudo ufw allow 8080,8443/tcp` (if `ufw` is active)
-- Windows manager: `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8080,8443`
+- Linux manager: `sudo ufw allow 9080,9443/tcp` (if `ufw` is active)
+- Windows manager: `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 9080,9443`
 
 Agents authenticate the manager by the deployment's **private CA**, not by hostname/IP, so
 cross-host deployments work without per-IP certificate tweaks. To additionally pin the
@@ -139,14 +156,14 @@ CA invalidates old certs).
 
 ### Troubleshooting an offline agent
 
-Online status is driven by the heartbeat to the gateway (`:8443`). If an agent shows
+Online status is driven by the heartbeat to the gateway (`:9443` by default). If an agent shows
 **offline** while `systemctl status deuswatch-agent` looks healthy, check its logs:
 
 ```bash
 sudo journalctl -u deuswatch-agent -n 30 --no-pager
 ```
 
-- `connection refused` / timeout → the manager's firewall is blocking 8443, or the wrong `MANAGER`/host.
+- `connection refused` / timeout → the manager's firewall is blocking the gateway port (9443), or the wrong `MANAGER`/host.
 - `x509: certificate signed by unknown authority` → the agent enrolled against a different CA; re-enrol after regenerating certs.
 
 ## Notifications (Telegram & email)

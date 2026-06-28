@@ -17,10 +17,31 @@ import (
 var scripts embed.FS
 
 // Handler serves the installer scripts and binaries. binDir holds the
-// cross-compiled binaries named deuswatch-agent-<os>-<arch>[.exe].
-type Handler struct{ binDir string }
+// cross-compiled binaries named deuswatch-agent-<os>-<arch>[.exe]. apiPort/gwPort are the
+// host-published ports agents must reach (the container always listens on 8080/8443) — they
+// are reported to the UI so the generated one-line installer points at the right ports.
+type Handler struct {
+	binDir  string
+	apiPort string
+	gwPort  string
+}
 
-func New(binDir string) *Handler { return &Handler{binDir: binDir} }
+func New(binDir, apiPort, gwPort string) *Handler {
+	if apiPort == "" {
+		apiPort = "8080"
+	}
+	if gwPort == "" {
+		gwPort = "8443"
+	}
+	return &Handler{binDir: binDir, apiPort: apiPort, gwPort: gwPort}
+}
+
+// InstallInfo reports the host-published ports for the install wizard
+// (GET /api/agent/install-info). Public — like the other agent endpoints.
+func (h *Handler) InstallInfo(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	fmt.Fprintf(w, `{"api_port":%q,"gateway_port":%q}`, h.apiPort, h.gwPort)
+}
 
 func (h *Handler) script(w http.ResponseWriter, name, contentType string) {
 	b, err := scripts.ReadFile(name)

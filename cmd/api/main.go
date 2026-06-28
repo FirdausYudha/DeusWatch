@@ -71,9 +71,10 @@ func main() {
 
 	// Public one-line agent installer: scripts + cross-compiled binaries (no auth;
 	// the enrollment token is the credential). Binaries come from AGENT_BIN_DIR.
-	ai := agentinstall.New(getenv("AGENT_BIN_DIR", "/agents"))
+	ai := agentinstall.New(getenv("AGENT_BIN_DIR", "/agents"), getenv("PUBLIC_API_PORT", "8080"), getenv("PUBLIC_GATEWAY_PORT", "8443"))
 	mux.HandleFunc("GET /api/agent/install.sh", ai.InstallSh)
 	mux.HandleFunc("GET /api/agent/install.ps1", ai.InstallPs1)
+	mux.HandleFunc("GET /api/agent/install-info", ai.InstallInfo)
 	mux.HandleFunc("GET /api/agent/binary/{os}/{arch}", ai.Binary)
 
 	if st != nil {

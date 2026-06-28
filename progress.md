@@ -76,7 +76,7 @@ docker compose -f deploy/docker-compose.yml up -d --build
 That's it. Compose brings up **everything**: db, nats, **certgen** (init: generates the
 mTLS certificates into `deploy/certs`, idempotent), api (auto-migrate), gateway, worker, and **web** (nginx).
 
-- **Web UI:** http://localhost:5173 · **API:** http://localhost:8080
+- **Web UI:** http://localhost:9173 · **API:** http://localhost:9080 (host ports configurable via `DEUSWATCH_*_PORT`)
 - **Dev login:** `admin` / `thewatcher` (auto-seeded; change via `ADMIN_PASSWORD`).
 - **Self-registration** is enabled on the login page (new account = viewer role). Disable with: `REGISTRATION_ENABLED=0`.
 

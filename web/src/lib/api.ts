@@ -370,6 +370,15 @@ export async function fetchAgents(): Promise<AgentInfo[]> {
   return res.json()
 }
 
+// Host-published ports agents must reach (the container listens on 8080/8443 internally).
+// Used by the Add-agent wizard so the generated one-liner points at the right ports.
+export type AgentInstallInfo = { api_port: string; gateway_port: string }
+export async function fetchInstallInfo(): Promise<AgentInstallInfo> {
+  const res = await authFetch('/api/agent/install-info')
+  if (!res.ok) throw new Error(`install info: HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function createEnrollToken(): Promise<{ token: string; expires_at: string }> {
   const res = await authFetch('/api/agents/tokens', { method: 'POST' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)

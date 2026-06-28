@@ -44,7 +44,7 @@ sudo systemctl restart deuswatch-agent
 
 **Windows (native Windows Service, run as Administrator):**
 ```powershell
-.\deploy\agent\install-windows.ps1 -Binary .\dist\deuswatch-agent-windows-amd64.exe -GatewayUrl https://manager:8443
+.\deploy\agent\install-windows.ps1 -Binary .\dist\deuswatch-agent-windows-amd64.exe -GatewayUrl https://manager:9443
 # put certs in C:\ProgramData\DeusWatch\certs, then:
 & 'C:\Program Files\DeusWatch\deuswatch-agent.exe' -service start
 ```
@@ -57,7 +57,7 @@ restarts it & applies the new config.
 
 | Var | Meaning |
 |---|---|
-| `GATEWAY_URL` | manager URL, e.g. `https://manager:8443` |
+| `GATEWAY_URL` | manager URL, e.g. `https://manager:9443` |
 | `CERT_DIR` | folder containing `ca.crt`, `client.crt`, `client.key` |
 | `HOST_NAME` | reported host name (empty = OS hostname) |
 | `LOG_FILE` / `DATASET` | single-source override (optional) |

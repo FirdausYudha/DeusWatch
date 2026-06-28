@@ -1,9 +1,9 @@
 # Install the DeusWatch agent on Windows as a NATIVE Windows Service (auto-start, SYSTEM).
 # Run as Administrator.
-#   .\install-windows.ps1 -Binary .\deuswatch-agent-windows-amd64.exe -GatewayUrl https://manager:8443
+#   .\install-windows.ps1 -Binary .\deuswatch-agent-windows-amd64.exe -GatewayUrl https://manager:9443
 param(
     [string]$Binary = ".\deuswatch-agent-windows-amd64.exe",
-    [string]$GatewayUrl = "https://manager.example:8443",
+    [string]$GatewayUrl = "https://manager.example:9443",
     [string]$CertDir = "C:\ProgramData\DeusWatch\certs"
 )
 $ErrorActionPreference = "Stop"
