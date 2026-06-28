@@ -31,7 +31,7 @@ config push, e.g. `{"dataset":"fim","type":"fim","path":"/etc/passwd,/etc/ssh/ss
 ./scripts/build-agent.sh            # Linux/macOS  -> dist/
 .\scripts\build-agent.ps1           # Windows      -> dist\
 ```
-Produces binaries for linux/amd64, linux/arm64, windows/amd64, darwin/amd64, darwin/arm64.
+Produces binaries for linux/amd64, linux/arm64, windows/amd64.
 
 ## Install
 

@@ -292,8 +292,9 @@ export default function Settings() {
         <h2 className="text-sm font-medium text-slate-200">Config profile</h2>
         <p className="mb-4 mt-1 text-sm text-slate-500">
           Export this server's settings — detection rules, ban policy, IP whitelist, the AI-report
-          schedule, and integrations — as JSON to clone onto another DeusWatch server. Secrets
-          (API keys / passwords) are not included; re-enter them after import.
+          schedule, alert/notification settings (severity threshold + report delivery schedule), and
+          integrations — as JSON to clone onto another DeusWatch server. Secrets (API keys /
+          passwords) are not included; re-enter them after import.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button

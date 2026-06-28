@@ -1,8 +1,16 @@
 # DeusWatch — Design Document
 ## All-in-One Open Source Security Platform
 
-> This document is the blueprint to bring into Claude Code. Version 1.0 — all design decisions are final.
+> This document is the original design blueprint (Version 1.0).
 > Official name: **DeusWatch**. Schema: **DCS (DeusWatch Core Schema)**. License: **AGPL-3.0**.
+
+> ⚠️ **Changes since v1.0 — see the [README](README.md) for authoritative current status.**
+> A few original design decisions changed during implementation:
+> - **Agents:** Linux + Windows only (macOS and any mobile/Android agent were dropped).
+> - **No pgvector / RAG.** Semantic log search over embeddings was not built. The LLM is used for
+>   **report summaries** (on-demand + scheduled) with opt-in per-alert triage — not RAG.
+> - **LLM is provider-agnostic:** Claude (Anthropic SDK), Ollama, or any OpenAI-compatible endpoint.
+> - Mentions of pgvector/macOS/RAG/Android below reflect the original plan, not the shipped system.
 
 ---
 
@@ -19,7 +27,7 @@ Core principle: **don't reinvent the wheel**. We leverage standards and ecosyste
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                          ENDPOINTS                              │
-│   Agent (Go, single binary) — Linux / Windows / macOS           │
+│   Agent (Go, single binary) — Linux / Windows                   │
 │   Sends: raw logs, FIM events, system metrics                   │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ mTLS (mandatory, no plaintext option)
@@ -51,7 +59,7 @@ Core principle: **don't reinvent the wheel**. We leverage standards and ecosyste
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │   PostgreSQL 16 + TimescaleDB (log time-series, compression,    │
-│   retention policy) + pgvector (embeddings for RAG/LLM)         │
+│   retention policy)                                             │
 │   Replication: streaming replication / Patroni for HA           │
 └──────────────────────────┬──────────────────────────────────────┘
                            ▼
@@ -70,10 +78,9 @@ Each box is a single Docker container. Everything is orchestrated via one `docke
 
 | Component | Choice | Rationale |
 |---|---|---|
-| Core language & agent | Go | Single binary, lightweight, cross-compile Linux/Windows/macOS, good concurrency for ingest |
+| Core language & agent | Go | Single binary, lightweight, cross-compile Linux/Windows, good concurrency for ingest |
 | Message bus | NATS JetStream | Built-in persistence, far lighter than Kafka, not a cache so there are no cache-collision issues like in Shuffle |
 | Log database | PostgreSQL + TimescaleDB | Native time-series, columnar compression, automatic retention, mature replication |
-| Vector / RAG | pgvector (Postgres extension) | The LLM can semantic-search historical logs without a separate database |
 | Detection rules | Sigma | Thousands of community rules, free MITRE ATT&CK tags = auto-labelling (brute force, password guessing, etc.) |
 | Bouncer/IPS | CrowdSec LAPI protocol implementation | Compatible with all existing CrowdSec bouncers + can subscribe to the CrowdSec community blocklist |
 | Frontend | React + Vite + Tailwind | Modern, fast, broad component ecosystem |
@@ -117,7 +124,7 @@ deuswatch/
 │   ├── detect/           # Sigma engine, MITRE auto-labelling
 │   ├── enrich/           # AbuseIPDB, OTX, GeoIP clients + TTL store
 │   ├── respond/          # Mikrotik API, nftables, CrowdSec LAPI drivers
-│   ├── llm/              # provider abstraction, RAG via pgvector
+│   ├── llm/              # provider abstraction (Claude/Ollama/OpenAI-compatible)
 │   ├── store/            # Postgres/Timescale, migrations, repository
 │   ├── auth/             # RBAC, Argon2id, TOTP, audit log
 │   └── bus/              # NATS JetStream abstraction
@@ -184,7 +191,7 @@ Decision: **an ECS-named subset**. All core fields follow the official Elastic C
 | `deuswatch.enrichment.otx_pulse_count` | Number of OTX pulses containing that IP |
 | `deuswatch.label` | Auto-labelling result: `bruteforce`, `password_guessing`, `mailscam`, etc. |
 | `deuswatch.llm.verdict` | `benign` / `suspicious` / `malicious` / `needs_review` |
-| `deuswatch.llm.summary` | LLM analysis summary (also embedded into pgvector for RAG) |
+| `deuswatch.llm.summary` | LLM analysis summary |
 | `deuswatch.llm.analyzed_at` | Analysis timestamp, for the daily batch mode |
 
 The data flow design: a log arrives with `deuswatch.enrichment.status = pending` → the enrichment worker fills the `threat.*` fieldset + score → the LLM worker reads **already-enriched** logs (per the trigger mode) and fills `deuswatch.llm.*`. The dashboard simply aggregates these fields without extra parsing — they are all indexed columns in TimescaleDB.

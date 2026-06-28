@@ -666,6 +666,9 @@ func configExportHandler(st *store.Store) http.HandlerFunc {
 		if c, err := st.LoadReportAIConfig(ctx); err == nil {
 			bundle["report_ai_config"] = c
 		}
+		if c, err := st.LoadNotifyConfig(ctx); err == nil {
+			bundle["notify_config"] = c
+		}
 		if rr, err := rl.List(ctx); err == nil {
 			items := make([]map[string]any, 0, len(rr))
 			for _, ru := range rr {
@@ -701,6 +704,7 @@ func configImportHandler(st *store.Store) http.HandlerFunc {
 			} `json:"ban_policy"`
 			Whitelist []struct{ CIDR, Note string } `json:"ip_whitelist"`
 			ReportAI  *store.ReportAIConfig         `json:"report_ai_config"`
+			Notify    *store.NotifyConfig           `json:"notify_config"`
 			Rules     []struct {
 				Name, Kind, YAML string
 				Enabled          bool
@@ -741,6 +745,10 @@ func configImportHandler(st *store.Store) http.HandlerFunc {
 		if b.ReportAI != nil {
 			_ = st.SaveReportAIConfig(ctx, *b.ReportAI)
 			applied["report_ai_config"] = 1
+		}
+		if b.Notify != nil {
+			_ = st.SaveNotifyConfig(ctx, *b.Notify)
+			applied["notify_config"] = 1
 		}
 		for _, ru := range b.Rules {
 			if ru.Name == "" || ru.YAML == "" {

@@ -17,7 +17,7 @@ enrich→alert→response(dry-run)→LLM triage→report.
 > validated with Linux/sshd. Windows agents already ship their Event Log (Security/System)
 > and ingest works, but Windows event **normalization + Sigma rules are not built yet**, so
 > Windows brute-force (4625/RDP/SMB) shows up as raw `info` events without alerts/ban.
-> macOS detection is likewise unverified. Windows/macOS detection = experimental/WIP.
+> Windows detection = experimental/WIP. (macOS and mobile agents were dropped.)
 
 ```
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI

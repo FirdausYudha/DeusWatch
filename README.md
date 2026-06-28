@@ -38,7 +38,7 @@ experience that no single vendor packages together.
 
 - **Ingest** — lightweight Go agents ship logs over mTLS (Linux/Windows); a gateway normalizes them into a common event schema on NATS JetStream.
 - **Detect** — [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete — built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
-- **Enrich** — source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM triage** (Claude) produces a verdict + summary per alert.
+- **Enrich** — source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM analysis** (provider-agnostic: Claude, Ollama, or any OpenAI-compatible endpoint) powers AI report summaries (on-demand + scheduled), with opt-in per-alert triage.
 - **Respond (SOAR)** — a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), and a **per-IP response view** with bulk dismiss. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
 - **Visualize** — a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, plus automated reports.
 - **Operate** — RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook with a UI-configurable severity threshold + scheduled report delivery), JSON **webhook export** to external tools, **config profile import/export** to clone one server's setup onto another, and full **i18n**.
@@ -96,7 +96,7 @@ encrypted at rest and write-only). Currently available:
 | 🔎 CTI | **AlienVault OTX** | Enriches source IPs with threat-intel pulse counts. |
 | 🔔 Notify | **Telegram · Email (SMTP) · Webhook** | Real-time alerts (severity threshold set in the UI) + **scheduled report delivery**. Channel credentials via env — see [docs/notifications.md](docs/notifications.md). |
 | 📤 Export | **Webhook (JSON)** | One-click POST of events/alerts or a report to an external tool (SIEM, n8n, Zapier, custom). |
-| 🤖 LLM | **Anthropic Claude** | Per-alert triage: verdict + summary (heuristic fallback when no key). |
+| 🤖 LLM | **Claude · Ollama · OpenAI-compatible** | AI report summaries (on-demand + scheduled); optional opt-in per-alert triage. Provider-agnostic; runs free & offline via Ollama. |
 
 Threat-intel also includes **GeoIP** (attack-origin map) and an opt-in **community blocklist**.
 
@@ -157,7 +157,6 @@ sudo journalctl -u deuswatch-agent -n 30 --no-pager
 | [docs/notifications.md](docs/notifications.md) | Connect Telegram / email + scheduled report delivery |
 | [SECURITY.md](SECURITY.md) | Threat model & responsible-disclosure policy |
 | [LICENSE](LICENSE) | AGPL-3.0 |
-| In-app **Settings → docs** | Operator guidance, surfaced in the UI |
 
 The fastest way to learn DeusWatch is to run the Quick start, log in, and trigger an SSH
 brute force against a monitored host — you'll watch it flow from alert → enrichment → MITRE
@@ -166,7 +165,7 @@ label → progressive-ban recommendation in real time.
 ## Tech stack
 
 Go · PostgreSQL + TimescaleDB · NATS JetStream · Sigma · React + Vite + Tailwind ·
-Docker · LLM provider via the official Anthropic SDK (Claude).
+Docker · provider-agnostic LLM (official Anthropic SDK for Claude; OpenAI-compatible API for Ollama & others).
 
 ## Security
 
