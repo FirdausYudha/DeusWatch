@@ -149,6 +149,25 @@ sudo journalctl -u deuswatch-agent -n 30 --no-pager
 - `connection refused` / timeout → the manager's firewall is blocking 8443, or the wrong `MANAGER`/host.
 - `x509: certificate signed by unknown authority` → the agent enrolled against a different CA; re-enrol after regenerating certs.
 
+## Notifications (Telegram & email)
+
+DeusWatch can push **alerts** (above a severity you pick in the UI) and **scheduled reports** to
+**Telegram** and **email**. Channel credentials live in env (they're secrets); the severity
+threshold and delivery schedule are set in the UI. Quick Telegram setup:
+
+1. **Create a bot** — message [@BotFather](https://t.me/BotFather), send `/newbot`, copy the **token**.
+2. **Get your chat id** — DM the bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read
+   `"chat":{"id":...}` (or message [@userinfobot](https://t.me/userinfobot)). A group id is negative.
+3. **Set it in `deploy/.env`:**
+   ```dotenv
+   TELEGRAM_BOT_TOKEN=123456789:AAE...
+   TELEGRAM_CHAT_ID=123456789
+   ```
+4. **Restart the worker:** `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d worker`
+5. **Turn it on:** **Settings → Alert notifications** (severity threshold) and **Report → Scheduled delivery** (cadence).
+
+Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/notifications.md](docs/notifications.md)**.
+
 ## Documentation
 
 | Doc | Purpose |
