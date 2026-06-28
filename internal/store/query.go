@@ -98,6 +98,36 @@ func (s *Store) RecentAlerts(ctx context.Context, limit int) ([]EventRow, error)
 	return scanEventRows(rows)
 }
 
+// FileTarget is a known-bad file (path + hash) agents may quarantine/delete.
+type FileTarget struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+// QuarantineTargets returns distinct known-bad files (FIM hash reputation = known_bad)
+// seen recently. Agents self-filter by re-hashing the path locally, so this list is global.
+func (s *Store) QuarantineTargets(ctx context.Context) ([]FileTarget, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT file_path, file_hash_sha256 FROM events
+		WHERE dw_filehash_verdict = 'known_bad'
+		  AND file_path IS NOT NULL AND file_path <> ''
+		  AND file_hash_sha256 IS NOT NULL AND file_hash_sha256 <> ''
+		  AND time > now() - interval '30 days'`)
+	if err != nil {
+		return nil, fmt.Errorf("store: quarantine targets: %w", err)
+	}
+	defer rows.Close()
+	out := make([]FileTarget, 0, 16)
+	for rows.Next() {
+		var ft FileTarget
+		if err := rows.Scan(&ft.Path, &ft.SHA256); err != nil {
+			return nil, err
+		}
+		out = append(out, ft)
+	}
+	return out, rows.Err()
+}
+
 // EventFilter holds the optional search criteria for SearchEvents. Zero-value fields
 // are ignored, so any combination narrows the result.
 type EventFilter struct {

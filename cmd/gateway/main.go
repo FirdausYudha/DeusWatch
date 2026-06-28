@@ -44,6 +44,7 @@ func main() {
 	var cfgFunc gateway.ConfigFunc
 	var seenFunc gateway.SeenFunc
 	var blockFunc gateway.BlocklistFunc
+	var quarantineFunc gateway.QuarantineFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
@@ -64,7 +65,24 @@ func main() {
 				}
 				return rs.ActiveBlocks(ctx)
 			}
-			log.Printf("gateway: revocation, config push, heartbeat & agent-block feed enabled")
+			// Endpoint file quarantine: only feed the known-bad file list when the admin has
+			// enabled the file_quarantine integration. Agents must also opt in on the host.
+			quarantineFunc = func(ctx context.Context) ([]gateway.FileTarget, error) {
+				on, err := integrations.HasEnabled(ctx, pool, "file_quarantine")
+				if err != nil || !on {
+					return nil, err
+				}
+				targets, err := st.QuarantineTargets(ctx)
+				if err != nil {
+					return nil, err
+				}
+				out := make([]gateway.FileTarget, len(targets))
+				for i, t := range targets {
+					out[i] = gateway.FileTarget{Path: t.Path, SHA256: t.SHA256}
+				}
+				return out, nil
+			}
+			log.Printf("gateway: revocation, config push, heartbeat, agent-block & file-quarantine feeds enabled")
 		}
 	}
 
@@ -73,6 +91,7 @@ func main() {
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
 	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc, revoked))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistHandler(blockFunc))
+	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))

@@ -116,6 +116,11 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	if strings.EqualFold(os.Getenv("AGENT_FIREWALL"), "nftables") {
 		go runFirewall(ctx, shipper)
 	}
+	// Endpoint file remediation (opt-in via AGENT_FILE_REMEDIATION=quarantine|delete):
+	// poll the manager's known-bad file list and quarantine/delete matching files.
+	if mode := strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_FILE_REMEDIATION"))); mode == "quarantine" || mode == "delete" {
+		go runFileRemediation(ctx, shipper, mode)
+	}
 
 	lines := make(chan agent.Line, 256)
 	go func() {
@@ -260,6 +265,33 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper) {
 			}
 			last = key
 			log.Printf("agent: firewall synced %d blocked IP(s) into nft set %s/%s", len(ips), table, set)
+		}
+	}
+}
+
+// runFileRemediation polls the manager's known-bad file list and quarantines/deletes any
+// local file whose current hash still matches (mode comes from AGENT_FILE_REMEDIATION).
+func runFileRemediation(ctx context.Context, shipper *agent.Shipper, mode string) {
+	dir := getenv("QUARANTINE_DIR", agent.DefaultQuarantineDir())
+	log.Printf("agent: file remediation active (mode=%s, dir=%s)", mode, dir)
+	t := time.NewTicker(60 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			targets, err := shipper.FetchQuarantine(ctx)
+			if err != nil {
+				continue
+			}
+			for _, ft := range targets {
+				if acted, err := agent.RemediateFile(ft.Path, ft.SHA256, mode, dir); err != nil {
+					log.Printf("agent: remediate %s: %v", ft.Path, err)
+				} else if acted {
+					log.Printf("agent: %sd known-bad file %s (sha256 %s…)", mode, ft.Path, ft.SHA256[:12])
+				}
+			}
 		}
 	}
 }

@@ -92,6 +92,13 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
+		Type: "file_quarantine", Label: "Endpoint file quarantine (FIM remediation)", Category: "fim",
+		Desc: "When a FIM file's hash is known-bad, instruct agents to quarantine or delete it. The agent must also opt in on the host (AGENT_FILE_REMEDIATION=quarantine|delete), and it re-verifies the hash before acting.",
+		Fields: []Field{
+			{Key: "agent_scope", Label: "Apply to agents", Optional: true, Help: "agent name/tag, comma-separated; blank = all agents"},
+		},
+	},
+	{
 		Type: "llm", Label: "LLM analyzer (AI triage)", Category: "llm",
 		Desc: "AI triage of alerts (verdict + summary). Use a free, self-hosted, open-source model via Ollama / any OpenAI-compatible endpoint — or Anthropic Claude.",
 		Fields: []Field{

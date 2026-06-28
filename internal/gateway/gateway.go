@@ -31,6 +31,33 @@ type SeenFunc func(ctx context.Context, agentName string) error
 // BlocklistFunc returns the source IPs agents should block (empty when none/disabled).
 type BlocklistFunc func(ctx context.Context) ([]string, error)
 
+// FileTarget is a known-bad file (path + hash) the agent should quarantine/delete.
+type FileTarget struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+}
+
+// QuarantineFunc returns the known-bad files agents should remediate (empty when disabled).
+type QuarantineFunc func(ctx context.Context) ([]FileTarget, error)
+
+// QuarantineHandler serves the known-bad file list over mTLS. Agents that opted in
+// (AGENT_FILE_REMEDIATION) poll this and quarantine/delete files whose current hash matches.
+func QuarantineHandler(fn QuarantineFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var files []FileTarget
+		if fn != nil {
+			if got, err := fn(r.Context()); err == nil {
+				files = got
+			}
+		}
+		if files == nil {
+			files = []FileTarget{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": files})
+	}
+}
+
 // BlocklistHandler serves the agent-side auto-block list over mTLS. Agents poll this and
 // apply the IPs to their local nftables set.
 func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
