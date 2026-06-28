@@ -7,7 +7,7 @@
 SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis — in one lightweight, modular system.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Phase%201–3%20complete%20·%20Phase%204%20in%20progress-green.svg)]()
+[![Status](https://img.shields.io/badge/status-Phase%201–5%20complete%20·%20detection%20Linux--tested-green.svg)]()
 [![Made with Go](https://img.shields.io/badge/Go-backend-00ADD8.svg)]()
 [![Web: React + Vite](https://img.shields.io/badge/Web-React%20%2B%20Vite-61DAFB.svg)]()
 
@@ -17,9 +17,10 @@ SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis — 
 
 ---
 
-> ⚠️ **Status: active development.** Phases 1–3 are implemented end-to-end and Phase 4 (admin/UX,
-> full i18n, detection & response management) is in progress. Functional for labs and self-hosting;
-> not yet hardened for production.
+> ⚠️ **Status: active development.** Phases 1–5 are implemented (ingest, detection, enrichment,
+> response, FIM + hash reputation, endpoint remediation, AI reports). Detection & response are
+> verified end-to-end on Linux; Windows/macOS detection is still in progress. Functional for labs
+> and self-hosting; not yet hardened for production.
 
 ## What is DeusWatch?
 
@@ -49,8 +50,9 @@ experience that no single vendor packages together.
 | **Phase 1** | Linux agent, mTLS ingest, gateway + normalization, NATS, Postgres+TimescaleDB, Sigma detection + auto MITRE labeling, API + RBAC + audit log, base Web UI | ✅ |
 | **Phase 2** | Windows/macOS agent, CTI enrichment (AbuseIPDB/OTX/GeoIP), response engine (nftables/Mikrotik/CrowdSec LAPI), TOTP 2FA, notifications (Telegram/email/webhook) | ✅ |
 | **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
-| **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban policy + auto-ban + IP whitelist, per-IP response view, dashboard time-range picker | 🚧 in progress |
-| Phase 5 | File Integrity Monitoring (FIM) + file-hash reputation, agent self-uninstall on revoke, Android agent, rule/integration marketplace, Helm chart | planned |
+| **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban (auto-ban + IP whitelist + dedup), per-IP response view, dashboard time-range picker + searchable events/alerts | ✅ |
+| **Phase 5** | FIM + file-hash reputation (CIRCL/VirusTotal), endpoint file quarantine/delete on known-bad hash, agent self-uninstall on revoke, open-source/self-hosted LLM (Ollama), AI report summary (on-demand + scheduled) | ✅ |
+| Phase 6 | Windows/macOS detection rules, Android agent, rule/integration marketplace, Helm chart | planned |
 
 ### Detection coverage by platform
 
@@ -60,7 +62,7 @@ parsing + detection rules are still in progress.
 
 | Platform | Log collection | Detection (parse + rules) | End-to-end verified |
 |---|---|---|---|
-| **Linux** (sshd / journald) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM | ✅ tested |
+| **Linux** (sshd / journald) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM + malicious-hash | ✅ tested |
 | **Windows** (Event Log: Security/System) | ✅ ships events | 🚧 4625/RDP-SMB brute-force parsing + rules WIP | ❌ not yet tested |
 | **macOS** | ✅ ships logs | 🚧 rules WIP | ❌ not yet tested |
 
@@ -74,7 +76,7 @@ parsing + detection rules are still in progress.
 ```
 Agent (Go) ──mTLS──> Ingest Gateway ──> NATS JetStream ──> Worker (detect/enrich/respond/llm)
                                                                   │
-                                          PostgreSQL 16 + TimescaleDB + pgvector
+                                          PostgreSQL 16 + TimescaleDB
                                                                   │
                                               API Server (Go) ──> Web UI (React + Vite)
 ```
@@ -162,7 +164,7 @@ label → progressive-ban recommendation in real time.
 
 ## Tech stack
 
-Go · PostgreSQL + TimescaleDB · pgvector · NATS JetStream · Sigma · React + Vite + Tailwind ·
+Go · PostgreSQL + TimescaleDB · NATS JetStream · Sigma · React + Vite + Tailwind ·
 Docker · LLM provider via the official Anthropic SDK (Claude).
 
 ## Security
