@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   fetchReport, fetchReportMarkdown, fetchReportSummary, generateReportSummary,
   fetchReportAIConfig, saveReportAIConfig, exportReportToWebhook,
-  type SecurityReport, type ReportCount, type ReportSummary, type ReportAIConfig,
+  fetchNotifyConfig, saveNotifyConfig,
+  type SecurityReport, type ReportCount, type ReportSummary, type ReportAIConfig, type NotifyConfig,
 } from '../lib/api'
 
 const SCHEDULE_PRESETS: { label: string; hours: number }[] = [
@@ -81,11 +82,43 @@ export default function Report() {
       .finally(() => setLoading(false))
   }, [hours])
 
+  // Scheduled report delivery to channels (Telegram/email) — separate from the AI schedule.
+  const [delivery, setDelivery] = useState<NotifyConfig | null>(null)
+  const [delivCustom, setDelivCustom] = useState(false)
+  const [delivDays, setDelivDays] = useState('')
+  const [delivMsg, setDelivMsg] = useState('')
+
   // Load the latest stored AI summary + the schedule once.
   useEffect(() => {
     fetchReportSummary().then(setSummary).catch(() => {})
     fetchReportAIConfig().then(setCfg).catch(() => {})
+    fetchNotifyConfig().then(setDelivery).catch(() => {})
   }, [])
+
+  const delivIsCustom =
+    !!delivery && delivery.report_interval_hours > 0 &&
+    !SCHEDULE_PRESETS.some((p) => p.hours === delivery.report_interval_hours)
+  const saveDelivery = async (intervalHours: number) => {
+    if (!delivery) return
+    setDelivMsg('')
+    const h = Math.max(0, intervalHours)
+    const next = { ...delivery, report_interval_hours: h, report_period_hours: h > 0 ? h : delivery.report_period_hours }
+    try {
+      setDelivery(await saveNotifyConfig(next))
+      setDelivMsg(h > 0 ? 'Delivery schedule saved.' : 'Delivery off.')
+    } catch (e) {
+      setDelivMsg((e as Error).message)
+    }
+  }
+  const onDeliveryChange = (v: string) => {
+    if (v === 'custom') {
+      setDelivCustom(true)
+      setDelivDays(String(Math.max(1, Math.round((delivery?.report_interval_hours || 24) / 24))))
+    } else {
+      setDelivCustom(false)
+      void saveDelivery(Number(v))
+    }
+  }
 
   const isCustom = cfg.interval_hours > 0 && !SCHEDULE_PRESETS.some((p) => p.hours === cfg.interval_hours)
   const saveSchedule = async (hours: number) => {
@@ -235,6 +268,49 @@ export default function Report() {
           </p>
         )}
         {genError && <p className="mt-2 text-sm text-rose-400">{genError}</p>}
+      </section>
+
+      {/* Scheduled delivery of the report to channels (Telegram/email) */}
+      <section className="no-print card-print mb-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Scheduled delivery</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Send this report to your channels (Telegram / email) on a schedule. Each report covers the
+              period since the last one. Channels are configured via the server's environment variables.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={delivIsCustom || delivCustom ? 'custom' : String(delivery?.report_interval_hours ?? 0)}
+              disabled={!delivery}
+              onChange={(e) => onDeliveryChange(e.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300 outline-none focus:border-indigo-500 disabled:opacity-50"
+              title="Deliver the report on a schedule"
+            >
+              {SCHEDULE_PRESETS.map((p) => (
+                <option key={p.hours} value={p.hours}>{p.label.replace('Auto: off', 'Delivery: off')}</option>
+              ))}
+              <option value="custom">Custom…</option>
+            </select>
+            {(delivCustom || delivIsCustom) && (
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                every
+                <input
+                  type="number"
+                  min={1}
+                  value={delivCustom ? delivDays : String(Math.round((delivery?.report_interval_hours ?? 24) / 24))}
+                  onChange={(e) => setDelivDays(e.target.value)}
+                  onBlur={() => delivCustom && delivDays && saveDelivery(Number(delivDays) * 24)}
+                  onKeyDown={(e) => e.key === 'Enter' && delivDays && saveDelivery(Number(delivDays) * 24)}
+                  className="w-14 rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                />
+                days
+              </span>
+            )}
+          </div>
+        </div>
+        {delivMsg && <p className="mt-2 text-xs text-slate-500">{delivMsg}</p>}
       </section>
 
       <div className="no-print mb-6 flex gap-2">

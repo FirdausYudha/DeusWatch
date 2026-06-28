@@ -180,11 +180,10 @@ function Copyable({ text }: { text: string }) {
   )
 }
 
-// EnrollWizard — Wazuh-style: pick OS + arch, auto-generate a one-time token, and get a
+// EnrollWizard — Wazuh-style: pick OS, auto-generate a one-time token, and get a
 // single copy-paste command that downloads, enrolls, installs the service and connects.
 function EnrollWizard({ onClose }: { onClose: () => void }) {
   const [os, setOs] = useState('linux')
-  const [arch, setArch] = useState('amd64')
   const [name, setName] = useState('')
   const [host, setHost] = useState(`${location.hostname}:8080`)
   const [token, setToken] = useState('')
@@ -240,17 +239,6 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             >
               <option value="linux">Linux</option>
               <option value="windows">Windows</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-400">Architecture</span>
-            <select
-              value={arch}
-              onChange={(e) => setArch(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
-            >
-              <option value="amd64">x86-64 (amd64)</option>
-              <option value="arm64">ARM64 (arm64)</option>
             </select>
           </label>
           <label className="block">

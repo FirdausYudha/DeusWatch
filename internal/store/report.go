@@ -46,6 +46,62 @@ func (s *Store) LatestReportSummary(ctx context.Context) (ReportSummary, bool, e
 	return rs, true, nil
 }
 
+// NotifyConfig holds the alert severity threshold + scheduled report-delivery settings.
+type NotifyConfig struct {
+	MinSeverity         int        `json:"min_severity"`
+	ReportIntervalHours int        `json:"report_interval_hours"` // 0 = no scheduled delivery
+	ReportPeriodHours   int        `json:"report_period_hours"`
+	ReportLastSentAt    *time.Time `json:"report_last_sent_at,omitempty"`
+}
+
+// LoadNotifyConfig reads the notification config (defaults: severity medium, delivery off).
+func (s *Store) LoadNotifyConfig(ctx context.Context) (NotifyConfig, error) {
+	c := NotifyConfig{MinSeverity: 2, ReportPeriodHours: 24}
+	err := s.pool.QueryRow(ctx,
+		`SELECT min_severity, report_interval_hours, report_period_hours, report_last_sent_at
+		 FROM notify_config WHERE id = 1`).
+		Scan(&c.MinSeverity, &c.ReportIntervalHours, &c.ReportPeriodHours, &c.ReportLastSentAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return c, nil
+	}
+	if err != nil {
+		return c, fmt.Errorf("store: load notify config: %w", err)
+	}
+	return c, nil
+}
+
+// SaveNotifyConfig upserts the config (preserving report_last_sent_at).
+func (s *Store) SaveNotifyConfig(ctx context.Context, c NotifyConfig) error {
+	if c.ReportPeriodHours <= 0 {
+		c.ReportPeriodHours = 24
+	}
+	if c.MinSeverity < 0 {
+		c.MinSeverity = 0
+	}
+	if c.MinSeverity > 4 {
+		c.MinSeverity = 4
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO notify_config (id, min_severity, report_interval_hours, report_period_hours) VALUES (1,$1,$2,$3)
+		 ON CONFLICT (id) DO UPDATE SET min_severity=$1, report_interval_hours=$2, report_period_hours=$3, updated_at=now()`,
+		c.MinSeverity, c.ReportIntervalHours, c.ReportPeriodHours)
+	if err != nil {
+		return fmt.Errorf("store: save notify config: %w", err)
+	}
+	return nil
+}
+
+// MarkReportDelivered records that a scheduled report was just sent.
+func (s *Store) MarkReportDelivered(ctx context.Context) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO notify_config (id, report_last_sent_at) VALUES (1, now())
+		 ON CONFLICT (id) DO UPDATE SET report_last_sent_at = now()`)
+	if err != nil {
+		return fmt.Errorf("store: mark report delivered: %w", err)
+	}
+	return nil
+}
+
 // ReportAIConfig is the schedule for auto-generating the AI report summary.
 type ReportAIConfig struct {
 	IntervalHours int `json:"interval_hours"` // 0 = disabled

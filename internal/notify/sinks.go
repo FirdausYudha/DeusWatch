@@ -35,8 +35,24 @@ func NewTelegramNotifier(token, chatID string) *TelegramNotifier {
 func (t *TelegramNotifier) Name() string { return "telegram" }
 
 func (t *TelegramNotifier) Notify(ctx context.Context, n Notification) error {
+	return t.sendText(ctx, n.Text())
+}
+
+// NotifyText sends a free-form message (scheduled report delivery).
+func (t *TelegramNotifier) NotifyText(ctx context.Context, subject, body string) error {
+	text := body
+	if subject != "" {
+		text = subject + "\n\n" + body
+	}
+	return t.sendText(ctx, text)
+}
+
+func (t *TelegramNotifier) sendText(ctx context.Context, text string) error {
+	if len(text) > 3900 { // Telegram caps messages at 4096 chars
+		text = text[:3900] + "\n…(truncated)"
+	}
 	endpoint := fmt.Sprintf("%s/bot%s/sendMessage", t.base, t.token)
-	form := url.Values{"chat_id": {t.chatID}, "text": {n.Text()}}
+	form := url.Values{"chat_id": {t.chatID}, "text": {text}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
@@ -127,12 +143,29 @@ func (e *EmailNotifier) message(n Notification) []byte {
 }
 
 func (e *EmailNotifier) Notify(_ context.Context, n Notification) error {
+	return e.deliver(e.message(n))
+}
+
+// NotifyText sends a free-form email (scheduled report delivery).
+func (e *EmailNotifier) NotifyText(_ context.Context, subject, body string) error {
+	if subject == "" {
+		subject = "DeusWatch report"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "From: %s\r\n", e.from)
+	fmt.Fprintf(&b, "To: %s\r\n", strings.Join(e.to, ", "))
+	fmt.Fprintf(&b, "Subject: %s\r\n", subject)
+	b.WriteString("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n")
+	b.WriteString(body)
+	return e.deliver([]byte(b.String()))
+}
+
+func (e *EmailNotifier) deliver(msg []byte) error {
 	var auth smtp.Auth
 	if e.user != "" {
 		auth = smtp.PlainAuth("", e.user, e.pass, e.host)
 	}
-	addr := e.host + ":" + e.port
-	if err := e.send(addr, auth, e.from, e.to, e.message(n)); err != nil {
+	if err := e.send(e.host+":"+e.port, auth, e.from, e.to, msg); err != nil {
 		return fmt.Errorf("email: %w", err)
 	}
 	return nil

@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, type NotifyConfig } from '../lib/api'
+
+const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
 export default function Settings() {
   const [enabled, setEnabled] = useState<boolean | null>(null)
@@ -42,6 +44,25 @@ export default function Settings() {
       setCfgMsg(`Imported: ${parts || 'nothing'} · re-enter integration secrets afterwards.`)
     } catch (e) {
       setCfgErr((e as Error).message)
+    }
+  }
+
+  // Alert notification threshold (Telegram/email channels are configured via env).
+  const [notify, setNotify] = useState<NotifyConfig | null>(null)
+  const [notifyMsg, setNotifyMsg] = useState('')
+  const [notifyErr, setNotifyErr] = useState('')
+  useEffect(() => {
+    fetchNotifyConfig().then(setNotify).catch(() => {})
+  }, [])
+  const saveSeverity = async (sev: number) => {
+    if (!notify) return
+    setNotifyMsg(''); setNotifyErr('')
+    const next = { ...notify, min_severity: sev }
+    try {
+      setNotify(await saveNotifyConfig(next))
+      setNotifyMsg('Alert threshold saved.')
+    } catch (e) {
+      setNotifyErr((e as Error).message)
     }
   }
 
@@ -201,6 +222,31 @@ export default function Settings() {
 
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
         {msg && <p className="mt-3 text-sm text-emerald-400">{msg}</p>}
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <h2 className="text-sm font-medium text-slate-200">Alert notifications</h2>
+        <p className="mb-4 mt-1 text-sm text-slate-500">
+          Send an alert to your channels (Telegram / email) when an event's severity is at or above
+          this level. Channels are configured via the server's environment variables.
+        </p>
+        <label className="flex items-center gap-3 text-sm text-slate-300">
+          Notify at or above
+          <select
+            value={notify?.min_severity ?? 2}
+            disabled={!notify}
+            onChange={(e) => saveSeverity(Number(e.target.value))}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500 disabled:opacity-50"
+          >
+            {SEVERITY_LABELS.map((lbl, i) => (
+              <option key={i} value={i}>
+                {lbl}
+              </option>
+            ))}
+          </select>
+        </label>
+        {notifyErr && <p className="mt-3 text-sm text-rose-400">{notifyErr}</p>}
+        {notifyMsg && <p className="mt-3 text-sm text-emerald-400">{notifyMsg}</p>}
       </section>
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">

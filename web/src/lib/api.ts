@@ -786,6 +786,30 @@ export async function generateReportSummary(hours = 24): Promise<ReportSummary> 
   return res.json()
 }
 
+// ── Notifications (alert threshold + scheduled report delivery) ─
+export type NotifyConfig = {
+  min_severity: number
+  report_interval_hours: number
+  report_period_hours: number
+  report_last_sent_at?: string | null
+}
+
+export async function fetchNotifyConfig(): Promise<NotifyConfig> {
+  const res = await authFetch('/api/notify-config')
+  if (!res.ok) throw new Error(`notify config: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveNotifyConfig(c: NotifyConfig): Promise<NotifyConfig> {
+  const res = await authFetch('/api/notify-config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(c),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // ── Config profile (export/import to clone a server's settings) ─
 export async function exportConfig(): Promise<Blob> {
   const res = await authFetch('/api/config/export')

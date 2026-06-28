@@ -101,6 +101,46 @@ func NewDispatcher(minSeverity ingest.Severity, throttle time.Duration, sinks ..
 // Enabled reports whether any sink is configured.
 func (d *Dispatcher) Enabled() bool { return d != nil && len(d.sinks) > 0 }
 
+// SetMinSeverity updates the alert threshold (live reload from the DB config).
+func (d *Dispatcher) SetMinSeverity(s ingest.Severity) {
+	d.mu.Lock()
+	d.minSeverity = s
+	d.mu.Unlock()
+}
+
+// RawNotifier is an optional capability: send a free-form message (scheduled reports).
+type RawNotifier interface {
+	NotifyText(ctx context.Context, subject, body string) error
+}
+
+// SendText delivers a free-form message (e.g. a scheduled report) to every sink that
+// supports raw text (Telegram, email). Bypasses the alert severity/dedup filters.
+func (d *Dispatcher) SendText(ctx context.Context, subject, body string) error {
+	if !d.Enabled() {
+		return fmt.Errorf("notify: no channel configured")
+	}
+	var errs []string
+	sent := 0
+	for _, s := range d.sinks {
+		rn, ok := s.(RawNotifier)
+		if !ok {
+			continue
+		}
+		if err := rn.NotifyText(ctx, subject, body); err != nil {
+			errs = append(errs, s.Name()+": "+err.Error())
+		} else {
+			sent++
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("notify: %s", strings.Join(errs, "; "))
+	}
+	if sent == 0 {
+		return fmt.Errorf("notify: no channel supports text delivery (configure Telegram or email)")
+	}
+	return nil
+}
+
 // SinkNames returns the names of the active sinks.
 func (d *Dispatcher) SinkNames() []string {
 	names := make([]string, 0, len(d.sinks))
@@ -117,7 +157,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, n Notification) error {
 	if !d.Enabled() {
 		return nil
 	}
-	if n.Severity < d.minSeverity {
+	d.mu.Lock()
+	min := d.minSeverity
+	d.mu.Unlock()
+	if n.Severity < min {
 		return nil
 	}
 	if !d.allow(n.dedupKey()) {

@@ -146,6 +146,10 @@ func main() {
 		mux.Handle("GET /api/report/ai-config", protect(auth.PermViewDashboard, reportAIConfigGetHandler(st)))
 		mux.Handle("PUT /api/report/ai-config", protect(auth.PermManageSettings, reportAIConfigSetHandler(st)))
 
+		// Notifications: alert severity threshold + scheduled report delivery to channels.
+		mux.Handle("GET /api/notify-config", protect(auth.PermViewDashboard, notifyConfigGetHandler(st)))
+		mux.Handle("PUT /api/notify-config", protect(auth.PermManageSettings, notifyConfigSetHandler(st)))
+
 		// Config profile: export/import all settings to clone one server's setup onto another.
 		mux.Handle("GET /api/config/export", protect(auth.PermManageSettings, configExportHandler(st)))
 		mux.Handle("POST /api/config/import", protect(auth.PermManageSettings, configImportHandler(st)))
@@ -612,6 +616,36 @@ func reportAIConfigSetHandler(st *store.Store) http.HandlerFunc {
 // configExportHandler returns a portable JSON profile of this server's configuration —
 // detection rules, ban policy, IP whitelist, the AI-report schedule, and integrations
 // (secret values masked out) — so it can be imported on another DeusWatch server.
+func notifyConfigGetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := st.LoadNotifyConfig(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
+	}
+}
+
+func notifyConfigSetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var c store.NotifyConfig
+		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if c.MinSeverity < 0 || c.MinSeverity > 4 || c.ReportIntervalHours < 0 || c.ReportPeriodHours < 0 {
+			http.Error(w, "min_severity must be 0..4 and hours >= 0", http.StatusBadRequest)
+			return
+		}
+		if err := st.SaveNotifyConfig(r.Context(), c); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
+	}
+}
+
 func configExportHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

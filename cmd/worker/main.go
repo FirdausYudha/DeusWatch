@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -161,7 +162,8 @@ func main() {
 	// only when explicitly enabled, continuous per-alert triage. Per-alert triage is OFF
 	// by default (LLM_PER_ALERT=1 to enable) so a paid API isn't called on every alert —
 	// AI is primarily a periodic/on-demand report (see the Report page + scheduler).
-	if analyzer, ok := resolveAnalyzer(ctx, intStore); ok {
+	analyzer, haveAnalyzer := resolveAnalyzer(ctx, intStore)
+	if haveAnalyzer {
 		perAlert, _ := strconv.ParseBool(os.Getenv("LLM_PER_ALERT"))
 		if perAlert {
 			log.Printf("worker: LLM per-alert triage active (%s)", analyzer.Name())
@@ -172,7 +174,12 @@ func main() {
 		go runReportScheduler(ctx, st, analyzer) // configurable AI report summaries
 	} else {
 		log.Printf("worker: LLM analyzer disabled (add an LLM integration, or set ANTHROPIC_API_KEY / LLM_BASE_URL / LLM_ENABLED=1)")
+		analyzer = nil
 	}
+
+	// Notification config: live-reload the alert severity threshold + scheduled report
+	// delivery to channels (Telegram/email). Runs even without an analyzer (plain report).
+	go runNotifyScheduler(ctx, st, dispatcher, analyzer)
 
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
@@ -228,6 +235,54 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				}
 			}
 			cancel()
+		}
+	}
+}
+
+// runNotifyScheduler live-reloads the alert severity threshold into the dispatcher and
+// delivers a scheduled report to the channels (Telegram/email) per notify_config —
+// independent of the AI-summary schedule. Checks every minute; only sends when due.
+func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify.Dispatcher, analyzer llm.Analyzer) {
+	t := time.NewTicker(1 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			cfg, err := st.LoadNotifyConfig(ctx)
+			if err != nil {
+				continue
+			}
+			if dispatcher != nil {
+				dispatcher.SetMinSeverity(ingest.Severity(cfg.MinSeverity)) // live threshold
+			}
+			if cfg.ReportIntervalHours <= 0 || dispatcher == nil || !dispatcher.Enabled() {
+				continue // delivery disabled or no channel
+			}
+			if cfg.ReportLastSentAt != nil && time.Since(*cfg.ReportLastSentAt) < time.Duration(cfg.ReportIntervalHours)*time.Hour {
+				continue // not due yet
+			}
+			rc, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			rep, berr := st.BuildReport(rc, cfg.ReportPeriodHours)
+			if berr != nil {
+				cancel()
+				continue
+			}
+			body := report.RenderMarkdown(rep)
+			if analyzer != nil {
+				if s, serr := analyzer.Summarize(rc, report.SummaryPrompt(rep)); serr == nil && s != "" {
+					body = "AI summary:\n" + s + "\n\n" + body
+				}
+			}
+			err = dispatcher.SendText(rc, fmt.Sprintf("DeusWatch report — last %dh", cfg.ReportPeriodHours), body)
+			cancel()
+			if err != nil {
+				log.Printf("worker: scheduled report delivery failed: %v", err)
+				continue
+			}
+			_ = st.MarkReportDelivered(ctx)
+			log.Printf("worker: delivered scheduled report to channels (period=%dh, next in ~%dh)", cfg.ReportPeriodHours, cfg.ReportIntervalHours)
 		}
 	}
 }
