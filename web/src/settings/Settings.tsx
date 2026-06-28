@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig } from '../lib/api'
 
 export default function Settings() {
   const [enabled, setEnabled] = useState<boolean | null>(null)
@@ -17,6 +17,33 @@ export default function Settings() {
   const [pwError, setPwError] = useState('')
   const [pwMsg, setPwMsg] = useState('')
   const [pwBusy, setPwBusy] = useState(false)
+
+  // Config profile export/import.
+  const [cfgErr, setCfgErr] = useState('')
+  const [cfgMsg, setCfgMsg] = useState('')
+  const doExport = async () => {
+    setCfgErr(''); setCfgMsg('')
+    try {
+      const url = URL.createObjectURL(await exportConfig())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'deuswatch-config.json'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setCfgErr((e as Error).message)
+    }
+  }
+  const doImport = async (file: File) => {
+    setCfgErr(''); setCfgMsg('')
+    try {
+      const applied = await importConfig(await file.text())
+      const parts = Object.entries(applied).map(([k, v]) => `${v} ${k}`).join(', ')
+      setCfgMsg(`Imported: ${parts || 'nothing'} · re-enter integration secrets afterwards.`)
+    } catch (e) {
+      setCfgErr((e as Error).message)
+    }
+  }
 
   const submitPassword = async (e: FormEvent) => {
     e.preventDefault()
@@ -213,6 +240,34 @@ export default function Settings() {
         </form>
         {pwError && <p className="mt-3 text-sm text-rose-400">{pwError}</p>}
         {pwMsg && <p className="mt-3 text-sm text-emerald-400">{pwMsg}</p>}
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <h2 className="text-sm font-medium text-slate-200">Config profile</h2>
+        <p className="mb-4 mt-1 text-sm text-slate-500">
+          Export this server's settings — detection rules, ban policy, IP whitelist, the AI-report
+          schedule, and integrations — as JSON to clone onto another DeusWatch server. Secrets
+          (API keys / passwords) are not included; re-enter them after import.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={doExport}
+            className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+          >
+            ⬇ Export config
+          </button>
+          <label className="cursor-pointer rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800">
+            ⬆ Import config
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])}
+            />
+          </label>
+        </div>
+        {cfgErr && <p className="mt-3 text-sm text-rose-400">{cfgErr}</p>}
+        {cfgMsg && <p className="mt-3 text-sm text-emerald-400">{cfgMsg}</p>}
       </section>
     </div>
   )

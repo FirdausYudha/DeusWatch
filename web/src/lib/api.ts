@@ -786,6 +786,24 @@ export async function generateReportSummary(hours = 24): Promise<ReportSummary> 
   return res.json()
 }
 
+// ── Config profile (export/import to clone a server's settings) ─
+export async function exportConfig(): Promise<Blob> {
+  const res = await authFetch('/api/config/export')
+  if (!res.ok) throw new Error(`export: HTTP ${res.status}`)
+  return res.blob()
+}
+
+export async function importConfig(json: string): Promise<Record<string, number>> {
+  const res = await authFetch('/api/config/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: json,
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  const b = await res.json()
+  return b.applied ?? {}
+}
+
 // Schedule for auto-generating the AI summary (interval_hours: 0 = disabled).
 export type ReportAIConfig = { interval_hours: number; period_hours: number }
 

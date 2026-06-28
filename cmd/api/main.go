@@ -146,6 +146,10 @@ func main() {
 		mux.Handle("GET /api/report/ai-config", protect(auth.PermViewDashboard, reportAIConfigGetHandler(st)))
 		mux.Handle("PUT /api/report/ai-config", protect(auth.PermManageSettings, reportAIConfigSetHandler(st)))
 
+		// Config profile: export/import all settings to clone one server's setup onto another.
+		mux.Handle("GET /api/config/export", protect(auth.PermManageSettings, configExportHandler(st)))
+		mux.Handle("POST /api/config/import", protect(auth.PermManageSettings, configImportHandler(st)))
+
 		// Customizable dashboard: aggregated series + per-user widget layout.
 		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st)))
 		mux.Handle("GET /api/dashboard/layout", protect(auth.PermViewDashboard, getLayoutHandler(st)))
@@ -602,6 +606,138 @@ func reportAIConfigSetHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, c)
+	}
+}
+
+// configExportHandler returns a portable JSON profile of this server's configuration —
+// detection rules, ban policy, IP whitelist, the AI-report schedule, and integrations
+// (secret values masked out) — so it can be imported on another DeusWatch server.
+func configExportHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		rs := respond.NewStore(st.Pool())
+		rl := rules.NewStore(st.Pool())
+		bundle := map[string]any{"version": 1, "exported_at": time.Now()}
+
+		if p, err := rs.LoadPolicy(ctx); err == nil {
+			bundle["ban_policy"] = banPolicyJSON(p)
+		}
+		if wl, err := rs.ListWhitelist(ctx); err == nil {
+			items := make([]map[string]string, 0, len(wl))
+			for _, e := range wl {
+				items = append(items, map[string]string{"cidr": e.CIDR, "note": e.Note})
+			}
+			bundle["ip_whitelist"] = items
+		}
+		if c, err := st.LoadReportAIConfig(ctx); err == nil {
+			bundle["report_ai_config"] = c
+		}
+		if rr, err := rl.List(ctx); err == nil {
+			items := make([]map[string]any, 0, len(rr))
+			for _, ru := range rr {
+				items = append(items, map[string]any{"name": ru.Name, "kind": ru.Kind, "yaml": ru.YAML, "enabled": ru.Enabled, "builtin": ru.Builtin})
+			}
+			bundle["rules"] = items
+		}
+		if cipher, _, err := secret.FromEnv(); err == nil {
+			if list, err := integrations.NewStore(st.Pool(), cipher).List(ctx); err == nil {
+				items := make([]map[string]any, 0, len(list))
+				for _, it := range list {
+					items = append(items, map[string]any{"type": it.Type, "name": it.Name, "enabled": it.Enabled, "config": it.Config, "secrets_set": it.SecretsSet})
+				}
+				bundle["integrations"] = items
+			}
+		}
+		w.Header().Set("Content-Disposition", `attachment; filename="deuswatch-config.json"`)
+		writeJSON(w, http.StatusOK, bundle)
+	}
+}
+
+// configImportHandler applies a config profile (from configExportHandler) onto this server.
+// Secret values are NOT part of the profile — re-enter them after import. Rules and
+// integrations are upserted by name; ban policy / whitelist / schedule are replaced/merged.
+func configImportHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var b struct {
+			BanPolicy *struct {
+				Durations   []int `json:"durations"`
+				Permanent   bool  `json:"permanent"`
+				WindowSecs  int   `json:"window_secs"`
+				AutoApprove bool  `json:"auto_approve"`
+			} `json:"ban_policy"`
+			Whitelist []struct{ CIDR, Note string } `json:"ip_whitelist"`
+			ReportAI  *store.ReportAIConfig         `json:"report_ai_config"`
+			Rules     []struct {
+				Name, Kind, YAML string
+				Enabled          bool
+			} `json:"rules"`
+			Integrations []struct {
+				Type, Name string
+				Enabled    bool
+				Config     map[string]string
+			} `json:"integrations"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&b); err != nil {
+			http.Error(w, "invalid config profile", http.StatusBadRequest)
+			return
+		}
+		ctx := r.Context()
+		pool := st.Pool()
+		rs := respond.NewStore(pool)
+		applied := map[string]int{}
+
+		if b.BanPolicy != nil {
+			durs := make([]time.Duration, 0, len(b.BanPolicy.Durations))
+			for _, s := range b.BanPolicy.Durations {
+				if s > 0 {
+					durs = append(durs, time.Duration(s)*time.Second)
+				}
+			}
+			if len(durs) > 0 {
+				_ = rs.SavePolicy(ctx, respond.BanPolicy{Durations: durs, Permanent: b.BanPolicy.Permanent,
+					Window: time.Duration(b.BanPolicy.WindowSecs) * time.Second, AutoApprove: b.BanPolicy.AutoApprove})
+				applied["ban_policy"] = 1
+			}
+		}
+		for _, e := range b.Whitelist {
+			if _, err := rs.AddWhitelist(ctx, e.CIDR, e.Note); err == nil {
+				applied["ip_whitelist"]++
+			}
+		}
+		if b.ReportAI != nil {
+			_ = st.SaveReportAIConfig(ctx, *b.ReportAI)
+			applied["report_ai_config"] = 1
+		}
+		for _, ru := range b.Rules {
+			if ru.Name == "" || ru.YAML == "" {
+				continue
+			}
+			var id string
+			if err := pool.QueryRow(ctx, `SELECT id FROM rules WHERE name=$1`, ru.Name).Scan(&id); err == nil {
+				_, _ = pool.Exec(ctx, `UPDATE rules SET yaml=$1, enabled=$2, updated_at=now() WHERE id=$3`, ru.YAML, ru.Enabled, id)
+			} else {
+				kind := ru.Kind
+				if kind == "" {
+					kind = "single"
+				}
+				_, _ = pool.Exec(ctx, `INSERT INTO rules (name,kind,yaml,enabled,builtin) VALUES ($1,$2,$3,$4,false)`, ru.Name, kind, ru.YAML, ru.Enabled)
+			}
+			applied["rules"]++
+		}
+		for _, it := range b.Integrations {
+			if it.Type == "" || it.Name == "" {
+				continue
+			}
+			cfg, _ := json.Marshal(it.Config)
+			var id string
+			if err := pool.QueryRow(ctx, `SELECT id FROM integrations WHERE type=$1 AND name=$2`, it.Type, it.Name).Scan(&id); err == nil {
+				_, _ = pool.Exec(ctx, `UPDATE integrations SET enabled=$1, config=$2, updated_at=now() WHERE id=$3`, it.Enabled, cfg, id)
+			} else {
+				_, _ = pool.Exec(ctx, `INSERT INTO integrations (type,name,enabled,config) VALUES ($1,$2,$3,$4)`, it.Type, it.Name, it.Enabled, cfg)
+			}
+			applied["integrations"]++
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"applied": applied, "note": "re-enter integration secrets (API keys/passwords) after import"})
 	}
 }
 
