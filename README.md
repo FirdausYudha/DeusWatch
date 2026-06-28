@@ -146,6 +146,22 @@ The host-published ports avoid the common `8080`/`5173` collisions and are all o
 > internally, so the app config is untouched. If you change the gateway port **after** agents
 > are already enrolled, update their `GATEWAY_URL` (or re-run the install command) to match.
 
+### Updating an existing deployment
+
+Pull the latest code and rebuild in one step (DB migrations auto-apply on API start; your
+`deploy/.env` and local data are gitignored, so they survive):
+
+```bash
+./scripts/update.sh         # Linux/macOS host   (.\scripts\update.ps1 on Windows)
+```
+
+Or manually:
+
+```bash
+git pull --ff-only
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+```
+
 ## Deploying agents
 
 In the UI go to **Agents → + Add agent**, pick the OS (Linux / Windows), set **Manager host** to

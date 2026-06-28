@@ -89,13 +89,15 @@ func buildSigmaAlert(r *sigma.Rule, src *ingest.Event) *ingest.Event {
 			TacticName: tactic,
 		},
 		DeusWatch: ingest.DeusWatch{
-			Label:      label,
-			Enrichment: ingest.Enrichment{Status: ingest.EnrichmentPending},
+			Label: label,
+			// Carry over the threat-intel already computed on the source event so the
+			// labeled alert shows it too (otherwise the "Alerts only" view loses it).
+			Enrichment: src.DeusWatch.Enrichment,
 			Severity:   ingest.SeverityMeta{Original: sev},
 		},
 	}
 	if src.Source != nil {
-		alert.Source = &ingest.Endpoint{IP: src.Source.IP, Port: src.Source.Port}
+		alert.Source = &ingest.Endpoint{IP: src.Source.IP, Port: src.Source.Port, Geo: src.Source.Geo}
 	}
 	if src.Host != nil {
 		alert.Host = &ingest.Host{Name: src.Host.Name, OSType: src.Host.OSType, IP: src.Host.IP}

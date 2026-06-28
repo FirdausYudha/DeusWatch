@@ -96,15 +96,16 @@ func (d *BruteForceDetector) buildAlert(src *ingest.Event, count int, now time.T
 			Severity: ingest.SeverityHigh,
 			Dataset:  "deuswatch.detect",
 		},
-		Source: &ingest.Endpoint{IP: src.Source.IP, Port: src.Source.Port},
+		Source: &ingest.Endpoint{IP: src.Source.IP, Port: src.Source.Port, Geo: src.Source.Geo},
 		Rule:   &ingest.Rule{ID: d.cfg.RuleID, Name: d.cfg.RuleName},
 		Threat: &ingest.Threat{
 			Technique:  ingest.Technique{ID: "T1110", Name: "Brute Force"},
 			TacticName: "Credential Access",
 		},
 		DeusWatch: ingest.DeusWatch{
-			Label:      "bruteforce",
-			Enrichment: ingest.Enrichment{Status: ingest.EnrichmentPending},
+			Label: "bruteforce",
+			// Carry over the source event's threat-intel so the alert shows it too.
+			Enrichment: src.DeusWatch.Enrichment,
 			Severity:   ingest.SeverityMeta{Original: ingest.SeverityHigh},
 		},
 	}
