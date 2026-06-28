@@ -184,7 +184,7 @@ donation keeps the lights on and is hugely appreciated — thank you! 🙏
 
 [![Saweria](https://img.shields.io/badge/Saweria-donate-FF5E5B.svg)](https://saweria.co/DeusLoVult1) — 🇮🇩 Indonesia (QRIS / GoPay / OVO / DANA)
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B.svg)](https://ko-fi.com/deuslovult1) — 🌏 International (PayPal / card)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B.svg)](https://ko-fi.com/firdausyudha) — 🌏 International (PayPal / card)
 
 You can also use the **Sponsor ♥** button at the top of this repo, or the **♥ Support DeusWatch**
 link inside the app.
