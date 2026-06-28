@@ -2,13 +2,13 @@
 
 The agent (a single Go binary) collects endpoint logs and ships them to the manager
 (gateway) over **mTLS**. The collector architecture is **per-OS** (chosen at compile time
-via build tags — similar to the Wazuh agent):
+via build tags - similar to the Wazuh agent):
 
 | OS | Default sources | Collector |
 |---|---|---|
 | Linux | `/var/log/auth.log` (sshd), `/var/log/syslog` | file; `journald` via config |
 | Windows | Event Log `Security`, `System` | `wineventlog` (Get-WinEvent) |
-| other | — | set `LOG_FILE` manually |
+| other | - | set `LOG_FILE` manually |
 
 Override to a single source any time: `LOG_FILE=/path DATASET=sshd`.
 

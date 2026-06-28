@@ -18,9 +18,9 @@ fixes. This table will be updated once versioned releases are published.
 
 Instead, use one of these private channels:
 
-1. **GitHub Security Advisory** — the "Report a vulnerability" feature on this repo's
+1. **GitHub Security Advisory** - the "Report a vulnerability" feature on this repo's
    *Security* tab (the preferred channel).
-2. **Email** — `security@deuswatch.example` *(TODO: replace with a real contact before public release)*.
+2. **Email** - `security@deuswatch.example` *(TODO: replace with a real contact before public release)*.
 
 Please include, where possible:
 
@@ -40,11 +40,11 @@ Please include, where possible:
 
 These security principles apply from the first commit and are not compromised for convenience:
 
-- **Required mTLS** for all agent–server communication (no plaintext mode, even in dev).
+- **Required mTLS** for all agent-server communication (no plaintext mode, even in dev).
 - **RBAC + append-only audit log** from day one.
 - **Encrypted secrets** (envelope encryption); never shown in logs, masked in the UI.
 - **Parameterized queries** without exception; all incoming logs are treated as hostile data.
-- **LLM output is never auto-executed** as a blocking action — log content is a prompt-injection
+- **LLM output is never auto-executed** as a blocking action - log content is a prompt-injection
   vector; recommendations always require human confirmation.
 - **Supply chain**: binaries & images are signed (cosign); CI runs `govulncheck`,
   `gosec`, and dependency scanning; an SBOM is generated for each release.

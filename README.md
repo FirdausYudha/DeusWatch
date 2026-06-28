@@ -4,10 +4,10 @@
 
 **All-in-One, Open Source, Self-Hosted Security Platform.**
 
-SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis — in one lightweight, modular system.
+SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis - in one lightweight, modular system.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Phase%201–5%20complete%20·%20detection%20Linux--tested-green.svg)]()
+[![Status](https://img.shields.io/badge/status-Phase%201--5%20complete%20·%20detection%20Linux--tested-green.svg)]()
 [![Made with Go](https://img.shields.io/badge/Go-backend-00ADD8.svg)]()
 [![Web: React + Vite](https://img.shields.io/badge/Web-React%20%2B%20Vite-61DAFB.svg)]()
 
@@ -17,7 +17,7 @@ SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis — 
 
 ---
 
-> ⚠️ **Status: active development.** Phases 1–5 are implemented (ingest, detection, enrichment,
+> ⚠️ **Status: active development.** Phases 1-5 are implemented (ingest, detection, enrichment,
 > response, FIM + hash reputation, endpoint remediation, AI reports). Detection & response are
 > verified end-to-end on Linux; Windows detection is still in progress. Functional for labs
 > and self-hosting; not yet hardened for production.
@@ -36,12 +36,12 @@ experience that no single vendor packages together.
 
 **Collect → Detect → Enrich → Decide → Respond**, with a human-friendly UI over every step.
 
-- **Ingest** — lightweight Go agents ship logs over mTLS (Linux/Windows); a gateway normalizes them into a common event schema on NATS JetStream.
-- **Detect** — [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete — built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
-- **Enrich** — source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM analysis** (provider-agnostic: Claude, Ollama, or any OpenAI-compatible endpoint) powers AI report summaries (on-demand + scheduled), with opt-in per-alert triage.
-- **Respond (SOAR)** — a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), and a **per-IP response view** with bulk dismiss. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
-- **Visualize** — a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, plus automated reports.
-- **Operate** — RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook with a UI-configurable severity threshold + scheduled report delivery), JSON **webhook export** to external tools, **config profile import/export** to clone one server's setup onto another, and full **i18n**.
+- **Ingest** - lightweight Go agents ship logs over mTLS (Linux/Windows); a gateway normalizes them into a common event schema on NATS JetStream.
+- **Detect** - [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete - built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
+- **Enrich** - source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM analysis** (provider-agnostic: Claude, Ollama, or any OpenAI-compatible endpoint) powers AI report summaries (on-demand + scheduled), with opt-in per-alert triage.
+- **Respond (SOAR)** - a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), and a **per-IP response view** with bulk dismiss. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
+- **Visualize** - a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, plus automated reports.
+- **Operate** - RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook with a UI-configurable severity threshold + scheduled report delivery), JSON **webhook export** to external tools, **config profile import/export** to clone one server's setup onto another, and full **i18n**.
 
 ### Roadmap
 
@@ -67,7 +67,7 @@ parsing + detection rules are still in progress.
 
 > So far DeusWatch's detection & response have been validated on Linux. Windows agents
 > already stream their Event Log to the manager (ingest works), but Windows-specific
-> normalization and Sigma rules are not finished — treat Windows detection as
+> normalization and Sigma rules are not finished - treat Windows detection as
 > experimental until marked verified here.
 
 ## Architecture
@@ -94,7 +94,7 @@ encrypted at rest and write-only). Currently available:
 | 🛡️ Bouncer | **CrowdSec LAPI** | Creates/removes ban decisions via `cscli` so CrowdSec bouncers enforce them. |
 | 🔎 CTI | **AbuseIPDB** | Enriches source IPs with an abuse-confidence score. |
 | 🔎 CTI | **AlienVault OTX** | Enriches source IPs with threat-intel pulse counts. |
-| 🔔 Notify | **Telegram · Email (SMTP) · Webhook** | Real-time alerts (severity threshold set in the UI) + **scheduled report delivery**. Channel credentials via env — see [docs/notifications.md](docs/notifications.md). |
+| 🔔 Notify | **Telegram · Email (SMTP) · Webhook** | Real-time alerts (severity threshold set in the UI) + **scheduled report delivery**. Channel credentials via env - see [docs/notifications.md](docs/notifications.md). |
 | 📤 Export | **Webhook (JSON)** | One-click POST of events/alerts or a report to an external tool (SIEM, n8n, Zapier, custom). |
 | 🤖 LLM | **Claude · Ollama · OpenAI-compatible** | AI report summaries (on-demand + scheduled); optional opt-in per-alert triage. Provider-agnostic; runs free & offline via Ollama. |
 
@@ -140,7 +140,7 @@ The host-published ports avoid the common `8080`/`5173` collisions and are all o
    ```
 3. Open the UI at the new web port (e.g. `http://localhost:15173`). The **Add agent** wizard
    reads the API/gateway ports automatically (via `GET /api/agent/install-info`), so the
-   generated install one-liner always targets the right ports — nothing else to edit.
+   generated install one-liner always targets the right ports - nothing else to edit.
 
 > Only the **host-published** port changes; the container still listens on `8080`/`8443`/`80`
 > internally, so the app config is untouched. If you change the gateway port **after** agents
@@ -151,14 +151,14 @@ The host-published ports avoid the common `8080`/`5173` collisions and are all o
 In the UI go to **Agents → + Add agent**, pick the OS (Linux / Windows), set **Manager host** to
 the address agents will reach (the LAN IP for cross-host, e.g. `192.168.1.10:9080`), and copy
 the generated one-liner. It downloads the agent, enrols with a one-time token, installs an
-auto-start service, and connects — e.g. on Linux (ports auto-filled from your config):
+auto-start service, and connects - e.g. on Linux (ports auto-filled from your config):
 
 ```bash
 curl -fsSL http://<manager>:9080/api/agent/install.sh | sudo MANAGER=<manager> TOKEN=<token> NAME=<name> API_PORT=9080 GW_PORT=9443 sh
 ```
 
 The manager must allow inbound on the API port **9080** (enrol/install) and gateway port
-**9443** (mTLS) — substitute your own values if you changed `DEUSWATCH_API_PORT` /
+**9443** (mTLS) - substitute your own values if you changed `DEUSWATCH_API_PORT` /
 `DEUSWATCH_GATEWAY_PORT`:
 
 - Linux manager: `sudo ufw allow 9080,9443/tcp` (if `ufw` is active)
@@ -189,8 +189,8 @@ DeusWatch can push **alerts** (above a severity you pick in the UI) and **schedu
 **Telegram** and **email**. Channel credentials live in env (they're secrets); the severity
 threshold and delivery schedule are set in the UI. Quick Telegram setup:
 
-1. **Create a bot** — message [@BotFather](https://t.me/BotFather), send `/newbot`, copy the **token**.
-2. **Get your chat id** — DM the bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read
+1. **Create a bot** - message [@BotFather](https://t.me/BotFather), send `/newbot`, copy the **token**.
+2. **Get your chat id** - DM the bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read
    `"chat":{"id":...}` (or message [@userinfobot](https://t.me/userinfobot)). A group id is negative.
 3. **Set it in `deploy/.env`:**
    ```dotenv
@@ -212,7 +212,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 | [LICENSE](LICENSE) | AGPL-3.0 |
 
 The fastest way to learn DeusWatch is to run the Quick start, log in, and trigger an SSH
-brute force against a monitored host — you'll watch it flow from alert → enrichment → MITRE
+brute force against a monitored host - you'll watch it flow from alert → enrichment → MITRE
 label → progressive-ban recommendation in real time.
 
 ## Tech stack
@@ -228,16 +228,16 @@ responsible-disclosure policy.
 
 ## License
 
-[AGPL-3.0](LICENSE) — free to self-host forever, anti vendor lock-in.
+[AGPL-3.0](LICENSE) - free to self-host forever, anti vendor lock-in.
 
 ## Support
 
 DeusWatch is built and maintained in the open, for free. If it's useful to you, a small
-donation keeps the lights on and is hugely appreciated — thank you! 🙏
+donation keeps the lights on and is hugely appreciated - thank you! 🙏
 
-[![Saweria](https://img.shields.io/badge/Saweria-donate-FF5E5B.svg)](https://saweria.co/DeusLoVult1) — 🇮🇩 Indonesia (QRIS / GoPay / OVO / DANA)
+[![Saweria](https://img.shields.io/badge/Saweria-donate-FF5E5B.svg)](https://saweria.co/DeusLoVult1) - 🇮🇩 Indonesia (QRIS / GoPay / OVO / DANA)
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B.svg)](https://ko-fi.com/firdausyudha) — 🌏 International (PayPal / card)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B.svg)](https://ko-fi.com/firdausyudha) - 🌏 International (PayPal / card)
 
 You can also use the **Sponsor ♥** button at the top of this repo, or the **♥ Support DeusWatch**
 link inside the app.

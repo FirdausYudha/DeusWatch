@@ -5,7 +5,7 @@ This folder contains detection rules in **Sigma** format, loaded by the worker a
 these rules, alongside the built-in brute-force detector.
 
 > Engine status: a subset evaluator (`internal/detect/sigma`) as an **interim** behind
-> the `detect.Detector` interface — see [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md).
+> the `detect.Detector` interface - see [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md).
 
 ## Field taxonomy (mapping pipeline)
 
@@ -23,7 +23,7 @@ these dotted ECS keys:
 | `event.original` | raw log line | used by **keyword** rules |
 
 **Aliases** for community-rule compatibility (resolved automatically,
-case-insensitive — see `internal/detect/sigma/mapping.go`):
+case-insensitive - see `internal/detect/sigma/mapping.go`):
 `User`/`username`→`user.name`, `src_ip`/`SourceIp`→`source.ip`,
 `CommandLine`→`process.command_line`, `Image`→`process.name`,
 `Computer`/`hostname`→`host.name`. Add an entry when adopting a new rule.
@@ -38,19 +38,19 @@ case-insensitive — see `internal/detect/sigma/mapping.go`):
 
 ## AGGREGATION rules (SQL path)
 
-Rules with a piped condition — `selection | count() [by <field>] <op> N` — cannot be
+Rules with a piped condition - `selection | count() [by <field>] <op> N` - cannot be
 answered by a single event; they are **compiled to SQL** and run periodically by the worker
 against the `events` hypertable (Zircolite/pySigma model, [ADR 0001](../../docs/adr/0001-sigma-detection-engine.md)).
 This replaces the hardcoded brute-force detector with a Sigma-formatted rule.
 
 - Put them in the `rules/sigma/agg/` sub-folder (loaded recursively one level deep; they can
-  also live at the root — single-event vs aggregation is split automatically by the presence of `|`).
+  also live at the root - single-event vs aggregation is split automatically by the presence of `|`).
 - **Supported pipe**: `count()` with an optional `by <field>`, operators `> >= < <=`.
 - **`timeframe`** (e.g. `1m`, `5m`, `1h`, `1d`) = time window; default 5m.
 - **Left of the pipe**: a boolean expression over selections (`and`/`or`/`not`/parens +
   selection names). `N of them` is **not** supported on the left of the pipe.
 - Every field used must have a mapped DCS column (`fieldColumns` in
-  `internal/detect/sigma/aggregate.go` — the SQL mirror of `FlattenEvent`). Literal values
+  `internal/detect/sigma/aggregate.go` - the SQL mirror of `FlattenEvent`). Literal values
   always go through parameterized arguments (anti-injection).
 - Each group crossing the threshold fires one alert; there is a **cooldown** per (rule, group)
   so a long attack doesn't flood alerts. A **dry-run** against history is also available
@@ -59,7 +59,7 @@ This replaces the hardcoded brute-force detector with a Sigma-formatted rule.
 ## Automatic MITRE & severity
 
 `tags: [attack.tXXXX, attack.<tactic>]` → `threat.technique.id` + `threat.tactic.name`.
-`level:` (informational/low/medium/high/critical) → `event.severity` (0–4).
+`level:` (informational/low/medium/high/critical) → `event.severity` (0-4).
 
 ## Current rules
 
