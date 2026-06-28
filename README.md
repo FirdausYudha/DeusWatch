@@ -126,8 +126,25 @@ The host-published ports avoid the common `8080`/`5173` collisions and are all o
 | Gateway (mTLS ingest) | `DEUSWATCH_GATEWAY_PORT` | `9443` |
 | PostgreSQL | `DEUSWATCH_DB_PORT` | `5432` |
 
-The **Add agent** wizard reads these automatically, so the generated install one-liner always
-targets the right ports.
+**How to change a port:**
+
+1. Create/edit `deploy/.env` (copy `deploy/.env.example` if you don't have one):
+   ```dotenv
+   DEUSWATCH_WEB_PORT=15173
+   DEUSWATCH_API_PORT=15080
+   DEUSWATCH_GATEWAY_PORT=15443
+   ```
+2. Re-up the stack with that env file:
+   ```bash
+   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+   ```
+3. Open the UI at the new web port (e.g. `http://localhost:15173`). The **Add agent** wizard
+   reads the API/gateway ports automatically (via `GET /api/agent/install-info`), so the
+   generated install one-liner always targets the right ports — nothing else to edit.
+
+> Only the **host-published** port changes; the container still listens on `8080`/`8443`/`80`
+> internally, so the app config is untouched. If you change the gateway port **after** agents
+> are already enrolled, update their `GATEWAY_URL` (or re-run the install command) to match.
 
 ## Deploying agents
 
