@@ -151,8 +151,14 @@ func applyIPIndicator(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 	abuse, otx := ind.AbuseConfidence, ind.OTXPulseCount
 
 	ev.DeusWatch.Enrichment.Status = ingest.EnrichmentEnriched
-	ev.DeusWatch.Enrichment.AbuseConfidence = &abuse
-	ev.DeusWatch.Enrichment.OTXPulseCount = &otx
+	// Only record a score when there is actual signal, so an unknown/clean IP shows "—"
+	// instead of a misleading "abuse 0" (or a fabricated value from the mock provider).
+	if abuse > 0 {
+		ev.DeusWatch.Enrichment.AbuseConfidence = &abuse
+	}
+	if otx > 0 {
+		ev.DeusWatch.Enrichment.OTXPulseCount = &otx
+	}
 
 	if ev.Threat == nil {
 		ev.Threat = &ingest.Threat{}

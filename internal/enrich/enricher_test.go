@@ -109,3 +109,20 @@ func TestEnricherCacheHit(t *testing.T) {
 	}
 	t.Logf("OK: TTL cache works — provider 1x, 2nd lookup from Postgres (%s)", ip)
 }
+
+// An unknown IP under the mock/demo provider must NOT receive a fabricated abuse score or
+// country (it would mislead analysts on real traffic). Guards the honesty fix.
+func TestMockUnknownIPHasNoFakeIntel(t *testing.T) {
+	ind, _ := NewDemoProvider().Lookup(context.Background(), "154.127.69.8")
+	if ind.AbuseConfidence != 0 || ind.CountryISO != "" {
+		t.Fatalf("unknown IP must not get a fabricated score/country: %+v", ind)
+	}
+	ev := &ingest.Event{Source: &ingest.Endpoint{IP: "154.127.69.8"}, Event: ingest.EventFields{Severity: ingest.SeverityLow}}
+	applyIPIndicator(ev, ind, DefaultEscalationRules())
+	if ev.DeusWatch.Enrichment.AbuseConfidence != nil {
+		t.Fatal("abuse confidence must stay nil (shown as — in the UI) for an unknown IP")
+	}
+	if ev.Source.Geo != nil && ev.Source.Geo.CountryISOCode != "" {
+		t.Fatal("country must stay empty for an unknown IP")
+	}
+}
