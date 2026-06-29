@@ -106,18 +106,20 @@ func NewOTXClient(key string) *OTXClient {
 	return &OTXClient{key: key, base: defaultOTXBase, hc: newHTTPClient()}
 }
 
-// Pulses returns the OTX pulse count for ip.
-func (c *OTXClient) Pulses(ctx context.Context, ip string) (int, error) {
+// Pulses returns the OTX pulse count and country code for ip (OTX's /general response
+// carries geo data, used as a country source when AbuseIPDB is absent).
+func (c *OTXClient) Pulses(ctx context.Context, ip string) (count int, country string, err error) {
 	u := c.base + "/api/v1/indicators/IPv4/" + url.PathEscape(ip) + "/general"
 	var out struct {
 		PulseInfo struct {
 			Count int `json:"count"`
 		} `json:"pulse_info"`
+		CountryCode string `json:"country_code"`
 	}
 	if err := getJSON(ctx, c.hc, u, map[string]string{"X-OTX-API-KEY": c.key}, &out); err != nil {
-		return 0, fmt.Errorf("otx: %w", err)
+		return 0, "", fmt.Errorf("otx: %w", err)
 	}
-	return out.PulseInfo.Count, nil
+	return out.PulseInfo.Count, out.CountryCode, nil
 }
 
 // ── GeoIP (ip-api.com, free, no key) ──────────────────────
@@ -189,11 +191,14 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 		}
 	}
 	if p.OTX != nil {
-		if count, err := p.OTX.Pulses(ctx, ip); err != nil {
+		if count, country, err := p.OTX.Pulses(ctx, ip); err != nil {
 			log.Printf("enrich: %v", err)
 			errs = append(errs, err.Error())
 		} else {
 			ind.OTXPulseCount = count
+			if ind.CountryISO == "" && country != "" { // AbuseIPDB first, then OTX, then GeoIP
+				ind.CountryISO = country
+			}
 			feeds, ok = append(feeds, "otx"), true
 		}
 	}

@@ -36,17 +36,17 @@ func TestOTXClientParses(t *testing.T) {
 		if r.Header.Get("X-OTX-API-KEY") != "k" {
 			t.Errorf("OTX key not forwarded")
 		}
-		w.Write([]byte(`{"pulse_info":{"count":12}}`))
+		w.Write([]byte(`{"pulse_info":{"count":12},"country_code":"RU"}`))
 	}))
 	defer srv.Close()
 
 	c := &OTXClient{key: "k", base: srv.URL, hc: srv.Client()}
-	n, err := c.Pulses(context.Background(), "1.2.3.4")
+	n, country, err := c.Pulses(context.Background(), "1.2.3.4")
 	if err != nil {
 		t.Fatalf("Pulses: %v", err)
 	}
-	if n != 12 {
-		t.Fatalf("wrong pulse count: %d", n)
+	if n != 12 || country != "RU" {
+		t.Fatalf("wrong pulse count/country: %d %q", n, country)
 	}
 }
 
@@ -184,5 +184,21 @@ func TestIsPrivateIP(t *testing.T) {
 		if isPrivateIP(ip) {
 			t.Errorf("%q should be public", ip)
 		}
+	}
+}
+
+// When AbuseIPDB is absent, the country must come from OTX (the user's OTX-only case).
+func TestCompositeOTXProvidesCountry(t *testing.T) {
+	otx := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"pulse_info":{"count":2},"country_code":"LY"}`))
+	}))
+	defer otx.Close()
+	cp := &CompositeProvider{OTX: &OTXClient{key: "y", base: otx.URL, hc: otx.Client()}}
+	ind, err := cp.Lookup(context.Background(), "154.127.69.13")
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	if ind.OTXPulseCount != 2 || ind.CountryISO != "LY" {
+		t.Fatalf("OTX country not used when AbuseIPDB absent: %+v", ind)
 	}
 }
