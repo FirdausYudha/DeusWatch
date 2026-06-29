@@ -14,11 +14,13 @@ React+Vite+Tailwind. Verified live: the pipeline event→detection(Sigma single+
 enrich→alert→response(dry-run)→LLM triage→report.
 
 > **Detection validated end-to-end on Linux.** Linux/sshd is fully verified.
-> **Windows = beta:** the agent ships Security/System events with structured EventData (Id,
-> IpAddress, TargetUserName, LogonType); the normalizer maps 4625/4624/4740 by EventID, and
-> there are Sigma rules for Windows logon brute force (aggregation) + account lockout. Parser
-> + rules are unit-tested, but a full live run (real Windows agent -> alert -> ban) isn't
-> confirmed yet. (macOS and mobile agents were dropped.)
+> **Windows:** the agent ships Security/System events with structured EventData (Id,
+> IpAddress, TargetUserName, LogonType); the normalizer maps 4625/4624/4740 by EventID, with
+> Sigma rules for Windows logon brute force (aggregation) + account lockout. The **server-side
+> pipeline is verified end-to-end** (4625 batch over the real mTLS protocol -> normalized ->
+> aggregation -> *Windows Logon Brute Force* T1110.001 alert; SSH detector scoped so it no
+> longer false-fires on Windows). **Beta piece:** agent reading a live Security log (the
+> PowerShell/XML collection) not yet run on real hardware. (macOS and mobile agents dropped.)
 
 ```
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI

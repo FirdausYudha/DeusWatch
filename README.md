@@ -63,13 +63,15 @@ parsing + detection rules are still in progress.
 | Platform | Log collection | Detection (parse + rules) | End-to-end verified |
 |---|---|---|---|
 | **Linux** (sshd / journald) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM + malicious-hash | ✅ tested |
-| **Windows** (Event Log: Security/System) | ✅ ships events | 🟡 4625 brute force (RDP type 10 / SMB-network type 3 / interactive) + 4740 lockout - parser + Sigma rules built & unit-tested | 🚧 live e2e pending |
+| **Windows** (Event Log: Security/System) | ✅ ships events | ✅ 4625 brute force (RDP type 10 / SMB-network type 3 / interactive) + 4740 lockout - EventID normalizer + Sigma rules | 🟡 server pipeline verified; real-agent log read pending |
 
-> Linux detection & response are validated end-to-end. **Windows** now has a normalizer that
-> maps logon events by numeric EventID (4625 failed, 4624 success, 4740 lockout) - language
-> independent - plus a brute-force aggregation rule and a lockout rule. These are unit-tested,
-> but a full live run (real Windows agent -> alert -> ban) hasn't been confirmed yet, so treat
-> Windows detection as **beta** until marked verified here.
+> Linux detection & response are validated end-to-end. **Windows** maps logon events by
+> numeric EventID (4625 failed, 4624 success, 4740 lockout) - language independent - with a
+> brute-force aggregation rule + a lockout rule. The **server-side detection pipeline is
+> verified end-to-end**: a batch of 4625 events sent over the real mTLS agent protocol is
+> normalized (user/IP/os), and the aggregation produces a *Windows Logon Brute Force*
+> (T1110.001) alert. The one piece not yet verified on real hardware is the **agent reading a
+> live Windows Security log** (the PowerShell/XML collection); treat that as **beta**.
 
 ## Architecture
 
