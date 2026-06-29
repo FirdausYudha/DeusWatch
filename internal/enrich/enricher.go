@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"deuswatch/internal/hashrep"
@@ -14,17 +15,6 @@ import (
 // deduplication window — an IP seen again within it is served from cache, NOT re-queried
 // against the external API (so the API quota isn't burned on repeat offenders).
 const DefaultTTL = 24 * time.Hour
-
-// TTLFromEnv returns the CTI cache TTL, overridable via CTI_CACHE_TTL (a Go duration like
-// "24h", "12h", "168h"). Falls back to DefaultTTL.
-func TTLFromEnv() time.Duration {
-	if v := os.Getenv("CTI_CACHE_TTL"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
-			return d
-		}
-	}
-	return DefaultTTL
-}
 
 // EscalationRules configures dynamic severity-escalation thresholds (design doc
 // section 9). Each threshold crossed raises severity by one level (capped at critical).
@@ -56,12 +46,25 @@ func EscalationFromEnv() EscalationRules {
 type Enricher struct {
 	provider Provider
 	cache    *Cache
-	ttl      time.Duration
 	rules    EscalationRules
+
+	mu      sync.RWMutex // guards the live-reloadable TTLs
+	ttl     time.Duration
+	hashTTL time.Duration
 
 	hashProvider hashrep.Provider // optional (FIM file-hash reputation)
 	hashCache    *hashrep.Cache
-	hashTTL      time.Duration
+}
+
+// SetTTL live-updates the enrichment cache TTL (the dedup window for IP CTI + file-hash
+// lookups): an IP/hash seen again within it is served from cache, not re-queried.
+func (e *Enricher) SetTTL(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	e.mu.Lock()
+	e.ttl, e.hashTTL = d, d
+	e.mu.Unlock()
 }
 
 func NewEnricher(provider Provider, cache *Cache, ttl time.Duration, rules EscalationRules) *Enricher {
@@ -92,7 +95,10 @@ func (e *Enricher) lookup(ctx context.Context, ip string) (Indicator, error) {
 	if err != nil {
 		return Indicator{}, err
 	}
-	_ = e.cache.Put(ctx, ip, ind, e.ttl)
+	e.mu.RLock()
+	ttl := e.ttl
+	e.mu.RUnlock()
+	_ = e.cache.Put(ctx, ip, ind, ttl)
 	return ind, nil
 }
 
@@ -147,7 +153,10 @@ func (e *Enricher) enrichHash(ctx context.Context, ev *ingest.Event) error {
 		if ind, err = e.hashProvider.LookupHash(ctx, h); err != nil {
 			return err
 		}
-		_ = e.hashCache.Put(ctx, h, ind, e.hashTTL)
+		e.mu.RLock()
+		httl := e.hashTTL
+		e.mu.RUnlock()
+		_ = e.hashCache.Put(ctx, h, ind, httl)
 	}
 	ev.DeusWatch.FileHash.Verdict = string(ind.Verdict)
 	ev.DeusWatch.FileHash.Detail = ind.Detail

@@ -102,6 +102,45 @@ func (s *Store) MarkReportDelivered(ctx context.Context) error {
 	return nil
 }
 
+// CTIConfig holds UI-managed CTI enrichment settings. CacheTTLHours is the dedup window:
+// an IP looked up within it is served from cache, not re-queried against the external API.
+type CTIConfig struct {
+	CacheTTLHours int `json:"cache_ttl_hours"`
+}
+
+// TTL returns the cache TTL as a duration.
+func (c CTIConfig) TTL() time.Duration { return time.Duration(c.CacheTTLHours) * time.Hour }
+
+// LoadCTIConfig reads the CTI config, defaulting to 24h when unset.
+func (s *Store) LoadCTIConfig(ctx context.Context) (CTIConfig, error) {
+	c := CTIConfig{CacheTTLHours: 24}
+	err := s.pool.QueryRow(ctx, `SELECT cache_ttl_hours FROM cti_config WHERE id = 1`).Scan(&c.CacheTTLHours)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return c, nil
+	}
+	if err != nil {
+		return c, fmt.Errorf("store: load cti config: %w", err)
+	}
+	return c, nil
+}
+
+// SaveCTIConfig upserts the CTI config (clamps the TTL to 1..8760 hours = 1h..1y).
+func (s *Store) SaveCTIConfig(ctx context.Context, c CTIConfig) error {
+	if c.CacheTTLHours < 1 {
+		c.CacheTTLHours = 1
+	}
+	if c.CacheTTLHours > 8760 {
+		c.CacheTTLHours = 8760
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO cti_config (id, cache_ttl_hours, updated_at) VALUES (1, $1, now())
+		 ON CONFLICT (id) DO UPDATE SET cache_ttl_hours = $1, updated_at = now()`, c.CacheTTLHours)
+	if err != nil {
+		return fmt.Errorf("store: save cti config: %w", err)
+	}
+	return nil
+}
+
 // ReportAIConfig is the schedule for auto-generating the AI report summary.
 type ReportAIConfig struct {
 	IntervalHours int `json:"interval_hours"` // 0 = disabled

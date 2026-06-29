@@ -100,7 +100,10 @@ func main() {
 	} else {
 		log.Printf("worker: mock CTI provider (add an AbuseIPDB/OTX integration or set the env keys for real)")
 	}
-	ctiTTL := enrich.TTLFromEnv()
+	ctiTTL := 24 * time.Hour // dedup window; UI-managed via cti_config (Settings)
+	if c, err := st.LoadCTIConfig(ctx); err == nil {
+		ctiTTL = c.TTL()
+	}
 	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), ctiTTL, enrich.EscalationFromEnv())
 
 	// FIM file-hash reputation (optional): CIRCL hashlookup (free) + VirusTotal, from the
@@ -185,6 +188,9 @@ func main() {
 	// Storage monitor: warn (Telegram/email) when the log DB approaches its budget.
 	go runStorageMonitor(ctx, st, dispatcher)
 
+	// Live-reload the CTI cache TTL (dedup window) from the UI-managed config.
+	go runCTIConfigReload(ctx, st, enricher)
+
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
 	log.Println("worker: shutdown")
@@ -239,6 +245,23 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				}
 			}
 			cancel()
+		}
+	}
+}
+
+// runCTIConfigReload applies UI changes to the CTI cache TTL (dedup window) without a
+// restart, checking every minute.
+func runCTIConfigReload(ctx context.Context, st *store.Store, enricher *enrich.Enricher) {
+	t := time.NewTicker(1 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if c, err := st.LoadCTIConfig(ctx); err == nil {
+				enricher.SetTTL(c.TTL())
+			}
 		}
 	}
 }

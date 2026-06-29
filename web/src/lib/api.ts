@@ -825,6 +825,23 @@ export async function generateReportSummary(hours = 24): Promise<ReportSummary> 
   return res.json()
 }
 
+// ── CTI enrichment (threat-intel cache / dedup window) ─────────
+export type CTIConfig = { cache_ttl_hours: number }
+export async function fetchCTIConfig(): Promise<CTIConfig> {
+  const res = await authFetch('/api/cti-config')
+  if (!res.ok) throw new Error(`cti config: HTTP ${res.status}`)
+  return res.json()
+}
+export async function saveCTIConfig(c: CTIConfig): Promise<CTIConfig> {
+  const res = await authFetch('/api/cti-config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(c),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // ── Notifications (alert threshold + scheduled report delivery) ─
 export type NotifyConfig = {
   min_severity: number

@@ -158,6 +158,10 @@ func main() {
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
 
+		// CTI enrichment: dedup cache TTL (UI-managed).
+		mux.Handle("GET /api/cti-config", protect(auth.PermViewDashboard, ctiConfigGetHandler(st)))
+		mux.Handle("PUT /api/cti-config", protect(auth.PermManageSettings, ctiConfigSetHandler(st)))
+
 		// Notifications: alert severity threshold + scheduled report delivery to channels.
 		mux.Handle("GET /api/notify-config", protect(auth.PermViewDashboard, notifyConfigGetHandler(st)))
 		mux.Handle("PUT /api/notify-config", protect(auth.PermManageSettings, notifyConfigSetHandler(st)))
@@ -667,6 +671,36 @@ func storageRetentionHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, st.StorageStatus(r.Context(), storageBudgetBytes()))
+	}
+}
+
+func ctiConfigGetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := st.LoadCTIConfig(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
+	}
+}
+
+func ctiConfigSetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var c store.CTIConfig
+		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if c.CacheTTLHours < 1 || c.CacheTTLHours > 8760 {
+			http.Error(w, "cache_ttl_hours must be 1..8760", http.StatusBadRequest)
+			return
+		}
+		if err := st.SaveCTIConfig(r.Context(), c); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
 	}
 }
 
