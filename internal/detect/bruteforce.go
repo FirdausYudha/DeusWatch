@@ -127,5 +127,7 @@ func isFailedSSHLogin(e *ingest.Event) bool {
 	if e.Event.Outcome != "failure" {
 		return false
 	}
-	return e.Event.Dataset == "sshd" || e.Event.Category == "authentication"
+	// SSH-specific: the sshd dataset, or a normalized SSH login event. Other auth sources
+	// (e.g. Windows logons) are handled by their own Sigma aggregation rules.
+	return e.Event.Dataset == "sshd" || e.Event.Action == "ssh_login"
 }

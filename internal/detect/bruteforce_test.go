@@ -85,3 +85,22 @@ func TestIgnoresSuccessAndOtherIPs(t *testing.T) {
 		}
 	}
 }
+
+// Windows logon failures must NOT trigger the SSH brute-force detector (they have their own
+// Sigma aggregation rule). Guards the dataset/action scoping in isFailedSSHLogin.
+func TestBruteForceIgnoresWindowsLogons(t *testing.T) {
+	cfg := BruteForceConfig{Threshold: 5, Window: time.Minute, Cooldown: 5 * time.Minute, RuleID: "deuswatch-ssh-bruteforce", RuleName: "SSH Brute Force"}
+	d := NewBruteForceDetector(cfg)
+	base := time.Date(2026, 6, 13, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 10; i++ {
+		ev := &ingest.Event{
+			Timestamp: base.Add(time.Duration(i) * time.Second),
+			Event:     ingest.EventFields{Category: "authentication", Action: "windows_logon", Outcome: "failure", Dataset: "windows-security"},
+			Source:    &ingest.Endpoint{IP: "203.0.113.77"},
+			User:      &ingest.User{Name: "administrator"},
+		}
+		if a := d.Inspect(ev); a != nil {
+			t.Fatalf("windows logon #%d must not trigger the SSH brute-force detector", i+1)
+		}
+	}
+}
