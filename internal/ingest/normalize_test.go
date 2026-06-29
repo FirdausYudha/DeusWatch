@@ -96,3 +96,63 @@ func TestNormalizeUnknownKeepsOriginal(t *testing.T) {
 		t.Fatalf("the minimal event should still keep original & dataset: %+v", e.Event)
 	}
 }
+
+// Windows Security 4625 (failed logon): mapped by EventID, IP/user extracted, OS=windows.
+func TestNormalizeWindowsFailedLogon(t *testing.T) {
+	e, ok := Normalize(RawLog{
+		Dataset: "windows-security", Host: "win-dc-01",
+		Message: `{"id":4625,"ip":"198.51.100.23","user":"administrator","logon_type":"10","text":"An account failed to log on."}`,
+	})
+	if !ok {
+		t.Fatal("4625 should be recognized")
+	}
+	if e.Event.Category != "authentication" || e.Event.Action != "windows_logon" || e.Event.Outcome != "failure" {
+		t.Fatalf("wrong event: %+v", e.Event)
+	}
+	if e.Event.Severity != SeverityLow {
+		t.Fatalf("severity=%v, want low", e.Event.Severity)
+	}
+	if e.Source == nil || e.Source.IP != "198.51.100.23" {
+		t.Fatalf("source IP not extracted: %+v", e.Source)
+	}
+	if e.User == nil || e.User.Name != "administrator" {
+		t.Fatalf("user not extracted: %+v", e.User)
+	}
+	if e.Host == nil || e.Host.OSType != "windows" {
+		t.Fatalf("OSType should be windows: %+v", e.Host)
+	}
+	if e.Event.Original != "An account failed to log on." {
+		t.Fatalf("original should be the rendered text, got %q", e.Event.Original)
+	}
+}
+
+func TestNormalizeWindowsSuccessAndLockout(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "windows-security",
+		Message: `{"id":4624,"ip":"10.0.0.5","user":"svc-sql","text":"An account was successfully logged on."}`})
+	if !ok || e.Event.Outcome != "success" || e.Event.Severity != SeverityInfo {
+		t.Fatalf("4624 success mapping wrong: ok=%v %+v", ok, e.Event)
+	}
+	e2, ok2 := Normalize(RawLog{Dataset: "windows-security",
+		Message: `{"id":4740,"user":"admin","text":"A user account was locked out."}`})
+	if !ok2 || e2.Event.Action != "account_locked" || e2.Event.Severity != SeverityMedium {
+		t.Fatalf("4740 lockout mapping wrong: ok=%v %+v", ok2, e2.Event)
+	}
+}
+
+// An unmapped Windows event (or a loopback IP) is still stored but not flagged as a known type.
+func TestNormalizeWindowsUnmappedAndLoopback(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "windows-system",
+		Message: `{"id":7036,"text":"The Print Spooler service entered the running state."}`})
+	if ok {
+		t.Fatal("an unmapped event should return ok=false")
+	}
+	if e.Event.Original != "The Print Spooler service entered the running state." {
+		t.Fatalf("text should still be unwrapped, got %q", e.Event.Original)
+	}
+	// loopback source must not become a source IP
+	e2, _ := Normalize(RawLog{Dataset: "windows-security",
+		Message: `{"id":4625,"ip":"127.0.0.1","user":"x","text":"local"}`})
+	if e2.Source != nil {
+		t.Fatalf("loopback should be ignored as a source: %+v", e2.Source)
+	}
+}

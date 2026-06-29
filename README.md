@@ -63,12 +63,13 @@ parsing + detection rules are still in progress.
 | Platform | Log collection | Detection (parse + rules) | End-to-end verified |
 |---|---|---|---|
 | **Linux** (sshd / journald) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM + malicious-hash | ✅ tested |
-| **Windows** (Event Log: Security/System) | ✅ ships events | 🚧 4625/RDP-SMB brute-force parsing + rules WIP | ❌ not yet tested |
+| **Windows** (Event Log: Security/System) | ✅ ships events | 🟡 4625 brute force (RDP type 10 / SMB-network type 3 / interactive) + 4740 lockout - parser + Sigma rules built & unit-tested | 🚧 live e2e pending |
 
-> So far DeusWatch's detection & response have been validated on Linux. Windows agents
-> already stream their Event Log to the manager (ingest works), but Windows-specific
-> normalization and Sigma rules are not finished - treat Windows detection as
-> experimental until marked verified here.
+> Linux detection & response are validated end-to-end. **Windows** now has a normalizer that
+> maps logon events by numeric EventID (4625 failed, 4624 success, 4740 lockout) - language
+> independent - plus a brute-force aggregation rule and a lockout rule. These are unit-tested,
+> but a full live run (real Windows agent -> alert -> ban) hasn't been confirmed yet, so treat
+> Windows detection as **beta** until marked verified here.
 
 ## Architecture
 

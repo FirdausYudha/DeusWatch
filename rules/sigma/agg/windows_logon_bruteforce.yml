@@ -1,0 +1,24 @@
+title: Windows Logon Brute Force (aggregation)
+id: 7c4e1a92-3b6d-4f08-9a21-5e8c0d2f1b44
+status: experimental
+description: >
+  Many failed Windows logons (Security event 4625) from the same source IP within a short
+  window - RDP (logon type 10), SMB/network (type 3) or interactive password guessing.
+  AGGREGATION rule: runs via the SQL path (count() by source.ip) against the events
+  hypertable, mirroring the SSH brute-force rule for Windows endpoints.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch
+level: high
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.action: windows_logon
+    event.outcome: failure
+  timeframe: 1m
+  condition: selection | count() by source.ip > 5
+tags:
+  - attack.t1110.001
+  - attack.credential_access

@@ -8,8 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -158,6 +158,35 @@ func (s *Store) SeedFromDir(ctx context.Context, dir string) (int, error) {
 		}
 	}
 	return seeded, nil
+}
+
+// SyncBuiltinsFromDir inserts on-disk rules that are not already present (matched by name),
+// so new bundled rules from an upgrade are picked up without disturbing existing or
+// user-edited rules. Returns how many were added. Note: a builtin the operator deliberately
+// deleted may be re-added on a later upgrade.
+func (s *Store) SyncBuiltinsFromDir(ctx context.Context, dir string) (int, error) {
+	added := 0
+	for _, f := range gather(dir) {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		kind, err := sigma.Classify(data)
+		if err != nil {
+			continue
+		}
+		name := titleOf(string(data), filepath.Base(f))
+		var exists bool
+		if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM rules WHERE name=$1)`, name).Scan(&exists); err != nil || exists {
+			continue
+		}
+		if _, err := s.pool.Exec(ctx,
+			`INSERT INTO rules (name, kind, yaml, enabled, builtin) VALUES ($1,$2,$3,true,true)`,
+			name, kind, string(data)); err == nil {
+			added++
+		}
+	}
+	return added, nil
 }
 
 // Enabled parses the enabled rules into detector inputs (single-event Ruleset + agg rules).

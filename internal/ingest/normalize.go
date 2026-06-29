@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -40,7 +41,11 @@ func Normalize(raw RawLog) (*Event, bool) {
 		Event:     EventFields{Dataset: raw.Dataset, Original: raw.Message, Severity: SeverityInfo},
 	}
 	if raw.Host != "" {
-		e.Host = &Host{Name: raw.Host, OSType: "linux"}
+		osType := "linux"
+		if strings.HasPrefix(raw.Dataset, "windows") {
+			osType = "windows"
+		}
+		e.Host = &Host{Name: raw.Host, OSType: osType}
 	}
 	if raw.AgentID != "" {
 		e.Agent = &Agent{ID: raw.AgentID}
@@ -52,7 +57,64 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if raw.Dataset == "fim" && normalizeFIM(raw.Message, e) {
 		return e, true
 	}
+	if strings.HasPrefix(raw.Dataset, "windows") {
+		return e, normalizeWindows(raw.Message, e)
+	}
 	return e, false
+}
+
+// winEvent is the structured payload the Windows agent sends per event log entry: the
+// numeric EventID plus the key EventData fields, so normalization keys off the
+// locale-independent ID rather than the (localized) rendered message text.
+type winEvent struct {
+	ID        int    `json:"id"`
+	IP        string `json:"ip"`
+	User      string `json:"user"`
+	LogonType string `json:"logon_type"`
+	Text      string `json:"text"`
+}
+
+// normalizeWindows maps a Windows Event Log entry (Security/System) to DCS fields. It
+// recognizes the common logon events (4625 failed, 4624 success, 4740 lockout) by EventID
+// so it works regardless of the OS display language. Returns true when the event is mapped
+// to a known type; otherwise the cleaned message is still kept (returns false).
+func normalizeWindows(msg string, e *Event) bool {
+	var w winEvent
+	if err := json.Unmarshal([]byte(msg), &w); err != nil || w.ID == 0 {
+		return false
+	}
+	if w.Text != "" {
+		e.Event.Original = w.Text // human-readable message instead of the JSON envelope
+	}
+	if w.User != "" && w.User != "-" {
+		e.User = &User{Name: w.User}
+	}
+	if ip := w.IP; ip != "" && ip != "-" && ip != "::1" && ip != "127.0.0.1" {
+		e.Source = &Endpoint{IP: ip}
+	}
+
+	switch w.ID {
+	case 4625: // An account failed to log on (covers RDP type 10, network/SMB type 3, etc.)
+		e.Event.Category = "authentication"
+		e.Event.Action = "windows_logon"
+		e.Event.Outcome = "failure"
+		e.Event.Severity = SeverityLow // one failure = low; the brute-force aggregation is high
+		return true
+	case 4624: // An account was successfully logged on
+		e.Event.Category = "authentication"
+		e.Event.Action = "windows_logon"
+		e.Event.Outcome = "success"
+		e.Event.Severity = SeverityInfo
+		return true
+	case 4740: // A user account was locked out (a strong brute-force indicator)
+		e.Event.Category = "iam"
+		e.Event.Action = "account_locked"
+		e.Event.Outcome = "failure"
+		e.Event.Severity = SeverityMedium
+		return true
+	default:
+		return false // unmapped Windows event: stored as a raw info log
+	}
 }
 
 // normalizeFIM parses the agent's FIM JSON payload ({path,action,sha256,size,mode})

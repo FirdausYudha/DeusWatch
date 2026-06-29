@@ -84,10 +84,17 @@ func main() {
 		// Detection rules: seed the bundled rules into the DB on first start, then serve CRUD.
 		ruleStore := rules.NewStore(st.Pool())
 		sctx, scancel := context.WithTimeout(context.Background(), 20*time.Second)
-		if n, serr := ruleStore.SeedFromDir(sctx, getenv("RULES_DIR", "/rules/sigma")); serr != nil {
+		rulesDir := getenv("RULES_DIR", "/rules/sigma")
+		if n, serr := ruleStore.SeedFromDir(sctx, rulesDir); serr != nil {
 			log.Printf("api: rule seed: %v", serr)
 		} else if n > 0 {
 			log.Printf("api: seeded %d builtin detection rules", n)
+		}
+		// On upgrades, add any newly-bundled builtin rules the DB doesn't have yet.
+		if n, serr := ruleStore.SyncBuiltinsFromDir(sctx, rulesDir); serr != nil {
+			log.Printf("api: rule sync: %v", serr)
+		} else if n > 0 {
+			log.Printf("api: added %d new builtin detection rules", n)
 		}
 		scancel()
 
