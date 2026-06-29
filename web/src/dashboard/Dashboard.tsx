@@ -542,7 +542,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   const [severity, setSeverity] = useState(-1)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [alertsOnly, setAlertsOnly] = useState(false)
+  const [alertsOnly, setAlertsOnly] = useState(true) // default to alerts to keep the table clean; uncheck to see all events
   const [limit, setLimit] = useState(20)
   const [updated, setUpdated] = useState<Date | null>(null)
   const [open, setOpen] = useState(false)

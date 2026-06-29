@@ -100,14 +100,15 @@ func main() {
 	} else {
 		log.Printf("worker: mock CTI provider (add an AbuseIPDB/OTX integration or set the env keys for real)")
 	}
-	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), enrich.DefaultTTL, enrich.EscalationFromEnv())
+	ctiTTL := enrich.TTLFromEnv()
+	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), ctiTTL, enrich.EscalationFromEnv())
 
 	// FIM file-hash reputation (optional): CIRCL hashlookup (free) + VirusTotal, from the
 	// Integrations registry first, then env. Enables known-good/known-bad classification of
 	// hashed files (a known-bad file raises the event to High severity).
 	vtKey, circlOn := resolveHashRep(ctx, intStore)
 	if hp, hok := hashrep.BuildProvider(vtKey, circlOn); hok {
-		enricher.SetHashReputation(hp, hashrep.NewCache(st.Pool()), enrich.DefaultTTL)
+		enricher.SetHashReputation(hp, hashrep.NewCache(st.Pool()), ctiTTL)
 		log.Printf("worker: FIM hash reputation active (virustotal=%v, circl=%v)", vtKey != "", circlOn)
 	}
 

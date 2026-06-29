@@ -10,8 +10,21 @@ import (
 	"deuswatch/internal/ingest"
 )
 
-// DefaultTTL: how long a CTI cache entry lives before a re-lookup.
-const DefaultTTL = 12 * time.Hour
+// DefaultTTL: how long a CTI cache entry lives before a re-lookup. This is the
+// deduplication window — an IP seen again within it is served from cache, NOT re-queried
+// against the external API (so the API quota isn't burned on repeat offenders).
+const DefaultTTL = 24 * time.Hour
+
+// TTLFromEnv returns the CTI cache TTL, overridable via CTI_CACHE_TTL (a Go duration like
+// "24h", "12h", "168h"). Falls back to DefaultTTL.
+func TTLFromEnv() time.Duration {
+	if v := os.Getenv("CTI_CACHE_TTL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return DefaultTTL
+}
 
 // EscalationRules configures dynamic severity-escalation thresholds (design doc
 // section 9). Each threshold crossed raises severity by one level (capped at critical).
