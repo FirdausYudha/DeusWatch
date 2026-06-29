@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData, fetchLayout, saveLayout,
+  fetchStorageStatus,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type DashWidget, type WidgetKind, type DashRange, type EventSearch,
+  type StorageStatus,
 } from '../lib/api'
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, WIDGET_COLORS } from './widgets'
 
@@ -223,6 +225,7 @@ function TimeRangePicker({
 
 export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: NewTicketInput) => void }) {
   const [health, setHealth] = useState<Health | null>(null)
+  const [storage, setStorage] = useState<StorageStatus | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
   // Time range: a preset number of hours, or 'custom' with from/to (datetime-local strings).
@@ -253,6 +256,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
     const tick = async () => {
       const h = await fetchHealth()
       if (active) setHealth(h)
+      fetchStorageStatus().then((s) => { if (active) setStorage(s) }).catch(() => {})
       const range = resolveRange(preset, from, to)
       if (range) {
         try {
@@ -445,7 +449,74 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
           ))}
         </div>
       </section>
+
+      {/* Log storage (fixed) */}
+      <StoragePanel s={storage} />
     </div>
+  )
+}
+
+function StoragePanel({ s }: { s: StorageStatus | null }) {
+  const pct = s?.budget_bytes ? Math.min(100, s.used_percent) : null
+  const barColor = pct == null ? 'bg-slate-600' : pct >= 90 ? 'bg-rose-500' : pct >= 75 ? 'bg-amber-500' : 'bg-emerald-500'
+  const repl = s?.replication
+  return (
+    <section className="mt-6">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Log Storage</h2>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {/* Capacity */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-200">Database size</span>
+            <Dot state={!s ? 'unknown' : s.reachable ? (pct != null && pct >= 90 ? 'bad' : 'good') : 'bad'} />
+          </div>
+          <div className="mt-1 text-xs text-slate-500">{s?.host ? `host: ${s.host}` : 'log storage'}</div>
+          <div className="mt-3 font-mono text-sm text-slate-200">
+            {!s ? 'checking…' : !s.reachable ? 'unreachable' : s.db_size_pretty}
+            {s?.reachable && <span className="text-slate-500"> · {s.events_count.toLocaleString('en-US')} events</span>}
+          </div>
+          {pct != null && (
+            <div className="mt-2">
+              <div className="h-2 overflow-hidden rounded bg-slate-800">
+                <div className={`h-full rounded ${barColor}`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-1 text-xs text-slate-500">{pct}% of {(s!.budget_bytes / 1073741824).toFixed(0)} GB budget</div>
+            </div>
+          )}
+          {s?.reachable && !s.budget_bytes && <div className="mt-2 text-xs text-slate-600">set STORAGE_BUDGET_GB for a usage bar + near-full alerts</div>}
+        </div>
+
+        {/* Lifecycle (retention + compression = ILM equivalent) */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-200">Lifecycle</span>
+            <Dot state={s?.reachable ? 'good' : s ? 'unknown' : 'unknown'} />
+          </div>
+          <div className="mt-1 text-xs text-slate-500">TimescaleDB retention + compression</div>
+          <div className="mt-3 font-mono text-sm text-slate-200">
+            {s?.retention_days != null ? `retention ${s.retention_days}d` : 'retention: —'}
+          </div>
+          <div className="font-mono text-xs text-slate-500">
+            {s?.compression_days != null ? `compress after ${s.compression_days}d` : 'compression: —'}
+          </div>
+        </div>
+
+        {/* Replication */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-200">Replication</span>
+            <Dot state={!repl ? 'unknown' : repl.enabled ? 'good' : 'unknown'} />
+          </div>
+          <div className="mt-1 text-xs text-slate-500">PostgreSQL streaming</div>
+          <div className={`mt-3 font-mono text-sm ${repl?.enabled ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {!repl ? 'checking…' : repl.enabled ? 'active' : 'not configured'}
+          </div>
+          {repl?.standbys?.length ? (
+            <div className="mt-1 font-mono text-xs text-slate-500">{repl.standbys.join(', ')}</div>
+          ) : null}
+        </div>
+      </div>
+    </section>
   )
 }
 

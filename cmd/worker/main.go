@@ -181,6 +181,9 @@ func main() {
 	// delivery to channels (Telegram/email). Runs even without an analyzer (plain report).
 	go runNotifyScheduler(ctx, st, dispatcher, analyzer)
 
+	// Storage monitor: warn (Telegram/email) when the log DB approaches its budget.
+	go runStorageMonitor(ctx, st, dispatcher)
+
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
 	log.Println("worker: shutdown")
@@ -235,6 +238,52 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				}
 			}
 			cancel()
+		}
+	}
+}
+
+// runStorageMonitor checks log-DB size against STORAGE_BUDGET_GB hourly and sends one alert
+// per day when usage crosses STORAGE_ALERT_PERCENT (default 85). Disabled if no budget set.
+func runStorageMonitor(ctx context.Context, st *store.Store, dispatcher *notify.Dispatcher) {
+	budgetGB, _ := strconv.ParseFloat(os.Getenv("STORAGE_BUDGET_GB"), 64)
+	if budgetGB <= 0 {
+		log.Printf("worker: storage monitor disabled (set STORAGE_BUDGET_GB to enable near-full alerts)")
+		return
+	}
+	threshold := 85
+	if v, err := strconv.Atoi(os.Getenv("STORAGE_ALERT_PERCENT")); err == nil && v > 0 && v <= 100 {
+		threshold = v
+	}
+	budget := int64(budgetGB * 1024 * 1024 * 1024)
+	log.Printf("worker: storage monitor active (budget=%.0fGB, alert at %d%%)", budgetGB, threshold)
+
+	var lastAlert time.Time
+	check := func() {
+		s := st.StorageStatus(ctx, budget)
+		if !s.Reachable || s.UsedPercent < threshold {
+			return
+		}
+		if !dispatcher.Enabled() || time.Since(lastAlert) < 24*time.Hour {
+			return
+		}
+		msg := fmt.Sprintf("Log storage at %d%% of the %.0f GB budget (%s used, %d events). "+
+			"Old data is auto-dropped by the retention policy; raise STORAGE_BUDGET_GB or lower retention if this persists.",
+			s.UsedPercent, budgetGB, s.DBSizePretty, s.EventsCount)
+		if err := dispatcher.SendText(ctx, "DeusWatch storage alert", msg); err == nil {
+			lastAlert = time.Now()
+			log.Printf("worker: storage alert sent (%d%%)", s.UsedPercent)
+		}
+	}
+
+	t := time.NewTicker(1 * time.Hour)
+	defer t.Stop()
+	check() // once on startup
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			check()
 		}
 	}
 }

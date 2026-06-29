@@ -370,6 +370,25 @@ export async function fetchAgents(): Promise<AgentInfo[]> {
   return res.json()
 }
 
+// Log-storage health for the dashboard (PostgreSQL + TimescaleDB).
+export type StorageStatus = {
+  reachable: boolean
+  host: string
+  db_size_bytes: number
+  db_size_pretty: string
+  events_count: number
+  budget_bytes: number
+  used_percent: number
+  retention_days: number | null
+  compression_days: number | null
+  replication: { enabled: boolean; standbys: string[] }
+}
+export async function fetchStorageStatus(): Promise<StorageStatus> {
+  const res = await authFetch('/api/storage/status')
+  if (!res.ok) throw new Error(`storage status: HTTP ${res.status}`)
+  return res.json()
+}
+
 // Host-published ports agents must reach (the container listens on 8080/8443 internally).
 // Used by the Add-agent wizard so the generated one-liner points at the right ports.
 export type AgentInstallInfo = { api_port: string; gateway_port: string }

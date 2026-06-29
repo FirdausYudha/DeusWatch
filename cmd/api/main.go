@@ -147,6 +147,9 @@ func main() {
 		mux.Handle("GET /api/report/ai-config", protect(auth.PermViewDashboard, reportAIConfigGetHandler(st)))
 		mux.Handle("PUT /api/report/ai-config", protect(auth.PermManageSettings, reportAIConfigSetHandler(st)))
 
+		// Log storage health (size, retention/compression, replication) for the dashboard.
+		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
+
 		// Notifications: alert severity threshold + scheduled report delivery to channels.
 		mux.Handle("GET /api/notify-config", protect(auth.PermViewDashboard, notifyConfigGetHandler(st)))
 		mux.Handle("PUT /api/notify-config", protect(auth.PermManageSettings, notifyConfigSetHandler(st)))
@@ -617,6 +620,22 @@ func reportAIConfigSetHandler(st *store.Store) http.HandlerFunc {
 // configExportHandler returns a portable JSON profile of this server's configuration —
 // detection rules, ban policy, IP whitelist, the AI-report schedule, and integrations
 // (secret values masked out) — so it can be imported on another DeusWatch server.
+// storageBudgetBytes reads the configured log-storage soft cap (STORAGE_BUDGET_GB).
+func storageBudgetBytes() int64 {
+	if v := os.Getenv("STORAGE_BUDGET_GB"); v != "" {
+		if gb, err := strconv.ParseFloat(v, 64); err == nil && gb > 0 {
+			return int64(gb * 1024 * 1024 * 1024)
+		}
+	}
+	return 0
+}
+
+func storageStatusHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, st.StorageStatus(r.Context(), storageBudgetBytes()))
+	}
+}
+
 func notifyConfigGetHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := st.LoadNotifyConfig(r.Context())
