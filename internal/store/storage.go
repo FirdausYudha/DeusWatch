@@ -77,6 +77,32 @@ func (s *Store) StorageStatus(ctx context.Context, budgetBytes int64) StorageSta
 	return st
 }
 
+// SetLifecycle re-applies the TimescaleDB retention and/or compression policies on the
+// events hypertable (the relational equivalent of changing an Elasticsearch ILM policy).
+// Pass 0 for a value to leave that policy unchanged. retentionDays must exceed
+// compressionDays so data is compressed before it is dropped.
+func (s *Store) SetLifecycle(ctx context.Context, retentionDays, compressionDays int) error {
+	if compressionDays > 0 {
+		if _, err := s.pool.Exec(ctx, `SELECT remove_compression_policy('events', if_exists => true)`); err != nil {
+			return fmt.Errorf("store: remove compression policy: %w", err)
+		}
+		if _, err := s.pool.Exec(ctx,
+			`SELECT add_compression_policy('events', compress_after => make_interval(days => $1))`, compressionDays); err != nil {
+			return fmt.Errorf("store: set compression policy: %w", err)
+		}
+	}
+	if retentionDays > 0 {
+		if _, err := s.pool.Exec(ctx, `SELECT remove_retention_policy('events', if_exists => true)`); err != nil {
+			return fmt.Errorf("store: remove retention policy: %w", err)
+		}
+		if _, err := s.pool.Exec(ctx,
+			`SELECT add_retention_policy('events', drop_after => make_interval(days => $1))`, retentionDays); err != nil {
+			return fmt.Errorf("store: set retention policy: %w", err)
+		}
+	}
+	return nil
+}
+
 // tsPolicyDays reads a TimescaleDB background-job policy interval (e.g. retention's
 // drop_after) and returns it in whole days. key is a fixed internal field name, not user
 // input. Returns nil when the policy/view is absent (e.g. plain PostgreSQL).

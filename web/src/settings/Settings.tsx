@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, type NotifyConfig } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, type NotifyConfig, type StorageStatus } from '../lib/api'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -63,6 +63,36 @@ export default function Settings() {
       setNotifyMsg('Alert threshold saved.')
     } catch (e) {
       setNotifyErr((e as Error).message)
+    }
+  }
+
+  // Log-storage lifecycle (TimescaleDB retention + compression).
+  const [storage, setStorage] = useState<StorageStatus | null>(null)
+  const [retDays, setRetDays] = useState('')
+  const [cmpDays, setCmpDays] = useState('')
+  const [stMsg, setStMsg] = useState('')
+  const [stErr, setStErr] = useState('')
+  const [stBusy, setStBusy] = useState(false)
+  useEffect(() => {
+    fetchStorageStatus()
+      .then((s) => {
+        setStorage(s)
+        setRetDays(String(s.retention_days ?? 30))
+        setCmpDays(String(s.compression_days ?? 7))
+      })
+      .catch(() => {})
+  }, [])
+  const saveLifecycle = async (e: FormEvent) => {
+    e.preventDefault()
+    setStMsg(''); setStErr(''); setStBusy(true)
+    try {
+      const s = await saveRetention(Number(retDays), Number(cmpDays))
+      setStorage(s)
+      setStMsg('Storage lifecycle updated.')
+    } catch (err) {
+      setStErr((err as Error).message)
+    } finally {
+      setStBusy(false)
     }
   }
 
@@ -247,6 +277,34 @@ export default function Settings() {
         </label>
         {notifyErr && <p className="mt-3 text-sm text-rose-400">{notifyErr}</p>}
         {notifyMsg && <p className="mt-3 text-sm text-emerald-400">{notifyMsg}</p>}
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <h2 className="text-sm font-medium text-slate-200">Log storage lifecycle</h2>
+        <p className="mb-4 mt-1 text-sm text-slate-500">
+          How long logs are kept (TimescaleDB retention) and when they get compressed - the
+          relational equivalent of an ILM policy. Data older than the retention window is
+          dropped automatically. Compression must happen before retention.
+          {storage && <span className="ml-1 text-slate-600">Current DB size: {storage.db_size_pretty}.</span>}
+        </p>
+        <form onSubmit={saveLifecycle} className="flex flex-wrap items-end gap-3">
+          <label className="text-sm text-slate-300">
+            <span className="mb-1 block text-xs text-slate-400">Keep logs for (days)</span>
+            <input type="number" min={1} max={3650} value={retDays} onChange={(e) => setRetDays(e.target.value)}
+              className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+          </label>
+          <label className="text-sm text-slate-300">
+            <span className="mb-1 block text-xs text-slate-400">Compress after (days)</span>
+            <input type="number" min={0} value={cmpDays} onChange={(e) => setCmpDays(e.target.value)}
+              className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+          </label>
+          <button type="submit" disabled={stBusy || !retDays}
+            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50">
+            {stBusy ? 'Saving…' : 'Save lifecycle'}
+          </button>
+        </form>
+        {stErr && <p className="mt-3 text-sm text-rose-400">{stErr}</p>}
+        {stMsg && <p className="mt-3 text-sm text-emerald-400">{stMsg}</p>}
       </section>
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">

@@ -389,6 +389,17 @@ export async function fetchStorageStatus(): Promise<StorageStatus> {
   return res.json()
 }
 
+// Change the log-storage lifecycle (TimescaleDB retention + compression). Admin only.
+export async function saveRetention(retention_days: number, compression_days: number): Promise<StorageStatus> {
+  const res = await authFetch('/api/storage/retention', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ retention_days, compression_days }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // Host-published ports agents must reach (the container listens on 8080/8443 internally).
 // Used by the Add-agent wizard so the generated one-liner points at the right ports.
 export type AgentInstallInfo = { api_port: string; gateway_port: string }

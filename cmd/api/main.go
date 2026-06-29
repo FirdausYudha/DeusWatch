@@ -149,6 +149,7 @@ func main() {
 
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
+		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
 
 		// Notifications: alert severity threshold + scheduled report delivery to channels.
 		mux.Handle("GET /api/notify-config", protect(auth.PermViewDashboard, notifyConfigGetHandler(st)))
@@ -632,6 +633,32 @@ func storageBudgetBytes() int64 {
 
 func storageStatusHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, st.StorageStatus(r.Context(), storageBudgetBytes()))
+	}
+}
+
+func storageRetentionHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			RetentionDays   int `json:"retention_days"`
+			CompressionDays int `json:"compression_days"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if body.RetentionDays < 1 || body.RetentionDays > 3650 {
+			http.Error(w, "retention_days must be 1..3650", http.StatusBadRequest)
+			return
+		}
+		if body.CompressionDays < 0 || body.CompressionDays >= body.RetentionDays {
+			http.Error(w, "compression_days must be >= 0 and less than retention_days", http.StatusBadRequest)
+			return
+		}
+		if err := st.SetLifecycle(r.Context(), body.RetentionDays, body.CompressionDays); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, http.StatusOK, st.StorageStatus(r.Context(), storageBudgetBytes()))
 	}
 }
