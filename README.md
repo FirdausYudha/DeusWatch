@@ -37,7 +37,7 @@ experience that no single vendor packages together.
 **Collect → Detect → Enrich → Decide → Respond**, with a human-friendly UI over every step.
 
 - **Ingest** - lightweight Go agents ship logs over mTLS (Linux/Windows); a gateway normalizes them into a common event schema on NATS JetStream.
-- **Detect** - [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete - built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
+- **Detect** - [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP; **port scan** = many firewall drops from one IP; Windows logon brute force). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete - built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
 - **Enrich** - source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; severity escalates automatically on high-confidence threats. Optional **LLM analysis** (provider-agnostic: Claude, Ollama, or any OpenAI-compatible endpoint) powers AI report summaries (on-demand + scheduled), with opt-in per-alert triage.
 - **Respond (SOAR)** - a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), and a **per-IP response view** with bulk dismiss. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
 - **Visualize** - a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, a **log-storage health panel** (DB size/budget, retention lifecycle, replication status), plus automated reports.
@@ -62,7 +62,7 @@ parsing + detection rules are still in progress.
 
 | Platform | Log collection | Detection (parse + rules) | End-to-end verified |
 |---|---|---|---|
-| **Linux** (sshd / journald) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM + malicious-hash | ✅ tested |
+| **Linux** (sshd / journald / firewall) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM + malicious-hash, **port scan / network probe** (firewall drops) | ✅ tested |
 | **Windows** (Event Log: Security/System) | ✅ ships events | ✅ 4625 brute force (RDP type 10 / SMB-network type 3 / interactive) + 4740 lockout - EventID normalizer + Sigma rules | 🟡 server pipeline verified; real-agent log read pending |
 
 > Linux detection & response are validated end-to-end. **Windows** maps logon events by
@@ -72,6 +72,11 @@ parsing + detection rules are still in progress.
 > normalized (user/IP/os), and the aggregation produces a *Windows Logon Brute Force*
 > (T1110.001) alert. The one piece not yet verified on real hardware is the **agent reading a
 > live Windows Security log** (the PowerShell/XML collection); treat that as **beta**.
+
+> **Port-scan detection** needs a firewall log source. Linux agents tail `/var/log/ufw.log`
+> by default (dataset `firewall`) - enable firewall logging on the host (`ufw logging on`, or
+> add an `iptables/nftables` `LOG` rule). Many drops from one source IP within a minute raise a
+> *Port Scan / Network Probe* (T1046) alert.
 
 ## Architecture
 

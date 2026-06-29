@@ -26,6 +26,12 @@ var (
 	reSSHFailed = regexp.MustCompile(`Failed (?:password|publickey) for (?:invalid user )?(\S+) from (\S+) port (\d+)`)
 	// "Accepted password for deploy from 10.0.0.5 port 22 ssh2"
 	reSSHAccepted = regexp.MustCompile(`Accepted \w+ for (\S+) from (\S+) port (\d+)`)
+
+	// Netfilter/UFW kernel log fields, e.g.:
+	//   "[UFW BLOCK] IN=eth0 OUT= MAC=.. SRC=1.2.3.4 DST=5.6.7.8 PROTO=TCP SPT=40000 DPT=23 .."
+	reFwSRC   = regexp.MustCompile(`\bSRC=(\S+)`)
+	reFwDPT   = regexp.MustCompile(`\bDPT=(\d+)`)
+	reFwProto = regexp.MustCompile(`\bPROTO=(\S+)`)
 )
 
 // Normalize turns a RawLog into a DCS Event. Returns (event, true) when the line is
@@ -60,7 +66,41 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if strings.HasPrefix(raw.Dataset, "windows") {
 		return e, normalizeWindows(raw.Message, e)
 	}
+	if raw.Dataset == "firewall" && normalizeFirewall(raw.Message, e) {
+		return e, true
+	}
 	return e, false
+}
+
+// normalizeFirewall parses a Netfilter/UFW/iptables kernel log line into DCS network.*
+// fields (source IP, destination port, transport). A single blocked packet is just noise
+// (severity info); the Port Scan aggregation rule turns many blocks from one IP into an alert.
+func normalizeFirewall(msg string, e *Event) bool {
+	m := reFwSRC.FindStringSubmatch(msg)
+	if m == nil {
+		return false // not a recognizable firewall line
+	}
+	e.Event.Category = "network"
+	e.Source = &Endpoint{IP: m[1]}
+	if dm := reFwDPT.FindStringSubmatch(msg); dm != nil {
+		if p, err := strconv.Atoi(dm[1]); err == nil && p > 0 && p <= 65535 {
+			e.Destination = &Endpoint{Port: uint16(p)}
+		}
+	}
+	if pm := reFwProto.FindStringSubmatch(msg); pm != nil {
+		e.Network = &Network{Transport: strings.ToLower(pm[1])}
+	}
+	low := strings.ToLower(msg)
+	if strings.Contains(low, "block") || strings.Contains(low, "drop") ||
+		strings.Contains(low, "deny") || strings.Contains(low, "reject") {
+		e.Event.Action = "firewall_block"
+		e.Event.Outcome = "blocked"
+	} else {
+		e.Event.Action = "firewall_allow"
+		e.Event.Outcome = "allowed"
+	}
+	e.Event.Severity = SeverityInfo
+	return true
 }
 
 // winEvent is the structured payload the Windows agent sends per event log entry: the

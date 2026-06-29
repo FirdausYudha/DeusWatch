@@ -2,6 +2,7 @@ package detect
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +29,8 @@ func loadBruteForceAgg(t *testing.T) *sigma.AggRule {
 		t.Fatalf("LoadAggDir: %v", err)
 	}
 	for _, r := range rules {
-		if r.GroupByField == "source.ip" && r.Op == ">" {
+		// Select the SSH rule specifically (several rules now group by source.ip).
+		if strings.Contains(r.Title, "SSH Brute Force") {
 			return r
 		}
 	}

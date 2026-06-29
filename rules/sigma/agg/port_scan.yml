@@ -1,0 +1,22 @@
+title: Port Scan / Network Probe (aggregation)
+id: 4d1f8a07-6b2e-4c93-8a5f-0e7c1b9d3a62
+status: experimental
+description: >
+  Many blocked connection attempts from a single source IP within a short window - the
+  signature of a port scan / network probe (reconnaissance) against the host. AGGREGATION
+  rule: runs via the SQL path (count() by source.ip) over firewall-drop events. Requires a
+  firewall log source (UFW/iptables/nftables) shipping with dataset "firewall".
+references:
+  - https://attack.mitre.org/techniques/T1046/
+author: DeusWatch
+level: high
+logsource:
+  category: firewall
+detection:
+  selection:
+    event.action: firewall_block
+  timeframe: 1m
+  condition: selection | count() by source.ip > 15
+tags:
+  - attack.t1046
+  - attack.discovery

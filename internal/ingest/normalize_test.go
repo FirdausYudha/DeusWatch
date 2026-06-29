@@ -156,3 +156,36 @@ func TestNormalizeWindowsUnmappedAndLoopback(t *testing.T) {
 		t.Fatalf("loopback should be ignored as a source: %+v", e2.Source)
 	}
 }
+
+// Firewall (UFW/Netfilter) drop lines -> network event with source IP + dest port, used by
+// the Port Scan aggregation rule.
+func TestNormalizeFirewallBlock(t *testing.T) {
+	msg := "Jun 29 17:05:01 host kernel: [UFW BLOCK] IN=eth0 OUT= MAC=aa:bb SRC=203.0.113.77 DST=10.0.0.5 LEN=40 PROTO=TCP SPT=40000 DPT=23 WINDOW=1024"
+	e, ok := Normalize(RawLog{Dataset: "firewall", Host: "edge", Message: msg})
+	if !ok {
+		t.Fatal("a UFW BLOCK line should be recognized")
+	}
+	if e.Event.Category != "network" || e.Event.Action != "firewall_block" || e.Event.Outcome != "blocked" {
+		t.Fatalf("wrong event: %+v", e.Event)
+	}
+	if e.Source == nil || e.Source.IP != "203.0.113.77" {
+		t.Fatalf("source IP not parsed: %+v", e.Source)
+	}
+	if e.Destination == nil || e.Destination.Port != 23 {
+		t.Fatalf("dest port not parsed: %+v", e.Destination)
+	}
+	if e.Network == nil || e.Network.Transport != "tcp" {
+		t.Fatalf("transport not parsed: %+v", e.Network)
+	}
+}
+
+func TestNormalizeFirewallAllowAndNonMatch(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "firewall",
+		Message: "kernel: [UFW ALLOW] IN=eth0 SRC=10.0.0.9 DST=10.0.0.5 PROTO=UDP DPT=53"})
+	if !ok || e.Event.Action != "firewall_allow" {
+		t.Fatalf("allow line mapping wrong: ok=%v %+v", ok, e.Event)
+	}
+	if _, ok := Normalize(RawLog{Dataset: "firewall", Message: "kernel: random line without fields"}); ok {
+		t.Fatal("a line without SRC= must not be treated as a firewall event")
+	}
+}
