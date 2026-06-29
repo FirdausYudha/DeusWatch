@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchCTIConfig, saveCTIConfig, type NotifyConfig, type StorageStatus } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchCTIConfig, saveCTIConfig, type NotifyConfig, type StorageStatus, type CTIConfig } from '../lib/api'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -96,13 +96,14 @@ export default function Settings() {
     }
   }
 
-  // CTI cache / dedup window.
+  // CTI cache / dedup window + provider status.
+  const [cti, setCti] = useState<CTIConfig | null>(null)
   const [ctiTTL, setCtiTTL] = useState('')
   const [ctiMsg, setCtiMsg] = useState('')
   const [ctiErr, setCtiErr] = useState('')
   const [ctiBusy, setCtiBusy] = useState(false)
   useEffect(() => {
-    fetchCTIConfig().then((c) => setCtiTTL(String(c.cache_ttl_hours))).catch(() => {})
+    fetchCTIConfig().then((c) => { setCti(c); setCtiTTL(String(c.cache_ttl_hours)) }).catch(() => {})
   }, [])
   const saveCti = async (e: FormEvent) => {
     e.preventDefault()
@@ -331,6 +332,13 @@ export default function Settings() {
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
         <h2 className="text-sm font-medium text-slate-200">Threat-intel (CTI) caching</h2>
+        {cti && (
+          <p className={`mt-1 text-sm ${cti.provider === 'real' ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {cti.provider === 'real'
+              ? `Active sources: ${(cti.sources || []).join(', ')} — real reputation & country shown.`
+              : 'No CTI source configured (mock) — the Threat Intel column shows “—”. Add an AbuseIPDB integration (or set GEOIP_ENABLED) for real data.'}
+          </p>
+        )}
         <p className="mb-4 mt-1 text-sm text-slate-500">
           Deduplication window for CTI lookups: an IP looked up within this period is served
           from cache instead of being re-queried against the external API (AbuseIPDB/OTX) -

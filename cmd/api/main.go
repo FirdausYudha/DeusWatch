@@ -676,12 +676,45 @@ func storageRetentionHandler(st *store.Store) http.HandlerFunc {
 
 func ctiConfigGetHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		c, err := st.LoadCTIConfig(r.Context())
+		ctx := r.Context()
+		c, err := st.LoadCTIConfig(ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, http.StatusOK, c)
+		// Report which CTI sources are active so the UI can explain a "—" threat-intel column
+		// (mock = nothing configured) instead of leaving the operator guessing.
+		abuse := os.Getenv("ABUSEIPDB_API_KEY") != ""
+		otx := os.Getenv("OTX_API_KEY") != ""
+		if cipher, _, cerr := secret.FromEnv(); cerr == nil {
+			is := integrations.NewStore(st.Pool(), cipher)
+			if rows, e := is.Resolve(ctx, "abuseipdb"); e == nil && len(rows) > 0 && rows[0].Config["api_key"] != "" {
+				abuse = true
+			}
+			if rows, e := is.Resolve(ctx, "otx"); e == nil && len(rows) > 0 && rows[0].Config["api_key"] != "" {
+				otx = true
+			}
+		}
+		geo, _ := strconv.ParseBool(os.Getenv("GEOIP_ENABLED"))
+		sources := []string{}
+		if abuse {
+			sources = append(sources, "abuseipdb")
+		}
+		if otx {
+			sources = append(sources, "otx")
+		}
+		if geo {
+			sources = append(sources, "geoip")
+		}
+		provider := "mock"
+		if len(sources) > 0 {
+			provider = "real"
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"cache_ttl_hours": c.CacheTTLHours,
+			"provider":        provider,
+			"sources":         sources,
+		})
 	}
 }
 

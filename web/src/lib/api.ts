@@ -826,7 +826,9 @@ export async function generateReportSummary(hours = 24): Promise<ReportSummary> 
 }
 
 // ── CTI enrichment (threat-intel cache / dedup window) ─────────
-export type CTIConfig = { cache_ttl_hours: number }
+// provider/sources are reported by GET (computed server-side) so the UI can show whether
+// real threat-intel is active or it's the mock (which renders "—").
+export type CTIConfig = { cache_ttl_hours: number; provider?: string; sources?: string[] }
 export async function fetchCTIConfig(): Promise<CTIConfig> {
   const res = await authFetch('/api/cti-config')
   if (!res.ok) throw new Error(`cti config: HTTP ${res.status}`)

@@ -67,6 +67,17 @@ func (e *Enricher) SetTTL(d time.Duration) {
 	e.mu.Unlock()
 }
 
+// SetProvider swaps the CTI provider at runtime, so adding/removing an AbuseIPDB/OTX
+// integration in the UI takes effect without restarting the worker.
+func (e *Enricher) SetProvider(p Provider) {
+	if p == nil {
+		return
+	}
+	e.mu.Lock()
+	e.provider = p
+	e.mu.Unlock()
+}
+
 func NewEnricher(provider Provider, cache *Cache, ttl time.Duration, rules EscalationRules) *Enricher {
 	if ttl <= 0 {
 		ttl = DefaultTTL
@@ -91,13 +102,13 @@ func (e *Enricher) lookup(ctx context.Context, ip string) (Indicator, error) {
 	if ind, ok, err := e.cache.Get(ctx, ip); err == nil && ok {
 		return ind, nil
 	}
-	ind, err := e.provider.Lookup(ctx, ip)
+	e.mu.RLock()
+	p, ttl := e.provider, e.ttl
+	e.mu.RUnlock()
+	ind, err := p.Lookup(ctx, ip)
 	if err != nil {
 		return Indicator{}, err
 	}
-	e.mu.RLock()
-	ttl := e.ttl
-	e.mu.RUnlock()
 	_ = e.cache.Put(ctx, ip, ind, ttl)
 	return ind, nil
 }

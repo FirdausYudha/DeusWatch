@@ -191,6 +191,10 @@ func main() {
 	// Live-reload the CTI cache TTL (dedup window) from the UI-managed config.
 	go runCTIConfigReload(ctx, st, enricher)
 
+	// Live-reload the CTI provider so adding an AbuseIPDB/OTX integration in the UI takes
+	// effect without restarting the worker.
+	go runCTIProviderReload(ctx, intStore, enricher, geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
+
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
 	log.Println("worker: shutdown")
@@ -245,6 +249,30 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				}
 			}
 			cancel()
+		}
+	}
+}
+
+// runCTIProviderReload re-resolves the AbuseIPDB/OTX keys from the Integrations registry
+// every minute and rebuilds the CTI provider when they change, so a key added in the UI
+// activates real lookups without a worker restart. GeoIP/blocklist stay from env (restart).
+func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enricher *enrich.Enricher, geoOn bool, blURLs []string, abuseKey, otxKey string) {
+	sig := abuseKey + "|" + otxKey
+	t := time.NewTicker(1 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			ak, ox := resolveCTIKeys(ctx, intStore)
+			if ak+"|"+ox == sig {
+				continue
+			}
+			sig = ak + "|" + ox
+			provider, real := enrich.BuildProvider(ak, ox, geoOn, blURLs)
+			enricher.SetProvider(provider)
+			log.Printf("worker: CTI provider reloaded from UI change (real=%v abuseipdb=%v otx=%v)", real, ak != "", ox != "")
 		}
 	}
 }
