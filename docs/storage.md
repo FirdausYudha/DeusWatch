@@ -52,8 +52,10 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d worker 
 Defaults (from migration `000001`): chunks are **1 day**, compressed after **7 days**
 (~90% smaller, still queryable), and **dropped after 30 days**.
 
-To change the **retention window** (how long logs are kept), connect to the DB and re-apply
-the policy. Example - keep 90 days:
+**From the UI (easiest):** **Settings → Log storage lifecycle** — set "keep logs for (days)"
+and "compress after (days)"; the worker applies the new TimescaleDB policies immediately.
+
+To change it from SQL instead, connect to the DB and re-apply the policy. Example - keep 90 days:
 
 ```sql
 SELECT remove_retention_policy('events', if_exists => true);
