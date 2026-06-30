@@ -4,6 +4,7 @@ import {
   fetchOffenders,
   approveResponse,
   dismissResponse,
+  unbanResponse,
   dismissPendingForIP,
   fetchBanPolicy,
   saveBanPolicy,
@@ -24,6 +25,7 @@ const STATUS_BADGE: Record<ResponseStatus, string> = {
   executed: 'text-emerald-300 bg-emerald-500/15',
   dismissed: 'text-slate-400 bg-slate-700/40',
   failed: 'text-rose-300 bg-rose-500/15',
+  unbanned: 'text-slate-300 bg-slate-600/30',
 }
 
 const FILTERS: { label: string; value: string }[] = [
@@ -31,8 +33,12 @@ const FILTERS: { label: string; value: string }[] = [
   { label: 'Recommended', value: 'recommended' },
   { label: 'Executed', value: 'executed' },
   { label: 'Dismissed', value: 'dismissed' },
+  { label: 'Unbanned', value: 'unbanned' },
   { label: 'Failed', value: 'failed' },
 ]
+
+// An active block (executed or approved) can be unbanned.
+const isActiveBlock = (a: ResponseAction) => a.action === 'block' && (a.status === 'executed' || a.status === 'approved')
 
 function banLabel(seconds: number): string {
   if (seconds <= 0) return 'permanent'
@@ -50,6 +56,8 @@ export default function Response({ me }: { me: Me }) {
   const [actions, setActions] = useState<ResponseAction[]>([])
   const [offenders, setOffenders] = useState<Offender[]>([])
   const [filter, setFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
 
@@ -59,7 +67,7 @@ export default function Response({ me }: { me: Me }) {
         .then(setOffenders)
         .catch((e) => setError((e as Error).message))
     } else {
-      fetchResponses(filter)
+      fetchResponses(filter, search)
         .then(setActions)
         .catch((e) => setError((e as Error).message))
     }
@@ -69,7 +77,7 @@ export default function Response({ me }: { me: Me }) {
     const t = setInterval(load, 10_000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, filter])
+  }, [view, filter, search])
 
   // act approves/dismisses a single recommended action (by id), then refreshes.
   const act = async (id: string, ip: string, banSecs: number, kind: 'approve' | 'dismiss') => {
@@ -94,6 +102,55 @@ export default function Response({ me }: { me: Me }) {
     setError('')
     try {
       await dismissPendingForIP(ip)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // unban lifts a single executed/approved block, then refreshes.
+  const unban = async (id: string, ip: string) => {
+    if (!confirm(`Unban ${ip}? This lifts the block on the enforcer.`)) return
+    setBusy(id)
+    setError('')
+    try {
+      await unbanResponse(id)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // selection helpers for bulk actions (events view).
+  const toggleSel = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  const toggleAll = (ids: string[]) =>
+    setSelected((s) => (ids.length > 0 && ids.every((i) => s.has(i)) ? new Set() : new Set(ids)))
+
+  // bulk applies an action to every selected row that is in a valid state for it.
+  const bulk = async (kind: 'approve' | 'dismiss' | 'unban') => {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    if (!confirm(`${kind} ${ids.length} selected action${ids.length === 1 ? '' : 's'}?`)) return
+    setBusy('bulk')
+    setError('')
+    try {
+      for (const id of ids) {
+        const a = actions.find((x) => x.id === id)
+        if (!a) continue
+        if (kind === 'approve' && a.status === 'recommended') await approveResponse(id)
+        else if (kind === 'dismiss' && a.status === 'recommended') await dismissResponse(id)
+        else if (kind === 'unban' && isActiveBlock(a)) await unbanResponse(id)
+      }
+      setSelected(new Set())
       load()
     } catch (e) {
       setError((e as Error).message)
@@ -136,20 +193,40 @@ export default function Response({ me }: { me: Me }) {
       <WhitelistEditor canManage={can(me, 'manage_settings')} />
 
       {view === 'events' && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                filter === f.value
-                  ? 'bg-indigo-500/10 font-medium text-indigo-300'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="mb-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  filter === f.value
+                    ? 'bg-indigo-500/10 font-medium text-indigo-300'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search IP, rule, reason…"
+              className="ml-auto w-64 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 outline-none focus:border-indigo-500"
+            />
+          </div>
+          {canApprove && selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm">
+              <span className="text-slate-400">{selected.size} selected</span>
+              <button onClick={() => bulk('approve')} disabled={busy === 'bulk'}
+                className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50">Approve</button>
+              <button onClick={() => bulk('dismiss')} disabled={busy === 'bulk'}
+                className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">Dismiss</button>
+              <button onClick={() => bulk('unban')} disabled={busy === 'bulk'}
+                className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">Unban</button>
+              <button onClick={() => setSelected(new Set())} className="ml-1 text-xs text-slate-500 hover:text-slate-300">Clear</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -158,7 +235,7 @@ export default function Response({ me }: { me: Me }) {
       {view === 'ip' ? (
         <OffendersTable offenders={offenders} canApprove={canApprove} busy={busy} act={act} dismissAll={dismissAll} />
       ) : (
-        <EventsTable actions={actions} canApprove={canApprove} busy={busy} act={act} />
+        <EventsTable actions={actions} canApprove={canApprove} busy={busy} act={act} unban={unban} selected={selected} toggleSel={toggleSel} toggleAll={toggleAll} />
       )}
 
       {!canApprove && (
@@ -274,17 +351,34 @@ function EventsTable({
   canApprove,
   busy,
   act,
+  unban,
+  selected,
+  toggleSel,
+  toggleAll,
 }: {
   actions: ResponseAction[]
   canApprove: boolean
   busy: string
   act: ActFn
+  unban: (id: string, ip: string) => void
+  selected: Set<string>
+  toggleSel: (id: string) => void
+  toggleAll: (ids: string[]) => void
 }) {
+  // Rows eligible for a bulk action (so "select all" only ticks actionable ones).
+  const selectableIds = actions.filter((a) => a.status === 'recommended' || isActiveBlock(a)).map((a) => a.id)
+  const allChecked = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   return (
     <div className="overflow-hidden rounded-xl border border-slate-800">
       <table className="w-full text-left text-sm">
         <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
           <tr>
+            {canApprove && (
+              <th className="px-3 py-2">
+                <input type="checkbox" checked={allChecked} onChange={() => toggleAll(selectableIds)}
+                  disabled={selectableIds.length === 0} className="h-4 w-4 accent-indigo-500" title="Select all actionable" />
+              </th>
+            )}
             <th className="px-4 py-2 font-medium">Time</th>
             <th className="px-4 py-2 font-medium">Source IP</th>
             <th className="px-4 py-2 font-medium">Reason</th>
@@ -297,49 +391,66 @@ function EventsTable({
         <tbody className="divide-y divide-slate-800 bg-slate-900/40">
           {actions.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                No response actions yet. Alerts with a source IP will produce block recommendations.
+              <td colSpan={canApprove ? 8 : 7} className="px-4 py-8 text-center text-slate-500">
+                No response actions match. Alerts with a source IP produce block recommendations.
               </td>
             </tr>
           )}
-          {actions.map((a) => (
-            <tr key={a.id} className="hover:bg-slate-800/40">
-              <td className="px-4 py-2 text-slate-400">{new Date(a.created_at).toLocaleString('en-US')}</td>
-              <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip}</td>
-              <td className="px-4 py-2 text-slate-300">{a.reason || a.rule_id || '—'}</td>
-              <td className="px-4 py-2 text-slate-400">{banLabel(a.ban_seconds)}</td>
-              <td className="px-4 py-2 text-slate-400">#{a.offense_count}</td>
-              <td className="px-4 py-2">
-                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[a.status]}`}>{a.status}</span>
-                {a.responder && <span className="ml-1 text-xs text-slate-600">{a.responder}</span>}
-                {a.status === 'failed' && a.error && (
-                  <div className="mt-0.5 text-xs text-rose-400" title={a.error}>{a.error.slice(0, 40)}…</div>
+          {actions.map((a) => {
+            const selectable = a.status === 'recommended' || isActiveBlock(a)
+            return (
+              <tr key={a.id} className="hover:bg-slate-800/40">
+                {canApprove && (
+                  <td className="px-3 py-2">
+                    <input type="checkbox" checked={selected.has(a.id)} disabled={!selectable}
+                      onChange={() => toggleSel(a.id)} className="h-4 w-4 accent-indigo-500 disabled:opacity-30" />
+                  </td>
                 )}
-              </td>
-              <td className="px-4 py-2">
-                {a.status === 'recommended' && canApprove ? (
-                  <div className="flex gap-2">
+                <td className="px-4 py-2 text-slate-400">{new Date(a.created_at).toLocaleString('en-US')}</td>
+                <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip}</td>
+                <td className="px-4 py-2 text-slate-300">{a.reason || a.rule_id || '—'}</td>
+                <td className="px-4 py-2 text-slate-400">{banLabel(a.ban_seconds)}</td>
+                <td className="px-4 py-2 text-slate-400">#{a.offense_count}</td>
+                <td className="px-4 py-2">
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[a.status]}`}>{a.status}</span>
+                  {a.responder && <span className="ml-1 text-xs text-slate-600">{a.responder}</span>}
+                  {a.status === 'failed' && a.error && (
+                    <div className="mt-0.5 text-xs text-rose-400" title={a.error}>{a.error.slice(0, 40)}…</div>
+                  )}
+                </td>
+                <td className="px-4 py-2">
+                  {a.status === 'recommended' && canApprove ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => act(a.id, a.source_ip, a.ban_seconds, 'approve')}
+                        disabled={busy === a.id}
+                        className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => act(a.id, a.source_ip, a.ban_seconds, 'dismiss')}
+                        disabled={busy === a.id}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  ) : isActiveBlock(a) && canApprove ? (
                     <button
-                      onClick={() => act(a.id, a.source_ip, a.ban_seconds, 'approve')}
+                      onClick={() => unban(a.id, a.source_ip)}
                       disabled={busy === a.id}
-                      className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+                      className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
                     >
-                      Approve
+                      Unban
                     </button>
-                    <button
-                      onClick={() => act(a.id, a.source_ip, a.ban_seconds, 'dismiss')}
-                      disabled={busy === a.id}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-xs text-slate-600">{a.decided_by ? `by ${a.decided_by}` : '—'}</span>
-                )}
-              </td>
-            </tr>
-          ))}
+                  ) : (
+                    <span className="text-xs text-slate-600">{a.decided_by ? `by ${a.decided_by}` : '—'}</span>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -251,15 +252,24 @@ func (s *Store) SetExecuted(ctx context.Context, id, responder string, execErr e
 }
 
 // List returns the most recent actions; if status != "" only that status.
-func (s *Store) List(ctx context.Context, status string, limit int) ([]Action, error) {
+func (s *Store) List(ctx context.Context, status, search string, limit int) ([]Action, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	q := `SELECT ` + actionCols + ` FROM response_actions`
+	var conds []string
 	args := []any{}
 	if status != "" {
-		q += ` WHERE status = $1`
 		args = append(args, status)
+		conds = append(conds, fmt.Sprintf("status = $%d", len(args)))
+	}
+	if search != "" {
+		args = append(args, "%"+search+"%")
+		n := len(args)
+		conds = append(conds, fmt.Sprintf("(host(source_ip) ILIKE $%d OR rule_id ILIKE $%d OR reason ILIKE $%d)", n, n, n))
+	}
+	q := `SELECT ` + actionCols + ` FROM response_actions`
+	if len(conds) > 0 {
+		q += " WHERE " + strings.Join(conds, " AND ")
 	}
 	q += fmt.Sprintf(` ORDER BY created_at DESC LIMIT %d`, limit)
 

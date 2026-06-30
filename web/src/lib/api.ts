@@ -494,7 +494,7 @@ export async function deleteIntegration(id: string): Promise<void> {
 
 // ── Response engine (block actions, approval workflow) ────
 
-export type ResponseStatus = 'recommended' | 'approved' | 'executed' | 'dismissed' | 'failed'
+export type ResponseStatus = 'recommended' | 'approved' | 'executed' | 'dismissed' | 'failed' | 'unbanned'
 
 export type ResponseAction = {
   id: string
@@ -514,9 +514,12 @@ export type ResponseAction = {
   error: string
 }
 
-export async function fetchResponses(status = ''): Promise<ResponseAction[]> {
-  const q = status ? `?status=${encodeURIComponent(status)}` : ''
-  const res = await authFetch(`/api/responses${q}`)
+export async function fetchResponses(status = '', search = ''): Promise<ResponseAction[]> {
+  const p = new URLSearchParams()
+  if (status) p.set('status', status)
+  if (search) p.set('q', search)
+  const qs = p.toString()
+  const res = await authFetch(`/api/responses${qs ? `?${qs}` : ''}`)
   if (!res.ok) throw new Error(`responses: HTTP ${res.status}`)
   return (await res.json()) ?? []
 }
@@ -594,6 +597,12 @@ export async function approveResponse(id: string): Promise<void> {
 
 export async function dismissResponse(id: string): Promise<void> {
   const res = await authFetch(`/api/responses/${id}/dismiss`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+// unbanResponse lifts an executed/approved block (calls the responder's Unblock).
+export async function unbanResponse(id: string): Promise<void> {
+  const res = await authFetch(`/api/responses/${id}/unban`, { method: 'POST' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 

@@ -154,6 +154,24 @@ func (e *Engine) Dismiss(ctx context.Context, id, by string) error {
 	return e.store.SetStatus(ctx, id, StatusDismissed, by)
 }
 
+// Unban lifts an active block: it calls the responder's Unblock then marks the action
+// unbanned. Only executed/approved block actions can be unbanned.
+func (e *Engine) Unban(ctx context.Context, id, by string) error {
+	a, err := e.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if a.Status != StatusExecuted && a.Status != StatusApproved {
+		return errStatus(a.Status)
+	}
+	if e.responder != nil && a.ActionType == "block" {
+		if err := e.responder.Unblock(ctx, a.SourceIP); err != nil {
+			return err
+		}
+	}
+	return e.store.SetStatus(ctx, id, StatusUnbanned, by)
+}
+
 // execute runs the block via the responder & records the result.
 func (e *Engine) execute(ctx context.Context, a *Action, _ string) error {
 	if e.responder == nil {

@@ -80,7 +80,7 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 
 	// List by status.
-	list, err := s.List(ctx, string(StatusExecuted), 50)
+	list, err := s.List(ctx, string(StatusExecuted), "", 50)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

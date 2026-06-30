@@ -21,6 +21,7 @@ const (
 	StatusExecuted    Status = "executed"
 	StatusDismissed   Status = "dismissed"
 	StatusFailed      Status = "failed"
+	StatusUnbanned    Status = "unbanned" // a previously-executed block that was lifted
 )
 
 // Action is one response recommendation/action.

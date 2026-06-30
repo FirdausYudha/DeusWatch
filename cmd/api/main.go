@@ -184,6 +184,7 @@ func main() {
 		mux.Handle("POST /api/responses/dismiss-ip", protect(auth.PermApproveRemediation, dismissIPHandler(respStore)))
 		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
+		mux.Handle("POST /api/responses/{id}/unban", protect(auth.PermApproveRemediation, unbanResponseHandler(respEngine)))
 
 		// Progressive-ban policy (escalation ladder). View for anyone with the dashboard;
 		// edit requires manage_settings. The worker live-reloads it.
@@ -1109,7 +1110,7 @@ func whitelistDeleteHandler(s *respond.Store) http.HandlerFunc {
 
 func responsesHandler(s *respond.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		list, err := s.List(r.Context(), r.URL.Query().Get("status"), queryLimit(r, 100, 500))
+		list, err := s.List(r.Context(), r.URL.Query().Get("status"), r.URL.Query().Get("q"), queryLimit(r, 100, 500))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1161,6 +1162,17 @@ func approveResponseHandler(e *respond.Engine) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "approved", "id": id})
+	}
+}
+
+func unbanResponseHandler(e *respond.Engine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := e.Unban(r.Context(), id, currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "unbanned", "id": id})
 	}
 }
 
