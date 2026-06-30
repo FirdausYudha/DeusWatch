@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"deuswatch/internal/agentinstall"
@@ -35,6 +36,12 @@ import (
 )
 
 const version = "0.1.0-foundation"
+
+// buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
+// built without it. Used by the update-check endpoint to compare against GitHub.
+var buildVersion = "dev"
+
+const githubRepo = "FirdausYudha/DeusWatch"
 
 func main() {
 	addr := getenv("HTTP_ADDR", ":8080")
@@ -157,6 +164,9 @@ func main() {
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
+
+		// Software update check (read-only; never executes an update).
+		mux.Handle("GET /api/update-check", protect(auth.PermViewDashboard, updateCheckHandler()))
 
 		// CTI enrichment: dedup cache TTL (UI-managed).
 		mux.Handle("GET /api/cti-config", protect(auth.PermViewDashboard, ctiConfigGetHandler(st)))
@@ -672,6 +682,61 @@ func storageRetentionHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, st.StorageStatus(r.Context(), storageBudgetBytes()))
+	}
+}
+
+// updateCheckHandler compares the running build against the latest commit on GitHub's main
+// branch (read-only). It never executes an update — that stays a host operation
+// (./scripts/update.sh) so the web container needs no Docker/host access.
+func updateCheckHandler() http.HandlerFunc {
+	type result struct {
+		Current         string `json:"current"`
+		Latest          string `json:"latest"`
+		LatestDate      string `json:"latest_date"`
+		UpdateAvailable bool   `json:"update_available"`
+		RepoURL         string `json:"repo_url"`
+		UpdateCommand   string `json:"update_command"`
+	}
+	hc := &http.Client{Timeout: 8 * time.Second}
+	return func(w http.ResponseWriter, r *http.Request) {
+		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet,
+			"https://api.github.com/repos/"+githubRepo+"/commits/main", nil)
+		req.Header.Set("Accept", "application/vnd.github+json")
+		resp, err := hc.Do(req)
+		if err != nil {
+			http.Error(w, "could not reach GitHub: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			http.Error(w, fmt.Sprintf("GitHub returned HTTP %d", resp.StatusCode), http.StatusBadGateway)
+			return
+		}
+		var gh struct {
+			SHA    string `json:"sha"`
+			Commit struct {
+				Committer struct {
+					Date string `json:"date"`
+				} `json:"committer"`
+			} `json:"commit"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&gh); err != nil {
+			http.Error(w, "bad response from GitHub", http.StatusBadGateway)
+			return
+		}
+		latest := gh.SHA
+		if len(latest) > 7 {
+			latest = latest[:7]
+		}
+		cur := buildVersion
+		// Update available when we know our commit and it isn't the latest.
+		available := cur != "dev" && cur != "" && latest != "" && !strings.HasPrefix(gh.SHA, cur)
+		writeJSON(w, http.StatusOK, result{
+			Current: cur, Latest: latest, LatestDate: gh.Commit.Committer.Date,
+			UpdateAvailable: available,
+			RepoURL:         "https://github.com/" + githubRepo,
+			UpdateCommand:   "./scripts/update.sh",
+		})
 	}
 }
 

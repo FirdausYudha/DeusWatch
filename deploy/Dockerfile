@@ -14,8 +14,10 @@ RUN go mod download
 
 COPY . .
 ARG CMD=api
+# VERSION (short git commit) is baked in so the app can report its build + check for updates.
+ARG VERSION=dev
 # Static binary (CGO off) so it can run on the distroless static image.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/${CMD}
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" -o /out/app ./cmd/${CMD}
 
 # When building the api, also cross-compile the agent binaries it serves to endpoints
 # via the one-line installer (GET /api/agent/binary/{os}/{arch}). /agents stays empty

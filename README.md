@@ -170,6 +170,17 @@ git pull --ff-only
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
+**Check for updates** from the UI: **Settings → Software updates → Check for update** compares
+your running build against the latest commit on GitHub (read-only). The update itself runs on
+the host with `./scripts/update.sh` — the web app never controls Docker, by design.
+
+**Auto-update (optional)** with a host cron (runs at the host level, not from the container):
+
+```bash
+# daily at 04:00 — pull + rebuild if there's anything new
+0 4 * * *  cd /path/to/DeusWatch && ./scripts/update.sh >> /var/log/deuswatch-update.log 2>&1
+```
+
 ## Deploying agents
 
 In the UI go to **Agents → + Add agent**, pick the OS (Linux / Windows), set **Manager host** to

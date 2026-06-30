@@ -63,6 +63,7 @@ services:
       dockerfile: deploy/Dockerfile
       args:
         CMD: api
+        VERSION: "${DEUSWATCH_VERSION:-dev}"
     # Root so it can read the root-owned 0600 CA key (ca.key) for agent enrollment.
     user: "0:0"
     environment:

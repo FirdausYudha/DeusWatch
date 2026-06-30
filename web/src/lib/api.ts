@@ -834,6 +834,21 @@ export async function generateReportSummary(hours = 24): Promise<ReportSummary> 
   return res.json()
 }
 
+// ── Software update check (read-only; update runs on the host) ─
+export type UpdateInfo = {
+  current: string
+  latest: string
+  latest_date: string
+  update_available: boolean
+  repo_url: string
+  update_command: string
+}
+export async function fetchUpdateCheck(): Promise<UpdateInfo> {
+  const res = await authFetch('/api/update-check')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // ── CTI enrichment (threat-intel cache / dedup window) ─────────
 // provider/sources are reported by GET (computed server-side) so the UI can show whether
 // real threat-intel is active or it's the mock (which renders "—").

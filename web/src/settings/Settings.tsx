@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchCTIConfig, saveCTIConfig, type NotifyConfig, type StorageStatus, type CTIConfig } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchCTIConfig, saveCTIConfig, fetchUpdateCheck, type NotifyConfig, type StorageStatus, type CTIConfig, type UpdateInfo } from '../lib/api'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -116,6 +116,21 @@ export default function Settings() {
       setCtiErr((err as Error).message)
     } finally {
       setCtiBusy(false)
+    }
+  }
+
+  // Software update check (read-only).
+  const [upd, setUpd] = useState<UpdateInfo | null>(null)
+  const [updBusy, setUpdBusy] = useState(false)
+  const [updErr, setUpdErr] = useState('')
+  const checkUpdate = async () => {
+    setUpdBusy(true); setUpdErr('')
+    try {
+      setUpd(await fetchUpdateCheck())
+    } catch (e) {
+      setUpdErr((e as Error).message)
+    } finally {
+      setUpdBusy(false)
     }
   }
 
@@ -357,6 +372,33 @@ export default function Settings() {
         </form>
         {ctiErr && <p className="mt-3 text-sm text-rose-400">{ctiErr}</p>}
         {ctiMsg && <p className="mt-3 text-sm text-emerald-400">{ctiMsg}</p>}
+      </section>
+
+      <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <h2 className="text-sm font-medium text-slate-200">Software updates</h2>
+        <p className="mb-4 mt-1 text-sm text-slate-500">
+          Check whether a newer DeusWatch build is available on GitHub. Updates run on the host
+          with <code className="rounded bg-slate-800 px-1 py-0.5 text-xs">./scripts/update.sh</code> —
+          the web app never controls Docker, which keeps the attack surface small.
+        </p>
+        <button onClick={checkUpdate} disabled={updBusy}
+          className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50">
+          {updBusy ? 'Checking…' : 'Check for update'}
+        </button>
+        {updErr && <p className="mt-3 text-sm text-rose-400">{updErr}</p>}
+        {upd && (upd.update_available ? (
+          <div className="mt-3 text-sm text-amber-300">
+            Update available — running <span className="font-mono">{upd.current}</span>, latest <span className="font-mono">{upd.latest}</span>
+            {upd.latest_date && <span className="text-slate-500"> ({new Date(upd.latest_date).toLocaleString('en-US')})</span>}.
+            <div className="mt-1 text-slate-400">On the host run: <code className="rounded bg-slate-800 px-1 py-0.5 text-xs">{upd.update_command}</code></div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-emerald-400">
+            {upd.current === 'dev'
+              ? `Latest on GitHub: ${upd.latest}. (This build has no version stamp — deploy via ./scripts/update.sh to enable comparison.)`
+              : `Up to date (${upd.current}).`}
+          </p>
+        ))}
       </section>
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
