@@ -160,9 +160,11 @@ func (s *Store) SearchEvents(ctx context.Context, f EventFilter) ([]EventRow, er
 	if f.Text != "" {
 		args = append(args, "%"+f.Text+"%")
 		n := len(args)
+		// General search bar: also match the source IP + rule id/technique so users can
+		// search by IP (alerts have no raw event_original text to fall back on) or rule.
 		conds = append(conds, fmt.Sprintf(
-			"(event_original ILIKE $%d OR rule_name ILIKE $%d OR host_name ILIKE $%d OR user_name ILIKE $%d OR file_path ILIKE $%d OR dw_label ILIKE $%d)",
-			n, n, n, n, n, n))
+			"(host(source_ip) ILIKE $%d OR event_original ILIKE $%d OR rule_name ILIKE $%d OR rule_id ILIKE $%d OR host_name ILIKE $%d OR user_name ILIKE $%d OR file_path ILIKE $%d OR dw_label ILIKE $%d OR threat_technique_id ILIKE $%d)",
+			n, n, n, n, n, n, n, n, n))
 	}
 	if f.SourceIP != "" {
 		args = append(args, "%"+f.SourceIP+"%")
