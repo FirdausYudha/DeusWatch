@@ -135,6 +135,10 @@ services:
       dockerfile: deploy/Dockerfile
       args:
         CMD: worker
+    # Reach services on the host (e.g. a local Ollama on :11434) via host.docker.internal,
+    # which otherwise does not resolve inside a Linux container.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NATS_URL: "nats://nats:4222"
       STORE_DSN: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
