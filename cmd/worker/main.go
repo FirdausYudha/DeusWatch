@@ -372,11 +372,12 @@ func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify
 			}
 			body := report.RenderMarkdown(rep)
 			if analyzer != nil {
-				if s, serr := analyzer.Summarize(rc, report.SummaryPrompt(rep)); serr == nil && s != "" {
+				acfg, _ := st.LoadReportAIConfig(rc) // custom prompt template ("" = default)
+				if s, serr := analyzer.Summarize(rc, acfg.SummaryPrompt, report.SummaryPrompt(rep)); serr == nil && s != "" {
 					body = "AI summary:\n" + s + "\n\n" + body
 				}
 			}
-			err = dispatcher.SendText(rc, fmt.Sprintf("DeusWatch report — last %dh", cfg.ReportPeriodHours), body)
+			err = dispatcher.SendText(rc, fmt.Sprintf("DeusWatch report - last %dh", cfg.ReportPeriodHours), body)
 			cancel()
 			if err != nil {
 				log.Printf("worker: scheduled report delivery failed: %v", err)
@@ -414,7 +415,7 @@ func runReportScheduler(ctx context.Context, st *store.Store, analyzer llm.Analy
 				cancel()
 				continue
 			}
-			summary, err := analyzer.Summarize(rc, report.SummaryPrompt(rep))
+			summary, err := analyzer.Summarize(rc, cfg.SummaryPrompt, report.SummaryPrompt(rep))
 			cancel()
 			if err != nil {
 				log.Printf("worker: scheduled report summary failed: %v", err)

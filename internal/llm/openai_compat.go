@@ -108,8 +108,11 @@ func (o *OpenAICompatAnalyzer) Analyze(ctx context.Context, in AlertInput) (Resu
 }
 
 // Summarize generates an executive report summary from the report data prompt.
-func (o *OpenAICompatAnalyzer) Summarize(ctx context.Context, prompt string) (string, error) {
-	text, err := o.chat(ctx, reportSystemPrompt, prompt, 700)
+func (o *OpenAICompatAnalyzer) Summarize(ctx context.Context, systemPrompt, dataPrompt string) (string, error) {
+	if systemPrompt == "" {
+		systemPrompt = DefaultReportSystemPrompt
+	}
+	text, err := o.chat(ctx, systemPrompt, dataPrompt, 700)
 	if err != nil {
 		return "", err
 	}

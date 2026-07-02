@@ -598,7 +598,8 @@ func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 		defer cancel()
-		summary, err := analyzer.Summarize(ctx, report.SummaryPrompt(rep))
+		cfg, _ := st.LoadReportAIConfig(r.Context()) // custom prompt template ("" = default)
+		summary, err := analyzer.Summarize(ctx, cfg.SummaryPrompt, report.SummaryPrompt(rep))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
@@ -617,7 +618,13 @@ func reportAIConfigGetHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, http.StatusOK, c)
+		// Return the built-in default too so the UI can show it / offer "reset to default".
+		writeJSON(w, http.StatusOK, map[string]any{
+			"interval_hours": c.IntervalHours,
+			"period_hours":   c.PeriodHours,
+			"summary_prompt": c.SummaryPrompt,
+			"default_prompt": llm.DefaultReportSystemPrompt,
+		})
 	}
 }
 

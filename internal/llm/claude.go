@@ -30,12 +30,15 @@ func NewClaudeAnalyzer(apiKey, model string, opts ...option.RequestOption) *Clau
 func (c *ClaudeAnalyzer) Name() string { return "claude(" + string(c.model) + ")" }
 
 // Summarize generates an executive report summary from the report data prompt.
-func (c *ClaudeAnalyzer) Summarize(ctx context.Context, prompt string) (string, error) {
+func (c *ClaudeAnalyzer) Summarize(ctx context.Context, systemPrompt, dataPrompt string) (string, error) {
+	if systemPrompt == "" {
+		systemPrompt = DefaultReportSystemPrompt
+	}
 	resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     c.model,
 		MaxTokens: 700,
-		System:    []anthropic.TextBlockParam{{Text: reportSystemPrompt}},
-		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(prompt))},
+		System:    []anthropic.TextBlockParam{{Text: systemPrompt}},
+		Messages:  []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(dataPrompt))},
 	})
 	if err != nil {
 		return "", fmt.Errorf("llm: call Claude: %w", err)

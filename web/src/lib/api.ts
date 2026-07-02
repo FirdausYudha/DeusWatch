@@ -911,7 +911,12 @@ export async function importConfig(json: string): Promise<Record<string, number>
 }
 
 // Schedule for auto-generating the AI summary (interval_hours: 0 = disabled).
-export type ReportAIConfig = { interval_hours: number; period_hours: number }
+export type ReportAIConfig = {
+  interval_hours: number
+  period_hours: number
+  summary_prompt?: string // custom system prompt ("" = use the built-in default)
+  default_prompt?: string // the built-in default (returned by GET, for display/reset)
+}
 
 export async function fetchReportAIConfig(): Promise<ReportAIConfig> {
   const res = await authFetch('/api/report/ai-config')

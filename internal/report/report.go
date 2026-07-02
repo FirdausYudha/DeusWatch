@@ -71,7 +71,7 @@ func promptLine(b *strings.Builder, title string, rows []Count) {
 		}
 		parts = append(parts, fmt.Sprintf("%s: %d", label, c.Count))
 	}
-	fmt.Fprintf(b, "%s — %s.\n", title, strings.Join(parts, ", "))
+	fmt.Fprintf(b, "%s - %s.\n", title, strings.Join(parts, ", "))
 }
 
 func section(b *strings.Builder, title string, rows []Count) {

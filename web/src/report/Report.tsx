@@ -88,10 +88,29 @@ export default function Report() {
   const [delivDays, setDelivDays] = useState('')
   const [delivMsg, setDelivMsg] = useState('')
 
+  // Custom AI prompt template editor.
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [promptText, setPromptText] = useState('')
+  const [promptMsg, setPromptMsg] = useState('')
+  const [promptBusy, setPromptBusy] = useState(false)
+  const savePrompt = async (text: string) => {
+    setPromptMsg(''); setPromptBusy(true)
+    try {
+      const c = await saveReportAIConfig({ interval_hours: cfg.interval_hours, period_hours: cfg.period_hours || 24, summary_prompt: text })
+      setCfg((prev) => ({ ...c, default_prompt: prev.default_prompt }))
+      setPromptText(text)
+      setPromptMsg(text ? 'Custom prompt saved.' : 'Reset to the default prompt.')
+    } catch (e) {
+      setPromptMsg((e as Error).message)
+    } finally {
+      setPromptBusy(false)
+    }
+  }
+
   // Load the latest stored AI summary + the schedule once.
   useEffect(() => {
     fetchReportSummary().then(setSummary).catch(() => {})
-    fetchReportAIConfig().then(setCfg).catch(() => {})
+    fetchReportAIConfig().then((c) => { setCfg(c); setPromptText(c.summary_prompt ?? '') }).catch(() => {})
     fetchNotifyConfig().then(setDelivery).catch(() => {})
   }, [])
 
@@ -123,7 +142,7 @@ export default function Report() {
   const isCustom = cfg.interval_hours > 0 && !SCHEDULE_PRESETS.some((p) => p.hours === cfg.interval_hours)
   const saveSchedule = async (hours: number) => {
     try {
-      setCfg(await saveReportAIConfig({ interval_hours: Math.max(0, hours), period_hours: cfg.period_hours || 24 }))
+      setCfg(await saveReportAIConfig({ interval_hours: Math.max(0, hours), period_hours: cfg.period_hours || 24, summary_prompt: cfg.summary_prompt ?? '' }))
       setGenError('')
     } catch (e) {
       setGenError((e as Error).message)
@@ -252,6 +271,44 @@ export default function Report() {
             </button>
           </div>
         </div>
+
+        {/* Custom AI prompt template */}
+        <div className="no-print mb-3">
+          <button onClick={() => setPromptOpen(!promptOpen)} className="text-xs text-slate-500 hover:text-slate-300">
+            {promptOpen ? '▾' : '▸'} Prompt template {cfg.summary_prompt ? '(custom)' : '(default)'}
+          </button>
+          {promptOpen && (
+            <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+              <p className="mb-2 text-xs text-slate-500">
+                The instruction sent to the model; the report data is appended automatically. Leave empty to use the built-in default.
+              </p>
+              <textarea
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                placeholder={cfg.default_prompt || 'Default prompt…'}
+                rows={5}
+                className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs leading-relaxed text-slate-200 outline-none focus:border-indigo-500"
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button onClick={() => savePrompt(promptText)} disabled={promptBusy}
+                  className="rounded-md border border-indigo-500/40 px-2.5 py-1 text-xs text-indigo-300 hover:bg-indigo-500/10 disabled:opacity-50">
+                  {promptBusy ? 'Saving…' : 'Save prompt'}
+                </button>
+                <button onClick={() => savePrompt('')} disabled={promptBusy || !cfg.summary_prompt}
+                  className="rounded-md border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">
+                  Reset to default
+                </button>
+                {cfg.default_prompt && (
+                  <button onClick={() => setPromptText(cfg.default_prompt || '')} className="text-xs text-slate-500 hover:text-slate-300">
+                    Load default text
+                  </button>
+                )}
+                {promptMsg && <span className="text-xs text-slate-500">{promptMsg}</span>}
+              </div>
+            </div>
+          )}
+        </div>
+
         {summary?.summary ? (
           <>
             <p className="whitespace-pre-line text-sm leading-relaxed text-slate-200">{summary.summary}</p>

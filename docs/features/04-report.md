@@ -19,6 +19,8 @@ A security summary over a time window, an optional **AI executive summary**, and
 - **AI executive summary** box:
   - **Generate now** - needs an LLM integration (e.g. free local Ollama).
   - **Schedule** dropdown - `off / 24h / 3d / 7d / Custom` for auto-generation.
+  - **Prompt template** - edit the instruction sent to the model (the report data is appended
+    automatically); leave empty / "Reset to default" to use the built-in SOC-analyst prompt.
 - **Scheduled delivery** - `off / 24h / 3d / 7d / Custom` to email/Telegram the report.
 - **PDF** (print), **Markdown** (download), **Webhook** (POST JSON to the export webhook).
 

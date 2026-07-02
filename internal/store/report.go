@@ -143,16 +143,17 @@ func (s *Store) SaveCTIConfig(ctx context.Context, c CTIConfig) error {
 
 // ReportAIConfig is the schedule for auto-generating the AI report summary.
 type ReportAIConfig struct {
-	IntervalHours int `json:"interval_hours"` // 0 = disabled
-	PeriodHours   int `json:"period_hours"`   // window each summary covers
+	IntervalHours int    `json:"interval_hours"` // 0 = disabled
+	PeriodHours   int    `json:"period_hours"`   // window each summary covers
+	SummaryPrompt string `json:"summary_prompt"` // custom system prompt ("" = built-in default)
 }
 
 // LoadReportAIConfig reads the schedule (defaults: disabled, 24h window).
 func (s *Store) LoadReportAIConfig(ctx context.Context) (ReportAIConfig, error) {
 	c := ReportAIConfig{IntervalHours: 0, PeriodHours: 24}
 	err := s.pool.QueryRow(ctx,
-		`SELECT interval_hours, period_hours FROM report_ai_config WHERE id = 1`).
-		Scan(&c.IntervalHours, &c.PeriodHours)
+		`SELECT interval_hours, period_hours, COALESCE(summary_prompt,'') FROM report_ai_config WHERE id = 1`).
+		Scan(&c.IntervalHours, &c.PeriodHours, &c.SummaryPrompt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, nil
 	}
@@ -170,10 +171,13 @@ func (s *Store) SaveReportAIConfig(ctx context.Context, c ReportAIConfig) error 
 	if c.IntervalHours < 0 {
 		c.IntervalHours = 0
 	}
+	if len(c.SummaryPrompt) > 8000 {
+		c.SummaryPrompt = c.SummaryPrompt[:8000]
+	}
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO report_ai_config (id, interval_hours, period_hours) VALUES (1,$1,$2)
-		 ON CONFLICT (id) DO UPDATE SET interval_hours=$1, period_hours=$2, updated_at=now()`,
-		c.IntervalHours, c.PeriodHours)
+		`INSERT INTO report_ai_config (id, interval_hours, period_hours, summary_prompt) VALUES (1,$1,$2,$3)
+		 ON CONFLICT (id) DO UPDATE SET interval_hours=$1, period_hours=$2, summary_prompt=$3, updated_at=now()`,
+		c.IntervalHours, c.PeriodHours, c.SummaryPrompt)
 	if err != nil {
 		return fmt.Errorf("store: save report ai config: %w", err)
 	}
