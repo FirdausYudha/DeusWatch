@@ -22,6 +22,8 @@ only their *config* lives in the DB, encrypted at rest.
 - **Integrations** menu → pick a type from the catalog → fill fields (e.g. AbuseIPDB
   `api_key`) → **Enable**.
 - Threat Intel status is shown in **Settings → Threat-intel (CTI) caching** (real vs mock).
+- **LLM (Ollama / OpenAI-compatible)**: step-by-step connect + troubleshooting (DNS, nginx 504,
+  slow model) is in [docs/llm-ollama.md](../llm-ollama.md).
 
 ## Endpoints & source
 

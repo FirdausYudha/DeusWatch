@@ -244,6 +244,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 | [DeusWatch.md](DeusWatch.md) | Full architecture & design reference |
 | [docs/features/](docs/features/) | **Per-menu modules** - how each feature works, how to use it, ports, tech, variables |
 | [docs/notifications.md](docs/notifications.md) | Connect Telegram / email + scheduled report delivery |
+| [docs/llm-ollama.md](docs/llm-ollama.md) | Connect a local LLM (Ollama) for AI report summaries + troubleshooting |
 | [docs/storage.md](docs/storage.md) | Log storage: retention/lifecycle, remote DB (Server B), replication, near-full alerts |
 | [SECURITY.md](SECURITY.md) | Threat model & responsible-disclosure policy |
 | [LICENSE](LICENSE) | AGPL-3.0 |

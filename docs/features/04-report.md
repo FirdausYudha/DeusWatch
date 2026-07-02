@@ -44,7 +44,9 @@ Frontend: [`web/src/report/`](../../web/src/report/). Backend:
 ## Variables
 
 - **LLM** (for the AI summary): configured in [Integrations](07-integrations.md) (provider,
-  base URL, model, key) - or env `ANTHROPIC_API_KEY` / `LLM_ENABLED`.
+  base URL, model, key) - or env `ANTHROPIC_API_KEY` / `LLM_ENABLED`. To connect a free local
+  Ollama and troubleshoot (DNS, nginx 504, slow model), see
+  [docs/llm-ollama.md](../llm-ollama.md).
 - **Delivery channels**: `TELEGRAM_*` / `SMTP_*` in `deploy/.env` (see
   [notifications](../notifications.md)).
 - **Schedules** (AI + delivery): set live in the UI (stored in `report_ai_config` /
