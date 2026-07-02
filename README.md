@@ -38,7 +38,7 @@ experience that no single vendor packages together.
 
 - **Ingest** - lightweight Go agents ship logs over mTLS (Linux/Windows); a gateway normalizes them into a common event schema on NATS JetStream.
 - **Detect** - [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP; **port scan** = many firewall drops from one IP; Windows logon brute force). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete - built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
-- **Enrich** - source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; **country resolved from AbuseIPDB → OTX → GeoIP** and severity escalates automatically on high-confidence threats. Lookups are cached with a **UI-configurable dedup window** so an IP isn't re-queried (sparing API quota); no key configured shows an honest "—", never fabricated data. Optional **LLM analysis** (provider-agnostic: Claude, Ollama, or any OpenAI-compatible endpoint) powers AI report summaries (on-demand + scheduled), with opt-in per-alert triage.
+- **Enrich** - source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; **country resolved from AbuseIPDB → OTX → GeoIP** and severity escalates automatically on high-confidence threats. Lookups are cached with a **UI-configurable dedup window** so an IP isn't re-queried (sparing API quota); no key configured shows an honest "-", never fabricated data. Optional **LLM analysis** (provider-agnostic: Claude, Ollama, or any OpenAI-compatible endpoint) powers AI report summaries (on-demand + scheduled), with opt-in per-alert triage.
 - **Respond (SOAR)** - a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), a **per-IP response view**, **free-text search**, **bulk select/approve/dismiss**, and **unban** to lift an active block on the enforcer. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
 - **Visualize** - a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, a **log-storage health panel** (DB size/budget, retention lifecycle, replication status), plus automated reports.
 - **Operate** - RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook with a UI-configurable severity threshold + scheduled report delivery), JSON **webhook export** to external tools, **config profile import/export** to clone one server's setup onto another, an in-app **update check**, and full **i18n**.
@@ -172,12 +172,12 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 **Check for updates** from the UI: **Settings → Software updates → Check for update** compares
 your running build against the latest commit on GitHub (read-only). The update itself runs on
-the host with `./scripts/update.sh` — the web app never controls Docker, by design.
+the host with `./scripts/update.sh` - the web app never controls Docker, by design.
 
 **Auto-update (optional)** with a host cron (runs at the host level, not from the container):
 
 ```bash
-# daily at 04:00 — pull + rebuild if there's anything new
+# daily at 04:00 - pull + rebuild if there's anything new
 0 4 * * *  cd /path/to/DeusWatch && ./scripts/update.sh >> /var/log/deuswatch-update.log 2>&1
 ```
 
@@ -242,7 +242,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 | Doc | Purpose |
 |---|---|
 | [DeusWatch.md](DeusWatch.md) | Full architecture & design reference |
-| [docs/features/](docs/features/) | **Per-menu modules** — how each feature works, how to use it, ports, tech, variables |
+| [docs/features/](docs/features/) | **Per-menu modules** - how each feature works, how to use it, ports, tech, variables |
 | [docs/notifications.md](docs/notifications.md) | Connect Telegram / email + scheduled report delivery |
 | [docs/storage.md](docs/storage.md) | Log storage: retention/lifecycle, remote DB (Server B), replication, near-full alerts |
 | [SECURITY.md](SECURITY.md) | Threat model & responsible-disclosure policy |

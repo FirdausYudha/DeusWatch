@@ -8,7 +8,7 @@ lifecycle and comments.
 - Tickets are rows in the `tickets` table (with `ticket_comments`). No external tracker.
 - A ticket has: title, description, severity, status (`open → in_progress → resolved → closed`),
   assignee, linked source IP / rule id, and timestamps.
-- From an alert on the Dashboard you can **Create ticket** — it pre-fills the form.
+- From an alert on the Dashboard you can **Create ticket** - it pre-fills the form.
 
 ## How to use
 

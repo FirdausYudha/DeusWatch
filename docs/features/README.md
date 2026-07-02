@@ -1,4 +1,4 @@
-# DeusWatch — Feature modules
+# DeusWatch - Feature modules
 
 Per-menu documentation. Each module explains **how it works**, **how to use it**, **which
 ports it uses**, **what language/tech it's built with**, and **how to change its variables**.
@@ -31,7 +31,7 @@ Agent ──mTLS──> Gateway (Go) ──> NATS JetStream ──> Worker (Go) 
   single source of truth; it reads/writes PostgreSQL and (for a few endpoints) reaches
   external services (GitHub, AbuseIPDB, …).
 - **Agents** are the only component that uses the **Gateway** (mTLS), not the API, for
-  shipping logs — see the [Agents](05-agents.md) module.
+  shipping logs - see the [Agents](05-agents.md) module.
 
 ## Languages / tech
 
@@ -43,13 +43,13 @@ Agent ──mTLS──> Gateway (Go) ──> NATS JetStream ──> Worker (Go) 
 | Message bus | **NATS JetStream** |
 | Packaging | **Docker Compose** (each service = one container) |
 
-There is **no Python runtime** — connectors are compiled Go drivers (see
+There is **no Python runtime** - connectors are compiled Go drivers (see
 [Integrations](07-integrations.md)).
 
 ## Ports
 
 Host-published ports (defaults; override in `deploy/.env`). Containers always listen on their
-internal port — you only remap the host side.
+internal port - you only remap the host side.
 
 | Service | Internal | Host default | Env var to change | Used by |
 |---|---|---|---|---|
@@ -61,13 +61,13 @@ internal port — you only remap the host side.
 
 ## How to change variables (two places)
 
-1. **Server env — `deploy/.env`** (secrets & infrastructure): ports, DB password,
+1. **Server env - `deploy/.env`** (secrets & infrastructure): ports, DB password,
    `SECRETS_KEY`, CTI/SMTP/Telegram credentials, `MANAGER_IP`, etc. Apply with:
    ```bash
    docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
    ```
    Full list + comments: [`deploy/.env.example`](../../deploy/.env.example).
-2. **UI / database** (behaviour, live — no restart): detection rules, ban policy, whitelist,
+2. **UI / database** (behaviour, live - no restart): detection rules, ban policy, whitelist,
    alert threshold, report schedule, storage retention, CTI cache TTL, integrations. These are
    stored in the DB and edited from the relevant menu.
 

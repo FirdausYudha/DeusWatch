@@ -6,10 +6,10 @@ A security summary over a time window, an optional **AI executive summary**, and
 ## How it works
 
 - `GET /api/report?hours=N` builds the summary (totals, severity, top IPs/rules, MITRE, LLM
-  verdicts) from the `events` hypertable — same data as the dashboard, presented for reading.
+  verdicts) from the `events` hypertable - same data as the dashboard, presented for reading.
 - **AI executive summary**: an LLM turns the report into a short narrative. Generated
   **on-demand** (button) or on a **schedule** by the worker; stored in `report_summaries`.
-  Cost-controlled — the LLM runs on reports, not per alert.
+  Cost-controlled - the LLM runs on reports, not per alert.
 - **Scheduled delivery** (separate from the AI schedule) sends the report text to
   Telegram/email on a cadence.
 
@@ -17,9 +17,9 @@ A security summary over a time window, an optional **AI executive summary**, and
 
 - **Report** menu → pick a window (`24h / 7d / 30d`).
 - **AI executive summary** box:
-  - **Generate now** — needs an LLM integration (e.g. free local Ollama).
-  - **Schedule** dropdown — `off / 24h / 3d / 7d / Custom` for auto-generation.
-- **Scheduled delivery** — `off / 24h / 3d / 7d / Custom` to email/Telegram the report.
+  - **Generate now** - needs an LLM integration (e.g. free local Ollama).
+  - **Schedule** dropdown - `off / 24h / 3d / 7d / Custom` for auto-generation.
+- **Scheduled delivery** - `off / 24h / 3d / 7d / Custom` to email/Telegram the report.
 - **PDF** (print), **Markdown** (download), **Webhook** (POST JSON to the export webhook).
 
 ## Endpoints & source
@@ -44,7 +44,7 @@ Frontend: [`web/src/report/`](../../web/src/report/). Backend:
 ## Variables
 
 - **LLM** (for the AI summary): configured in [Integrations](07-integrations.md) (provider,
-  base URL, model, key) — or env `ANTHROPIC_API_KEY` / `LLM_ENABLED`.
+  base URL, model, key) - or env `ANTHROPIC_API_KEY` / `LLM_ENABLED`.
 - **Delivery channels**: `TELEGRAM_*` / `SMTP_*` in `deploy/.env` (see
   [notifications](../notifications.md)).
 - **Schedules** (AI + delivery): set live in the UI (stored in `report_ai_config` /

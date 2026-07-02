@@ -18,14 +18,14 @@ bans on real devices via the **progressive-ban** engine.
 
 Two views (toggle top-right):
 
-- **By IP** — per-offender rollup; approve/dismiss, or bulk-dismiss all pending for one IP.
-- **Events** — every action as a row:
-  - **Search bar** — free-text over IP / rule / reason.
-  - **Checkboxes + select-all** — pick many rows, then **Approve / Dismiss / Unban selected**.
+- **By IP** - per-offender rollup; approve/dismiss, or bulk-dismiss all pending for one IP.
+- **Events** - every action as a row:
+  - **Search bar** - free-text over IP / rule / reason.
+  - **Checkboxes + select-all** - pick many rows, then **Approve / Dismiss / Unban selected**.
   - Per-row **Approve/Dismiss** (recommended) or **Unban** (executed/approved block).
   - Status filter: All / Recommended / Executed / Dismissed / Unbanned / Failed.
-- **Ban policy editor** — edit the ladder, permanent cap, observation window, auto-approve.
-- **IP whitelist** — CIDRs that are never banned.
+- **Ban policy editor** - edit the ladder, permanent cap, observation window, auto-approve.
+- **IP whitelist** - CIDRs that are never banned.
 
 ## Endpoints & source
 
@@ -51,9 +51,9 @@ Frontend: [`web/src/response/`](../../web/src/response/). Engine:
 ## Variables
 
 In `deploy/.env` (worker):
-- `RESPONDER` — `dryrun` (default, log only), or a real driver via Integrations.
-- `RESPONSE_LIVE=1` — actually enforce (otherwise dry-run).
-- `RESPONSE_AUTO_APPROVE=1` — skip manual approval.
+- `RESPONDER` - `dryrun` (default, log only), or a real driver via Integrations.
+- `RESPONSE_LIVE=1` - actually enforce (otherwise dry-run).
+- `RESPONSE_AUTO_APPROVE=1` - skip manual approval.
 
 Live in the **UI** (no restart): the ban ladder, permanent cap, observation window,
 auto-approve toggle, and the IP whitelist. Enforcement targets (MikroTik/CrowdSec creds) are

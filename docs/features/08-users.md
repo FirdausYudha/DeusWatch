@@ -49,9 +49,9 @@ Frontend: [`web/src/users/`](../../web/src/users/). Backend:
 ## Variables
 
 In `deploy/.env`:
-- `ADMIN_USERNAME` / `ADMIN_PASSWORD` — the initial admin, seeded only when the users table is
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD` - the initial admin, seeded only when the users table is
   empty (first start). Change the password later in Settings.
-- `REGISTRATION_ENABLED` — `0` (default; admins create users) or `1` (allow viewer self-signup).
+- `REGISTRATION_ENABLED` - `0` (default; admins create users) or `1` (allow viewer self-signup).
 
 Roles/permissions are fixed in code (three built-in roles); users & their roles are managed in
 the UI.

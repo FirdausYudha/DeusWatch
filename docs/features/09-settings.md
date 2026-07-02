@@ -10,15 +10,15 @@ DB and are picked up live (no restart).
 | **Two-Factor (TOTP)** | enable/disable 2FA for your account | `users` | yes |
 | **Change password** | rotate your password (Argon2id) | `users` | yes |
 | **Alert notifications** | severity threshold for Telegram/email alerts | `notify_config` | ~1 min |
-| **Log storage lifecycle** | retention (days) + compression (days) — TimescaleDB policy | policy | immediate |
+| **Log storage lifecycle** | retention (days) + compression (days) - TimescaleDB policy | policy | immediate |
 | **Threat-intel (CTI) caching** | dedup window (hours) + shows provider status (real/mock) | `cti_config` | ~1 min |
-| **Software updates** | check GitHub for a newer build (read-only) | — | on click |
+| **Software updates** | check GitHub for a newer build (read-only) | - | on click |
 | **Config profile** | export/import all settings to clone server A → B | JSON | on import |
 
 - **Alert notifications / CTI caching / retention** are read live by the worker (threshold +
   TTL reload each minute; retention re-applies the TimescaleDB policy on save).
 - **Software updates** only *checks* (compares the baked git commit vs GitHub's latest). The
-  update itself runs on the host with `./scripts/update.sh` — the web app never controls Docker,
+  update itself runs on the host with `./scripts/update.sh` - the web app never controls Docker,
   by design (small attack surface).
 - **Config profile** exports rules, ban policy, whitelist, AI-report schedule, notification
   settings, and integrations (secrets excluded) as JSON to import onto another server.
@@ -27,7 +27,7 @@ DB and are picked up live (no restart).
 
 - Open **Settings**; each card is self-explanatory. Admin-only cards require `manage_settings`.
 - To update the software: click **Check for update**; if behind, run `./scripts/update.sh` on
-  the host (or a cron — see below).
+  the host (or a cron - see below).
 
 ## Endpoints & source
 
@@ -54,7 +54,7 @@ Frontend: [`web/src/settings/`](../../web/src/settings/).
   `SECRETS_KEY`, `STORAGE_BUDGET_GB` / `STORAGE_ALERT_PERCENT`, ports.
 - **Behaviour** in the UI (DB-backed, live): severity threshold, report/AI schedules, retention,
   compression, CTI cache TTL.
-- **Auto-update (optional, host-level)** — a cron running the updater; the web UI does **not**
+- **Auto-update (optional, host-level)** - a cron running the updater; the web UI does **not**
   execute updates:
   ```bash
   0 4 * * *  cd /path/to/DeusWatch && ./scripts/update.sh >> /var/log/deuswatch-update.log 2>&1

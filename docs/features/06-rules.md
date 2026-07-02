@@ -6,10 +6,10 @@ toggle, add, delete.
 ## How it works
 
 - Rules are **Sigma YAML** stored in the `rules` table, classified as **single-event** or
-  **aggregation** (`count() by <field>` — e.g. brute force / port scan).
+  **aggregation** (`count() by <field>` - e.g. brute force / port scan).
 - Built-in rules (from `rules/sigma/`) are **seeded on first start**; new bundled rules are
   **auto-synced by name** on upgrade without touching your edits.
-- The **worker loads the enabled set and live-reloads** it (~1 min) — edits in the UI take
+- The **worker loads the enabled set and live-reloads** it (~1 min) - edits in the UI take
   effect without a restart. Alerts are auto-labeled with **MITRE ATT&CK** from the rule's tags.
 - Custom rules are **validated on save** (must parse as Sigma).
 
@@ -42,7 +42,7 @@ Frontend: [`web/src/rules/`](../../web/src/rules/). Backend:
 
 ## Variables
 
-- No env for the rules themselves — they live in the DB and are edited in the UI (live-reload).
+- No env for the rules themselves - they live in the DB and are edited in the UI (live-reload).
 - `RULES_DIR` (worker/api env) points at the bundled rules dir used for seeding/sync (default
   `/rules/sigma`).
 - To ship a new built-in rule to an existing deployment: add the `.yml` to `rules/sigma/`,

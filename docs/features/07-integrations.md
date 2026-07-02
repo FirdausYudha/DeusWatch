@@ -1,6 +1,6 @@
 # 7. Integrations
 
-Connectors to external systems. **All connectors are compiled Go drivers** (not Python apps) —
+Connectors to external systems. **All connectors are compiled Go drivers** (not Python apps) -
 only their *config* lives in the DB, encrypted at rest.
 
 ## How it works
@@ -14,7 +14,7 @@ only their *config* lives in the DB, encrypted at rest.
 - Consumers resolve them at startup: the worker's **enrichment** uses CTI/FIM, the **response
   engine** uses firewall/bouncer, **reports** use LLM. The Integrations registry takes
   precedence over the equivalent env vars.
-- CTI provider **live-reloads** (~1 min) — adding an AbuseIPDB key in the UI activates real
+- CTI provider **live-reloads** (~1 min) - adding an AbuseIPDB key in the UI activates real
   lookups without restarting the worker. Response/LLM drivers are picked up at worker start.
 
 ## How to use
@@ -43,7 +43,7 @@ Frontend: [`web/src/integrations/`](../../web/src/integrations/). Backend:
 
 ## Variables
 
-- **`SECRETS_KEY`** in `deploy/.env` (base64 of 32 bytes) — encrypts integration secrets.
+- **`SECRETS_KEY`** in `deploy/.env` (base64 of 32 bytes) - encrypts integration secrets.
   Without it a fixed DEV key is used (not safe for production); changing it later makes stored
   secrets undecryptable (re-enter them).
 - Each connector's credentials are entered **in the UI** (preferred) or via env fallbacks

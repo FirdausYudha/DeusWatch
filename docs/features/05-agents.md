@@ -12,14 +12,14 @@ and push config. This is the **only** feature that uses the Gateway (mTLS), not 
 - **Online status** = heartbeat within the last 90s (computed in the UI). **Revoke** flips a
   flag so the gateway rejects that cert; the agent then self-uninstalls.
 - Agent binaries (Linux/Windows, amd64/arm64) are cross-compiled and served by the API's
-  one-line installer — no host build step.
+  one-line installer - no host build step.
 
 ## How to use
 
 1. **Agents → + Add agent** → pick OS (Linux / Windows).
 2. Set **Manager host** to the address agents reach (LAN IP for cross-host, e.g.
    `192.168.1.10:9080`). A one-time token is generated automatically.
-3. Copy the one-liner and run it on the endpoint — it downloads the agent, enrolls, installs an
+3. Copy the one-liner and run it on the endpoint - it downloads the agent, enrolls, installs an
    auto-start service, and connects. Example (Linux):
    ```bash
    curl -fsSL http://<manager>:9080/api/agent/install.sh | sudo MANAGER=<manager> TOKEN=<t> NAME=<n> API_PORT=9080 GW_PORT=9443 sh
@@ -50,8 +50,8 @@ agent in [`cmd/agent/`](../../cmd/agent/).
 
 ## Variables
 
-- `MANAGER_IP` in `deploy/.env` — pins the manager IP into the mTLS server-cert SAN for
+- `MANAGER_IP` in `deploy/.env` - pins the manager IP into the mTLS server-cert SAN for
   cross-host agents (set before first start; changing it means regenerating certs + re-enroll).
-- Ports agents use: `DEUSWATCH_API_PORT` (9080) and `DEUSWATCH_GATEWAY_PORT` (9443) — the
+- Ports agents use: `DEUSWATCH_API_PORT` (9080) and `DEUSWATCH_GATEWAY_PORT` (9443) - the
   wizard reads them automatically so the generated command is correct.
 - Per-agent **sources** (which logs to tail) are pushed via `PUT /api/agents/{id}/config`.

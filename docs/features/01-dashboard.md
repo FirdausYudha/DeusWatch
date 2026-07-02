@@ -16,7 +16,7 @@ and health panels.
 ## How to use
 
 - **Time range**: use the presets (`1h/6h/24h/7d/30d`) or the calendar for a custom window.
-- **Search bar (top)**: free-text — matches source **IP**, rule name/id, MITRE technique, host,
+- **Search bar (top)**: free-text - matches source **IP**, rule name/id, MITRE technique, host,
   user, file path, label, and raw message. Tick **Alerts only** to hide raw info events.
 - **Filters panel**: narrow by Source IP, Rule, MITRE ID, Min level, From/To.
 - **Webhook** button: POST the current events/alerts as JSON to your export webhook.
@@ -43,7 +43,7 @@ Frontend: [`web/src/dashboard/`](../../web/src/dashboard/). Backend query:
 
 ## Variables
 
-- Mostly nothing to configure — it visualizes whatever the pipeline produces.
+- Mostly nothing to configure - it visualizes whatever the pipeline produces.
 - Storage budget/alert (shown in the Log Storage panel) come from `STORAGE_BUDGET_GB` /
-  `STORAGE_ALERT_PERCENT` in `deploy/.env` — see [Settings](09-settings.md).
+  `STORAGE_ALERT_PERCENT` in `deploy/.env` - see [Settings](09-settings.md).
 - The dashboard layout is saved in the DB (per deployment), edited via the **Customize** button.
