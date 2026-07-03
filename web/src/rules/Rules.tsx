@@ -22,11 +22,17 @@ tags:
   - attack.t1110
 `
 
+type KindFilter = 'all' | 'single' | 'aggregation'
+type StatusFilter = 'all' | 'enabled' | 'disabled'
+
 export default function Rules() {
   const [rules, setRules] = useState<Rule[]>([])
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<Rule | null>(null)
   const [creating, setCreating] = useState(false)
+  const [query, setQuery] = useState('')
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   const load = () => {
     fetchRules()
@@ -60,6 +66,25 @@ export default function Rules() {
     [rules],
   )
 
+  // Precompute a lowercase search haystack (name + source + YAML body) once per load,
+  // so filtering across ~1000 rules stays cheap on every keystroke.
+  const indexed = useMemo(
+    () => rules.map((r) => ({ r, hay: `${r.name} ${sourceOf(r.yaml)} ${r.yaml}`.toLowerCase() })),
+    [rules],
+  )
+
+  const filtered = useMemo(() => {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+    return indexed
+      .filter(({ r }) => kindFilter === 'all' || r.kind === kindFilter)
+      .filter(({ r }) =>
+        statusFilter === 'all' || (statusFilter === 'enabled' ? r.enabled : !r.enabled),
+      )
+      // every whitespace-separated term must appear (AND) — lets you narrow with "judi gacor".
+      .filter(({ hay }) => terms.every((t) => hay.includes(t)))
+      .map(({ r }) => r)
+  }, [indexed, query, kindFilter, statusFilter])
+
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
       <header className="mb-6 flex items-end justify-between">
@@ -79,6 +104,48 @@ export default function Rules() {
 
       {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+            placeholder="Search name, source, or rule body (e.g. gacor, judi, T1110, shadow)…"
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-8 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-indigo-500"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-slate-500 hover:text-slate-300"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <select
+          value={kindFilter}
+          onChange={(e) => setKindFilter(e.target.value as KindFilter)}
+          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
+        >
+          <option value="all">All types</option>
+          <option value="single">single-event</option>
+          <option value="aggregation">aggregation</option>
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
+        >
+          <option value="all">All status</option>
+          <option value="enabled">enabled</option>
+          <option value="disabled">disabled</option>
+        </select>
+        <span className="ml-auto whitespace-nowrap text-xs text-slate-500">
+          {filtered.length} of {counts.total}
+        </span>
+      </div>
+
       <div className="overflow-hidden rounded-xl border border-slate-800">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
@@ -91,12 +158,14 @@ export default function Rules() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-            {rules.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">No rules.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  {rules.length === 0 ? 'No rules.' : 'No rules match your search.'}
+                </td>
               </tr>
             )}
-            {rules.map((r) => (
+            {filtered.map((r) => (
               <tr key={r.id} className="hover:bg-slate-800/40">
                 <td className="px-4 py-2 font-medium text-slate-200">
                   {r.name}
