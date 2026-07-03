@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'hoki99'
+id: ee8d3191-1970-5c6c-af45-09456825a351
+status: experimental
+description: >
+  Gambling site-brand token 'hoki99' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hoki99'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

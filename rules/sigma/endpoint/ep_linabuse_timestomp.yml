@@ -1,0 +1,22 @@
+title: Linux Abuse - timestamp tampering
+id: 87feaf46-a7ab-5a50-a716-d35a96400601
+status: experimental
+description: >
+  Command line consistent with timestamp tampering - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'touch -r '
+      - 'touch -t '
+      - 'touch -d '
+  condition: selection
+tags:
+  - attack.t1070.006
+  - attack.defense_evasion

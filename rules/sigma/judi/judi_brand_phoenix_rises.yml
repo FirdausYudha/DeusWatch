@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'phoenix rises'
+id: 4d70f22b-b8a4-58b2-aa1f-67da5a31c95b
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'phoenix rises'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'phoenix rises'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

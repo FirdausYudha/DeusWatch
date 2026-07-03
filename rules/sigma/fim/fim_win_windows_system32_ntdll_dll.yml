@@ -1,0 +1,24 @@
+title: FIM (Windows) - ntdll
+id: bc485303-0005-5018-8dfa-3eed1c669973
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (ntdll: ...\Windows\System32\ntdll.dll). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\ntdll.dll'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

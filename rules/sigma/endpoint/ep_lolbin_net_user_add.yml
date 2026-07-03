@@ -1,0 +1,22 @@
+title: Windows LOLBin - local account creation
+id: 29e28358-5c0f-546b-80aa-971d9f52fb44
+status: experimental
+description: >
+  Command line consistent with local account creation, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'net user /add'
+      - 'net localgroup administrators'
+      - 'net user '
+  condition: selection
+tags:
+  - attack.t1136.001
+  - attack.defense_evasion

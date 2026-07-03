@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'koi77'
+id: 6b43c639-54fb-5fd9-b409-5efbd27a9d11
+status: experimental
+description: >
+  Gambling site-brand token 'koi77' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'koi77'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

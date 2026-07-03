@@ -1,0 +1,21 @@
+title: Reverse Shell - bash /dev/tcp reverse shell
+id: b2fe981c-b66f-564b-9a86-5a5f80398b4e
+status: experimental
+description: >
+  Command line consistent with a bash /dev/tcp reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - '/dev/tcp/'
+      - '/dev/udp/'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

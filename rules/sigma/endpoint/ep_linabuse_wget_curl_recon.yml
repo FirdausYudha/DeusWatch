@@ -1,0 +1,23 @@
+title: Linux Abuse - tooling fetch
+id: 5734a57c-dc9f-57cd-9b1f-4b4c27881a91
+status: experimental
+description: >
+  Command line consistent with tooling fetch - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'wget http'
+      - 'curl -o '
+      - 'tftp -g'
+      - 'scp '
+  condition: selection
+tags:
+  - attack.t1105
+  - attack.defense_evasion

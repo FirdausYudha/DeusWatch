@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'treasures of aztec'
+id: b8090b25-7068-5dac-bdd8-bd083621da91
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'treasures of aztec'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'treasures of aztec'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

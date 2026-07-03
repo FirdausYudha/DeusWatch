@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'zeusgacor'
+id: 71e88a91-3fdc-59f0-82c3-c7246f38dd22
+status: experimental
+description: >
+  Gambling site-brand token 'zeusgacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'zeusgacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

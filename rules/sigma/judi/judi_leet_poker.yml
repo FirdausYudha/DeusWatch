@@ -1,0 +1,25 @@
+title: Judi Online - Leetspeak term 'poker' (SEO/content injection)
+id: 22579a51-da6e-5ea8-87e2-c139dd71f837
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'poker' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'p0k3r'
+    - 'p0k3rr'
+    - 'p0ker'
+    - 'p0kerr'
+    - 'pok3r'
+    - 'pok3rr'
+    - 'poker'
+    - 'pokerr'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

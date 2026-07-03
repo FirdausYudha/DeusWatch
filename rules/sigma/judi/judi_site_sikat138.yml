@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sikat138'
+id: a27b5851-9a96-515b-93bc-29bf6720d4a4
+status: experimental
+description: >
+  Gambling site-brand token 'sikat138' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sikat138'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'totem wonders'
+id: 2f40a756-c679-5180-a3e1-4bbf4f77cbc8
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'totem wonders'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'totem wonders'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

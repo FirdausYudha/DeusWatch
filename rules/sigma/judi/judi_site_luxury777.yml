@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'luxury777'
+id: 44952f2c-4ced-5144-bab6-96c6e59f632b
+status: experimental
+description: >
+  Gambling site-brand token 'luxury777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'luxury777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

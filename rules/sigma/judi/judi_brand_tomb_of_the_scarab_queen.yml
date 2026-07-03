@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'tomb of the scarab queen'
+id: 084c985a-8253-510e-b98c-f18cd5b34cb2
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'tomb of the scarab queen'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'tomb of the scarab queen'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

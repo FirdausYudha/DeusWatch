@@ -1,0 +1,22 @@
+title: Linux Abuse - SELinux/AppArmor disable
+id: af7cda43-73e6-545c-8ec3-af107f8c1b97
+status: experimental
+description: >
+  Command line consistent with SELinux/AppArmor disable - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'setenforce 0'
+      - 'aa-complain'
+      - 'systemctl disable apparmor'
+  condition: selection
+tags:
+  - attack.t1562.001
+  - attack.defense_evasion

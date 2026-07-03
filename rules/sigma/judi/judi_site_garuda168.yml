@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'garuda168'
+id: c7cb6f61-ad88-5363-b28a-cb32c7d33037
+status: experimental
+description: >
+  Gambling site-brand token 'garuda168' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'garuda168'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

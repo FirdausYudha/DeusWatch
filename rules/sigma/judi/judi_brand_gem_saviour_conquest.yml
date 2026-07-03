@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'gem saviour conquest'
+id: f8869fde-c588-57b0-bd47-51a9d331baf4
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'gem saviour conquest'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gem saviour conquest'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

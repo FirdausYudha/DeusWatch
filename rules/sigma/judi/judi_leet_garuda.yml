@@ -1,0 +1,53 @@
+title: Judi Online - Leetspeak term 'garuda' (SEO/content injection)
+id: 91c7f463-f681-5c14-ab45-69cb1e5bf9d9
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'garuda' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '94rud4'
+    - '94rud44'
+    - '94rud@'
+    - '94rud@@'
+    - '94ruda'
+    - '94rudaa'
+    - '9@rud4'
+    - '9@rud44'
+    - '9@rud@'
+    - '9@rud@@'
+    - '9@ruda'
+    - '9@rudaa'
+    - '9arud4'
+    - '9arud44'
+    - '9arud@'
+    - '9arud@@'
+    - '9aruda'
+    - '9arudaa'
+    - 'g4rud4'
+    - 'g4rud44'
+    - 'g4rud@'
+    - 'g4rud@@'
+    - 'g4ruda'
+    - 'g4rudaa'
+    - 'g@rud4'
+    - 'g@rud44'
+    - 'g@rud@'
+    - 'g@rud@@'
+    - 'g@ruda'
+    - 'g@rudaa'
+    - 'garud4'
+    - 'garud44'
+    - 'garud@'
+    - 'garud@@'
+    - 'garuda'
+    - 'garudaa'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

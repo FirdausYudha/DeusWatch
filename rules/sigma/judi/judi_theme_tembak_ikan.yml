@@ -1,0 +1,25 @@
+title: Judi Online - Tembak ikan (fish shooting) keywords
+id: acd5d2c5-a01e-55df-b7f7-85acd8898458
+status: experimental
+description: >
+  Indonesian online-gambling (Tembak ikan (fish shooting)) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'tembak ikan'
+    - 'fishing game'
+    - 'judi tembak ikan'
+    - 'game ikan online'
+    - 'fish hunter'
+    - 'royal fishing'
+    - 'dragon fortune'
+    - 'fishing war'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

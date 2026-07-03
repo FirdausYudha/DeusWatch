@@ -1,0 +1,41 @@
+title: Judi Online - Leetspeak term 'mahjong' (SEO/content injection)
+id: c8c5ac8e-b2b5-5fe8-a3bf-6f3965ce2ba6
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'mahjong' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'm4hj0n9'
+    - 'm4hj0n99'
+    - 'm4hj0ng'
+    - 'm4hj0ngg'
+    - 'm4hjon9'
+    - 'm4hjon99'
+    - 'm4hjong'
+    - 'm4hjongg'
+    - 'm@hj0n9'
+    - 'm@hj0n99'
+    - 'm@hj0ng'
+    - 'm@hj0ngg'
+    - 'm@hjon9'
+    - 'm@hjon99'
+    - 'm@hjong'
+    - 'm@hjongg'
+    - 'mahj0n9'
+    - 'mahj0n99'
+    - 'mahj0ng'
+    - 'mahj0ngg'
+    - 'mahjon9'
+    - 'mahjon99'
+    - 'mahjong'
+    - 'mahjongg'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'keamanan lemah'
+id: b267b652-c0d2-51ae-9a99-28b5ebdd363b
+status: experimental
+description: >
+  Classic web-defacement banner text 'keamanan lemah' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'keamanan lemah'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

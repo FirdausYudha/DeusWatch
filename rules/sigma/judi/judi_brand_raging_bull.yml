@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'raging bull'
+id: cb2fc1ba-44f4-563d-b787-5cd07685dc39
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'raging bull'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'raging bull'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

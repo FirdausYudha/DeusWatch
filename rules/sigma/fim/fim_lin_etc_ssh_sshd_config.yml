@@ -1,0 +1,24 @@
+title: FIM - sshd config (/etc/ssh/sshd_config)
+id: e8bf187e-1e98-590f-bc5c-30dd5ada4258
+status: experimental
+description: >
+  Integrity change on sshd config (/etc/ssh/sshd_config). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/ssh/sshd_config'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

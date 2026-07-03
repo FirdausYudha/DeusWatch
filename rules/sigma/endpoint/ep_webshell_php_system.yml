@@ -1,0 +1,27 @@
+title: Webshell - PHP command execution functions
+id: 6606bd0e-89f2-5328-bb13-c1abdbd49c7f
+status: experimental
+description: >
+  A command line containing PHP command-execution sinks (system/exec/passthru/shell_exec/popen) - typical of a webshell running OS commands.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'system('
+      - 'passthru('
+      - 'shell_exec('
+      - 'popen('
+      - 'proc_open('
+      - 'exec('
+      - 'assert('
+      - 'eval(base64'
+  condition: selection
+tags:
+  - attack.t1505.003
+  - attack.execution

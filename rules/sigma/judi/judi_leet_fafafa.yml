@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'fafafa' (SEO/content injection)
+id: 7651a201-15a7-57ec-9755-0868f15c6e69
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'fafafa' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'f4f4f4'
+    - 'f4f4f44'
+    - 'f4f4f@'
+    - 'f4f4f@@'
+    - 'f4f4fa'
+    - 'f4f4faa'
+    - 'f4f@f4'
+    - 'f4f@f44'
+    - 'f4f@f@'
+    - 'f4f@f@@'
+    - 'f4f@fa'
+    - 'f4f@faa'
+    - 'f4faf4'
+    - 'f4faf44'
+    - 'f4faf@'
+    - 'f4faf@@'
+    - 'f4fafa'
+    - 'f4fafaa'
+    - 'f@f4f4'
+    - 'f@f4f44'
+    - 'f@f4f@'
+    - 'f@f4f@@'
+    - 'f@f4fa'
+    - 'f@f4faa'
+    - 'f@f@f4'
+    - 'f@f@f44'
+    - 'f@f@f@'
+    - 'f@f@f@@'
+    - 'f@f@fa'
+    - 'f@f@faa'
+    - 'f@faf4'
+    - 'f@faf44'
+    - 'f@faf@'
+    - 'f@faf@@'
+    - 'f@fafa'
+    - 'f@fafaa'
+    - 'faf4f4'
+    - 'faf4f44'
+    - 'faf4f@'
+    - 'faf4f@@'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

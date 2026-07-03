@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'big bass splash'
+id: 163dfef0-cb1b-5ec7-a407-73dfe942867a
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'big bass splash'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'big bass splash'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

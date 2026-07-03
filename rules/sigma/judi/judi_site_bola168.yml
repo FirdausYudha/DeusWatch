@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'bola168'
+id: e19617ac-a251-527f-8f8d-529856cf8574
+status: experimental
+description: >
+  Gambling site-brand token 'bola168' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bola168'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

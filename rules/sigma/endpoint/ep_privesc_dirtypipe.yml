@@ -1,0 +1,23 @@
+title: Privilege Escalation - Dirty Pipe / DirtyCow
+id: 87783918-60c0-5fd0-9405-483b6b8e8a93
+status: experimental
+description: >
+  Command line consistent with Dirty Pipe / DirtyCow.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'dirtypipe'
+      - 'dirtycow'
+      - 'cve-2022-0847'
+      - 'cve-2016-5195'
+  condition: selection
+tags:
+  - attack.t1068
+  - attack.privilege_escalation

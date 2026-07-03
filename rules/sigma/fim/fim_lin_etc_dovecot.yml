@@ -1,0 +1,24 @@
+title: FIM - dovecot config (/etc/dovecot/)
+id: e6fa4b3a-973b-5ca3-a474-bd0cb24b09b5
+status: experimental
+description: >
+  Integrity change on dovecot config (/etc/dovecot/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/dovecot/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

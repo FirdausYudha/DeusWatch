@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'tembak' (SEO/content injection)
+id: 9d988b31-e5a0-58d7-8383-568dd5f4ae83
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'tembak' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '73m84k'
+    - '73m84kk'
+    - '73m8@k'
+    - '73m8@kk'
+    - '73m8ak'
+    - '73m8akk'
+    - '73mb4k'
+    - '73mb4kk'
+    - '73mb@k'
+    - '73mb@kk'
+    - '73mbak'
+    - '73mbakk'
+    - '7em84k'
+    - '7em84kk'
+    - '7em8@k'
+    - '7em8@kk'
+    - '7em8ak'
+    - '7em8akk'
+    - '7emb4k'
+    - '7emb4kk'
+    - '7emb@k'
+    - '7emb@kk'
+    - '7embak'
+    - '7embakk'
+    - 't3m84k'
+    - 't3m84kk'
+    - 't3m8@k'
+    - 't3m8@kk'
+    - 't3m8ak'
+    - 't3m8akk'
+    - 't3mb4k'
+    - 't3mb4kk'
+    - 't3mb@k'
+    - 't3mb@kk'
+    - 't3mbak'
+    - 't3mbakk'
+    - 'tem84k'
+    - 'tem84kk'
+    - 'tem8@k'
+    - 'tem8@kk'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

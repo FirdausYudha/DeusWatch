@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'bola99'
+id: 87d87a08-d3c1-5ff4-a645-dfe59d001b8c
+status: experimental
+description: >
+  Gambling site-brand token 'bola99' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bola99'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

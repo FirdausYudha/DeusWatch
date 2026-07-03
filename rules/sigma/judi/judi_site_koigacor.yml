@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'koigacor'
+id: 94677de5-1cc2-55aa-948a-8ac909375c2e
+status: experimental
+description: >
+  Gambling site-brand token 'koigacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'koigacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

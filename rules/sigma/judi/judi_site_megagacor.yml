@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'megagacor'
+id: 2cabb634-c53c-5d5b-88ee-994b16602986
+status: experimental
+description: >
+  Gambling site-brand token 'megagacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'megagacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

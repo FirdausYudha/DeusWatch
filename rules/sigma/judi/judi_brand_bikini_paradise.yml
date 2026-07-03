@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'bikini paradise'
+id: 23cd6a2d-69f9-5a4f-a359-697ef8bb101f
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'bikini paradise'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bikini paradise'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

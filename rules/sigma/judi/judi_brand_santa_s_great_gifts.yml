@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'santa's great gifts'
+id: d6941ab2-beea-5b70-860f-0ea169024cbd
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'santa's great gifts'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'santa''s great gifts'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

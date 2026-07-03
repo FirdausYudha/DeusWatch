@@ -1,0 +1,23 @@
+title: Discovery - Windows system discovery
+id: 69cbe1b7-0842-51b8-8b90-6afa800725f0
+status: experimental
+description: >
+  Command line consistent with Windows system discovery - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: low
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'systeminfo'
+      - 'wmic qfe'
+      - 'driverquery'
+      - 'set '
+  condition: selection
+tags:
+  - attack.t1082
+  - attack.discovery

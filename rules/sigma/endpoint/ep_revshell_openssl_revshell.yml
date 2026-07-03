@@ -1,0 +1,21 @@
+title: Reverse Shell - openssl encrypted reverse shell
+id: 9e226792-4abb-58c6-9302-aeddfb9cbaa3
+status: experimental
+description: >
+  Command line consistent with a openssl encrypted reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'openssl s_client -connect'
+      - 'openssl s_client -quiet'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

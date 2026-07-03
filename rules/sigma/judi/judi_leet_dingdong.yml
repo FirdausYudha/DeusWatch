@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'dingdong' (SEO/content injection)
+id: 2c7b447f-b7ec-5d24-8738-f4e23a4e3ad1
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'dingdong' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'd!n9d0n9'
+    - 'd!n9d0n99'
+    - 'd!n9d0ng'
+    - 'd!n9d0ngg'
+    - 'd!n9don9'
+    - 'd!n9don99'
+    - 'd!n9dong'
+    - 'd!n9dongg'
+    - 'd!ngd0n9'
+    - 'd!ngd0n99'
+    - 'd!ngd0ng'
+    - 'd!ngd0ngg'
+    - 'd!ngdon9'
+    - 'd!ngdon99'
+    - 'd!ngdong'
+    - 'd!ngdongg'
+    - 'd1n9d0n9'
+    - 'd1n9d0n99'
+    - 'd1n9d0ng'
+    - 'd1n9d0ngg'
+    - 'd1n9don9'
+    - 'd1n9don99'
+    - 'd1n9dong'
+    - 'd1n9dongg'
+    - 'd1ngd0n9'
+    - 'd1ngd0n99'
+    - 'd1ngd0ng'
+    - 'd1ngd0ngg'
+    - 'd1ngdon9'
+    - 'd1ngdon99'
+    - 'd1ngdong'
+    - 'd1ngdongg'
+    - 'din9d0n9'
+    - 'din9d0n99'
+    - 'din9d0ng'
+    - 'din9d0ngg'
+    - 'din9don9'
+    - 'din9don99'
+    - 'din9dong'
+    - 'din9dongg'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,24 @@
+title: FIM (Web) - Joomla config (/configuration.php)
+id: 1a7195ab-1bbd-5f03-aa71-4a8d82f739b7
+status: experimental
+description: >
+  Integrity change under the web application tree (Joomla config: /configuration.php). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/configuration.php'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

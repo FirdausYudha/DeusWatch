@@ -1,0 +1,22 @@
+title: Discovery - SUID/privilege-escalation search
+id: eb6d75b6-b4f6-53d4-bf7f-4694efe06167
+status: experimental
+description: >
+  Command line consistent with SUID/privilege-escalation search - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'find / -perm -4000'
+      - 'find / -perm -u=s'
+      - '-perm -2000'
+  condition: selection
+tags:
+  - attack.t1083
+  - attack.discovery

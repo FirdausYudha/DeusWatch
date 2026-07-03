@@ -1,0 +1,24 @@
+title: FIM - wireguard config (/etc/wireguard/)
+id: 4d1fd39e-e538-593f-9b0c-2fd4b82a6f8c
+status: experimental
+description: >
+  Integrity change on wireguard config (/etc/wireguard/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/wireguard/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

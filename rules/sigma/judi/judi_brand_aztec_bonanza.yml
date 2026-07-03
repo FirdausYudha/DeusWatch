@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'aztec bonanza'
+id: 9610dd74-fa5c-5b07-a518-2ef24b23b3b4
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'aztec bonanza'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'aztec bonanza'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

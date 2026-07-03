@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'tree of fortune'
+id: b0a6382a-6f96-5246-985a-9d22def85b56
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'tree of fortune'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'tree of fortune'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,25 @@
+title: Judi Online - Leetspeak term 'jepe' (SEO/content injection)
+id: a74cc2d6-ed95-527a-ae55-29c7e04227b5
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'jepe' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'j3p3'
+    - 'j3p33'
+    - 'j3pe'
+    - 'j3pee'
+    - 'jep3'
+    - 'jep33'
+    - 'jepe'
+    - 'jepee'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

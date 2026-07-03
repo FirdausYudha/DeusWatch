@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'your website is vulnerable'
+id: 29b36ce3-05f3-5cf8-9a24-e59dd38d10b1
+status: experimental
+description: >
+  Classic web-defacement banner text 'your website is vulnerable' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'your website is vulnerable'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

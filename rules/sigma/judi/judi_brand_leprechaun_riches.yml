@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'leprechaun riches'
+id: d49ae4a2-1b45-5d2f-b160-5a18a0093bf3
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'leprechaun riches'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'leprechaun riches'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

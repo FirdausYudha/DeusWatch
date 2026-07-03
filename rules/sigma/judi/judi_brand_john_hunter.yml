@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'john hunter'
+id: 20fd8434-889c-5534-b7de-9907069ba6c5
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'john hunter'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'john hunter'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

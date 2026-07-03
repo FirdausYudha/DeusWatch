@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'book of the dead'
+id: c9cd4fde-69a9-5263-9d12-523794cd0abb
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'book of the dead'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'book of the dead'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

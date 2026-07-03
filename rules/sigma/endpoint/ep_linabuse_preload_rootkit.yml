@@ -1,0 +1,22 @@
+title: Linux Abuse - ld.so.preload rootkit staging
+id: b86313f0-7220-56a0-89a4-edd3cec41aed
+status: experimental
+description: >
+  Command line consistent with ld.so.preload rootkit staging - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - '/etc/ld.so.preload'
+      - 'ld_preload='
+      - 'export ld_preload'
+  condition: selection
+tags:
+  - attack.t1574.006
+  - attack.defense_evasion

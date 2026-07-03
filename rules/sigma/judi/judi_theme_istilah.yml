@@ -1,0 +1,38 @@
+title: Judi Online - Istilah situs judi keywords
+id: 6331e802-3663-5199-a0f5-f3f19a1b7bfe
+status: experimental
+description: >
+  Indonesian online-gambling (Istilah situs judi) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'situs judi'
+    - 'judi online'
+    - 'agen judi'
+    - 'bandar judi'
+    - 'judi terpercaya'
+    - 'link alternatif'
+    - 'daftar sekarang'
+    - 'login slot'
+    - 'daftar slot'
+    - 'situs terpercaya'
+    - 'situs resmi'
+    - 'bo terpercaya'
+    - 'bandar terbesar'
+    - 'situs gacor'
+    - 'agen resmi'
+    - 'customer service 24 jam'
+    - 'livechat 24 jam'
+    - 'wla resmi'
+    - 'situs anti blokir'
+    - 'link login'
+    - 'link daftar'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

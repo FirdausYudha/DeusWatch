@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'koi303'
+id: a09c98a9-947a-59e5-8b48-379d1cb73f84
+status: experimental
+description: >
+  Gambling site-brand token 'koi303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'koi303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

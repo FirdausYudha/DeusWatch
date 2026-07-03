@@ -1,0 +1,24 @@
+title: Discovery - network scanning tool
+id: 2a5e0f9c-6bc6-5b94-a2ac-7fab80d8f394
+status: experimental
+description: >
+  Command line consistent with network scanning tool - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'nmap '
+      - 'masscan '
+      - 'zmap '
+      - '-p- '
+      - '-sc -sv'
+  condition: selection
+tags:
+  - attack.t1046
+  - attack.discovery

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'bandar168'
+id: 79f19641-7be5-5efb-9ca8-4d01f7a8c5ba
+status: experimental
+description: >
+  Gambling site-brand token 'bandar168' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bandar168'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

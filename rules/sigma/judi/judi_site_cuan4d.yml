@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'cuan4d'
+id: 9a275c2e-00bf-5ce9-96c7-d2057a613f56
+status: experimental
+description: >
+  Gambling site-brand token 'cuan4d' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cuan4d'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

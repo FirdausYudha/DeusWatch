@@ -1,0 +1,24 @@
+title: Suspicious Double-Extension Upload - .php5.jpg
+id: 99fe50a2-8c0b-501f-927b-513eb5966161
+status: experimental
+description: >
+  A file whose name contains the masquerading double-extension pattern '.php5.jpg', a common trick to smuggle executable server code past an upload filter.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '.php5.jpg'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1036.007
+  - attack.defense_evasion

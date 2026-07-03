@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'vampires castle'
+id: 645ad653-cf56-5ca5-be62-cd39da254c62
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'vampires castle'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'vampires castle'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

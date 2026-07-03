@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'asia77'
+id: 3dee8c4e-dccb-5051-b7e6-bb6960c583d4
+status: experimental
+description: >
+  Gambling site-brand token 'asia77' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'asia77'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

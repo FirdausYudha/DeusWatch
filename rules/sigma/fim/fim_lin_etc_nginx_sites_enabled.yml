@@ -1,0 +1,25 @@
+title: FIM - nginx vhost (/etc/nginx/sites-enabled/)
+id: 0c0c441d-adc3-5f59-97f0-cb528109f80a
+status: experimental
+description: >
+  Integrity change on nginx vhost (/etc/nginx/sites-enabled/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/nginx/sites-enabled/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

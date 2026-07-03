@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'mpo88'
+id: 0fdad2f2-6a32-539a-9fe4-e95ef740e4d2
+status: experimental
+description: >
+  Gambling site-brand token 'mpo88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mpo88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

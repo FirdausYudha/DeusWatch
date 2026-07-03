@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'dragon hatch 2'
+id: a24fda6d-f6d4-5ec6-bdca-045a89ef335b
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'dragon hatch 2'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'dragon hatch 2'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

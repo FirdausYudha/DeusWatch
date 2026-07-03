@@ -1,0 +1,35 @@
+title: Judi Online - Promo / bonus judi keywords
+id: 49f5f5c2-81ec-5fb0-a22c-0f6e9a94f07c
+status: experimental
+description: >
+  Indonesian online-gambling (Promo / bonus judi) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bonus new member'
+    - 'bonus deposit'
+    - 'bonus rollingan'
+    - 'cashback slot'
+    - 'bonus referral'
+    - 'welcome bonus'
+    - 'bonus harian'
+    - 'freebet'
+    - 'freespin'
+    - 'garansi kekalahan'
+    - 'extra bonus'
+    - 'turnover'
+    - 'bonus 100'
+    - 'bonus 200'
+    - 'bonus cashback'
+    - 'rollingan'
+    - 'komisi referral'
+    - 'event slot'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

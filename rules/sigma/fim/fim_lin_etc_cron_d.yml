@@ -1,0 +1,25 @@
+title: FIM - cron.d job (/etc/cron.d/)
+id: 0aa250c0-9b63-5dfc-b60a-1fe9d3fe8334
+status: experimental
+description: >
+  Integrity change on cron.d job (/etc/cron.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/cron.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

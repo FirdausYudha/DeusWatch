@@ -1,0 +1,35 @@
+title: Judi Online - Leetspeak term 'raja' (SEO/content injection)
+id: 2529ce58-5cfd-5f0a-ab87-3b5435fb1609
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'raja' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'r4j4'
+    - 'r4j44'
+    - 'r4j@'
+    - 'r4j@@'
+    - 'r4ja'
+    - 'r4jaa'
+    - 'r@j4'
+    - 'r@j44'
+    - 'r@j@'
+    - 'r@j@@'
+    - 'r@ja'
+    - 'r@jaa'
+    - 'raj4'
+    - 'raj44'
+    - 'raj@'
+    - 'raj@@'
+    - 'raja'
+    - 'rajaa'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

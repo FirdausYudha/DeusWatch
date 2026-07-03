@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'win303'
+id: 3930f87d-9dfd-5bbe-8bb8-6b3c83c4a9b1
+status: experimental
+description: >
+  Gambling site-brand token 'win303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'win303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

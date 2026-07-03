@@ -1,0 +1,29 @@
+title: Judi Online - Leetspeak term 'sydney' (SEO/content injection)
+id: 7e615cb9-b9bc-5852-b509-9441ec80c4f0
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'sydney' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$ydn3y'
+    - '$ydn3yy'
+    - '$ydney'
+    - '$ydneyy'
+    - '5ydn3y'
+    - '5ydn3yy'
+    - '5ydney'
+    - '5ydneyy'
+    - 'sydn3y'
+    - 'sydn3yy'
+    - 'sydney'
+    - 'sydneyy'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

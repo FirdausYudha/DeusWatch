@@ -1,0 +1,24 @@
+title: Suspicious Double-Extension Upload - .pht.jpg
+id: ed2da9ab-eaeb-54d6-94aa-3e666d05fb2c
+status: experimental
+description: >
+  A file whose name contains the masquerading double-extension pattern '.pht.jpg', a common trick to smuggle executable server code past an upload filter.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '.pht.jpg'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1036.007
+  - attack.defense_evasion

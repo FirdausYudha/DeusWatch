@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'agen99'
+id: a9704a70-2b8e-5869-8f75-8baf349fd00f
+status: experimental
+description: >
+  Gambling site-brand token 'agen99' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'agen99'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

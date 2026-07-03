@@ -1,0 +1,23 @@
+title: Linux Abuse - crontab modification
+id: 8e2a590f-1114-5618-be8f-3d0661ef6a41
+status: experimental
+description: >
+  Command line consistent with crontab modification - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'crontab -'
+      - 'crontab -e'
+      - 'echo * * * *'
+      - '(crontab -l'
+  condition: selection
+tags:
+  - attack.t1053.003
+  - attack.defense_evasion

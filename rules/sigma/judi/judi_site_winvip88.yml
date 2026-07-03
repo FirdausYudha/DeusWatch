@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'winvip88'
+id: 61f7800f-03a9-5d03-af4e-ada5534af35e
+status: experimental
+description: >
+  Gambling site-brand token 'winvip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'winvip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

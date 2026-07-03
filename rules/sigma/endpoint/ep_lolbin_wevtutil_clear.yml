@@ -1,0 +1,23 @@
+title: Windows LOLBin - event log clearing
+id: f4189a64-127c-5f0d-9299-d4266594918b
+status: experimental
+description: >
+  Command line consistent with event log clearing, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'wevtutil cl '
+      - 'wevtutil.exe cl'
+      - 'clear-eventlog'
+      - 'wevtutil el'
+  condition: selection
+tags:
+  - attack.t1070.001
+  - attack.defense_evasion

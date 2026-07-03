@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'slotgacor'
+id: d0063895-ec16-5f23-b237-6624a1e3ed58
+status: experimental
+description: >
+  Gambling site-brand token 'slotgacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'slotgacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

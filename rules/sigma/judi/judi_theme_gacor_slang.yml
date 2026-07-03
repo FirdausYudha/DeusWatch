@@ -1,0 +1,35 @@
+title: Judi Online - Slang / kata sandi gambling keywords
+id: 5b1ff7b2-ab3c-52e1-b4d4-32793da85b36
+status: experimental
+description: >
+  Indonesian online-gambling (Slang / kata sandi gambling) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gacor parah'
+    - 'gacor terus'
+    - 'auto jp'
+    - 'auto wd'
+    - 'wd besar'
+    - 'jp paus'
+    - 'scatter hitam'
+    - 'maxwin sensasional'
+    - 'banjir scatter'
+    - 'pecah petir'
+    - 'petir merah'
+    - 'petir x500'
+    - 'cuan melimpah'
+    - 'jackpot terbesar'
+    - 'modal receh'
+    - 'modal kecil'
+    - 'sekali spin'
+    - 'spin gratis'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

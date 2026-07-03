@@ -1,0 +1,24 @@
+title: FIM - filesystem table (/etc/fstab)
+id: af47343b-c3f8-5462-a476-9dce358ed9e3
+status: experimental
+description: >
+  Integrity change on filesystem table (/etc/fstab). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/fstab'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

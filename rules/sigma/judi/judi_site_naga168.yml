@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'naga168'
+id: 8b2f757a-ae9a-5d79-91f0-b563692eb2dd
+status: experimental
+description: >
+  Gambling site-brand token 'naga168' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'naga168'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

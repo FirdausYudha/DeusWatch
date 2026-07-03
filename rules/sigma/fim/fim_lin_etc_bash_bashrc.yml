@@ -1,0 +1,24 @@
+title: FIM - system bashrc (/etc/bash.bashrc)
+id: 01ff25d1-92cb-57db-ae0a-3d69e3c75b59
+status: experimental
+description: >
+  Integrity change on system bashrc (/etc/bash.bashrc). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/bash.bashrc'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

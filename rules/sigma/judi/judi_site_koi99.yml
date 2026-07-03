@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'koi99'
+id: 5138b125-7a50-5793-b94e-9f5544b73a91
+status: experimental
+description: >
+  Gambling site-brand token 'koi99' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'koi99'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

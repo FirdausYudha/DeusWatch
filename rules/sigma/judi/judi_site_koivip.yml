@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'koivip'
+id: 2ac1de32-4ea0-5212-9be4-c3a5b4a4cfc6
+status: experimental
+description: >
+  Gambling site-brand token 'koivip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'koivip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

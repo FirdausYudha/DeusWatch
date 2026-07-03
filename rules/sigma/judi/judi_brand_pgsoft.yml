@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'pgsoft'
+id: 6d9915b5-16e5-5c5a-a8fa-4a2d8fdbb778
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'pgsoft'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'pgsoft'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

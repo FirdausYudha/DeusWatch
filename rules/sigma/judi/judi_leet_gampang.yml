@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'gampang' (SEO/content injection)
+id: 4c60920e-df12-5168-8a67-2f776fa48d74
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'gampang' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '94mp4n9'
+    - '94mp4n99'
+    - '94mp4ng'
+    - '94mp4ngg'
+    - '94mp@n9'
+    - '94mp@n99'
+    - '94mp@ng'
+    - '94mp@ngg'
+    - '94mpan9'
+    - '94mpan99'
+    - '94mpang'
+    - '94mpangg'
+    - '9@mp4n9'
+    - '9@mp4n99'
+    - '9@mp4ng'
+    - '9@mp4ngg'
+    - '9@mp@n9'
+    - '9@mp@n99'
+    - '9@mp@ng'
+    - '9@mp@ngg'
+    - '9@mpan9'
+    - '9@mpan99'
+    - '9@mpang'
+    - '9@mpangg'
+    - '9amp4n9'
+    - '9amp4n99'
+    - '9amp4ng'
+    - '9amp4ngg'
+    - '9amp@n9'
+    - '9amp@n99'
+    - '9amp@ng'
+    - '9amp@ngg'
+    - '9ampan9'
+    - '9ampan99'
+    - '9ampang'
+    - '9ampangg'
+    - 'g4mp4n9'
+    - 'g4mp4n99'
+    - 'g4mp4ng'
+    - 'g4mp4ngg'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

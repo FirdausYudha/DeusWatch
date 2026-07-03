@@ -1,0 +1,33 @@
+title: Judi Online - Leetspeak term 'turbo' (SEO/content injection)
+id: c44a23a6-efc2-5f2b-863b-6796181b79a2
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'turbo' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '7ur80'
+    - '7ur800'
+    - '7ur8o'
+    - '7ur8oo'
+    - '7urb0'
+    - '7urb00'
+    - '7urbo'
+    - '7urboo'
+    - 'tur80'
+    - 'tur800'
+    - 'tur8o'
+    - 'tur8oo'
+    - 'turb0'
+    - 'turb00'
+    - 'turbo'
+    - 'turboo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

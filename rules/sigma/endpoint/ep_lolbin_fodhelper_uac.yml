@@ -1,0 +1,22 @@
+title: Windows LOLBin - fodhelper UAC bypass
+id: 9ba8d0b4-70d2-5c6e-90d0-6344790509f9
+status: experimental
+description: >
+  Command line consistent with fodhelper UAC bypass, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'fodhelper.exe'
+      - 'computerdefaults.exe'
+      - '\ms-settings\shell\open'
+  condition: selection
+tags:
+  - attack.t1548.002
+  - attack.defense_evasion

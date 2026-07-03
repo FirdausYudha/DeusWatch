@@ -1,0 +1,23 @@
+title: Judi Online - Leetspeak term 'judi' (SEO/content injection)
+id: 8c016552-3b79-5578-bfb3-d6dc2549d244
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'judi' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jud!'
+    - 'jud!!'
+    - 'jud1'
+    - 'jud11'
+    - 'judi'
+    - 'judii'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

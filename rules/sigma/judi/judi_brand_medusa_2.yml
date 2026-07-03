@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'medusa 2'
+id: bfe962e3-8047-5353-80d5-9f26a06eb5a4
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'medusa 2'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'medusa 2'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

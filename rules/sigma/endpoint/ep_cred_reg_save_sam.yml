@@ -1,0 +1,22 @@
+title: Credential Access - SAM/SYSTEM hive export
+id: f8a9e304-c0aa-5687-9598-e5dc85e55696
+status: experimental
+description: >
+  Command line consistent with SAM/SYSTEM hive export.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'reg save hklm\sam'
+      - 'reg save hklm\system'
+      - 'reg save hklm\security'
+  condition: selection
+tags:
+  - attack.t1003.002
+  - attack.credential_access

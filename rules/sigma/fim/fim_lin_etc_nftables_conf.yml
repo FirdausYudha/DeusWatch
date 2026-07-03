@@ -1,0 +1,24 @@
+title: FIM - nftables rules (/etc/nftables.conf)
+id: 8028c5a4-9727-5714-b53b-de67ab7a8db4
+status: experimental
+description: >
+  Integrity change on nftables rules (/etc/nftables.conf). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/nftables.conf'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

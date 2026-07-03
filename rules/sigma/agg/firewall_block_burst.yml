@@ -1,0 +1,19 @@
+title: Firewall Block Burst by Source IP
+id: 263e9168-9364-5fe8-a260-e9b3a198d28e
+status: experimental
+description: >
+  Many firewall drops from one source IP - port scan / network probe.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: firewall
+detection:
+  selection:
+    event.action: firewall_block
+  timeframe: 1m
+  condition: selection | count() by source.ip > 30
+tags:
+  - attack.t1046
+  - attack.discovery

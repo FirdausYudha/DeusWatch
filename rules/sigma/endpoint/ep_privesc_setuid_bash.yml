@@ -1,0 +1,22 @@
+title: Privilege Escalation - setuid shell staging
+id: 8c3d1bcd-73f1-55f9-9d48-ba9f27ef183a
+status: experimental
+description: >
+  Command line consistent with setuid shell staging.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'chmod u+s /bin/bash'
+      - 'chmod 4755'
+      - 'cp /bin/bash /tmp'
+  condition: selection
+tags:
+  - attack.t1548.001
+  - attack.privilege_escalation

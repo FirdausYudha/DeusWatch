@@ -1,0 +1,23 @@
+title: Linux Abuse - systemd service persistence
+id: f1305026-3c17-5866-9ca6-35ec91a149da
+status: experimental
+description: >
+  Command line consistent with systemd service persistence - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'systemctl enable'
+      - 'systemctl daemon-reload'
+      - '.service'
+      - 'systemd-run'
+  condition: selection
+tags:
+  - attack.t1543.002
+  - attack.defense_evasion

@@ -1,0 +1,24 @@
+title: FIM - subgid map (/etc/subgid)
+id: eb979756-03ef-5fce-90bf-30a744202e42
+status: experimental
+description: >
+  Integrity change on subgid map (/etc/subgid). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/subgid'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

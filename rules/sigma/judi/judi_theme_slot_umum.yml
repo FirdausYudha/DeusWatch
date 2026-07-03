@@ -1,0 +1,49 @@
+title: Judi Online - Slot / gacor umum keywords
+id: 389cffdf-f45e-5735-a09f-fdfc990f0c69
+status: experimental
+description: >
+  Indonesian online-gambling (Slot / gacor umum) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'slot gacor'
+    - 'slot online'
+    - 'slot88'
+    - 'situs slot'
+    - 'agen slot'
+    - 'link slot'
+    - 'slot terpercaya'
+    - 'slot maxwin'
+    - 'slot pulsa'
+    - 'slot dana'
+    - 'slot deposit'
+    - 'slot resmi'
+    - 'slot terbaru'
+    - 'slot hoki'
+    - 'slot anti rungkad'
+    - 'slot demo'
+    - 'akun pro'
+    - 'akun gacor'
+    - 'pola gacor'
+    - 'jam gacor'
+    - 'bocoran slot'
+    - 'rtp slot'
+    - 'rtp live'
+    - 'info rtp'
+    - 'server luar'
+    - 'server thailand'
+    - 'slot thailand'
+    - 'slot kamboja'
+    - 'slot vietnam'
+    - 'x500'
+    - 'x1000'
+    - 'auto maxwin'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

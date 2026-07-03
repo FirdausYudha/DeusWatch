@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'cyber army'
+id: 02015a21-463d-5c21-b633-cc7966459a6c
+status: experimental
+description: >
+  Classic web-defacement banner text 'cyber army' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cyber army'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

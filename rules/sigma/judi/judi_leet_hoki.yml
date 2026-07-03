@@ -1,0 +1,29 @@
+title: Judi Online - Leetspeak term 'hoki' (SEO/content injection)
+id: 291c1a13-8404-50aa-9d59-a333be0c4c65
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'hoki' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'h0k!'
+    - 'h0k!!'
+    - 'h0k1'
+    - 'h0k11'
+    - 'h0ki'
+    - 'h0kii'
+    - 'hok!'
+    - 'hok!!'
+    - 'hok1'
+    - 'hok11'
+    - 'hoki'
+    - 'hokii'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

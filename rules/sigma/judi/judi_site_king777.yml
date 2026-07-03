@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'king777'
+id: fdda396c-b05f-52b6-be6a-d4e45ebdae0f
+status: experimental
+description: >
+  Gambling site-brand token 'king777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'king777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,40 @@
+title: Judi Online - Togel pasaran (markets) keywords
+id: 7b554143-aaa2-5d8b-9ccb-0fd08f31b11a
+status: experimental
+description: >
+  Indonesian online-gambling (Togel pasaran (markets)) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'togel hongkong'
+    - 'keluaran hk'
+    - 'result hk'
+    - 'togel hkg'
+    - 'data hk'
+    - 'togel singapore'
+    - 'keluaran sgp'
+    - 'result sgp'
+    - 'data sgp'
+    - 'togel sgp'
+    - 'togel sydney'
+    - 'keluaran sdy'
+    - 'result sdy'
+    - 'data sdy'
+    - 'togel sidney'
+    - 'togel cambodia'
+    - 'keluaran cambodia'
+    - 'togel china'
+    - 'togel japan'
+    - 'togel taiwan'
+    - 'togel macau'
+    - 'togel bullseye'
+    - 'togel magnum'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

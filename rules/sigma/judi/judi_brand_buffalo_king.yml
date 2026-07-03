@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'buffalo king'
+id: 9ded8d0d-2262-5e17-be99-3892a91ebed8
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'buffalo king'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'buffalo king'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,24 @@
+title: Suspicious Double-Extension Upload - .jsp.jpg
+id: 1f8a9888-e0ed-525b-bc6e-4b780cfe96f3
+status: experimental
+description: >
+  A file whose name contains the masquerading double-extension pattern '.jsp.jpg', a common trick to smuggle executable server code past an upload filter.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '.jsp.jpg'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1036.007
+  - attack.defense_evasion

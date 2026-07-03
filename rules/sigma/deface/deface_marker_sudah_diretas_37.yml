@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'sudah diretas'
+id: b692109f-f9cc-5763-a619-49146281744d
+status: experimental
+description: >
+  Classic web-defacement banner text 'sudah diretas' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sudah diretas'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

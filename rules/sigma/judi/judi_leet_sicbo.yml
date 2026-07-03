@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'sicbo' (SEO/content injection)
+id: d8d7c7a2-9285-54b0-b507-88703097414c
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'sicbo' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$!c80'
+    - '$!c800'
+    - '$!c8o'
+    - '$!c8oo'
+    - '$!cb0'
+    - '$!cb00'
+    - '$!cbo'
+    - '$!cboo'
+    - '$1c80'
+    - '$1c800'
+    - '$1c8o'
+    - '$1c8oo'
+    - '$1cb0'
+    - '$1cb00'
+    - '$1cbo'
+    - '$1cboo'
+    - '$ic80'
+    - '$ic800'
+    - '$ic8o'
+    - '$ic8oo'
+    - '$icb0'
+    - '$icb00'
+    - '$icbo'
+    - '$icboo'
+    - '5!c80'
+    - '5!c800'
+    - '5!c8o'
+    - '5!c8oo'
+    - '5!cb0'
+    - '5!cb00'
+    - '5!cbo'
+    - '5!cboo'
+    - '51c80'
+    - '51c800'
+    - '51c8o'
+    - '51c8oo'
+    - '51cb0'
+    - '51cb00'
+    - '51cbo'
+    - '51cboo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

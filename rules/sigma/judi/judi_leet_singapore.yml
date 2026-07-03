@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'singapore' (SEO/content injection)
+id: 5411bcfa-cb9f-53dc-9251-646e056a6df5
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'singapore' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$!n94p0r3'
+    - '$!n94p0r33'
+    - '$!n94p0re'
+    - '$!n94p0ree'
+    - '$!n94por3'
+    - '$!n94por33'
+    - '$!n94pore'
+    - '$!n94poree'
+    - '$!n9@p0r3'
+    - '$!n9@p0r33'
+    - '$!n9@p0re'
+    - '$!n9@p0ree'
+    - '$!n9@por3'
+    - '$!n9@por33'
+    - '$!n9@pore'
+    - '$!n9@poree'
+    - '$!n9ap0r3'
+    - '$!n9ap0r33'
+    - '$!n9ap0re'
+    - '$!n9ap0ree'
+    - '$!n9apor3'
+    - '$!n9apor33'
+    - '$!n9apore'
+    - '$!n9aporee'
+    - '$!ng4p0r3'
+    - '$!ng4p0r33'
+    - '$!ng4p0re'
+    - '$!ng4p0ree'
+    - '$!ng4por3'
+    - '$!ng4por33'
+    - '$!ng4pore'
+    - '$!ng4poree'
+    - '$!ng@p0r3'
+    - '$!ng@p0r33'
+    - '$!ng@p0re'
+    - '$!ng@p0ree'
+    - '$!ng@por3'
+    - '$!ng@por33'
+    - '$!ng@pore'
+    - '$!ng@poree'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,25 @@
+title: FIM (Windows) - AT task
+id: b6a84630-dd55-5924-bd8f-c3edb1d5c88f
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (AT task: ...\Windows\Tasks\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\Tasks\'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

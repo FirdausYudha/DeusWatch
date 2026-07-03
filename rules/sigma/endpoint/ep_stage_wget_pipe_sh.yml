@@ -1,0 +1,23 @@
+title: Payload Staging - wget | sh download-and-run
+id: 27500d7d-9840-549b-a002-8997b5669dbf
+status: experimental
+description: >
+  Command line consistent with wget | sh download-and-run - typical of malware/tooling download and execution.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'wget -q -o- http'
+      - 'wget -o- http'
+      - 'wget http'
+      - 'wget -qo-'
+  condition: selection
+tags:
+  - attack.t1105
+  - attack.command_and_control

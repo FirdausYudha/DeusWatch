@@ -1,0 +1,23 @@
+title: Discovery - Windows domain discovery
+id: b00f5f9f-695e-5d7a-bcbe-f21dbe10670e
+status: experimental
+description: >
+  Command line consistent with Windows domain discovery - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'net view'
+      - 'net group "domain admins"'
+      - 'net accounts'
+      - 'arp -a'
+  condition: selection
+tags:
+  - attack.t1018
+  - attack.discovery

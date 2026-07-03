@@ -1,0 +1,25 @@
+title: FIM (Web) - WordPress themes (/wp-content/themes/)
+id: 66949b3a-98fe-56a5-9ba5-8c8808e0948d
+status: experimental
+description: >
+  Integrity change under the web application tree (WordPress themes: /wp-content/themes/). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/wp-content/themes/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

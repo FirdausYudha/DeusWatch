@@ -1,0 +1,22 @@
+title: Reverse Shell - socat reverse shell
+id: 9ee40c97-4dcd-51bc-8396-43ac1368ecc9
+status: experimental
+description: >
+  Command line consistent with a socat reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'socat exec:'
+      - 'socat tcp-connect:'
+      - 'socat openssl:'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

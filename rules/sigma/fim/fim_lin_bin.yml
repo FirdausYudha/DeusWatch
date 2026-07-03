@@ -1,0 +1,24 @@
+title: FIM - core binary dir (/bin/)
+id: 0f125ab6-d51b-5d01-be3e-b8eef3700dc0
+status: experimental
+description: >
+  Integrity change on core binary dir (/bin/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/bin/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

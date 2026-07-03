@@ -1,0 +1,19 @@
+title: Mass File Integrity Changes by Host
+id: 91211cd3-4991-5775-b17e-e556bcdb1c88
+status: experimental
+description: >
+  A burst of file changes on one host - ransomware, mass defacement, or a deploy gone wrong.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: file_event
+detection:
+  selection:
+    event.category: file
+  timeframe: 5m
+  condition: selection | count() by host.name > 100
+tags:
+  - attack.t1486
+  - attack.impact

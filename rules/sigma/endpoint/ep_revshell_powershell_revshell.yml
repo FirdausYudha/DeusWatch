@@ -1,0 +1,21 @@
+title: Reverse Shell - powershell reverse shell
+id: 5b7a6ba7-5540-5669-9755-34309da54650
+status: experimental
+description: >
+  Command line consistent with a powershell reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'new-object system.net.sockets.tcpclient'
+      - '$client.getstream()'
+  condition: selection
+tags:
+  - attack.t1059.001
+  - attack.execution

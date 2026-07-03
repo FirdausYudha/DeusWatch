@@ -1,0 +1,53 @@
+title: Judi Online - Leetspeak term 'withdraw' (SEO/content injection)
+id: 8dcdd671-07bc-57e7-b5e8-3b1bfd1d3d8f
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'withdraw' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'w!7hdr4w'
+    - 'w!7hdr4ww'
+    - 'w!7hdr@w'
+    - 'w!7hdr@ww'
+    - 'w!7hdraw'
+    - 'w!7hdraww'
+    - 'w!thdr4w'
+    - 'w!thdr4ww'
+    - 'w!thdr@w'
+    - 'w!thdr@ww'
+    - 'w!thdraw'
+    - 'w!thdraww'
+    - 'w17hdr4w'
+    - 'w17hdr4ww'
+    - 'w17hdr@w'
+    - 'w17hdr@ww'
+    - 'w17hdraw'
+    - 'w17hdraww'
+    - 'w1thdr4w'
+    - 'w1thdr4ww'
+    - 'w1thdr@w'
+    - 'w1thdr@ww'
+    - 'w1thdraw'
+    - 'w1thdraww'
+    - 'wi7hdr4w'
+    - 'wi7hdr4ww'
+    - 'wi7hdr@w'
+    - 'wi7hdr@ww'
+    - 'wi7hdraw'
+    - 'wi7hdraww'
+    - 'withdr4w'
+    - 'withdr4ww'
+    - 'withdr@w'
+    - 'withdr@ww'
+    - 'withdraw'
+    - 'withdraww'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

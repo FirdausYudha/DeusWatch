@@ -1,0 +1,24 @@
+title: Webshell File Drop - k2ll33d.php
+id: 7ba01300-1241-538b-a029-a94ca745ab35
+status: experimental
+description: >
+  A file matching a known webshell name ('k2ll33d.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'k2ll33d.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

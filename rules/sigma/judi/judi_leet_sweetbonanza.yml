@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'sweetbonanza' (SEO/content injection)
+id: dac4c437-395c-53de-86f5-897709f9e45c
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'sweetbonanza' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$w33780n4nz4'
+    - '$w33780n4nz44'
+    - '$w33780n4nz@'
+    - '$w33780n4nz@@'
+    - '$w33780n4nza'
+    - '$w33780n4nzaa'
+    - '$w33780n@nz4'
+    - '$w33780n@nz44'
+    - '$w33780n@nz@'
+    - '$w33780n@nz@@'
+    - '$w33780n@nza'
+    - '$w33780n@nzaa'
+    - '$w33780nanz4'
+    - '$w33780nanz44'
+    - '$w33780nanz@'
+    - '$w33780nanz@@'
+    - '$w33780nanza'
+    - '$w33780nanzaa'
+    - '$w3378on4nz4'
+    - '$w3378on4nz44'
+    - '$w3378on4nz@'
+    - '$w3378on4nz@@'
+    - '$w3378on4nza'
+    - '$w3378on4nzaa'
+    - '$w3378on@nz4'
+    - '$w3378on@nz44'
+    - '$w3378on@nz@'
+    - '$w3378on@nz@@'
+    - '$w3378on@nza'
+    - '$w3378on@nzaa'
+    - '$w3378onanz4'
+    - '$w3378onanz44'
+    - '$w3378onanz@'
+    - '$w3378onanz@@'
+    - '$w3378onanza'
+    - '$w3378onanzaa'
+    - '$w337b0n4nz4'
+    - '$w337b0n4nz44'
+    - '$w337b0n4nz@'
+    - '$w337b0n4nz@@'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

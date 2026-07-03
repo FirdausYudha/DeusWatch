@@ -1,0 +1,20 @@
+title: Authentication Failures Burst by Source IP
+id: 7fb86453-5645-5a2a-8a9e-442c0509bb47
+status: experimental
+description: >
+  Many failed authentications from one source IP in a short window - credential stuffing / brute force.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: authentication
+detection:
+  selection:
+    event.category: authentication
+    event.outcome: failure
+  timeframe: 5m
+  condition: selection | count() by source.ip > 20
+tags:
+  - attack.t1110
+  - attack.credential_access

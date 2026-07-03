@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'the dog house'
+id: 47c23a61-86cf-552c-bddc-f7af2d6027c8
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'the dog house'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'the dog house'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,24 @@
+title: FIM (Windows) - lmhosts
+id: 7f76913e-931d-5fc9-a34c-21c330273f60
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (lmhosts: ...\Windows\System32\drivers\etc\lmhosts). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\drivers\etc\lmhosts'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,24 @@
+title: FIM (Windows) - WMI repository
+id: a1542475-8b52-5ac4-90e7-0788a68b174a
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (WMI repository: ...\Windows\System32\wbem\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\wbem\'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

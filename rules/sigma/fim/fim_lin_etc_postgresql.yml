@@ -1,0 +1,24 @@
+title: FIM - postgresql config (/etc/postgresql/)
+id: d5a6422f-e7d3-5705-bee3-374aa2a8a908
+status: experimental
+description: >
+  Integrity change on postgresql config (/etc/postgresql/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/postgresql/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

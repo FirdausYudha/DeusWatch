@@ -1,0 +1,24 @@
+title: Suspicious Double-Extension Upload - .phar.jpg
+id: e06cb7e6-d03e-56ba-9af5-051f695c05c1
+status: experimental
+description: >
+  A file whose name contains the masquerading double-extension pattern '.phar.jpg', a common trick to smuggle executable server code past an upload filter.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '.phar.jpg'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1036.007
+  - attack.defense_evasion

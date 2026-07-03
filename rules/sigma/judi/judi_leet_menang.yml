@@ -1,0 +1,41 @@
+title: Judi Online - Leetspeak term 'menang' (SEO/content injection)
+id: 61df7f06-09af-5be3-a892-00aab44c81dc
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'menang' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'm3n4n9'
+    - 'm3n4n99'
+    - 'm3n4ng'
+    - 'm3n4ngg'
+    - 'm3n@n9'
+    - 'm3n@n99'
+    - 'm3n@ng'
+    - 'm3n@ngg'
+    - 'm3nan9'
+    - 'm3nan99'
+    - 'm3nang'
+    - 'm3nangg'
+    - 'men4n9'
+    - 'men4n99'
+    - 'men4ng'
+    - 'men4ngg'
+    - 'men@n9'
+    - 'men@n99'
+    - 'men@ng'
+    - 'men@ngg'
+    - 'menan9'
+    - 'menan99'
+    - 'menang'
+    - 'menangg'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

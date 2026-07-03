@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'luxuryvip88'
+id: 642d3629-3b02-5f13-9586-ce15acc90a9b
+status: experimental
+description: >
+  Gambling site-brand token 'luxuryvip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'luxuryvip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

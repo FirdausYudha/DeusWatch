@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'fuck your system'
+id: 2cc6354a-60ba-5818-8195-8e5d17a99ecb
+status: experimental
+description: >
+  Classic web-defacement banner text 'fuck your system' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'fuck your system'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'bonanza' (SEO/content injection)
+id: 0b939f06-d8d7-50ad-ace3-2a6eafe51640
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'bonanza' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '80n4nz4'
+    - '80n4nz44'
+    - '80n4nz@'
+    - '80n4nz@@'
+    - '80n4nza'
+    - '80n4nzaa'
+    - '80n@nz4'
+    - '80n@nz44'
+    - '80n@nz@'
+    - '80n@nz@@'
+    - '80n@nza'
+    - '80n@nzaa'
+    - '80nanz4'
+    - '80nanz44'
+    - '80nanz@'
+    - '80nanz@@'
+    - '80nanza'
+    - '80nanzaa'
+    - '8on4nz4'
+    - '8on4nz44'
+    - '8on4nz@'
+    - '8on4nz@@'
+    - '8on4nza'
+    - '8on4nzaa'
+    - '8on@nz4'
+    - '8on@nz44'
+    - '8on@nz@'
+    - '8on@nz@@'
+    - '8on@nza'
+    - '8on@nzaa'
+    - '8onanz4'
+    - '8onanz44'
+    - '8onanz@'
+    - '8onanz@@'
+    - '8onanza'
+    - '8onanzaa'
+    - 'b0n4nz4'
+    - 'b0n4nz44'
+    - 'b0n4nz@'
+    - 'b0n4nz@@'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

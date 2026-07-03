@@ -1,0 +1,18 @@
+title: Web Defacement Marker - '0wned by'
+id: 00690775-5d2a-5811-b429-c79f29578659
+status: experimental
+description: >
+  Classic web-defacement banner text '0wned by' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '0wned by'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

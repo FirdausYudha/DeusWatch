@@ -1,0 +1,25 @@
+title: FIM - ld.so.preload (rootkit vector) (/etc/ld.so.preload)
+id: 025ea8f6-5f54-5990-b235-cbf80aceee4f
+status: experimental
+description: >
+  Integrity change on ld.so.preload (rootkit vector) (/etc/ld.so.preload). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/ld.so.preload'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

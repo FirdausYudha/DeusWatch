@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'genie's 3 wishes'
+id: 25a3e157-5e75-56e5-86e2-b1cdaca57d98
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'genie's 3 wishes'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'genie''s 3 wishes'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

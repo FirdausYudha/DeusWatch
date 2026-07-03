@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'roulette' (SEO/content injection)
+id: 852be2fc-36fd-5d76-a479-e6545788b7e9
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'roulette' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'r0u13773'
+    - 'r0u137733'
+    - 'r0u1377e'
+    - 'r0u1377ee'
+    - 'r0u137t3'
+    - 'r0u137t33'
+    - 'r0u137te'
+    - 'r0u137tee'
+    - 'r0u13t73'
+    - 'r0u13t733'
+    - 'r0u13t7e'
+    - 'r0u13t7ee'
+    - 'r0u13tt3'
+    - 'r0u13tt33'
+    - 'r0u13tte'
+    - 'r0u13ttee'
+    - 'r0u1e773'
+    - 'r0u1e7733'
+    - 'r0u1e77e'
+    - 'r0u1e77ee'
+    - 'r0u1e7t3'
+    - 'r0u1e7t33'
+    - 'r0u1e7te'
+    - 'r0u1e7tee'
+    - 'r0u1et73'
+    - 'r0u1et733'
+    - 'r0u1et7e'
+    - 'r0u1et7ee'
+    - 'r0u1ett3'
+    - 'r0u1ett33'
+    - 'r0u1ette'
+    - 'r0u1ettee'
+    - 'r0ul3773'
+    - 'r0ul37733'
+    - 'r0ul377e'
+    - 'r0ul377ee'
+    - 'r0ul37t3'
+    - 'r0ul37t33'
+    - 'r0ul37te'
+    - 'r0ul37tee'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

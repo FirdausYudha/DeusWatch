@@ -1,0 +1,24 @@
+title: FIM (Web) - Magento env (/app/etc/env.php)
+id: 956c741b-fe9b-5f42-a43e-aa8391b713e0
+status: experimental
+description: >
+  Integrity change under the web application tree (Magento env: /app/etc/env.php). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/app/etc/env.php'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

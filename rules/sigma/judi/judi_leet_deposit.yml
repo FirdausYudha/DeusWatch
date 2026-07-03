@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'deposit' (SEO/content injection)
+id: 9bec61b8-3fcf-5f43-ba0b-e76d873649b7
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'deposit' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'd3p0$!7'
+    - 'd3p0$!77'
+    - 'd3p0$!t'
+    - 'd3p0$!tt'
+    - 'd3p0$17'
+    - 'd3p0$177'
+    - 'd3p0$1t'
+    - 'd3p0$1tt'
+    - 'd3p0$i7'
+    - 'd3p0$i77'
+    - 'd3p0$it'
+    - 'd3p0$itt'
+    - 'd3p05!7'
+    - 'd3p05!77'
+    - 'd3p05!t'
+    - 'd3p05!tt'
+    - 'd3p0517'
+    - 'd3p05177'
+    - 'd3p051t'
+    - 'd3p051tt'
+    - 'd3p05i7'
+    - 'd3p05i77'
+    - 'd3p05it'
+    - 'd3p05itt'
+    - 'd3p0s!7'
+    - 'd3p0s!77'
+    - 'd3p0s!t'
+    - 'd3p0s!tt'
+    - 'd3p0s17'
+    - 'd3p0s177'
+    - 'd3p0s1t'
+    - 'd3p0s1tt'
+    - 'd3p0si7'
+    - 'd3p0si77'
+    - 'd3p0sit'
+    - 'd3p0sitt'
+    - 'd3po$!7'
+    - 'd3po$!77'
+    - 'd3po$!t'
+    - 'd3po$!tt'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,28 @@
+title: Judi Online - Sabung ayam (cockfighting) keywords
+id: 546a0934-750c-533d-8839-f85eb7fade5b
+status: experimental
+description: >
+  Indonesian online-gambling (Sabung ayam (cockfighting)) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sabung ayam'
+    - 'sv388'
+    - 's128'
+    - 'adu ayam'
+    - 'ayam online'
+    - 'laga ayam'
+    - 'taji ayam'
+    - 'sabung ayam online'
+    - 'agen sabung ayam'
+    - 'digmaan'
+    - 'wa88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

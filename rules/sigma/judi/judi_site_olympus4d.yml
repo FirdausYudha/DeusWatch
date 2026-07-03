@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'olympus4d'
+id: f83f6210-5631-5a06-99f7-9c3c74d29d5c
+status: experimental
+description: >
+  Gambling site-brand token 'olympus4d' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'olympus4d'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

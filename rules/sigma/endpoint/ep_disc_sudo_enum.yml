@@ -1,0 +1,21 @@
+title: Discovery - sudo capability discovery
+id: 8011bc8e-abea-57e4-980d-ac0e9f635d25
+status: experimental
+description: >
+  Command line consistent with sudo capability discovery - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'sudo -l'
+      - 'sudo -ll'
+  condition: selection
+tags:
+  - attack.t1033
+  - attack.discovery

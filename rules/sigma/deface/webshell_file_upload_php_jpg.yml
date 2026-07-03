@@ -1,0 +1,24 @@
+title: Webshell File Drop - upload.php.jpg
+id: a79874f4-d8fe-58c4-94e7-c70adbfc3a36
+status: experimental
+description: >
+  A file matching a known webshell name ('upload.php.jpg') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'upload.php.jpg'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

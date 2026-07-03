@@ -1,0 +1,24 @@
+title: Webshell File Drop - conf.php.suspected
+id: 93467ccf-c948-59d2-a8d3-6d34ff8caa86
+status: experimental
+description: >
+  A file matching a known webshell name ('conf.php.suspected') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'conf.php.suspected'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

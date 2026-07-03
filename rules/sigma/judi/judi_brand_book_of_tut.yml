@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'book of tut'
+id: 3f100c2a-9d05-5b65-bbff-f79635a81136
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'book of tut'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'book of tut'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sultanindo'
+id: 18fed341-b287-5d21-8048-50a0c70a8a87
+status: experimental
+description: >
+  Gambling site-brand token 'sultanindo' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sultanindo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

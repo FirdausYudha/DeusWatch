@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'kilat' (SEO/content injection)
+id: 33502a19-fda1-5f54-8ca1-089a370061ef
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'kilat' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'k!147'
+    - 'k!1477'
+    - 'k!14t'
+    - 'k!14tt'
+    - 'k!1@7'
+    - 'k!1@77'
+    - 'k!1@t'
+    - 'k!1@tt'
+    - 'k!1a7'
+    - 'k!1a77'
+    - 'k!1at'
+    - 'k!1att'
+    - 'k!l47'
+    - 'k!l477'
+    - 'k!l4t'
+    - 'k!l4tt'
+    - 'k!l@7'
+    - 'k!l@77'
+    - 'k!l@t'
+    - 'k!l@tt'
+    - 'k!la7'
+    - 'k!la77'
+    - 'k!lat'
+    - 'k!latt'
+    - 'k1147'
+    - 'k11477'
+    - 'k114t'
+    - 'k114tt'
+    - 'k11@7'
+    - 'k11@77'
+    - 'k11@t'
+    - 'k11@tt'
+    - 'k11a7'
+    - 'k11a77'
+    - 'k11at'
+    - 'k11att'
+    - 'k1l47'
+    - 'k1l477'
+    - 'k1l4t'
+    - 'k1l4tt'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

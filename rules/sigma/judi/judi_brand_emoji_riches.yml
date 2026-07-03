@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'emoji riches'
+id: 11271edc-f294-5485-85b6-e6acb6c2c836
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'emoji riches'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'emoji riches'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'king138'
+id: 11983096-cbb3-5fa0-8311-14d3a020bd18
+status: experimental
+description: >
+  Gambling site-brand token 'king138' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'king138'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

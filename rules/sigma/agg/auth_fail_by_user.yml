@@ -1,0 +1,20 @@
+title: Authentication Failures Burst by User
+id: 967e151c-1ca6-5072-a7e2-4891f3ba825e
+status: experimental
+description: >
+  Many failed authentications against a single account - targeted password guessing.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: authentication
+detection:
+  selection:
+    event.category: authentication
+    event.outcome: failure
+  timeframe: 5m
+  condition: selection | count() by user.name > 15
+tags:
+  - attack.t1110.003
+  - attack.credential_access

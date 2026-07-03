@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'spirit of adventure'
+id: 4af75fca-6b5c-5437-9046-f6584683912a
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'spirit of adventure'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'spirit of adventure'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

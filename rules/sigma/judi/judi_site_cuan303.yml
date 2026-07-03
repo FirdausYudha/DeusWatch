@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'cuan303'
+id: 5699f934-10f1-53c2-9864-84bf8cf2940e
+status: experimental
+description: >
+  Gambling site-brand token 'cuan303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cuan303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

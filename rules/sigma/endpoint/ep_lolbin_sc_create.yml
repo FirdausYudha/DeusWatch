@@ -1,0 +1,23 @@
+title: Windows LOLBin - service creation
+id: 0defc326-3a0a-5e52-89dc-9c83ea24ca9d
+status: experimental
+description: >
+  Command line consistent with service creation, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'sc create'
+      - 'sc.exe create'
+      - 'sc config'
+      - 'new-service'
+  condition: selection
+tags:
+  - attack.t1543.003
+  - attack.defense_evasion

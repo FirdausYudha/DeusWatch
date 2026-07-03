@@ -1,0 +1,41 @@
+title: Judi Online - Leetspeak term 'domino' (SEO/content injection)
+id: 86d880eb-16ac-5c38-b51e-ba172cccf29d
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'domino' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'd0m!n0'
+    - 'd0m!n00'
+    - 'd0m!no'
+    - 'd0m!noo'
+    - 'd0m1n0'
+    - 'd0m1n00'
+    - 'd0m1no'
+    - 'd0m1noo'
+    - 'd0min0'
+    - 'd0min00'
+    - 'd0mino'
+    - 'd0minoo'
+    - 'dom!n0'
+    - 'dom!n00'
+    - 'dom!no'
+    - 'dom!noo'
+    - 'dom1n0'
+    - 'dom1n00'
+    - 'dom1no'
+    - 'dom1noo'
+    - 'domin0'
+    - 'domin00'
+    - 'domino'
+    - 'dominoo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

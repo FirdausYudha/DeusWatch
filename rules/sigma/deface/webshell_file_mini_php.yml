@@ -1,0 +1,24 @@
+title: Webshell File Drop - mini.php
+id: 1b3e6cbf-b4ef-5cb0-9244-394ae9b4cd34
+status: experimental
+description: >
+  A file matching a known webshell name ('mini.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'mini.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

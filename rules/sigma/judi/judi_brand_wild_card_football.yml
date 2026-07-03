@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'wild card football'
+id: 9d7b7735-f26e-5318-b827-44dab3c4d02f
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'wild card football'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'wild card football'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

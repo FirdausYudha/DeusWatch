@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'hacktivist'
+id: 70eec979-e478-51c0-b5f5-ea1d6fc11a9a
+status: experimental
+description: >
+  Classic web-defacement banner text 'hacktivist' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hacktivist'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

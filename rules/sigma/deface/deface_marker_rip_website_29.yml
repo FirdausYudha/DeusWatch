@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'rip website'
+id: ef9875c0-7dec-5c07-9053-b33f782bb769
+status: experimental
+description: >
+  Classic web-defacement banner text 'rip website' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'rip website'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

@@ -1,0 +1,23 @@
+title: Payload Staging - detached background execution
+id: 5e95beb4-6ba9-50f8-b2dd-97887bc1a895
+status: experimental
+description: >
+  Command line consistent with detached background execution - typical of malware/tooling download and execution.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'nohup '
+      - 'setsid '
+      - 'disown'
+      - '& disown'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.command_and_control

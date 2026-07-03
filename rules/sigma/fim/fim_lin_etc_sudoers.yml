@@ -1,0 +1,24 @@
+title: FIM - sudoers policy (/etc/sudoers)
+id: b2fda880-7e0c-5a39-b35c-83a5580e7119
+status: experimental
+description: >
+  Integrity change on sudoers policy (/etc/sudoers). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/sudoers'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

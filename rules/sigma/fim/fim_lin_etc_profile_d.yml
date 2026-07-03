@@ -1,0 +1,25 @@
+title: FIM - profile.d script (/etc/profile.d/)
+id: b1456a02-3a88-566b-97f8-6fc13db5158b
+status: experimental
+description: >
+  Integrity change on profile.d script (/etc/profile.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/profile.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

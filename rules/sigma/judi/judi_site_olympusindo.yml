@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'olympusindo'
+id: e98f46d3-b416-56df-8956-e9a73ec78f26
+status: experimental
+description: >
+  Gambling site-brand token 'olympusindo' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'olympusindo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

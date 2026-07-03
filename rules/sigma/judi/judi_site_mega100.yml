@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'mega100'
+id: 76dbf838-c37f-53a4-b24d-96a07805577d
+status: experimental
+description: >
+  Gambling site-brand token 'mega100' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mega100'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

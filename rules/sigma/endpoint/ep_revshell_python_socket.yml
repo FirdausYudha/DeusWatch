@@ -1,0 +1,23 @@
+title: Reverse Shell - python reverse shell
+id: 7b0127bc-0e84-52ea-9c65-f0d52db7e19e
+status: experimental
+description: >
+  Command line consistent with a python reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'import socket'
+      - 'socket.socket(socket.af_inet'
+      - 'pty.spawn'
+      - 'os.dup2'
+  condition: selection
+tags:
+  - attack.t1059.006
+  - attack.execution

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sultanvip'
+id: ea2e08be-70d3-5194-a91a-7b4f6bffa457
+status: experimental
+description: >
+  Gambling site-brand token 'sultanvip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sultanvip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

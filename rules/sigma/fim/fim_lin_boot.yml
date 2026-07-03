@@ -1,0 +1,24 @@
+title: FIM - boot files (/boot/)
+id: b08b443d-0ed5-5e87-8100-5dd04d65ba7f
+status: experimental
+description: >
+  Integrity change on boot files (/boot/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/boot/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

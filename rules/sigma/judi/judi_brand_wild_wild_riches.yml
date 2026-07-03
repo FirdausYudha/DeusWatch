@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'wild wild riches'
+id: 74ff986e-d1b2-5b6d-913e-86095560ab3f
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'wild wild riches'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'wild wild riches'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

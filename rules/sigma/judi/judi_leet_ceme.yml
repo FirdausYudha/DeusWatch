@@ -1,0 +1,25 @@
+title: Judi Online - Leetspeak term 'ceme' (SEO/content injection)
+id: 740dddcf-e0db-51d1-8fe0-c2bc679bf1e1
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'ceme' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'c3m3'
+    - 'c3m33'
+    - 'c3me'
+    - 'c3mee'
+    - 'cem3'
+    - 'cem33'
+    - 'ceme'
+    - 'cemee'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,23 @@
+title: Windows LOLBin - powershell encoded command
+id: 01cd9043-8b82-5eae-b318-5c86a4e936c9
+status: experimental
+description: >
+  Command line consistent with powershell encoded command, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'powershell -enc'
+      - 'powershell -e '
+      - '-encodedcommand'
+      - 'powershell -nop -w hidden'
+  condition: selection
+tags:
+  - attack.t1059.001
+  - attack.defense_evasion

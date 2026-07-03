@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jpvip'
+id: 14dbe3b6-605c-5bc4-80c8-893ab567a180
+status: experimental
+description: >
+  Gambling site-brand token 'jpvip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jpvip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

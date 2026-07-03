@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'wild west duels'
+id: b475eb44-baf1-537a-abb9-84ac47e44c7d
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'wild west duels'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'wild west duels'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

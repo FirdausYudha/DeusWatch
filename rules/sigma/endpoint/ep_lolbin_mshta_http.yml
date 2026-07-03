@@ -1,0 +1,23 @@
+title: Windows LOLBin - mshta remote scriptlet
+id: b4ed8f86-f810-5800-9f7b-0cd577a998d9
+status: experimental
+description: >
+  Command line consistent with mshta remote scriptlet, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'mshta http'
+      - 'mshta.exe http'
+      - 'mshta vbscript:'
+      - 'mshta javascript:'
+  condition: selection
+tags:
+  - attack.t1218.005
+  - attack.defense_evasion

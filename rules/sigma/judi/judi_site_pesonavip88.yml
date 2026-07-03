@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'pesonavip88'
+id: 0bfcd911-67e0-569f-bf87-f4fd6de881d4
+status: experimental
+description: >
+  Gambling site-brand token 'pesonavip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'pesonavip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

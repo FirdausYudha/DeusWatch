@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'wild west gold'
+id: 1374cfe8-b49f-5494-9dff-863c4dbec577
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'wild west gold'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'wild west gold'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'patched by'
+id: 5485fb2e-5b62-5df1-a5ee-22996bd27027
+status: experimental
+description: >
+  Classic web-defacement banner text 'patched by' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'patched by'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

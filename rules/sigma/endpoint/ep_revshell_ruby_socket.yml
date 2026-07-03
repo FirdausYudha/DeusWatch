@@ -1,0 +1,21 @@
+title: Reverse Shell - ruby reverse shell
+id: 7ffd1447-b82a-5b7e-a635-bd8223280836
+status: experimental
+description: >
+  Command line consistent with a ruby reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'ruby -rsocket'
+      - 'tcpsocket.open'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

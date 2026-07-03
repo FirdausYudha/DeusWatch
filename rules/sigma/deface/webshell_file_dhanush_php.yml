@@ -1,0 +1,24 @@
+title: Webshell File Drop - dhanush.php
+id: dfb219ab-2a79-51c9-82c3-35ef752741d4
+status: experimental
+description: >
+  A file matching a known webshell name ('dhanush.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'dhanush.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'flirting scholar'
+id: 2a9881f0-7eb7-5a1f-8589-6ee5f6f63193
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'flirting scholar'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'flirting scholar'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

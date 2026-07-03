@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'sweet bonanza xmas'
+id: cfb891b9-f257-53e9-9bb3-a862f033abcc
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'sweet bonanza xmas'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sweet bonanza xmas'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

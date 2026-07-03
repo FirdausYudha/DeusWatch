@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'garudagacor'
+id: 6872cca9-9877-50e0-9378-fb0ebe923a9f
+status: experimental
+description: >
+  Gambling site-brand token 'garudagacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'garudagacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

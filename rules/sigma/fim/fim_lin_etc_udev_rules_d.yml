@@ -1,0 +1,25 @@
+title: FIM - udev rules (/etc/udev/rules.d/)
+id: c9c22dc6-3f15-589f-b235-5c240281af05
+status: experimental
+description: >
+  Integrity change on udev rules (/etc/udev/rules.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/udev/rules.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'scatter' (SEO/content injection)
+id: 54fb09e3-cdcc-507b-b14c-1a57646bf807
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'scatter' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$c4773r'
+    - '$c4773rr'
+    - '$c477er'
+    - '$c477err'
+    - '$c47t3r'
+    - '$c47t3rr'
+    - '$c47ter'
+    - '$c47terr'
+    - '$c4t73r'
+    - '$c4t73rr'
+    - '$c4t7er'
+    - '$c4t7err'
+    - '$c4tt3r'
+    - '$c4tt3rr'
+    - '$c4tter'
+    - '$c4tterr'
+    - '$c@773r'
+    - '$c@773rr'
+    - '$c@77er'
+    - '$c@77err'
+    - '$c@7t3r'
+    - '$c@7t3rr'
+    - '$c@7ter'
+    - '$c@7terr'
+    - '$c@t73r'
+    - '$c@t73rr'
+    - '$c@t7er'
+    - '$c@t7err'
+    - '$c@tt3r'
+    - '$c@tt3rr'
+    - '$c@tter'
+    - '$c@tterr'
+    - '$ca773r'
+    - '$ca773rr'
+    - '$ca77er'
+    - '$ca77err'
+    - '$ca7t3r'
+    - '$ca7t3rr'
+    - '$ca7ter'
+    - '$ca7terr'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

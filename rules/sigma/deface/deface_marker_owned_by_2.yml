@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'owned by'
+id: 0fb47862-f5bb-57f5-9991-4d0c090e1d40
+status: experimental
+description: >
+  Classic web-defacement banner text 'owned by' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'owned by'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

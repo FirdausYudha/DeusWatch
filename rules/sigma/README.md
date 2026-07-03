@@ -72,3 +72,37 @@ This replaces the hardcoded brute-force detector with a Sigma-formatted rule.
 | `fim_file_change.yml` | monitored FIM file modified/deleted (T1565.001/T1070.004) | field match (multi-selection) |
 | `agg/ssh_bruteforce.yml` | brute force: >5 failures/IP per 1m (T1110) | **aggregation (SQL)** |
 | `agg/ssh_invalid_user_burst.yml` | >10 "invalid user"/IP per 5m (T1110.003) | **aggregation (SQL)** |
+
+## Generated rule packs
+
+The bulk of the ruleset is **generated** from curated corpuses by
+[`tools/rulegen/generate.py`](../../tools/rulegen/generate.py) into one-level subfolders
+(the loader recurses exactly one level, so these are picked up automatically):
+
+| Folder | Focus | Form |
+|---|---|---|
+| `judi/` | online-gambling ("judi online") content indicators: leetspeak core terms (`gacor`/`g4c0rr`/…), themed keyword corpuses (slot, togel, casino, bola, deposit, promo…), togel pasaran, slot titles/providers, and site-brand tokens | keyword |
+| `deface/` | web-defacement banner strings + known webshell file names + double-extension upload patterns | keyword / `file.path` |
+| `fim/` | File Integrity Monitoring on sensitive Linux/Windows/web-root paths | `file.path` + action gate |
+| `endpoint/` | suspicious process/command lines: reverse shells, LOLBins, credential access, discovery, persistence, privesc | `process.command_line` |
+| `agg/` | extra aggregation rules (auth-failure bursts, mass FIM change, web/firewall floods) | **aggregation (SQL)** |
+
+Total ≈ 1000+ rules. Regenerate deterministically (stable `uuid5` ids) after editing a
+corpus:
+
+```
+python tools/rulegen/generate.py     # (re)writes judi/ deface/ fim/ endpoint/ + agg/ packs
+go run ./tools/rulelint rules/sigma   # validates EVERY file through the real engine (CI gate)
+```
+
+**Why keyword rules are broad here:** `matchKeywords` substring-matches
+(case-insensitively) against *all* string fields of the event, not just `event.original`
+— so one gambling-keyword rule fires whether the term lands in a web access-log line
+(`event.original`), a dropped/injected file name (`file.path` from FIM), or a command
+line (`process.command_line`). See `haystack()` in `internal/detect/sigma/sigma.go`.
+
+> **Runtime cost:** every event is evaluated against every single-event rule linearly, and
+> each keyword rule rebuilds the event haystack. ~1000 rules is fine for a prototype; if
+> the hot path shows up in profiling, cache the haystack per event and/or index keywords.
+> The `endpoint/` `process.command_line` rules only fire once endpoint process-event
+> collection is shipping (Phase 2+); they are valid and forward-looking until then.

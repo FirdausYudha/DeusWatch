@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jp77'
+id: 133ed195-27ec-5a9c-b213-221f40af06b8
+status: experimental
+description: >
+  Gambling site-brand token 'jp77' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jp77'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

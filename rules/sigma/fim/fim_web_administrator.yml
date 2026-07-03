@@ -1,0 +1,25 @@
+title: FIM (Web) - Joomla admin (/administrator/)
+id: 59ae963e-006e-54b8-921d-c755bb9bf21f
+status: experimental
+description: >
+  Integrity change under the web application tree (Joomla admin: /administrator/). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/administrator/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

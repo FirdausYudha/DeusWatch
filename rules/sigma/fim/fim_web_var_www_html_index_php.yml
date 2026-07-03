@@ -1,0 +1,24 @@
+title: FIM (Web) - index.php (/var/www/html/index.php)
+id: 5be1178d-5aba-5835-8583-0269db8b5b30
+status: experimental
+description: >
+  Integrity change under the web application tree (index.php: /var/www/html/index.php). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/var/www/html/index.php'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

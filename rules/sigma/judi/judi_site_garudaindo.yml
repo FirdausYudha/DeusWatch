@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'garudaindo'
+id: 684ae964-8f8b-5159-8589-a1d09bfd9f4f
+status: experimental
+description: >
+  Gambling site-brand token 'garudaindo' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'garudaindo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

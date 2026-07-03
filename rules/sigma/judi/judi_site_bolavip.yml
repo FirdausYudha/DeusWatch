@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'bolavip'
+id: 5e249ad7-990d-524e-88a7-e4b572ab3ba6
+status: experimental
+description: >
+  Gambling site-brand token 'bolavip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bolavip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

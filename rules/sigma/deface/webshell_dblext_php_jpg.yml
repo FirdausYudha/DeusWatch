@@ -1,0 +1,24 @@
+title: Suspicious Double-Extension Upload - .php.jpg
+id: 4b1d742d-6561-5380-8e06-15074c6f2c1d
+status: experimental
+description: >
+  A file whose name contains the masquerading double-extension pattern '.php.jpg', a common trick to smuggle executable server code past an upload filter.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '.php.jpg'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1036.007
+  - attack.defense_evasion

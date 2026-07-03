@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'kingvip88'
+id: 7a517350-e0f7-50f8-b1de-2a400be7713e
+status: experimental
+description: >
+  Gambling site-brand token 'kingvip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'kingvip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,21 @@
+title: Reverse Shell - lua reverse shell
+id: 805b8d8c-8d05-5252-9575-252c98f5abcf
+status: experimental
+description: >
+  Command line consistent with a lua reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'lua -e'
+      - 'require(''socket'')'
+  condition: selection
+tags:
+  - attack.t1059
+  - attack.execution

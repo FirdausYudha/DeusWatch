@@ -1,0 +1,24 @@
+title: FIM - system sbin dir (/usr/sbin/)
+id: 5ad5f712-5a38-5eff-8788-0772c3f39fcc
+status: experimental
+description: >
+  Integrity change on system sbin dir (/usr/sbin/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/usr/sbin/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,23 @@
+title: Reverse Shell - php reverse shell
+id: c2669e34-e7cd-5bd9-8a4b-c74638f90c22
+status: experimental
+description: >
+  Command line consistent with a php reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'php -r'
+      - 'fsockopen('
+      - 'proc_open('
+      - 'shell_exec('
+  condition: selection
+tags:
+  - attack.t1059
+  - attack.execution

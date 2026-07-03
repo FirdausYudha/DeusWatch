@@ -1,0 +1,24 @@
+title: Windows LOLBin - wscript/cscript script exec
+id: 61d7630a-1563-54e2-a0a4-ebab80f258eb
+status: experimental
+description: >
+  Command line consistent with wscript/cscript script exec, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'cscript //e:'
+      - 'wscript '
+      - 'cscript.exe'
+      - '.vbs'
+      - '.js '
+  condition: selection
+tags:
+  - attack.t1059.005
+  - attack.defense_evasion

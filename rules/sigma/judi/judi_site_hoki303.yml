@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'hoki303'
+id: 5eaad4b8-8428-5207-a28e-e0b1378bc5a3
+status: experimental
+description: >
+  Gambling site-brand token 'hoki303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hoki303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

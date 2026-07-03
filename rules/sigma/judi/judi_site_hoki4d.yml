@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'hoki4d'
+id: 073bec96-6afd-5c1c-805b-2b80c4140edc
+status: experimental
+description: >
+  Gambling site-brand token 'hoki4d' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hoki4d'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

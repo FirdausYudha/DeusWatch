@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'mpo777'
+id: 82cbdb1c-5512-54d6-81a2-e8fada275c87
+status: experimental
+description: >
+  Gambling site-brand token 'mpo777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mpo777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

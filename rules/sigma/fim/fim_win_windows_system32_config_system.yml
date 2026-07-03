@@ -1,0 +1,24 @@
+title: FIM (Windows) - SYSTEM hive
+id: 3303b358-4610-5195-a71a-d3cddb0521f8
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (SYSTEM hive: ...\Windows\System32\config\SYSTEM). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\config\SYSTEM'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,53 @@
+title: Judi Online - Leetspeak term 'naga' (SEO/content injection)
+id: 8ccb39b0-03ed-5956-8f75-6c57468a8f0f
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'naga' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'n494'
+    - 'n4944'
+    - 'n49@'
+    - 'n49@@'
+    - 'n49a'
+    - 'n49aa'
+    - 'n4g4'
+    - 'n4g44'
+    - 'n4g@'
+    - 'n4g@@'
+    - 'n4ga'
+    - 'n4gaa'
+    - 'n@94'
+    - 'n@944'
+    - 'n@9@'
+    - 'n@9@@'
+    - 'n@9a'
+    - 'n@9aa'
+    - 'n@g4'
+    - 'n@g44'
+    - 'n@g@'
+    - 'n@g@@'
+    - 'n@ga'
+    - 'n@gaa'
+    - 'na94'
+    - 'na944'
+    - 'na9@'
+    - 'na9@@'
+    - 'na9a'
+    - 'na9aa'
+    - 'nag4'
+    - 'nag44'
+    - 'nag@'
+    - 'nag@@'
+    - 'naga'
+    - 'nagaa'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

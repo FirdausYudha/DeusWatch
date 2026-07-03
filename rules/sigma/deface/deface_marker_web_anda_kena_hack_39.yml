@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'web anda kena hack'
+id: bedb4b62-0542-5fbb-a497-e39c764177b3
+status: experimental
+description: >
+  Classic web-defacement banner text 'web anda kena hack' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'web anda kena hack'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

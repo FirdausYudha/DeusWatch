@@ -1,0 +1,24 @@
+title: Webshell File Drop - pouya.php
+id: ef43ab91-5fe3-548d-8213-63fcc93a7956
+status: experimental
+description: >
+  A file matching a known webshell name ('pouya.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'pouya.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

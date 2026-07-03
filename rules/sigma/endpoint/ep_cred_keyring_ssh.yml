@@ -1,0 +1,23 @@
+title: Credential Access - SSH/GPG key harvesting
+id: 8f23df54-506f-5a0e-bc97-2890ce5de1ed
+status: experimental
+description: >
+  Command line consistent with SSH/GPG key harvesting.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'find / -name id_rsa'
+      - 'cat ~/.ssh/id_rsa'
+      - 'gpg --export-secret-keys'
+      - '.ssh/id_ed25519'
+  condition: selection
+tags:
+  - attack.t1552.004
+  - attack.credential_access

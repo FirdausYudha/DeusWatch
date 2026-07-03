@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'mahjong ways 2'
+id: 6f6d0ec3-9aab-516c-9303-45b972321fd9
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'mahjong ways 2'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mahjong ways 2'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

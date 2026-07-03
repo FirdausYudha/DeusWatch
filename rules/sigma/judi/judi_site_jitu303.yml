@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jitu303'
+id: e33ab29a-4e2a-5cd0-b63b-dfc2b72d9639
+status: experimental
+description: >
+  Gambling site-brand token 'jitu303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jitu303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

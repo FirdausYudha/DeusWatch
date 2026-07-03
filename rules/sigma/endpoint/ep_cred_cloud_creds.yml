@@ -1,0 +1,23 @@
+title: Credential Access - cloud credential file access
+id: cefb9200-937d-53c1-b134-4b1c73db01e7
+status: experimental
+description: >
+  Command line consistent with cloud credential file access.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - '~/.aws/credentials'
+      - '.config/gcloud'
+      - '~/.azure/'
+      - 'kubeconfig'
+  condition: selection
+tags:
+  - attack.t1552.001
+  - attack.credential_access

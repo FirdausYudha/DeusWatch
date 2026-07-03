@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sikat303'
+id: 03a972c8-e1a9-52a3-9fae-b49a9ae0b8d9
+status: experimental
+description: >
+  Gambling site-brand token 'sikat303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sikat303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sikatgacor'
+id: 0c7251c5-edff-5e5d-b2b4-cc14d3a5059a
+status: experimental
+description: >
+  Gambling site-brand token 'sikatgacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sikatgacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

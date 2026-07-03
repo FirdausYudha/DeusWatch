@@ -1,0 +1,25 @@
+title: FIM - xinetd service (/etc/xinetd.d/)
+id: cfc6e70b-322a-59a3-847c-60281537b58c
+status: experimental
+description: >
+  Integrity change on xinetd service (/etc/xinetd.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/xinetd.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

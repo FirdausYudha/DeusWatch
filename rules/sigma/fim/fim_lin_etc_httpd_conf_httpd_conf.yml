@@ -1,0 +1,24 @@
+title: FIM - httpd config (/etc/httpd/conf/httpd.conf)
+id: 99b291f0-3f74-5f91-aeca-317ca863d1ef
+status: experimental
+description: >
+  Integrity change on httpd config (/etc/httpd/conf/httpd.conf). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/httpd/conf/httpd.conf'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

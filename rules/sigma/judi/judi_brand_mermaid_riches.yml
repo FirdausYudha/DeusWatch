@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'mermaid riches'
+id: cb56b578-33ab-5f54-a404-21ede9d3b36e
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'mermaid riches'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mermaid riches'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

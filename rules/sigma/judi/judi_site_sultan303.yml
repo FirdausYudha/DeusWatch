@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sultan303'
+id: 15673cbe-f7d9-5333-9b2b-6fb201fd77c2
+status: experimental
+description: >
+  Gambling site-brand token 'sultan303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sultan303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

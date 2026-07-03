@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'winindo'
+id: 7dca16ad-8c8d-5e3c-8094-5819ed030ac9
+status: experimental
+description: >
+  Gambling site-brand token 'winindo' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'winindo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

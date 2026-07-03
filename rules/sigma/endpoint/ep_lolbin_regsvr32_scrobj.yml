@@ -1,0 +1,22 @@
+title: Windows LOLBin - regsvr32 squiblydoo
+id: 9d916491-3afb-5655-8d75-8b2bff500c74
+status: experimental
+description: >
+  Command line consistent with regsvr32 squiblydoo, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'regsvr32 /s /n /u /i:http'
+      - 'regsvr32 /i:http'
+      - 'scrobj.dll'
+  condition: selection
+tags:
+  - attack.t1218.010
+  - attack.defense_evasion

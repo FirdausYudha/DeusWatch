@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'dewagacor'
+id: 1b3dd5dd-c517-5c73-b12b-2f0b9d922451
+status: experimental
+description: >
+  Gambling site-brand token 'dewagacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'dewagacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

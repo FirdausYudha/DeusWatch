@@ -1,0 +1,25 @@
+title: FIM - local CA store (/usr/local/share/ca-certificates/)
+id: bfac8d1b-5fda-54ee-8c8e-31ff7d6dc0e1
+status: experimental
+description: >
+  Integrity change on local CA store (/usr/local/share/ca-certificates/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/usr/local/share/ca-certificates/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'hoki138'
+id: 6d77790f-394f-5451-83b2-dbf23f921c80
+status: experimental
+description: >
+  Gambling site-brand token 'hoki138' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hoki138'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

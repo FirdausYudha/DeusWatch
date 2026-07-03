@@ -1,0 +1,24 @@
+title: Webshell File Drop - leafmailer.php
+id: f815714b-701c-51b7-83c9-453d036157e5
+status: experimental
+description: >
+  A file matching a known webshell name ('leafmailer.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'leafmailer.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

@@ -1,0 +1,25 @@
+title: FIM (Web) - WordPress core includes (/wp-includes/)
+id: 7773c849-97fd-5887-9616-3853617ab62c
+status: experimental
+description: >
+  Integrity change under the web application tree (WordPress core includes: /wp-includes/). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/wp-includes/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

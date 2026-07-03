@@ -1,0 +1,22 @@
+title: Reverse Shell - bash -i interactive shell to socket
+id: bcfc4d20-34eb-5423-b5a2-c607ed3af5d8
+status: experimental
+description: >
+  Command line consistent with a bash -i interactive shell to socket. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'bash -i >& '
+      - 'bash -i 2>&1'
+      - 'sh -i >& '
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

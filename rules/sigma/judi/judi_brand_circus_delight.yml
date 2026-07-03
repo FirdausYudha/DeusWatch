@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'circus delight'
+id: eea25419-8feb-544a-8156-3652ac445efa
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'circus delight'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'circus delight'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

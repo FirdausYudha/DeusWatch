@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'ways of qilin'
+id: c4658ed6-11e5-5a9b-98d5-b61be2c9a220
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'ways of qilin'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'ways of qilin'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,35 @@
+title: Judi Online - Sportsbook / judi bola keywords
+id: 9c772d26-57c3-556c-b2be-219af547dc7c
+status: experimental
+description: >
+  Indonesian online-gambling (Sportsbook / judi bola) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'judi bola'
+    - 'taruhan bola'
+    - 'agen bola'
+    - 'sbobet'
+    - 'mix parlay'
+    - 'over under'
+    - 'handicap bola'
+    - 'bola online'
+    - 'pasang bola'
+    - 'bandar bola'
+    - 'sportsbook'
+    - 'taruhan online'
+    - 'prediksi bola'
+    - 'parlay bola'
+    - 'voor bola'
+    - 'maxbet'
+    - 'cmd368'
+    - 'ubobet'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

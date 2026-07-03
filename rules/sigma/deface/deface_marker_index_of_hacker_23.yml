@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'index of hacker'
+id: c6bd4822-872f-5032-9468-eebe0fbc8359
+status: experimental
+description: >
+  Classic web-defacement banner text 'index of hacker' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'index of hacker'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

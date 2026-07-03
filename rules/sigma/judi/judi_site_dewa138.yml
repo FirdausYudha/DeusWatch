@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'dewa138'
+id: 30b7a080-b842-526f-b056-b0adf7ea2115
+status: experimental
+description: >
+  Gambling site-brand token 'dewa138' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'dewa138'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

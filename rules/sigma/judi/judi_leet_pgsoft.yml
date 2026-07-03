@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'pgsoft' (SEO/content injection)
+id: 8575787f-38fd-5a7e-a9df-21da826334fb
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'pgsoft' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'p9$0f7'
+    - 'p9$0f77'
+    - 'p9$0ft'
+    - 'p9$0ftt'
+    - 'p9$of7'
+    - 'p9$of77'
+    - 'p9$oft'
+    - 'p9$oftt'
+    - 'p950f7'
+    - 'p950f77'
+    - 'p950ft'
+    - 'p950ftt'
+    - 'p95of7'
+    - 'p95of77'
+    - 'p95oft'
+    - 'p95oftt'
+    - 'p9s0f7'
+    - 'p9s0f77'
+    - 'p9s0ft'
+    - 'p9s0ftt'
+    - 'p9sof7'
+    - 'p9sof77'
+    - 'p9soft'
+    - 'p9softt'
+    - 'pg$0f7'
+    - 'pg$0f77'
+    - 'pg$0ft'
+    - 'pg$0ftt'
+    - 'pg$of7'
+    - 'pg$of77'
+    - 'pg$oft'
+    - 'pg$oftt'
+    - 'pg50f7'
+    - 'pg50f77'
+    - 'pg50ft'
+    - 'pg50ftt'
+    - 'pg5of7'
+    - 'pg5of77'
+    - 'pg5oft'
+    - 'pg5oftt'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

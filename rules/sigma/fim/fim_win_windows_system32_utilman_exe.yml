@@ -1,0 +1,24 @@
+title: FIM (Windows) - utilman binary
+id: 3a5ebf07-bbe0-5029-b823-8670da8edec1
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (utilman binary: ...\Windows\System32\utilman.exe). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\utilman.exe'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

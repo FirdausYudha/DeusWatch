@@ -1,0 +1,25 @@
+title: FIM (Web) - composer vendor dir (/vendor/)
+id: 0786a4da-553c-5c61-ba08-0e8310b693d4
+status: experimental
+description: >
+  Integrity change under the web application tree (composer vendor dir: /vendor/). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/vendor/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

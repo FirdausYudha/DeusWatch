@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider '888 gold'
+id: 4095d865-a61b-5263-8c3f-4b11eb3d95c9
+status: experimental
+description: >
+  Reference to gambling slot title/provider '888 gold'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - '888 gold'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

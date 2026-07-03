@@ -1,0 +1,24 @@
+title: Webshell File Drop - backdoor.php
+id: 3b0b50a5-e0e5-5952-baf1-c0b5e16985af
+status: experimental
+description: >
+  A file matching a known webshell name ('backdoor.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'backdoor.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

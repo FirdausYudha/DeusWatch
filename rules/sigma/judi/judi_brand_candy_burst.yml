@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'candy burst'
+id: 17ec6916-6dfd-58b4-b54d-095e18f01561
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'candy burst'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'candy burst'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

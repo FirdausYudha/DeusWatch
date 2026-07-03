@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'bolagacor'
+id: 01ca8132-1ac4-5278-9d61-4f1bd9b2753b
+status: experimental
+description: >
+  Gambling site-brand token 'bolagacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bolagacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'santa fortune tiger'
+id: ee756aa1-f413-5426-9eb5-13a2b330cac7
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'santa fortune tiger'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'santa fortune tiger'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

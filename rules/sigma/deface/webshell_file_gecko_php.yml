@@ -1,0 +1,24 @@
+title: Webshell File Drop - gecko.php
+id: 4c34f1eb-4cf9-5d81-9b05-a505504be5f9
+status: experimental
+description: >
+  A file matching a known webshell name ('gecko.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'gecko.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

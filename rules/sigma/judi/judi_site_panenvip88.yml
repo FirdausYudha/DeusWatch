@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'panenvip88'
+id: 2b326cc4-4ac5-5b93-a383-143228ed3c32
+status: experimental
+description: >
+  Gambling site-brand token 'panenvip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'panenvip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

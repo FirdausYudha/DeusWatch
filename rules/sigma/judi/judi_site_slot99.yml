@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'slot99'
+id: 1be4fc81-1228-5a58-b42c-cc925797a548
+status: experimental
+description: >
+  Gambling site-brand token 'slot99' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'slot99'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

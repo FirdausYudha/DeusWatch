@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jp168'
+id: dbfad56e-75e5-5ce3-af6a-a5cfd4fe8880
+status: experimental
+description: >
+  Gambling site-brand token 'jp168' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jp168'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

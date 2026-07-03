@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'geisha's revenge'
+id: e20c6620-0103-572e-a01b-ac1933ddfa6e
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'geisha's revenge'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'geisha''s revenge'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

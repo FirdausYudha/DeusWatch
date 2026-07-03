@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'ganesha fortune'
+id: e2f9ceaa-89dc-56b3-8fe0-15910dced508
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'ganesha fortune'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'ganesha fortune'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

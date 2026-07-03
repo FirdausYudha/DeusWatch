@@ -1,0 +1,25 @@
+title: FIM (Windows) - kernel driver
+id: 6c6ea27f-d543-5ca2-8a8d-6e16ee7837b4
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (kernel driver: ...\Windows\System32\drivers\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\drivers\'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

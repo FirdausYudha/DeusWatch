@@ -1,0 +1,23 @@
+title: Windows LOLBin - scheduled task creation
+id: faf3bdfe-0f4e-5923-84ea-daa3923b4385
+status: experimental
+description: >
+  Command line consistent with scheduled task creation, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'schtasks /create'
+      - 'schtasks.exe /create'
+      - '/sc onlogon'
+      - '/ru system'
+  condition: selection
+tags:
+  - attack.t1053.005
+  - attack.defense_evasion

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'gates of olympus 1000'
+id: 1920b074-fd81-583c-9917-9ba1c9f65177
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'gates of olympus 1000'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gates of olympus 1000'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

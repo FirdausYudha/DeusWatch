@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'colossal cash zone'
+id: f06c9c59-ad77-53d6-a4be-8680bbc8935e
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'colossal cash zone'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'colossal cash zone'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'naga303'
+id: d37f099c-f580-5e6d-8859-6a6a150691b2
+status: experimental
+description: >
+  Gambling site-brand token 'naga303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'naga303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

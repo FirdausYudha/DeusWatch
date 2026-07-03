@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'touched by'
+id: 2b581a38-364a-582f-b213-9c431567eea5
+status: experimental
+description: >
+  Classic web-defacement banner text 'touched by' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'touched by'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

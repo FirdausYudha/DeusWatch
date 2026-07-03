@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'cocktail nights'
+id: fa562fde-764d-5f7b-806b-a9545216fac8
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'cocktail nights'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cocktail nights'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

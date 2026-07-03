@@ -1,0 +1,23 @@
+title: Reverse Shell - netcat mkfifo reverse shell
+id: 9e25f8fa-9f22-5d44-b27a-30e3a4a4a193
+status: experimental
+description: >
+  Command line consistent with a netcat mkfifo reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'mkfifo /tmp/'
+      - 'mknod /tmp/backpipe'
+      - '|nc '
+      - '| nc '
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

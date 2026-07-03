@@ -1,0 +1,24 @@
+title: FIM (Windows) - win.ini
+id: 111af8fb-aa50-5357-9d40-441d14ae2591
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (win.ini: ...\Windows\win.ini). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\win.ini'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

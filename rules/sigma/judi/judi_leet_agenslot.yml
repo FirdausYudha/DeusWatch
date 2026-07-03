@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'agenslot' (SEO/content injection)
+id: 8a81018b-8ed4-5332-959b-9f86d9f9aaf1
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'agenslot' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '493n$107'
+    - '493n$1077'
+    - '493n$10t'
+    - '493n$10tt'
+    - '493n$1o7'
+    - '493n$1o77'
+    - '493n$1ot'
+    - '493n$1ott'
+    - '493n$l07'
+    - '493n$l077'
+    - '493n$l0t'
+    - '493n$l0tt'
+    - '493n$lo7'
+    - '493n$lo77'
+    - '493n$lot'
+    - '493n$lott'
+    - '493n5107'
+    - '493n51077'
+    - '493n510t'
+    - '493n510tt'
+    - '493n51o7'
+    - '493n51o77'
+    - '493n51ot'
+    - '493n51ott'
+    - '493n5l07'
+    - '493n5l077'
+    - '493n5l0t'
+    - '493n5l0tt'
+    - '493n5lo7'
+    - '493n5lo77'
+    - '493n5lot'
+    - '493n5lott'
+    - '493ns107'
+    - '493ns1077'
+    - '493ns10t'
+    - '493ns10tt'
+    - '493ns1o7'
+    - '493ns1o77'
+    - '493ns1ot'
+    - '493ns1ott'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

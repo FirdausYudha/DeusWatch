@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'big bass bonanza'
+id: 5681663a-64c3-5ab8-a5c8-47028e1c21de
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'big bass bonanza'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'big bass bonanza'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

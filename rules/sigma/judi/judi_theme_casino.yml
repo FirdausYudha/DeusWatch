@@ -1,0 +1,32 @@
+title: Judi Online - Live casino keywords
+id: 9a21b697-0f8e-5ff6-9cb0-1e34be4ca3a1
+status: experimental
+description: >
+  Indonesian online-gambling (Live casino) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'live casino'
+    - 'casino online'
+    - 'roulette online'
+    - 'baccarat online'
+    - 'sicbo online'
+    - 'dragon tiger'
+    - 'dragon tiger online'
+    - 'casino terpercaya'
+    - 'judi casino'
+    - 'meja casino'
+    - 'dealer cantik'
+    - 'agen casino'
+    - 'wm casino'
+    - 'sexy baccarat'
+    - 'casino terbesar'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

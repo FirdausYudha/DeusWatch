@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'sabung' (SEO/content injection)
+id: 51f825c7-01f8-56dc-ac99-b857719fe345
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'sabung' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$48un9'
+    - '$48un99'
+    - '$48ung'
+    - '$48ungg'
+    - '$4bun9'
+    - '$4bun99'
+    - '$4bung'
+    - '$4bungg'
+    - '$@8un9'
+    - '$@8un99'
+    - '$@8ung'
+    - '$@8ungg'
+    - '$@bun9'
+    - '$@bun99'
+    - '$@bung'
+    - '$@bungg'
+    - '$a8un9'
+    - '$a8un99'
+    - '$a8ung'
+    - '$a8ungg'
+    - '$abun9'
+    - '$abun99'
+    - '$abung'
+    - '$abungg'
+    - '548un9'
+    - '548un99'
+    - '548ung'
+    - '548ungg'
+    - '54bun9'
+    - '54bun99'
+    - '54bung'
+    - '54bungg'
+    - '5@8un9'
+    - '5@8un99'
+    - '5@8ung'
+    - '5@8ungg'
+    - '5@bun9'
+    - '5@bun99'
+    - '5@bung'
+    - '5@bungg'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

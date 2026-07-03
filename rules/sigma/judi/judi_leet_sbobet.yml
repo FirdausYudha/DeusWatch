@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'sbobet' (SEO/content injection)
+id: 4dc5851c-e9ae-5959-8859-537137fa82d9
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'sbobet' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$80837'
+    - '$808377'
+    - '$8083t'
+    - '$8083tt'
+    - '$808e7'
+    - '$808e77'
+    - '$808et'
+    - '$808ett'
+    - '$80b37'
+    - '$80b377'
+    - '$80b3t'
+    - '$80b3tt'
+    - '$80be7'
+    - '$80be77'
+    - '$80bet'
+    - '$80bett'
+    - '$8o837'
+    - '$8o8377'
+    - '$8o83t'
+    - '$8o83tt'
+    - '$8o8e7'
+    - '$8o8e77'
+    - '$8o8et'
+    - '$8o8ett'
+    - '$8ob37'
+    - '$8ob377'
+    - '$8ob3t'
+    - '$8ob3tt'
+    - '$8obe7'
+    - '$8obe77'
+    - '$8obet'
+    - '$8obett'
+    - '$b0837'
+    - '$b08377'
+    - '$b083t'
+    - '$b083tt'
+    - '$b08e7'
+    - '$b08e77'
+    - '$b08et'
+    - '$b08ett'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

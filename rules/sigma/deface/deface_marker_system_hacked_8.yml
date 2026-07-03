@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'system hacked'
+id: 7d877f4b-227e-5856-957c-d661cb994c52
+status: experimental
+description: >
+  Classic web-defacement banner text 'system hacked' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'system hacked'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

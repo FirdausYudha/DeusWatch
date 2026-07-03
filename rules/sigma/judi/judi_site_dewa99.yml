@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'dewa99'
+id: 2850f06d-8e29-5770-a06a-8c81c0d7a59f
+status: experimental
+description: >
+  Gambling site-brand token 'dewa99' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'dewa99'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

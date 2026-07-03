@@ -1,0 +1,53 @@
+title: Judi Online - Leetspeak term 'parlay' (SEO/content injection)
+id: 832b953b-fabd-5704-a3b1-944a7d131e82
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'parlay' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'p4r14y'
+    - 'p4r14yy'
+    - 'p4r1@y'
+    - 'p4r1@yy'
+    - 'p4r1ay'
+    - 'p4r1ayy'
+    - 'p4rl4y'
+    - 'p4rl4yy'
+    - 'p4rl@y'
+    - 'p4rl@yy'
+    - 'p4rlay'
+    - 'p4rlayy'
+    - 'p@r14y'
+    - 'p@r14yy'
+    - 'p@r1@y'
+    - 'p@r1@yy'
+    - 'p@r1ay'
+    - 'p@r1ayy'
+    - 'p@rl4y'
+    - 'p@rl4yy'
+    - 'p@rl@y'
+    - 'p@rl@yy'
+    - 'p@rlay'
+    - 'p@rlayy'
+    - 'par14y'
+    - 'par14yy'
+    - 'par1@y'
+    - 'par1@yy'
+    - 'par1ay'
+    - 'par1ayy'
+    - 'parl4y'
+    - 'parl4yy'
+    - 'parl@y'
+    - 'parl@yy'
+    - 'parlay'
+    - 'parlayy'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

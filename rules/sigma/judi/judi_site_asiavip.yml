@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'asiavip'
+id: 327c78e9-fb6f-51ca-b830-764e4e1d05ab
+status: experimental
+description: >
+  Gambling site-brand token 'asiavip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'asiavip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

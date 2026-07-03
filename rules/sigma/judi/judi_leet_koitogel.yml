@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'koitogel' (SEO/content injection)
+id: 5ffd2b13-104b-56bd-81b4-6fa05e4a8eb2
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'koitogel' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'k0!70931'
+    - 'k0!709311'
+    - 'k0!7093l'
+    - 'k0!7093ll'
+    - 'k0!709e1'
+    - 'k0!709e11'
+    - 'k0!709el'
+    - 'k0!709ell'
+    - 'k0!70g31'
+    - 'k0!70g311'
+    - 'k0!70g3l'
+    - 'k0!70g3ll'
+    - 'k0!70ge1'
+    - 'k0!70ge11'
+    - 'k0!70gel'
+    - 'k0!70gell'
+    - 'k0!7o931'
+    - 'k0!7o9311'
+    - 'k0!7o93l'
+    - 'k0!7o93ll'
+    - 'k0!7o9e1'
+    - 'k0!7o9e11'
+    - 'k0!7o9el'
+    - 'k0!7o9ell'
+    - 'k0!7og31'
+    - 'k0!7og311'
+    - 'k0!7og3l'
+    - 'k0!7og3ll'
+    - 'k0!7oge1'
+    - 'k0!7oge11'
+    - 'k0!7ogel'
+    - 'k0!7ogell'
+    - 'k0!t0931'
+    - 'k0!t09311'
+    - 'k0!t093l'
+    - 'k0!t093ll'
+    - 'k0!t09e1'
+    - 'k0!t09e11'
+    - 'k0!t09el'
+    - 'k0!t09ell'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

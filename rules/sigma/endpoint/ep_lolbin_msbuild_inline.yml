@@ -1,0 +1,21 @@
+title: Windows LOLBin - msbuild inline task
+id: b90920e4-28ef-5510-a817-fee1265c0cff
+status: experimental
+description: >
+  Command line consistent with msbuild inline task, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'msbuild '
+      - 'msbuild.exe '
+  condition: selection
+tags:
+  - attack.t1127.001
+  - attack.defense_evasion

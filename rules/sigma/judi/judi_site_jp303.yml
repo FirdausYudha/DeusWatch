@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jp303'
+id: 713764ea-adaf-57fe-96bb-99cd11f4aad3
+status: experimental
+description: >
+  Gambling site-brand token 'jp303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jp303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

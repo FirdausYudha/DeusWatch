@@ -1,0 +1,41 @@
+title: Judi Online - Leetspeak term 'gacor' (SEO/content injection)
+id: 507fec49-1173-5c0f-91e6-8e4784608e1f
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'gacor' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '94c0r'
+    - '94c0rr'
+    - '94cor'
+    - '94corr'
+    - '9@c0r'
+    - '9@c0rr'
+    - '9@cor'
+    - '9@corr'
+    - '9ac0r'
+    - '9ac0rr'
+    - '9acor'
+    - '9acorr'
+    - 'g4c0r'
+    - 'g4c0rr'
+    - 'g4cor'
+    - 'g4corr'
+    - 'g@c0r'
+    - 'g@c0rr'
+    - 'g@cor'
+    - 'g@corr'
+    - 'gac0r'
+    - 'gac0rr'
+    - 'gacor'
+    - 'gacorr'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

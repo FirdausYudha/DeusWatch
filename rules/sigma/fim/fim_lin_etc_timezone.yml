@@ -1,0 +1,24 @@
+title: FIM - timezone (/etc/timezone)
+id: 70af404a-abf8-5f54-8d99-820fddeacaaa
+status: experimental
+description: >
+  Integrity change on timezone (/etc/timezone). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: low
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/timezone'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

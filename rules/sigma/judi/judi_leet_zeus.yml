@@ -1,0 +1,29 @@
+title: Judi Online - Leetspeak term 'zeus' (SEO/content injection)
+id: e62c9966-5c77-5cf3-98ac-907317410d56
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'zeus' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'z3u$'
+    - 'z3u$$'
+    - 'z3u5'
+    - 'z3u55'
+    - 'z3us'
+    - 'z3uss'
+    - 'zeu$'
+    - 'zeu$$'
+    - 'zeu5'
+    - 'zeu55'
+    - 'zeus'
+    - 'zeuss'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'queen bee'
+id: f43f4592-29c3-541f-a84e-70b826d1e849
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'queen bee'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'queen bee'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

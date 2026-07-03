@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'day of dead'
+id: aebfa98d-5cda-5413-a24c-f2d9d3073cba
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'day of dead'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'day of dead'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

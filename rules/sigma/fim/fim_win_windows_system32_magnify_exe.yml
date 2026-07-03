@@ -1,0 +1,24 @@
+title: FIM (Windows) - magnifier binary
+id: fc9705be-cd4d-5d70-84d9-24ff1338f2a8
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (magnifier binary: ...\Windows\System32\Magnify.exe). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\Magnify.exe'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

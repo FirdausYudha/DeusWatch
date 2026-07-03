@@ -1,0 +1,25 @@
+title: FIM (Windows) - SysWOW64 binary
+id: 6fe4379a-b6f0-5f0e-8292-99b5e8247655
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (SysWOW64 binary: ...\Windows\SysWOW64\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\SysWOW64\'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

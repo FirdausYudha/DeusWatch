@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'lucky neko'
+id: eb8ebd36-32bb-56ab-8978-22c09b83a6eb
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'lucky neko'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'lucky neko'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

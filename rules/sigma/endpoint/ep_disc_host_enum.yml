@@ -1,0 +1,23 @@
+title: Discovery - host / OS enumeration
+id: 3e788da1-1ac4-51ce-958a-fbeca45f0287
+status: experimental
+description: >
+  Command line consistent with host / OS enumeration - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: low
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'uname -a'
+      - 'hostnamectl'
+      - 'cat /etc/os-release'
+      - 'lscpu'
+  condition: selection
+tags:
+  - attack.t1082
+  - attack.discovery

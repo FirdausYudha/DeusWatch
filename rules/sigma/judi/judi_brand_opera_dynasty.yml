@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'opera dynasty'
+id: f78f6f5e-00eb-5c97-ad03-ce35b66c20cd
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'opera dynasty'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'opera dynasty'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

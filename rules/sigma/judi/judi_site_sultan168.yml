@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sultan168'
+id: e3156264-e2ad-54a4-bceb-5d2824e9e229
+status: experimental
+description: >
+  Gambling site-brand token 'sultan168' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sultan168'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

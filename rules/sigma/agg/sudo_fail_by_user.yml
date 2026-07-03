@@ -1,0 +1,20 @@
+title: Sudo Failures by User
+id: 538f5160-2358-57d8-a342-3a1d247cbd33
+status: experimental
+description: >
+  Repeated sudo authentication failures for one user - privilege-escalation attempts.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: authentication
+detection:
+  selection:
+    event.category: authentication
+    event.action: sudo
+  timeframe: 10m
+  condition: selection | count() by user.name > 10
+tags:
+  - attack.t1548.003
+  - attack.privilege_escalation

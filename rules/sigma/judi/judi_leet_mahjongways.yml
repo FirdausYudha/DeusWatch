@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'mahjongways' (SEO/content injection)
+id: 65d7f824-6262-5293-ac2e-58d210ebfced
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'mahjongways' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'm4hj0n9w4y$'
+    - 'm4hj0n9w4y$$'
+    - 'm4hj0n9w4y5'
+    - 'm4hj0n9w4y55'
+    - 'm4hj0n9w4ys'
+    - 'm4hj0n9w4yss'
+    - 'm4hj0n9w@y$'
+    - 'm4hj0n9w@y$$'
+    - 'm4hj0n9w@y5'
+    - 'm4hj0n9w@y55'
+    - 'm4hj0n9w@ys'
+    - 'm4hj0n9w@yss'
+    - 'm4hj0n9way$'
+    - 'm4hj0n9way$$'
+    - 'm4hj0n9way5'
+    - 'm4hj0n9way55'
+    - 'm4hj0n9ways'
+    - 'm4hj0n9wayss'
+    - 'm4hj0ngw4y$'
+    - 'm4hj0ngw4y$$'
+    - 'm4hj0ngw4y5'
+    - 'm4hj0ngw4y55'
+    - 'm4hj0ngw4ys'
+    - 'm4hj0ngw4yss'
+    - 'm4hj0ngw@y$'
+    - 'm4hj0ngw@y$$'
+    - 'm4hj0ngw@y5'
+    - 'm4hj0ngw@y55'
+    - 'm4hj0ngw@ys'
+    - 'm4hj0ngw@yss'
+    - 'm4hj0ngway$'
+    - 'm4hj0ngway$$'
+    - 'm4hj0ngway5'
+    - 'm4hj0ngway55'
+    - 'm4hj0ngways'
+    - 'm4hj0ngwayss'
+    - 'm4hjon9w4y$'
+    - 'm4hjon9w4y$$'
+    - 'm4hjon9w4y5'
+    - 'm4hjon9w4y55'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

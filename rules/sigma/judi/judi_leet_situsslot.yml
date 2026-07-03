@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'situsslot' (SEO/content injection)
+id: e4ce25db-e4a7-54fc-8956-9d331f538f68
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'situsslot' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$!7u$$107'
+    - '$!7u$$1077'
+    - '$!7u$$10t'
+    - '$!7u$$10tt'
+    - '$!7u$$1o7'
+    - '$!7u$$1o77'
+    - '$!7u$$1ot'
+    - '$!7u$$1ott'
+    - '$!7u$$l07'
+    - '$!7u$$l077'
+    - '$!7u$$l0t'
+    - '$!7u$$l0tt'
+    - '$!7u$$lo7'
+    - '$!7u$$lo77'
+    - '$!7u$$lot'
+    - '$!7u$$lott'
+    - '$!7u$5107'
+    - '$!7u$51077'
+    - '$!7u$510t'
+    - '$!7u$510tt'
+    - '$!7u$51o7'
+    - '$!7u$51o77'
+    - '$!7u$51ot'
+    - '$!7u$51ott'
+    - '$!7u$5l07'
+    - '$!7u$5l077'
+    - '$!7u$5l0t'
+    - '$!7u$5l0tt'
+    - '$!7u$5lo7'
+    - '$!7u$5lo77'
+    - '$!7u$5lot'
+    - '$!7u$5lott'
+    - '$!7u$s107'
+    - '$!7u$s1077'
+    - '$!7u$s10t'
+    - '$!7u$s10tt'
+    - '$!7u$s1o7'
+    - '$!7u$s1o77'
+    - '$!7u$s1ot'
+    - '$!7u$s1ott'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

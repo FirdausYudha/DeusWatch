@@ -1,0 +1,25 @@
+title: FIM (Windows) - Startup folder
+id: 8e50069b-ac53-5685-9bd3-2bb1176de0b0
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (Startup folder: ...\Start Menu\Programs\Startup\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Start Menu\Programs\Startup\'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

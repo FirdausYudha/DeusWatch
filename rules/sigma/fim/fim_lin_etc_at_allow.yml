@@ -1,0 +1,24 @@
+title: FIM - at allow (/etc/at.allow)
+id: 74290352-9de8-5132-b140-f2b92a494853
+status: experimental
+description: >
+  Integrity change on at allow (/etc/at.allow). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/at.allow'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

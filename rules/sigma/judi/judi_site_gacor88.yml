@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'gacor88'
+id: c4b16cb9-49e1-51f0-b284-3846de464b3b
+status: experimental
+description: >
+  Gambling site-brand token 'gacor88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gacor88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

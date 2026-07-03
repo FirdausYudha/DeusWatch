@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'candy bonanza'
+id: cfab57fb-59a4-5b9f-8c9d-392cbb94d10e
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'candy bonanza'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'candy bonanza'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

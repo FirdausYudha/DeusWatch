@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'fortune rabbit'
+id: b211f579-b9cd-5d6f-93de-24d8ddd4945f
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'fortune rabbit'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'fortune rabbit'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

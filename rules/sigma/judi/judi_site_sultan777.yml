@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'sultan777'
+id: 25995a37-6087-5a14-9b7d-6d88edfaef92
+status: experimental
+description: >
+  Gambling site-brand token 'sultan777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sultan777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,21 @@
+title: Reverse Shell - awk reverse shell
+id: 1ec137e6-ecc6-585d-b412-ffe54d797328
+status: experimental
+description: >
+  Command line consistent with a awk reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - '/inet/tcp/0/'
+      - 'gawk -v'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

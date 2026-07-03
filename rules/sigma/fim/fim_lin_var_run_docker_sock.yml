@@ -1,0 +1,25 @@
+title: FIM - docker socket (/var/run/docker.sock)
+id: 8fa4528c-385f-5985-89bc-2b1e3d79173a
+status: experimental
+description: >
+  Integrity change on docker socket (/var/run/docker.sock). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/var/run/docker.sock'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,23 @@
+title: Privilege Escalation - Windows UAC bypass
+id: 27fce3d9-6d30-5b3b-9ebe-350b029337fd
+status: experimental
+description: >
+  Command line consistent with Windows UAC bypass.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'eventvwr.exe'
+      - 'sdclt.exe'
+      - 'slui.exe'
+      - '\shell\open\command'
+  condition: selection
+tags:
+  - attack.t1548.002
+  - attack.privilege_escalation

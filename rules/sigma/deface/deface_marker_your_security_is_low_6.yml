@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'your security is low'
+id: 0ab54ce9-778b-5519-9c31-27de18351d39
+status: experimental
+description: >
+  Classic web-defacement banner text 'your security is low' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'your security is low'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

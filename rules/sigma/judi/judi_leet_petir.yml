@@ -1,0 +1,41 @@
+title: Judi Online - Leetspeak term 'petir' (SEO/content injection)
+id: 9ed1e5ad-a7b6-55c5-b217-3cc2544f0bb1
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'petir' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'p37!r'
+    - 'p37!rr'
+    - 'p371r'
+    - 'p371rr'
+    - 'p37ir'
+    - 'p37irr'
+    - 'p3t!r'
+    - 'p3t!rr'
+    - 'p3t1r'
+    - 'p3t1rr'
+    - 'p3tir'
+    - 'p3tirr'
+    - 'pe7!r'
+    - 'pe7!rr'
+    - 'pe71r'
+    - 'pe71rr'
+    - 'pe7ir'
+    - 'pe7irr'
+    - 'pet!r'
+    - 'pet!rr'
+    - 'pet1r'
+    - 'pet1rr'
+    - 'petir'
+    - 'petirr'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

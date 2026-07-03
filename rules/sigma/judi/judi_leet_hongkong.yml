@@ -1,0 +1,49 @@
+title: Judi Online - Leetspeak term 'hongkong' (SEO/content injection)
+id: b59cf984-287a-5010-98c4-8c87928a7442
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'hongkong' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'h0n9k0n9'
+    - 'h0n9k0n99'
+    - 'h0n9k0ng'
+    - 'h0n9k0ngg'
+    - 'h0n9kon9'
+    - 'h0n9kon99'
+    - 'h0n9kong'
+    - 'h0n9kongg'
+    - 'h0ngk0n9'
+    - 'h0ngk0n99'
+    - 'h0ngk0ng'
+    - 'h0ngk0ngg'
+    - 'h0ngkon9'
+    - 'h0ngkon99'
+    - 'h0ngkong'
+    - 'h0ngkongg'
+    - 'hon9k0n9'
+    - 'hon9k0n99'
+    - 'hon9k0ng'
+    - 'hon9k0ngg'
+    - 'hon9kon9'
+    - 'hon9kon99'
+    - 'hon9kong'
+    - 'hon9kongg'
+    - 'hongk0n9'
+    - 'hongk0n99'
+    - 'hongk0ng'
+    - 'hongk0ngg'
+    - 'hongkon9'
+    - 'hongkon99'
+    - 'hongkong'
+    - 'hongkongg'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

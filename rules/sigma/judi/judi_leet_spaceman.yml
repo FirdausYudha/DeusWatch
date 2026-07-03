@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'spaceman' (SEO/content injection)
+id: c8722903-2133-544a-8a61-826b156363a7
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'spaceman' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$p4c3m4n'
+    - '$p4c3m4nn'
+    - '$p4c3m@n'
+    - '$p4c3m@nn'
+    - '$p4c3man'
+    - '$p4c3mann'
+    - '$p4cem4n'
+    - '$p4cem4nn'
+    - '$p4cem@n'
+    - '$p4cem@nn'
+    - '$p4ceman'
+    - '$p4cemann'
+    - '$p@c3m4n'
+    - '$p@c3m4nn'
+    - '$p@c3m@n'
+    - '$p@c3m@nn'
+    - '$p@c3man'
+    - '$p@c3mann'
+    - '$p@cem4n'
+    - '$p@cem4nn'
+    - '$p@cem@n'
+    - '$p@cem@nn'
+    - '$p@ceman'
+    - '$p@cemann'
+    - '$pac3m4n'
+    - '$pac3m4nn'
+    - '$pac3m@n'
+    - '$pac3m@nn'
+    - '$pac3man'
+    - '$pac3mann'
+    - '$pacem4n'
+    - '$pacem4nn'
+    - '$pacem@n'
+    - '$pacem@nn'
+    - '$paceman'
+    - '$pacemann'
+    - '5p4c3m4n'
+    - '5p4c3m4nn'
+    - '5p4c3m@n'
+    - '5p4c3m@nn'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

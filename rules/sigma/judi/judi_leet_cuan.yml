@@ -1,0 +1,23 @@
+title: Judi Online - Leetspeak term 'cuan' (SEO/content injection)
+id: c74c10f4-976d-5c4e-8483-75793f27dd13
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'cuan' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cu4n'
+    - 'cu4nn'
+    - 'cu@n'
+    - 'cu@nn'
+    - 'cuan'
+    - 'cuann'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

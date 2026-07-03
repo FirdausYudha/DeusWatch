@@ -1,0 +1,25 @@
+title: FIM - user crontab spool (/var/spool/cron/)
+id: 13e44514-d4c9-5eb4-9e2c-85f2a4b4bf7a
+status: experimental
+description: >
+  Integrity change on user crontab spool (/var/spool/cron/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/var/spool/cron/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

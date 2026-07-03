@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'royal888'
+id: bf54da1a-9c0b-5c7d-a01d-bb87ff1591da
+status: experimental
+description: >
+  Gambling site-brand token 'royal888' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'royal888'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'queen of bounty'
+id: 6193eb53-7c69-5407-a8e4-c457a256b799
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'queen of bounty'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'queen of bounty'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

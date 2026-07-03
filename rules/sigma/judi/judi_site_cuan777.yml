@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'cuan777'
+id: 0407390b-dbf3-5dbf-90e3-4b93ef31775a
+status: experimental
+description: >
+  Gambling site-brand token 'cuan777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cuan777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

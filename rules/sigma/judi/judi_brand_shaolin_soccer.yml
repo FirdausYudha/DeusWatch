@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'shaolin soccer'
+id: c5ba1f2d-af8f-58ed-8796-e8f8b9264a4e
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'shaolin soccer'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'shaolin soccer'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,24 @@
+title: FIM - AppArmor profile (/etc/apparmor.d/)
+id: 272cb651-2909-5638-bbbc-a6c32f6840c7
+status: experimental
+description: >
+  Integrity change on AppArmor profile (/etc/apparmor.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/apparmor.d/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

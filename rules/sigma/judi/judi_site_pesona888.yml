@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'pesona888'
+id: 7aaf0b65-85e8-5e9c-ad0c-0b1a92c73ff9
+status: experimental
+description: >
+  Gambling site-brand token 'pesona888' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'pesona888'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

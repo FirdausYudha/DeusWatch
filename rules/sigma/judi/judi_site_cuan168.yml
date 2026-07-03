@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'cuan168'
+id: 1a4e7628-ade3-52d6-a9e3-821ed8f1af8b
+status: experimental
+description: >
+  Gambling site-brand token 'cuan168' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cuan168'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'luxurygacor'
+id: 6c9f8d12-987c-5a2d-8187-ecb5d330441e
+status: experimental
+description: >
+  Gambling site-brand token 'luxurygacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'luxurygacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'microgaming' (SEO/content injection)
+id: 09154d67-4016-58ce-a043-cbf026399b4b
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'microgaming' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'm!cr094m!n9'
+    - 'm!cr094m!n99'
+    - 'm!cr094m!ng'
+    - 'm!cr094m!ngg'
+    - 'm!cr094m1n9'
+    - 'm!cr094m1n99'
+    - 'm!cr094m1ng'
+    - 'm!cr094m1ngg'
+    - 'm!cr094min9'
+    - 'm!cr094min99'
+    - 'm!cr094ming'
+    - 'm!cr094mingg'
+    - 'm!cr09@m!n9'
+    - 'm!cr09@m!n99'
+    - 'm!cr09@m!ng'
+    - 'm!cr09@m!ngg'
+    - 'm!cr09@m1n9'
+    - 'm!cr09@m1n99'
+    - 'm!cr09@m1ng'
+    - 'm!cr09@m1ngg'
+    - 'm!cr09@min9'
+    - 'm!cr09@min99'
+    - 'm!cr09@ming'
+    - 'm!cr09@mingg'
+    - 'm!cr09am!n9'
+    - 'm!cr09am!n99'
+    - 'm!cr09am!ng'
+    - 'm!cr09am!ngg'
+    - 'm!cr09am1n9'
+    - 'm!cr09am1n99'
+    - 'm!cr09am1ng'
+    - 'm!cr09am1ngg'
+    - 'm!cr09amin9'
+    - 'm!cr09amin99'
+    - 'm!cr09aming'
+    - 'm!cr09amingg'
+    - 'm!cr0g4m!n9'
+    - 'm!cr0g4m!n99'
+    - 'm!cr0g4m!ng'
+    - 'm!cr0g4m!ngg'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

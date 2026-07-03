@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'gems bonanza'
+id: 46eb6c95-b8f3-5410-8d59-98fd66bf5f06
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'gems bonanza'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gems bonanza'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

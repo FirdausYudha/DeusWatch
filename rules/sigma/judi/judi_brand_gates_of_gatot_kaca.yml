@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'gates of gatot kaca'
+id: 5a110f84-4f48-5428-adcb-76f43a21351a
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'gates of gatot kaca'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gates of gatot kaca'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

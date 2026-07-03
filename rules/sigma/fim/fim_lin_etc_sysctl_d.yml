@@ -1,0 +1,25 @@
+title: FIM - sysctl drop-in (/etc/sysctl.d/)
+id: f56f9034-ebdf-5511-a0f4-314aa3aa734a
+status: experimental
+description: >
+  Integrity change on sysctl drop-in (/etc/sysctl.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/sysctl.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

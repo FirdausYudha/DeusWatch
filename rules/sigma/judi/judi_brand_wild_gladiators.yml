@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'wild gladiators'
+id: 3b03409e-40d5-5655-a30d-4e325f93b3b5
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'wild gladiators'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'wild gladiators'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

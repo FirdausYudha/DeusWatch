@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'zeusvip88'
+id: fdc980dc-81da-5c84-901c-88f13686326a
+status: experimental
+description: >
+  Gambling site-brand token 'zeusvip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'zeusvip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

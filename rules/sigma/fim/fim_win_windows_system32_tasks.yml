@@ -1,0 +1,25 @@
+title: FIM (Windows) - scheduled task
+id: a3d148a7-3dfa-5d95-a89c-52fd6e8dfe4f
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (scheduled task: ...\Windows\System32\Tasks\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\Tasks\'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

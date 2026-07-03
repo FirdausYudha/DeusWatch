@@ -1,0 +1,24 @@
+title: FIM - apache config (/etc/apache2/apache2.conf)
+id: b0b0a626-c3a0-568f-9427-5b4ec0201880
+status: experimental
+description: >
+  Integrity change on apache config (/etc/apache2/apache2.conf). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/apache2/apache2.conf'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

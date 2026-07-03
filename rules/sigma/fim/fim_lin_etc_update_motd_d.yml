@@ -1,0 +1,25 @@
+title: FIM - dynamic motd script (/etc/update-motd.d/)
+id: 1eba0a96-3821-58dc-8260-e5487527a48c
+status: experimental
+description: >
+  Integrity change on dynamic motd script (/etc/update-motd.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/update-motd.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

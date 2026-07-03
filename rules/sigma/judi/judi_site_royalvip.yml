@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'royalvip'
+id: aa170b68-461b-5882-9c92-7615d9ee90e5
+status: experimental
+description: >
+  Gambling site-brand token 'royalvip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'royalvip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

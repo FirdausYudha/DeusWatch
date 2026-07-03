@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'pragmaticplay' (SEO/content injection)
+id: d4f86e76-cdd5-522d-a027-687525226f23
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'pragmaticplay' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'pr49m47!cp14y'
+    - 'pr49m47!cp14yy'
+    - 'pr49m47!cp1@y'
+    - 'pr49m47!cp1@yy'
+    - 'pr49m47!cp1ay'
+    - 'pr49m47!cp1ayy'
+    - 'pr49m47!cpl4y'
+    - 'pr49m47!cpl4yy'
+    - 'pr49m47!cpl@y'
+    - 'pr49m47!cpl@yy'
+    - 'pr49m47!cplay'
+    - 'pr49m47!cplayy'
+    - 'pr49m471cp14y'
+    - 'pr49m471cp14yy'
+    - 'pr49m471cp1@y'
+    - 'pr49m471cp1@yy'
+    - 'pr49m471cp1ay'
+    - 'pr49m471cp1ayy'
+    - 'pr49m471cpl4y'
+    - 'pr49m471cpl4yy'
+    - 'pr49m471cpl@y'
+    - 'pr49m471cpl@yy'
+    - 'pr49m471cplay'
+    - 'pr49m471cplayy'
+    - 'pr49m47icp14y'
+    - 'pr49m47icp14yy'
+    - 'pr49m47icp1@y'
+    - 'pr49m47icp1@yy'
+    - 'pr49m47icp1ay'
+    - 'pr49m47icp1ayy'
+    - 'pr49m47icpl4y'
+    - 'pr49m47icpl4yy'
+    - 'pr49m47icpl@y'
+    - 'pr49m47icpl@yy'
+    - 'pr49m47icplay'
+    - 'pr49m47icplayy'
+    - 'pr49m4t!cp14y'
+    - 'pr49m4t!cp14yy'
+    - 'pr49m4t!cp1@y'
+    - 'pr49m4t!cp1@yy'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

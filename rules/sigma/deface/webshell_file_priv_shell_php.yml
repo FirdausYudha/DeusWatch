@@ -1,0 +1,24 @@
+title: Webshell File Drop - priv-shell.php
+id: b961b126-fd3f-5a92-b126-77b8e27e08c3
+status: experimental
+description: >
+  A file matching a known webshell name ('priv-shell.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'priv-shell.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

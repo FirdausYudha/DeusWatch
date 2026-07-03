@@ -1,0 +1,22 @@
+title: Windows LOLBin - shadow copy deletion
+id: a723d5f8-7a1b-5cde-8b9f-829f4e9919d3
+status: experimental
+description: >
+  Command line consistent with shadow copy deletion, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'vssadmin delete shadows'
+      - 'vssadmin.exe delete'
+      - 'wmic shadowcopy delete'
+  condition: selection
+tags:
+  - attack.t1490
+  - attack.defense_evasion

@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'linktogel' (SEO/content injection)
+id: bf135f2d-2a00-540d-8bad-9b00350f0296
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'linktogel' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '1!nk70931'
+    - '1!nk709311'
+    - '1!nk7093l'
+    - '1!nk7093ll'
+    - '1!nk709e1'
+    - '1!nk709e11'
+    - '1!nk709el'
+    - '1!nk709ell'
+    - '1!nk70g31'
+    - '1!nk70g311'
+    - '1!nk70g3l'
+    - '1!nk70g3ll'
+    - '1!nk70ge1'
+    - '1!nk70ge11'
+    - '1!nk70gel'
+    - '1!nk70gell'
+    - '1!nk7o931'
+    - '1!nk7o9311'
+    - '1!nk7o93l'
+    - '1!nk7o93ll'
+    - '1!nk7o9e1'
+    - '1!nk7o9e11'
+    - '1!nk7o9el'
+    - '1!nk7o9ell'
+    - '1!nk7og31'
+    - '1!nk7og311'
+    - '1!nk7og3l'
+    - '1!nk7og3ll'
+    - '1!nk7oge1'
+    - '1!nk7oge11'
+    - '1!nk7ogel'
+    - '1!nk7ogell'
+    - '1!nkt0931'
+    - '1!nkt09311'
+    - '1!nkt093l'
+    - '1!nkt093ll'
+    - '1!nkt09e1'
+    - '1!nkt09e11'
+    - '1!nkt09el'
+    - '1!nkt09ell'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

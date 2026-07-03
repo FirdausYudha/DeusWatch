@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'olympus777'
+id: 2cff6c87-0451-5157-9d5e-a2612c78afce
+status: experimental
+description: >
+  Gambling site-brand token 'olympus777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'olympus777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

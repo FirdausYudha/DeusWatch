@@ -1,0 +1,22 @@
+title: Credential Access - reading /etc/shadow
+id: 165e985c-6c97-59ae-a3a2-72e56c698814
+status: experimental
+description: >
+  Command line consistent with reading /etc/shadow.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'cat /etc/shadow'
+      - 'cp /etc/shadow'
+      - 'unshadow'
+  condition: selection
+tags:
+  - attack.t1003.008
+  - attack.credential_access

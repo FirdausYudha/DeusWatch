@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'pragmatic' (SEO/content injection)
+id: 6c0abdb2-f701-5c3b-9b5f-0e5f4b12f16f
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'pragmatic' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'pr49m47!c'
+    - 'pr49m47!cc'
+    - 'pr49m471c'
+    - 'pr49m471cc'
+    - 'pr49m47ic'
+    - 'pr49m47icc'
+    - 'pr49m4t!c'
+    - 'pr49m4t!cc'
+    - 'pr49m4t1c'
+    - 'pr49m4t1cc'
+    - 'pr49m4tic'
+    - 'pr49m4ticc'
+    - 'pr49m@7!c'
+    - 'pr49m@7!cc'
+    - 'pr49m@71c'
+    - 'pr49m@71cc'
+    - 'pr49m@7ic'
+    - 'pr49m@7icc'
+    - 'pr49m@t!c'
+    - 'pr49m@t!cc'
+    - 'pr49m@t1c'
+    - 'pr49m@t1cc'
+    - 'pr49m@tic'
+    - 'pr49m@ticc'
+    - 'pr49ma7!c'
+    - 'pr49ma7!cc'
+    - 'pr49ma71c'
+    - 'pr49ma71cc'
+    - 'pr49ma7ic'
+    - 'pr49ma7icc'
+    - 'pr49mat!c'
+    - 'pr49mat!cc'
+    - 'pr49mat1c'
+    - 'pr49mat1cc'
+    - 'pr49matic'
+    - 'pr49maticc'
+    - 'pr4gm47!c'
+    - 'pr4gm47!cc'
+    - 'pr4gm471c'
+    - 'pr4gm471cc'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

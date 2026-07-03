@@ -1,0 +1,32 @@
+title: Judi Online - Judi kartu (card games) keywords
+id: c992da56-baa7-5629-af82-4718df7f859a
+status: experimental
+description: >
+  Indonesian online-gambling (Judi kartu (card games)) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'poker online'
+    - 'idn poker'
+    - 'domino qq'
+    - 'bandar qq'
+    - 'capsa susun'
+    - 'bandar ceme'
+    - 'ceme online'
+    - 'qiu qiu'
+    - 'gaple online'
+    - 'dominoqq'
+    - 'pkv games'
+    - 'sakong online'
+    - 'aduq online'
+    - 'bandar poker'
+    - 'super10'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

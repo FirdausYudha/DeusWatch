@@ -1,0 +1,25 @@
+title: FIM - systemd lib unit (/lib/systemd/system/)
+id: 883397f5-fa31-5a9c-bac7-7673cdd351f4
+status: experimental
+description: >
+  Integrity change on systemd lib unit (/lib/systemd/system/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/lib/systemd/system/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

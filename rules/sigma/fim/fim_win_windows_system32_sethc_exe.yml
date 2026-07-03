@@ -1,0 +1,24 @@
+title: FIM (Windows) - sticky-keys binary
+id: fd6ce636-f96b-564c-a2bd-9c3e7b51543c
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (sticky-keys binary: ...\Windows\System32\sethc.exe). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\sethc.exe'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

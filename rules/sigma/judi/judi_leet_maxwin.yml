@@ -1,0 +1,35 @@
+title: Judi Online - Leetspeak term 'maxwin' (SEO/content injection)
+id: d1518c95-87ce-58c4-b831-e02294df298a
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'maxwin' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'm4xw!n'
+    - 'm4xw!nn'
+    - 'm4xw1n'
+    - 'm4xw1nn'
+    - 'm4xwin'
+    - 'm4xwinn'
+    - 'm@xw!n'
+    - 'm@xw!nn'
+    - 'm@xw1n'
+    - 'm@xw1nn'
+    - 'm@xwin'
+    - 'm@xwinn'
+    - 'maxw!n'
+    - 'maxw!nn'
+    - 'maxw1n'
+    - 'maxw1nn'
+    - 'maxwin'
+    - 'maxwinn'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

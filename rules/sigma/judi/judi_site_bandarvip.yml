@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'bandarvip'
+id: fde2472d-26bd-5991-a5a5-768681704afb
+status: experimental
+description: >
+  Gambling site-brand token 'bandarvip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bandarvip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

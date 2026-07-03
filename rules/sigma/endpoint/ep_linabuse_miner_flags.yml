@@ -1,0 +1,26 @@
+title: Linux Abuse - cryptominer indicators
+id: e2688ffa-b41a-541e-b156-dfc8c2171f6d
+status: experimental
+description: >
+  Command line consistent with cryptominer indicators - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - '--donate-level'
+      - 'stratum+tcp://'
+      - 'xmrig'
+      - '--cpu-priority'
+      - 'minerd'
+      - 'nanopool'
+      - 'cryptonight'
+  condition: selection
+tags:
+  - attack.t1496
+  - attack.defense_evasion

@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'this site has been hacked'
+id: c395aa9c-9fd8-5ca0-98a4-2176defb2b7f
+status: experimental
+description: >
+  Classic web-defacement banner text 'this site has been hacked' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'this site has been hacked'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

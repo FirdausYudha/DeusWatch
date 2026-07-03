@@ -1,0 +1,25 @@
+title: FIM - local binary dir (/usr/local/bin/)
+id: 4e65b840-bf07-54f1-9004-7a70fbb852ff
+status: experimental
+description: >
+  Integrity change on local binary dir (/usr/local/bin/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/usr/local/bin/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

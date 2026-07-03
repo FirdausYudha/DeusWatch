@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'we are legion'
+id: 971b8d09-92e0-5995-8fde-3ad7752d68e6
+status: experimental
+description: >
+  Classic web-defacement banner text 'we are legion' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'we are legion'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

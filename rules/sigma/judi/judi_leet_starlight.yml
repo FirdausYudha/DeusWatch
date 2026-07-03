@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'starlight' (SEO/content injection)
+id: c3829e06-0257-5ee7-af69-c0950f279c36
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'starlight' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$74r1!9h7'
+    - '$74r1!9h77'
+    - '$74r1!9ht'
+    - '$74r1!9htt'
+    - '$74r1!gh7'
+    - '$74r1!gh77'
+    - '$74r1!ght'
+    - '$74r1!ghtt'
+    - '$74r119h7'
+    - '$74r119h77'
+    - '$74r119ht'
+    - '$74r119htt'
+    - '$74r11gh7'
+    - '$74r11gh77'
+    - '$74r11ght'
+    - '$74r11ghtt'
+    - '$74r1i9h7'
+    - '$74r1i9h77'
+    - '$74r1i9ht'
+    - '$74r1i9htt'
+    - '$74r1igh7'
+    - '$74r1igh77'
+    - '$74r1ight'
+    - '$74r1ightt'
+    - '$74rl!9h7'
+    - '$74rl!9h77'
+    - '$74rl!9ht'
+    - '$74rl!9htt'
+    - '$74rl!gh7'
+    - '$74rl!gh77'
+    - '$74rl!ght'
+    - '$74rl!ghtt'
+    - '$74rl19h7'
+    - '$74rl19h77'
+    - '$74rl19ht'
+    - '$74rl19htt'
+    - '$74rl1gh7'
+    - '$74rl1gh77'
+    - '$74rl1ght'
+    - '$74rl1ghtt'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

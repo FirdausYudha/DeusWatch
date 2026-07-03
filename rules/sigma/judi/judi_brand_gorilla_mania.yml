@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'gorilla mania'
+id: 7fd48d8a-6c7d-505c-87af-99e4a1a3d687
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'gorilla mania'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gorilla mania'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

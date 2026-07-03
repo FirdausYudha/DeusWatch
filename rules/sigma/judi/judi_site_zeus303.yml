@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'zeus303'
+id: 4753a612-87d8-5230-b348-0b544c4b2b9e
+status: experimental
+description: >
+  Gambling site-brand token 'zeus303' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'zeus303'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

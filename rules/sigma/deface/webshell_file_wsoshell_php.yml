@@ -1,0 +1,24 @@
+title: Webshell File Drop - wsoshell.php
+id: d2360898-a4a6-5090-9d3d-268f8bc09b43
+status: experimental
+description: >
+  A file matching a known webshell name ('wsoshell.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'wsoshell.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

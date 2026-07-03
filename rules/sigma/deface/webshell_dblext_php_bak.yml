@@ -1,0 +1,24 @@
+title: Suspicious Double-Extension Upload - .php.bak
+id: d4c63193-8b62-5f11-b5e3-feaf894c21e0
+status: experimental
+description: >
+  A file whose name contains the masquerading double-extension pattern '.php.bak', a common trick to smuggle executable server code past an upload filter.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '.php.bak'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1036.007
+  - attack.defense_evasion

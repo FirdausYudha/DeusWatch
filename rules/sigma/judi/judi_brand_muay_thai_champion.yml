@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'muay thai champion'
+id: 4110a175-e7bc-55b8-80f8-c7130b7f2e2a
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'muay thai champion'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'muay thai champion'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

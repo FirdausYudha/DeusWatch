@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'top trend gaming'
+id: dab12dfe-c4f8-59c9-88b3-a75a6eb90d11
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'top trend gaming'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'top trend gaming'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

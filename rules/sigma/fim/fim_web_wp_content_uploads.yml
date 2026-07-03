@@ -1,0 +1,25 @@
+title: FIM (Web) - WordPress uploads (/wp-content/uploads/)
+id: a65d0735-0b0b-5545-be41-8e882ca547ac
+status: experimental
+description: >
+  Integrity change under the web application tree (WordPress uploads: /wp-content/uploads/). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/wp-content/uploads/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

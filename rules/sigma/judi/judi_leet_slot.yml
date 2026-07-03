@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'slot' (SEO/content injection)
+id: 78eb333c-79ef-5420-8714-62e92bc7e96d
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'slot' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$107'
+    - '$1077'
+    - '$10t'
+    - '$10tt'
+    - '$1o7'
+    - '$1o77'
+    - '$1ot'
+    - '$1ott'
+    - '$l07'
+    - '$l077'
+    - '$l0t'
+    - '$l0tt'
+    - '$lo7'
+    - '$lo77'
+    - '$lot'
+    - '$lott'
+    - '5107'
+    - '51077'
+    - '510t'
+    - '510tt'
+    - '51o7'
+    - '51o77'
+    - '51ot'
+    - '51ott'
+    - '5l07'
+    - '5l077'
+    - '5l0t'
+    - '5l0tt'
+    - '5lo7'
+    - '5lo77'
+    - '5lot'
+    - '5lott'
+    - 's107'
+    - 's1077'
+    - 's10t'
+    - 's10tt'
+    - 's1o7'
+    - 's1o77'
+    - 's1ot'
+    - 's1ott'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

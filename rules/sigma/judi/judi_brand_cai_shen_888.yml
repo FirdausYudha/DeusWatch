@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'cai shen 888'
+id: 531488b3-6887-5771-be32-cb7d3eefda87
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'cai shen 888'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cai shen 888'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'gaspol888'
+id: 4d24d3ad-dad2-5ddc-bfba-b7e4160a5cb6
+status: experimental
+description: >
+  Gambling site-brand token 'gaspol888' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gaspol888'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

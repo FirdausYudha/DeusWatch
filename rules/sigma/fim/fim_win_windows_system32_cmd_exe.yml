@@ -1,0 +1,24 @@
+title: FIM (Windows) - cmd binary
+id: 0b9ba1d8-587a-59b5-a768-964afef065d6
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (cmd binary: ...\Windows\System32\cmd.exe). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\cmd.exe'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

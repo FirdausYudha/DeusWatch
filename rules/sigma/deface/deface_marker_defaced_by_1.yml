@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'defaced by'
+id: 6afb9c84-8041-50f0-817a-03d9af7a0444
+status: experimental
+description: >
+  Classic web-defacement banner text 'defaced by' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'defaced by'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

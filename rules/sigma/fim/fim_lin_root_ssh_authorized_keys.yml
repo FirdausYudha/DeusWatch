@@ -1,0 +1,25 @@
+title: FIM - root authorized_keys (/root/.ssh/authorized_keys)
+id: f3cde440-9514-5dbf-a3bd-1da531a91256
+status: experimental
+description: >
+  Integrity change on root authorized_keys (/root/.ssh/authorized_keys). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/root/.ssh/authorized_keys'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

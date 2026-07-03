@@ -1,0 +1,25 @@
+title: FIM - init.d script (/etc/init.d/)
+id: 5cc7b5bd-3c67-5aa0-a097-775f76d98eea
+status: experimental
+description: >
+  Integrity change on init.d script (/etc/init.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/init.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

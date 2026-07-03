@@ -1,0 +1,23 @@
+title: Payload Staging - base64-decoded piped to shell
+id: a5ba6d89-7829-5924-8ece-69dc7f409964
+status: experimental
+description: >
+  Command line consistent with base64-decoded piped to shell - typical of malware/tooling download and execution.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'base64 -d'
+      - 'base64 --decode'
+      - '|base64 -d|sh'
+      - 'openssl base64 -d'
+  condition: selection
+tags:
+  - attack.t1140
+  - attack.command_and_control

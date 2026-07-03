@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'sweet bonanza 1000'
+id: 4fe14d80-96eb-5ae7-9ec8-093615bf8045
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'sweet bonanza 1000'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sweet bonanza 1000'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

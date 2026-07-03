@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'mega88'
+id: 04f7c4f8-77d6-5091-864e-be4311e7a421
+status: experimental
+description: >
+  Gambling site-brand token 'mega88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mega88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

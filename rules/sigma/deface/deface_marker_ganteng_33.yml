@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'ganteng'
+id: db77b7b0-f83f-5a53-94ab-ccd02189f4dc
+status: experimental
+description: >
+  Classic web-defacement banner text 'ganteng' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'ganteng'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'get rekt'
+id: c94498e3-9117-54bd-8c01-00d2e06d4b9a
+status: experimental
+description: >
+  Classic web-defacement banner text 'get rekt' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'get rekt'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

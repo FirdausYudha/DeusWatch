@@ -1,0 +1,24 @@
+title: Reverse Shell - netcat reverse shell (-e / -c)
+id: 92faaa23-2563-55ae-a9e8-f70308aca3eb
+status: experimental
+description: >
+  Command line consistent with a netcat reverse shell (-e / -c). Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'nc -e '
+      - 'nc -c '
+      - 'ncat -e '
+      - 'nc.traditional -e '
+      - 'netcat -e '
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

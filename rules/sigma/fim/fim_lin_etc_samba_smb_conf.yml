@@ -1,0 +1,24 @@
+title: FIM - samba config (/etc/samba/smb.conf)
+id: fece9697-2995-5a51-8b1e-cf531bc1e50f
+status: experimental
+description: >
+  Integrity change on samba config (/etc/samba/smb.conf). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/samba/smb.conf'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

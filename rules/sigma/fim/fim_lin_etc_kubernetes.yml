@@ -1,0 +1,24 @@
+title: FIM - kubernetes config (/etc/kubernetes/)
+id: fb3415fa-5b86-5c6a-a986-b29256dc25ac
+status: experimental
+description: >
+  Integrity change on kubernetes config (/etc/kubernetes/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/kubernetes/'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

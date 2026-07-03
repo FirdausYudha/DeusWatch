@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'win777'
+id: 72881e87-9d7d-523b-ba64-472414390a7d
+status: experimental
+description: >
+  Gambling site-brand token 'win777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'win777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

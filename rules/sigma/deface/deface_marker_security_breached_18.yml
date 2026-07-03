@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'security breached'
+id: 7a778b4c-f36b-5eba-a924-21cb5fea1744
+status: experimental
+description: >
+  Classic web-defacement banner text 'security breached' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'security breached'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

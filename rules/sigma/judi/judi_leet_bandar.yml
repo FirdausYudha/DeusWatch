@@ -1,0 +1,53 @@
+title: Judi Online - Leetspeak term 'bandar' (SEO/content injection)
+id: 9c450f9d-3d62-573a-8e71-c2ae3304d3d5
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'bandar' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '84nd4r'
+    - '84nd4rr'
+    - '84nd@r'
+    - '84nd@rr'
+    - '84ndar'
+    - '84ndarr'
+    - '8@nd4r'
+    - '8@nd4rr'
+    - '8@nd@r'
+    - '8@nd@rr'
+    - '8@ndar'
+    - '8@ndarr'
+    - '8and4r'
+    - '8and4rr'
+    - '8and@r'
+    - '8and@rr'
+    - '8andar'
+    - '8andarr'
+    - 'b4nd4r'
+    - 'b4nd4rr'
+    - 'b4nd@r'
+    - 'b4nd@rr'
+    - 'b4ndar'
+    - 'b4ndarr'
+    - 'b@nd4r'
+    - 'b@nd4rr'
+    - 'b@nd@r'
+    - 'b@nd@rr'
+    - 'b@ndar'
+    - 'b@ndarr'
+    - 'band4r'
+    - 'band4rr'
+    - 'band@r'
+    - 'band@rr'
+    - 'bandar'
+    - 'bandarr'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

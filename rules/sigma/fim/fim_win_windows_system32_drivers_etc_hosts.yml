@@ -1,0 +1,24 @@
+title: FIM (Windows) - hosts file
+id: 997e6270-f2e5-59f7-95c3-eb031fbcaec5
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (hosts file: ...\Windows\System32\drivers\etc\hosts). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\drivers\etc\hosts'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

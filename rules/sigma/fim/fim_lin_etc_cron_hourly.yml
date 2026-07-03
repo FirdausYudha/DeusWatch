@@ -1,0 +1,25 @@
+title: FIM - cron.hourly job (/etc/cron.hourly/)
+id: 7aa81669-c743-5171-9014-eba0091daea1
+status: experimental
+description: >
+  Integrity change on cron.hourly job (/etc/cron.hourly/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/cron.hourly/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

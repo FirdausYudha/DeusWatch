@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'gatotkaca' (SEO/content injection)
+id: c4edceb3-dbf3-59b6-9d9a-426ef352f544
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'gatotkaca' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '94707k4c4'
+    - '94707k4c44'
+    - '94707k4c@'
+    - '94707k4c@@'
+    - '94707k4ca'
+    - '94707k4caa'
+    - '94707k@c4'
+    - '94707k@c44'
+    - '94707k@c@'
+    - '94707k@c@@'
+    - '94707k@ca'
+    - '94707k@caa'
+    - '94707kac4'
+    - '94707kac44'
+    - '94707kac@'
+    - '94707kac@@'
+    - '94707kaca'
+    - '94707kacaa'
+    - '9470tk4c4'
+    - '9470tk4c44'
+    - '9470tk4c@'
+    - '9470tk4c@@'
+    - '9470tk4ca'
+    - '9470tk4caa'
+    - '9470tk@c4'
+    - '9470tk@c44'
+    - '9470tk@c@'
+    - '9470tk@c@@'
+    - '9470tk@ca'
+    - '9470tk@caa'
+    - '9470tkac4'
+    - '9470tkac44'
+    - '9470tkac@'
+    - '9470tkac@@'
+    - '9470tkaca'
+    - '9470tkacaa'
+    - '947o7k4c4'
+    - '947o7k4c44'
+    - '947o7k4c@'
+    - '947o7k4c@@'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

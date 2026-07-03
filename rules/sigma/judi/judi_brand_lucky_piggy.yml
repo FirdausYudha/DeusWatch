@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'lucky piggy'
+id: cc9c4a24-1e8c-5889-95c0-3f484ed59188
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'lucky piggy'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'lucky piggy'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'greetzz'
+id: 3fb7003f-9950-54f1-ac3b-a61d9f7650b2
+status: experimental
+description: >
+  Classic web-defacement banner text 'greetzz' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'greetzz'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

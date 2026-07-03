@@ -1,0 +1,25 @@
+title: FIM - modprobe config (/etc/modprobe.d/)
+id: ef668439-d4ac-529f-97b0-105fd1774af2
+status: experimental
+description: >
+  Integrity change on modprobe config (/etc/modprobe.d/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/modprobe.d/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'agenvip'
+id: 16afb071-7fa4-58a0-9e8e-e8a6c1bd56d2
+status: experimental
+description: >
+  Gambling site-brand token 'agenvip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'agenvip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

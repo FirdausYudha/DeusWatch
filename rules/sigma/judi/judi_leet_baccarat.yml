@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'baccarat' (SEO/content injection)
+id: 700db902-79cd-5196-824f-bbb47eaf3ba4
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'baccarat' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '84cc4r47'
+    - '84cc4r477'
+    - '84cc4r4t'
+    - '84cc4r4tt'
+    - '84cc4r@7'
+    - '84cc4r@77'
+    - '84cc4r@t'
+    - '84cc4r@tt'
+    - '84cc4ra7'
+    - '84cc4ra77'
+    - '84cc4rat'
+    - '84cc4ratt'
+    - '84cc@r47'
+    - '84cc@r477'
+    - '84cc@r4t'
+    - '84cc@r4tt'
+    - '84cc@r@7'
+    - '84cc@r@77'
+    - '84cc@r@t'
+    - '84cc@r@tt'
+    - '84cc@ra7'
+    - '84cc@ra77'
+    - '84cc@rat'
+    - '84cc@ratt'
+    - '84ccar47'
+    - '84ccar477'
+    - '84ccar4t'
+    - '84ccar4tt'
+    - '84ccar@7'
+    - '84ccar@77'
+    - '84ccar@t'
+    - '84ccar@tt'
+    - '84ccara7'
+    - '84ccara77'
+    - '84ccarat'
+    - '84ccaratt'
+    - '8@cc4r47'
+    - '8@cc4r477'
+    - '8@cc4r4t'
+    - '8@cc4r4tt'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

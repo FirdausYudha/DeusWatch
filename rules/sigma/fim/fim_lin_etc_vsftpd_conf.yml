@@ -1,0 +1,24 @@
+title: FIM - vsftpd config (/etc/vsftpd.conf)
+id: 7f210b44-5970-502e-a054-ffaa1fc09b7a
+status: experimental
+description: >
+  Integrity change on vsftpd config (/etc/vsftpd.conf). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/vsftpd.conf'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

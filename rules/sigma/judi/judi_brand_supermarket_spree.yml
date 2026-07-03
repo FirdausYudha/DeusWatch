@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'supermarket spree'
+id: ede6b000-724c-5857-99ef-6a3e23b55342
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'supermarket spree'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'supermarket spree'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

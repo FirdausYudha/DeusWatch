@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'guardians of ice and fire'
+id: 520c8e57-9976-538b-af24-d5b2c6c7781b
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'guardians of ice and fire'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'guardians of ice and fire'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

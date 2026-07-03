@@ -1,0 +1,24 @@
+title: FIM - port-knock config (/etc/knockd.conf)
+id: 7b3c9d5b-0027-513e-b5b2-3227125e5786
+status: experimental
+description: >
+  Integrity change on port-knock config (/etc/knockd.conf). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/knockd.conf'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

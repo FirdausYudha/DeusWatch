@@ -1,0 +1,24 @@
+title: FIM - hosts.deny (/etc/hosts.deny)
+id: 1d911968-9b10-5053-a43b-9e775a1e3d43
+status: experimental
+description: >
+  Integrity change on hosts.deny (/etc/hosts.deny). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/hosts.deny'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

@@ -1,0 +1,41 @@
+title: Judi Online - Leetspeak term 'jackpot' (SEO/content injection)
+id: 358f754c-a12d-5368-89b0-b98aa19b2585
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'jackpot' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'j4ckp07'
+    - 'j4ckp077'
+    - 'j4ckp0t'
+    - 'j4ckp0tt'
+    - 'j4ckpo7'
+    - 'j4ckpo77'
+    - 'j4ckpot'
+    - 'j4ckpott'
+    - 'j@ckp07'
+    - 'j@ckp077'
+    - 'j@ckp0t'
+    - 'j@ckp0tt'
+    - 'j@ckpo7'
+    - 'j@ckpo77'
+    - 'j@ckpot'
+    - 'j@ckpott'
+    - 'jackp07'
+    - 'jackp077'
+    - 'jackp0t'
+    - 'jackp0tt'
+    - 'jackpo7'
+    - 'jackpo77'
+    - 'jackpot'
+    - 'jackpott'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

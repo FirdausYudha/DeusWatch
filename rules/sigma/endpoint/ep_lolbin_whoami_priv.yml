@@ -1,0 +1,22 @@
+title: Windows LOLBin - privilege discovery
+id: c78c0cd5-0879-5431-8810-97dfd85484d2
+status: experimental
+description: >
+  Command line consistent with privilege discovery, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'whoami /priv'
+      - 'whoami /groups'
+      - 'whoami /all'
+  condition: selection
+tags:
+  - attack.t1033
+  - attack.defense_evasion

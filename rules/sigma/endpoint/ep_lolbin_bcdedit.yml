@@ -1,0 +1,23 @@
+title: Windows LOLBin - boot config tamper
+id: d8ca54f1-847f-54fc-a0e6-7873687707e8
+status: experimental
+description: >
+  Command line consistent with boot config tamper, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'bcdedit /set'
+      - 'bcdedit.exe /set'
+      - 'recoveryenabled no'
+      - 'bootstatuspolicy ignoreallfailures'
+  condition: selection
+tags:
+  - attack.t1490
+  - attack.defense_evasion

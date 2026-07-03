@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'mpovip88'
+id: 3ef84eca-3b41-59b0-9fb4-22fca0977a4e
+status: experimental
+description: >
+  Gambling site-brand token 'mpovip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mpovip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'zeusvip'
+id: b5b90394-6b65-541d-aa68-25fd50585f17
+status: experimental
+description: >
+  Gambling site-brand token 'zeusvip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'zeusvip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

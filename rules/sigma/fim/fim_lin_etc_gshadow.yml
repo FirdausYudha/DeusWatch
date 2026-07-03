@@ -1,0 +1,24 @@
+title: FIM - group shadow (/etc/gshadow)
+id: 546ddffb-35d8-566e-9be0-4c3419a76732
+status: experimental
+description: >
+  Integrity change on group shadow (/etc/gshadow). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/gshadow'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

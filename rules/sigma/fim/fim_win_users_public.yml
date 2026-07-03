@@ -1,0 +1,25 @@
+title: FIM (Windows) - public user folder
+id: c5aed41b-958c-530b-9d56-3ea47ee82eb3
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (public user folder: ...\Users\Public\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Users\Public\'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

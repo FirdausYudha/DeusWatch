@@ -1,0 +1,25 @@
+title: Judi Online - Leetspeak term 'wede' (SEO/content injection)
+id: ef325216-83dc-5a6d-8d91-facef552d87d
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'wede' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'w3d3'
+    - 'w3d33'
+    - 'w3de'
+    - 'w3dee'
+    - 'wed3'
+    - 'wed33'
+    - 'wede'
+    - 'wedee'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,21 @@
+title: Credential Access - dumping /etc/passwd
+id: f13a2187-e9bb-5eb7-b4f7-f0a40a85c810
+status: experimental
+description: >
+  Command line consistent with dumping /etc/passwd.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'cat /etc/passwd'
+      - 'getent passwd'
+  condition: selection
+tags:
+  - attack.t1003.008
+  - attack.credential_access

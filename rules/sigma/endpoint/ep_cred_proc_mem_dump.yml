@@ -1,0 +1,23 @@
+title: Credential Access - reading process memory
+id: 4bf1af16-2ad9-51f9-93f8-64e75f4f4cfc
+status: experimental
+description: >
+  Command line consistent with reading process memory.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - '/proc/self/maps'
+      - 'gcore '
+      - 'dd if=/proc/'
+      - 'process_vm_readv'
+  condition: selection
+tags:
+  - attack.t1003.007
+  - attack.credential_access

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'chicken drop'
+id: 70a8b0f0-e8c4-5be5-bda5-2648bba5dafb
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'chicken drop'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'chicken drop'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,23 @@
+title: Credential Access - browser credential store access
+id: 2f2e32bb-ee81-5eba-ac15-700daa5ffd05
+status: experimental
+description: >
+  Command line consistent with browser credential store access.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'login data'
+      - 'cookies.sqlite'
+      - 'logins.json'
+      - 'key4.db'
+  condition: selection
+tags:
+  - attack.t1555.003
+  - attack.credential_access

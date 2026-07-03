@@ -1,0 +1,23 @@
+title: Credential Access - NTDS.dit extraction
+id: af0f68e2-5bb0-546e-a390-d2110e0acc83
+status: experimental
+description: >
+  Command line consistent with NTDS.dit extraction.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'ntdsutil'
+      - 'ntds.dit'
+      - 'ac i ntds'
+      - 'create full'
+  condition: selection
+tags:
+  - attack.t1003.003
+  - attack.credential_access

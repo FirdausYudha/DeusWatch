@@ -1,0 +1,23 @@
+title: Discovery - process discovery
+id: b86dd0b8-4cc8-5863-a693-2c9e02c5420a
+status: experimental
+description: >
+  Command line consistent with process discovery - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: low
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'ps aux'
+      - 'ps -ef'
+      - 'top -b'
+      - 'tasklist'
+  condition: selection
+tags:
+  - attack.t1057
+  - attack.discovery

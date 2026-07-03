@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'capsa' (SEO/content injection)
+id: f87d4815-1d81-56c6-bdda-4512a9b53650
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'capsa' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'c4p$4'
+    - 'c4p$44'
+    - 'c4p$@'
+    - 'c4p$@@'
+    - 'c4p$a'
+    - 'c4p$aa'
+    - 'c4p54'
+    - 'c4p544'
+    - 'c4p5@'
+    - 'c4p5@@'
+    - 'c4p5a'
+    - 'c4p5aa'
+    - 'c4ps4'
+    - 'c4ps44'
+    - 'c4ps@'
+    - 'c4ps@@'
+    - 'c4psa'
+    - 'c4psaa'
+    - 'c@p$4'
+    - 'c@p$44'
+    - 'c@p$@'
+    - 'c@p$@@'
+    - 'c@p$a'
+    - 'c@p$aa'
+    - 'c@p54'
+    - 'c@p544'
+    - 'c@p5@'
+    - 'c@p5@@'
+    - 'c@p5a'
+    - 'c@p5aa'
+    - 'c@ps4'
+    - 'c@ps44'
+    - 'c@ps@'
+    - 'c@ps@@'
+    - 'c@psa'
+    - 'c@psaa'
+    - 'cap$4'
+    - 'cap$44'
+    - 'cap$@'
+    - 'cap$@@'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

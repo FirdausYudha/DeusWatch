@@ -1,0 +1,23 @@
+title: Credential Access - LSASS memory dump
+id: e2d6e0bf-3844-529f-b282-3cbac81ba902
+status: experimental
+description: >
+  Command line consistent with LSASS memory dump.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'procdump -ma lsass'
+      - 'comsvcs.dll, minidump'
+      - 'rundll32 comsvcs'
+      - '-accepteula -ma lsass'
+  condition: selection
+tags:
+  - attack.t1003.001
+  - attack.credential_access

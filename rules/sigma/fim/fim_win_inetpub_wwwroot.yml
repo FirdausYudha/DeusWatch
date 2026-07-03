@@ -1,0 +1,25 @@
+title: FIM (Windows) - IIS web root
+id: 5fa55d96-a835-5609-8aa5-1ba10df7b518
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (IIS web root: ...\inetpub\wwwroot\). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\inetpub\wwwroot\'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

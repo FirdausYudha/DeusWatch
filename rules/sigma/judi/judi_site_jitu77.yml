@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jitu77'
+id: db070924-e8d9-5ea9-9bc2-38eda47dafe2
+status: experimental
+description: >
+  Gambling site-brand token 'jitu77' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jitu77'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

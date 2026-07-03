@@ -1,0 +1,24 @@
+title: FIM (Windows) - winlogon binary
+id: 96ae8ab4-2829-51a4-a12a-8a14b9925f3a
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (winlogon binary: ...\Windows\System32\winlogon.exe). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\winlogon.exe'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

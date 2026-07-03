@@ -1,0 +1,23 @@
+title: Linux Abuse - process/rootkit hiding
+id: 60b12f44-98ca-5d15-9aed-fd4f0810a881
+status: experimental
+description: >
+  Command line consistent with process/rootkit hiding - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'ld_preload'
+      - 'libprocesshider'
+      - '/proc/'
+      - 'prctl(pr_set_name'
+  condition: selection
+tags:
+  - attack.t1014
+  - attack.defense_evasion

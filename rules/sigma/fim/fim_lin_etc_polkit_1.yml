@@ -1,0 +1,25 @@
+title: FIM - polkit rules (/etc/polkit-1/)
+id: 68c12c10-67b2-5754-808a-8aee74dc9f7d
+status: experimental
+description: >
+  Integrity change on polkit rules (/etc/polkit-1/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/polkit-1/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

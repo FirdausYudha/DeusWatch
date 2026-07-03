@@ -1,0 +1,24 @@
+title: FIM (Windows) - svchost binary
+id: 9c5d9001-2f55-5229-bfb6-6134fa86a93a
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (svchost binary: ...\Windows\System32\svchost.exe). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\svchost.exe'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

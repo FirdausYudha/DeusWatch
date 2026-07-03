@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'cuanindo'
+id: e7380fef-4341-5395-8e76-fcc4be853e29
+status: experimental
+description: >
+  Gambling site-brand token 'cuanindo' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'cuanindo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

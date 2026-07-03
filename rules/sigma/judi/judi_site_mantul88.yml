@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'mantul88'
+id: 15a41f37-3927-5d2d-a7d8-523431317eaf
+status: experimental
+description: >
+  Gambling site-brand token 'mantul88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'mantul88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

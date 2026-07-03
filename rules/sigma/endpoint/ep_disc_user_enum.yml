@@ -1,0 +1,25 @@
+title: Discovery - account enumeration
+id: 6e0dcce1-872c-53fc-8728-b56d332c1803
+status: experimental
+description: >
+  Command line consistent with account enumeration - typical post-exploitation reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: low
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'id '
+      - 'whoami'
+      - 'who '
+      - 'w '
+      - 'last '
+      - 'lastlog'
+  condition: selection
+tags:
+  - attack.t1087.001
+  - attack.discovery

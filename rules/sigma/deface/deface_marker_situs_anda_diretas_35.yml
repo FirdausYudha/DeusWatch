@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'situs anda diretas'
+id: f9a0f163-5a43-5620-9ed8-e3ace8ab29d2
+status: experimental
+description: >
+  Classic web-defacement banner text 'situs anda diretas' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'situs anda diretas'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

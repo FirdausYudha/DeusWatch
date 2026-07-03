@@ -1,0 +1,24 @@
+title: Webshell File Drop - up.php
+id: b69ac6f6-f2fe-5053-88d0-623e24ced6e9
+status: experimental
+description: >
+  A file matching a known webshell name ('up.php') was created or modified under a monitored web root - a backdoor for remote command execution.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|endswith:
+      - 'up.php'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: selection and change
+tags:
+  - attack.t1505.003
+  - attack.persistence

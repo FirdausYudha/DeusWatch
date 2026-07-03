@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'fortune ox'
+id: 8d7cf716-76ce-5d29-8713-9728a75ce826
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'fortune ox'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'fortune ox'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,25 @@
+title: FIM - apache vhost (/etc/apache2/sites-enabled/)
+id: 2e63dd97-8901-5f95-aac0-5ff368584fa9
+status: experimental
+description: >
+  Integrity change on apache vhost (/etc/apache2/sites-enabled/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/apache2/sites-enabled/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

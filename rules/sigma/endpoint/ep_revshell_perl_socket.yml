@@ -1,0 +1,22 @@
+title: Reverse Shell - perl reverse shell
+id: 286dfa2b-8bcf-55c3-a000-72955fd05281
+status: experimental
+description: >
+  Command line consistent with a perl reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'perl -e'
+      - 'use socket;'
+      - 'socket(s,pf_inet'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

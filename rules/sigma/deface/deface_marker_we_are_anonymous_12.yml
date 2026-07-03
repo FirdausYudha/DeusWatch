@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'we are anonymous'
+id: 7d522711-e9ce-5c5c-8f15-3a2485d1726a
+status: experimental
+description: >
+  Classic web-defacement banner text 'we are anonymous' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'we are anonymous'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

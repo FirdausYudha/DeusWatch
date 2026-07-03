@@ -1,0 +1,29 @@
+title: Judi Online - Leetspeak term 'kakek' (SEO/content injection)
+id: fb9c4585-6a4c-5741-8149-f1932ffd72d0
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'kakek' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'k4k3k'
+    - 'k4k3kk'
+    - 'k4kek'
+    - 'k4kekk'
+    - 'k@k3k'
+    - 'k@k3kk'
+    - 'k@kek'
+    - 'k@kekk'
+    - 'kak3k'
+    - 'kak3kk'
+    - 'kakek'
+    - 'kakekk'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

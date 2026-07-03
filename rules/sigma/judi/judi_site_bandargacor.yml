@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'bandargacor'
+id: 99159b46-6d6e-537f-8faa-8ff3b9933aee
+status: experimental
+description: >
+  Gambling site-brand token 'bandargacor' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bandargacor'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

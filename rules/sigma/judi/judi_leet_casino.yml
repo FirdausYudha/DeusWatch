@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'casino' (SEO/content injection)
+id: f01d1c91-b3c3-5e9f-86e3-e1517c6bbdd9
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'casino' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'c4$!n0'
+    - 'c4$!n00'
+    - 'c4$!no'
+    - 'c4$!noo'
+    - 'c4$1n0'
+    - 'c4$1n00'
+    - 'c4$1no'
+    - 'c4$1noo'
+    - 'c4$in0'
+    - 'c4$in00'
+    - 'c4$ino'
+    - 'c4$inoo'
+    - 'c45!n0'
+    - 'c45!n00'
+    - 'c45!no'
+    - 'c45!noo'
+    - 'c451n0'
+    - 'c451n00'
+    - 'c451no'
+    - 'c451noo'
+    - 'c45in0'
+    - 'c45in00'
+    - 'c45ino'
+    - 'c45inoo'
+    - 'c4s!n0'
+    - 'c4s!n00'
+    - 'c4s!no'
+    - 'c4s!noo'
+    - 'c4s1n0'
+    - 'c4s1n00'
+    - 'c4s1no'
+    - 'c4s1noo'
+    - 'c4sin0'
+    - 'c4sin00'
+    - 'c4sino'
+    - 'c4sinoo'
+    - 'c@$!n0'
+    - 'c@$!n00'
+    - 'c@$!no'
+    - 'c@$!noo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

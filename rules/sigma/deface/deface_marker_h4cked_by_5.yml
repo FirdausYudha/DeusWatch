@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'h4cked by'
+id: 54d3647c-1293-5d08-b75f-5a03ec20509f
+status: experimental
+description: >
+  Classic web-defacement banner text 'h4cked by' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'h4cked by'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

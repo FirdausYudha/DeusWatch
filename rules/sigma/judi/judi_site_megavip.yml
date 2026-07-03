@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'megavip'
+id: 42704987-2886-5f91-aeb2-c92d4c9e4e7e
+status: experimental
+description: >
+  Gambling site-brand token 'megavip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'megavip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

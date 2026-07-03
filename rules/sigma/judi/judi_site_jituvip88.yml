@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jituvip88'
+id: 2b3c466f-acb3-5595-bd8b-e15c5ae9bbfe
+status: experimental
+description: >
+  Gambling site-brand token 'jituvip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jituvip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

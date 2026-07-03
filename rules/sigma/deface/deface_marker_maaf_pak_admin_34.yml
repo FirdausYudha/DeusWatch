@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'maaf pak admin'
+id: 87d553e6-c175-54a0-ac9f-1ae4365ddc59
+status: experimental
+description: >
+  Classic web-defacement banner text 'maaf pak admin' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'maaf pak admin'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

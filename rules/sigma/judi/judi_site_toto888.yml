@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'toto888'
+id: d1475bdf-b282-5c7a-b6cd-78e6a9d53a78
+status: experimental
+description: >
+  Gambling site-brand token 'toto888' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'toto888'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'bali vacation'
+id: 10d06a2e-93fe-5447-8026-8e9aa85d5306
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'bali vacation'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'bali vacation'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

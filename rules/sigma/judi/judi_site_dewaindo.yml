@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'dewaindo'
+id: f4d65b52-f29b-51e0-a7c8-277660ee140a
+status: experimental
+description: >
+  Gambling site-brand token 'dewaindo' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'dewaindo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

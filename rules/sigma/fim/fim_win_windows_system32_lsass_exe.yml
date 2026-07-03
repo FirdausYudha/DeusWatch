@@ -1,0 +1,24 @@
+title: FIM (Windows) - LSASS binary
+id: aa8f5913-74a8-5f25-a0a7-1fc4842be1eb
+status: experimental
+description: >
+  Integrity change on a sensitive Windows path (LSASS binary: ...\Windows\System32\lsass.exe). Tampering here is associated with persistence, credential theft, or evasion.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: critical
+logsource:
+  product: windows
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '\Windows\System32\lsass.exe'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

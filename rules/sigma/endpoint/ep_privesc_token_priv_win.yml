@@ -1,0 +1,23 @@
+title: Privilege Escalation - Windows token/privilege abuse
+id: 237186a3-33fd-54a4-a8be-16a94129a848
+status: experimental
+description: >
+  Command line consistent with Windows token/privilege abuse.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'seimpersonateprivilege'
+      - 'juicypotato'
+      - 'printspoofer'
+      - 'roguepotato'
+  condition: selection
+tags:
+  - attack.t1134.001
+  - attack.privilege_escalation

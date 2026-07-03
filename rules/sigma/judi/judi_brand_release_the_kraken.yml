@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'release the kraken'
+id: 04988f05-e7f4-5f47-9aea-9bb198b18158
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'release the kraken'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'release the kraken'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

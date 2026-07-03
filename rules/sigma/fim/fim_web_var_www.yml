@@ -1,0 +1,25 @@
+title: FIM (Web) - web root (/var/www/)
+id: c0c13b70-b22d-5298-93ea-6f4d4bc988f3
+status: experimental
+description: >
+  Integrity change under the web application tree (web root: /var/www/). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/var/www/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

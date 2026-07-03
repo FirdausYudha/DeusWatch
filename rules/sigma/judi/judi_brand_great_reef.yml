@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'great reef'
+id: f211b7bd-d577-5c82-b3a0-4e01d7c0825c
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'great reef'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'great reef'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

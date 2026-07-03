@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'triple tigers'
+id: 1923fb94-ffa9-5b05-ae6e-1547c88c5d99
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'triple tigers'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'triple tigers'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

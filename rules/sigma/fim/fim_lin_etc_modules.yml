@@ -1,0 +1,24 @@
+title: FIM - kernel modules list (/etc/modules)
+id: e54150c4-c5d9-5e9f-a517-cfe0fdeaf8fc
+status: experimental
+description: >
+  Integrity change on kernel modules list (/etc/modules). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/modules'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

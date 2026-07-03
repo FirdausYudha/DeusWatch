@@ -1,0 +1,22 @@
+title: Linux Abuse - kernel module load
+id: eb567c2c-3a0a-5672-9c05-df4c41a122ea
+status: experimental
+description: >
+  Command line consistent with kernel module load - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'insmod '
+      - 'modprobe '
+      - 'kldload '
+  condition: selection
+tags:
+  - attack.t1547.006
+  - attack.defense_evasion

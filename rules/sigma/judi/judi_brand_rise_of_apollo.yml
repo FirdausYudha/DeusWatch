@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'rise of apollo'
+id: 5de7a794-08ef-59b3-8397-65b24802c1d0
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'rise of apollo'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'rise of apollo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

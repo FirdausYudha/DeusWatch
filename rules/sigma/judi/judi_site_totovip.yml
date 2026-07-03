@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'totovip'
+id: 6d2bcd0c-f1c6-5e0f-94da-bb5eb8006fdf
+status: experimental
+description: >
+  Gambling site-brand token 'totovip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'totovip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

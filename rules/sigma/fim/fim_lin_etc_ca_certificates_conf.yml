@@ -1,0 +1,24 @@
+title: FIM - CA certificates (/etc/ca-certificates.conf)
+id: e0f10dea-de0a-5f43-b7f9-c763148ddef2
+status: experimental
+description: >
+  Integrity change on CA certificates (/etc/ca-certificates.conf). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/ca-certificates.conf'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

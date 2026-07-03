@@ -1,0 +1,24 @@
+title: FIM - NFS exports (/etc/exports)
+id: ed84b2bf-b317-58e6-87c5-dfc0d2de7d92
+status: experimental
+description: >
+  Integrity change on NFS exports (/etc/exports). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/exports'
+  change:
+    event.action:
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact

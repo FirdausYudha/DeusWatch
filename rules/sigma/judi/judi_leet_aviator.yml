@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'aviator' (SEO/content injection)
+id: c277a9f6-98cc-5e7f-8176-5bf101dd9b96
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'aviator' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '4v!470r'
+    - '4v!470rr'
+    - '4v!47or'
+    - '4v!47orr'
+    - '4v!4t0r'
+    - '4v!4t0rr'
+    - '4v!4tor'
+    - '4v!4torr'
+    - '4v!@70r'
+    - '4v!@70rr'
+    - '4v!@7or'
+    - '4v!@7orr'
+    - '4v!@t0r'
+    - '4v!@t0rr'
+    - '4v!@tor'
+    - '4v!@torr'
+    - '4v!a70r'
+    - '4v!a70rr'
+    - '4v!a7or'
+    - '4v!a7orr'
+    - '4v!at0r'
+    - '4v!at0rr'
+    - '4v!ator'
+    - '4v!atorr'
+    - '4v1470r'
+    - '4v1470rr'
+    - '4v147or'
+    - '4v147orr'
+    - '4v14t0r'
+    - '4v14t0rr'
+    - '4v14tor'
+    - '4v14torr'
+    - '4v1@70r'
+    - '4v1@70rr'
+    - '4v1@7or'
+    - '4v1@7orr'
+    - '4v1@t0r'
+    - '4v1@t0rr'
+    - '4v1@tor'
+    - '4v1@torr'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

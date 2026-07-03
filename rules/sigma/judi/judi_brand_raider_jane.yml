@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'raider jane'
+id: a257bc0c-7466-57a6-8b56-cca1de71f504
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'raider jane'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'raider jane'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

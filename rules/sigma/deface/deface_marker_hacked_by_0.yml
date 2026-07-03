@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'hacked by'
+id: 8b902e26-ad0b-5663-8f5d-e0e33cc623eb
+status: experimental
+description: >
+  Classic web-defacement banner text 'hacked by' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hacked by'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

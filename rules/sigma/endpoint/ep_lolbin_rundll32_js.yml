@@ -1,0 +1,23 @@
+title: Windows LOLBin - rundll32 abuse
+id: b4c5d9fc-eefa-5fe5-86a9-a3f8a931c52a
+status: experimental
+description: >
+  Command line consistent with rundll32 abuse, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'rundll32 javascript:'
+      - 'rundll32.exe javascript:'
+      - 'rundll32 shell32.dll,'
+      - 'rundll32 url.dll,'
+  condition: selection
+tags:
+  - attack.t1218.011
+  - attack.defense_evasion

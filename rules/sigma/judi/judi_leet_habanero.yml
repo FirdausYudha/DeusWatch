@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'habanero' (SEO/content injection)
+id: b7377816-08d0-507b-95ae-2fd6eb1f9beb
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'habanero' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'h484n3r0'
+    - 'h484n3r00'
+    - 'h484n3ro'
+    - 'h484n3roo'
+    - 'h484ner0'
+    - 'h484ner00'
+    - 'h484nero'
+    - 'h484neroo'
+    - 'h48@n3r0'
+    - 'h48@n3r00'
+    - 'h48@n3ro'
+    - 'h48@n3roo'
+    - 'h48@ner0'
+    - 'h48@ner00'
+    - 'h48@nero'
+    - 'h48@neroo'
+    - 'h48an3r0'
+    - 'h48an3r00'
+    - 'h48an3ro'
+    - 'h48an3roo'
+    - 'h48aner0'
+    - 'h48aner00'
+    - 'h48anero'
+    - 'h48aneroo'
+    - 'h4b4n3r0'
+    - 'h4b4n3r00'
+    - 'h4b4n3ro'
+    - 'h4b4n3roo'
+    - 'h4b4ner0'
+    - 'h4b4ner00'
+    - 'h4b4nero'
+    - 'h4b4neroo'
+    - 'h4b@n3r0'
+    - 'h4b@n3r00'
+    - 'h4b@n3ro'
+    - 'h4b@n3roo'
+    - 'h4b@ner0'
+    - 'h4b@ner00'
+    - 'h4b@nero'
+    - 'h4b@neroo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

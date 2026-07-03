@@ -1,0 +1,41 @@
+title: Judi Online - Togel / lottery keywords
+id: ece81437-e791-54fb-8976-831c563e21e2
+status: experimental
+description: >
+  Indonesian online-gambling (Togel / lottery) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'togel online'
+    - 'bandar togel'
+    - 'agen togel'
+    - 'toto gelap'
+    - 'colok bebas'
+    - 'colok jitu'
+    - 'colok naga'
+    - 'tebak angka'
+    - 'prediksi togel'
+    - 'bocoran togel'
+    - 'angka jitu'
+    - 'angka main'
+    - 'shio togel'
+    - '4d 3d 2d'
+    - 'diskon togel'
+    - 'hadiah 2d'
+    - 'hadiah 3d'
+    - 'hadiah 4d'
+    - 'bandar darat'
+    - 'keluaran togel'
+    - 'pengeluaran togel'
+    - 'data keluaran'
+    - 'result togel'
+    - 'live draw'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

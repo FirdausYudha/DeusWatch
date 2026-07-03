@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'slot777'
+id: 0b2681f3-aba1-59c4-ae27-dd03c5412291
+status: experimental
+description: >
+  Gambling site-brand token 'slot777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'slot777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

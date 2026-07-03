@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'jebol'
+id: 074b3b49-ad1d-5524-aee6-589ca67192e9
+status: experimental
+description: >
+  Classic web-defacement banner text 'jebol' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jebol'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

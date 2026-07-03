@@ -1,0 +1,22 @@
+title: Linux Abuse - rc.local persistence
+id: 743008d4-31de-5d34-948d-4a75d4bcfc8c
+status: experimental
+description: >
+  Command line consistent with rc.local persistence - associated with persistence, defense evasion, or impact on Linux hosts.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - '/etc/rc.local'
+      - '/etc/init.d/'
+      - 'update-rc.d'
+  condition: selection
+tags:
+  - attack.t1037.004
+  - attack.defense_evasion

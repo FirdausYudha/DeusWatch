@@ -1,0 +1,21 @@
+title: Reverse Shell - telnet reverse shell
+id: 0d7f3088-ddae-56ae-9aaa-c4fafaee14aa
+status: experimental
+description: >
+  Command line consistent with a telnet reverse shell. Reverse shells give an attacker interactive remote control of the host.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'telnet '
+      - 'mkfifo backpipe'
+  condition: selection
+tags:
+  - attack.t1059.004
+  - attack.execution

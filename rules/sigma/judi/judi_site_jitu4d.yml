@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'jitu4d'
+id: 9d715fe6-60be-597c-b8c5-e6b264e1e0a5
+status: experimental
+description: >
+  Gambling site-brand token 'jitu4d' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'jitu4d'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

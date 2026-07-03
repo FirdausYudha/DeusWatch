@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'garuda gems'
+id: 3a4ba727-3279-54b4-abfc-156d5f78164b
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'garuda gems'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'garuda gems'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

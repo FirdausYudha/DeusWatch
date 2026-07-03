@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'aztec gems'
+id: a2bdb4f0-0d77-5a0f-bdf1-ec01692890bf
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'aztec gems'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'aztec gems'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'gg wp admin'
+id: b1cc54da-bb6a-56f7-9835-94243fed8cb6
+status: experimental
+description: >
+  Classic web-defacement banner text 'gg wp admin' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gg wp admin'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

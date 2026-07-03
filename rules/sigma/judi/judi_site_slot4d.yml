@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'slot4d'
+id: d39d2291-af1c-535b-af86-c72e4a53dfa7
+status: experimental
+description: >
+  Gambling site-brand token 'slot4d' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'slot4d'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,22 @@
+title: Windows LOLBin - wmic process call create
+id: f194c2a9-24cd-595d-bdb9-4010b2f1c7b1
+status: experimental
+description: >
+  Command line consistent with wmic process call create, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'wmic process call create'
+      - 'wmic /node:'
+      - 'wmic os get'
+  condition: selection
+tags:
+  - attack.t1047
+  - attack.defense_evasion

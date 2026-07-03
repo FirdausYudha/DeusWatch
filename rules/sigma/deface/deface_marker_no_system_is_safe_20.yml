@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'no system is safe'
+id: 203f8998-0bfc-5068-91a4-55ae57ff8424
+status: experimental
+description: >
+  Classic web-defacement banner text 'no system is safe' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'no system is safe'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'the queen's banquet'
+id: 6c7d5a26-4a63-5baa-a7f4-6e15fa443f1e
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'the queen's banquet'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'the queen''s banquet'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

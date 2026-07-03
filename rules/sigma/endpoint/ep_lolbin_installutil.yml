@@ -1,0 +1,21 @@
+title: Windows LOLBin - installutil bypass
+id: bc76a1de-c68f-5ea2-b9fb-160f1ab01270
+status: experimental
+description: >
+  Command line consistent with installutil bypass, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'installutil /logfile='
+      - 'installutil.exe'
+  condition: selection
+tags:
+  - attack.t1218.004
+  - attack.defense_evasion

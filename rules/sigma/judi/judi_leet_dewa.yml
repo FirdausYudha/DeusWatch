@@ -1,0 +1,29 @@
+title: Judi Online - Leetspeak term 'dewa' (SEO/content injection)
+id: 6f5a6f12-25c4-534f-a9e6-17c9be8d7204
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'dewa' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'd3w4'
+    - 'd3w44'
+    - 'd3w@'
+    - 'd3w@@'
+    - 'd3wa'
+    - 'd3waa'
+    - 'dew4'
+    - 'dew44'
+    - 'dew@'
+    - 'dew@@'
+    - 'dewa'
+    - 'dewaa'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

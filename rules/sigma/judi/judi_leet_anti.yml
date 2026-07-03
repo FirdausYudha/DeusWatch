@@ -1,0 +1,53 @@
+title: Judi Online - Leetspeak term 'anti' (SEO/content injection)
+id: 6f41ed81-3111-578e-8227-8b6974664391
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'anti' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '4n7!'
+    - '4n7!!'
+    - '4n71'
+    - '4n711'
+    - '4n7i'
+    - '4n7ii'
+    - '4nt!'
+    - '4nt!!'
+    - '4nt1'
+    - '4nt11'
+    - '4nti'
+    - '4ntii'
+    - '@n7!'
+    - '@n7!!'
+    - '@n71'
+    - '@n711'
+    - '@n7i'
+    - '@n7ii'
+    - '@nt!'
+    - '@nt!!'
+    - '@nt1'
+    - '@nt11'
+    - '@nti'
+    - '@ntii'
+    - 'an7!'
+    - 'an7!!'
+    - 'an71'
+    - 'an711'
+    - 'an7i'
+    - 'an7ii'
+    - 'ant!'
+    - 'ant!!'
+    - 'ant1'
+    - 'ant11'
+    - 'anti'
+    - 'antii'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,29 @@
+title: Judi Online - Leetspeak term 'rungkad' (SEO/content injection)
+id: 1ade8482-9f10-5478-b375-1900d608e9fd
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'rungkad' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'run9k4d'
+    - 'run9k4dd'
+    - 'run9k@d'
+    - 'run9k@dd'
+    - 'run9kad'
+    - 'run9kadd'
+    - 'rungk4d'
+    - 'rungk4dd'
+    - 'rungk@d'
+    - 'rungk@dd'
+    - 'rungkad'
+    - 'rungkadd'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

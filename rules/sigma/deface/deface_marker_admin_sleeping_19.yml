@@ -1,0 +1,18 @@
+title: Web Defacement Marker - 'admin sleeping'
+id: 7489a24a-beb6-5bec-a782-174170cd784d
+status: experimental
+description: >
+  Classic web-defacement banner text 'admin sleeping' found in a page body, response, or a modified web file - a strong signal the asset was defaced.
+references:
+  - https://attack.mitre.org/techniques/T1491/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'admin sleeping'
+  condition: keywords
+tags:
+  - attack.t1491
+  - attack.impact

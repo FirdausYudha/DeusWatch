@@ -1,0 +1,26 @@
+title: Windows LOLBin - powershell download cradle
+id: 92aab9f7-76c6-5d16-bc56-e80d6042254e
+status: experimental
+description: >
+  Command line consistent with powershell download cradle, a living-off-the-land technique abusing a signed system binary.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'downloadstring('
+      - 'downloadfile('
+      - 'invoke-webrequest'
+      - 'iwr '
+      - 'net.webclient'
+      - 'invoke-expression'
+      - 'iex('
+  condition: selection
+tags:
+  - attack.t1059.001
+  - attack.defense_evasion

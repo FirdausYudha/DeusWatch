@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'hokiindo'
+id: 7c702305-e8e9-5412-a389-51e94ea02da8
+status: experimental
+description: >
+  Gambling site-brand token 'hokiindo' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hokiindo'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

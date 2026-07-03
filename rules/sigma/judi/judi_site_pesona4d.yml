@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'pesona4d'
+id: 5ab0bd02-b7d7-5e2b-90b2-6657e90a08fc
+status: experimental
+description: >
+  Gambling site-brand token 'pesona4d' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'pesona4d'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

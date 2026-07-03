@@ -1,0 +1,22 @@
+title: Privilege Escalation - pkexec / PwnKit
+id: ae24dfe6-ce47-55c6-993f-cc860b45e435
+status: experimental
+description: >
+  Command line consistent with pkexec / PwnKit.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: high
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'pkexec'
+      - 'gconv-modules'
+      - 'cve-2021-4034'
+  condition: selection
+tags:
+  - attack.t1548.001
+  - attack.privilege_escalation

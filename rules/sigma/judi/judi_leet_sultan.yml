@@ -1,0 +1,57 @@
+title: Judi Online - Leetspeak term 'sultan' (SEO/content injection)
+id: ed6a06b5-5097-5032-a21d-147317e2b52e
+status: experimental
+description: >
+  Leetspeak/obfuscated spellings of the gambling term 'sultan' (e.g. g4c0r, g4c0rr). Common in SEO-spam injected into a compromised site's pages, file names, or query strings.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '$u174n'
+    - '$u174nn'
+    - '$u17@n'
+    - '$u17@nn'
+    - '$u17an'
+    - '$u17ann'
+    - '$u1t4n'
+    - '$u1t4nn'
+    - '$u1t@n'
+    - '$u1t@nn'
+    - '$u1tan'
+    - '$u1tann'
+    - '$ul74n'
+    - '$ul74nn'
+    - '$ul7@n'
+    - '$ul7@nn'
+    - '$ul7an'
+    - '$ul7ann'
+    - '$ult4n'
+    - '$ult4nn'
+    - '$ult@n'
+    - '$ult@nn'
+    - '$ultan'
+    - '$ultann'
+    - '5u174n'
+    - '5u174nn'
+    - '5u17@n'
+    - '5u17@nn'
+    - '5u17an'
+    - '5u17ann'
+    - '5u1t4n'
+    - '5u1t4nn'
+    - '5u1t@n'
+    - '5u1t@nn'
+    - '5u1tan'
+    - '5u1tann'
+    - '5ul74n'
+    - '5ul74nn'
+    - '5ul7@n'
+    - '5ul7@nn'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

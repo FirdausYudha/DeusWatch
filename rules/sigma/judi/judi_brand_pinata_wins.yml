@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'pinata wins'
+id: fd043095-1fa9-59af-a49f-f65908695c57
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'pinata wins'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'pinata wins'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

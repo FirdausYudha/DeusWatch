@@ -1,0 +1,38 @@
+title: Judi Online - Metode deposit / pembayaran keywords
+id: c83771cb-f3e2-5b2c-9402-77b3e136c76c
+status: experimental
+description: >
+  Indonesian online-gambling (Metode deposit / pembayaran) terminology observed in injected SEO-spam content, dropped file names, or query strings on a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'deposit pulsa'
+    - 'deposit dana'
+    - 'deposit ovo'
+    - 'deposit gopay'
+    - 'deposit linkaja'
+    - 'deposit qris'
+    - 'deposit shopeepay'
+    - 'tanpa potongan'
+    - 'deposit 5000'
+    - 'deposit 10rb'
+    - 'deposit via pulsa'
+    - 'depo pulsa'
+    - 'depo dana'
+    - 'e-wallet'
+    - 'bank 24 jam'
+    - 'deposit termurah'
+    - 'min depo'
+    - 'deposit bri'
+    - 'deposit bca'
+    - 'deposit bni'
+    - 'deposit mandiri'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,22 @@
+title: Privilege Escalation - polkit dbus abuse
+id: 134275bd-b961-534a-8ec3-c7ea0686fb75
+status: experimental
+description: >
+  Command line consistent with polkit dbus abuse.
+references:
+  - https://attack.mitre.org/techniques/T1059/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'dbus-send'
+      - 'org.freedesktop.policykit'
+      - 'createuser'
+  condition: selection
+tags:
+  - attack.t1548
+  - attack.privilege_escalation

@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'raja100'
+id: aa88e8d8-f676-5787-94c0-437ae57a4814
+status: experimental
+description: >
+  Gambling site-brand token 'raja100' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'raja100'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

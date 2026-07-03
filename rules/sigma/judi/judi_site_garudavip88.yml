@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'garudavip88'
+id: 93884a0c-057f-51c3-9e78-0538b5ea8edc
+status: experimental
+description: >
+  Gambling site-brand token 'garudavip88' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'garudavip88'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

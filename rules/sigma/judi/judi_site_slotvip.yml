@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'slotvip'
+id: cac58743-e659-5971-b55f-7b748824916d
+status: experimental
+description: >
+  Gambling site-brand token 'slotvip' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'slotvip'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

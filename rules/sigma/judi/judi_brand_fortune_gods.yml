@@ -1,0 +1,18 @@
+title: Judi Online - Slot title/provider 'fortune gods'
+id: 56108b7a-f463-5570-89df-8551dce4a30b
+status: experimental
+description: >
+  Reference to gambling slot title/provider 'fortune gods'. Presence in a legitimate asset's content or file names indicates SEO-spam / gambling content injection.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'fortune gods'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

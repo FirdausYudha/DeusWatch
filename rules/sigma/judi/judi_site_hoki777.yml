@@ -1,0 +1,18 @@
+title: Judi Online - Gambling site brand token 'hoki777'
+id: 1b29e75c-af73-5492-8bb8-21291bf23a5c
+status: experimental
+description: >
+  Gambling site-brand token 'hoki777' (gambling stem + numeric suffix). Appearing in page content, links, or dropped file names points to gambling-site branding injected into a compromised asset.
+references:
+  - https://attack.mitre.org/techniques/T1491/002/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'hoki777'
+  condition: keywords
+tags:
+  - attack.t1491.002
+  - attack.impact

@@ -1,0 +1,25 @@
+title: FIM (Web) - public web dir (/public/)
+id: 9b3a9fff-f8ea-5b79-a904-c55c3d331216
+status: experimental
+description: >
+  Integrity change under the web application tree (public web dir: /public/). Watch for webshell drops in upload dirs and tampering of core app files.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/public/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.persistence

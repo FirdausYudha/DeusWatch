@@ -1,0 +1,25 @@
+title: FIM - cron.monthly job (/etc/cron.monthly/)
+id: 71b56a1c-f0af-5e69-9642-ef98957e4ee6
+status: experimental
+description: >
+  Integrity change on cron.monthly job (/etc/cron.monthly/). Modification/creation/deletion here often indicates tampering, backdooring, or track-covering.
+references:
+  - https://attack.mitre.org/techniques/T1565/001/
+author: DeusWatch (generated)
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains:
+      - '/etc/cron.monthly/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+      - file_deleted
+  condition: selection and change
+tags:
+  - attack.t1565.001
+  - attack.impact
