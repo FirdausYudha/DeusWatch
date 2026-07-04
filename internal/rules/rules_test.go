@@ -15,21 +15,29 @@ func TestBundledRulesClassify(t *testing.T) {
 	if len(files) < 5 {
 		t.Fatalf("expected several bundled rules, found %d", len(files))
 	}
+	seenCategory := map[string]bool{}
 	for _, f := range files {
-		data, err := os.ReadFile(f)
+		seenCategory[f.category] = true
+		data, err := os.ReadFile(f.path)
 		if err != nil {
-			t.Fatalf("read %s: %v", f, err)
+			t.Fatalf("read %s: %v", f.path, err)
 		}
 		kind, err := sigma.Classify(data)
 		if err != nil {
-			t.Errorf("%s does not classify: %v", filepath.Base(f), err)
+			t.Errorf("%s does not classify: %v", filepath.Base(f.path), err)
 			continue
 		}
 		if kind != sigma.KindSingle && kind != sigma.KindAggregation {
-			t.Errorf("%s: unexpected kind %q", filepath.Base(f), kind)
+			t.Errorf("%s: unexpected kind %q", filepath.Base(f.path), kind)
 		}
 	}
-	t.Logf("classified %d bundled rules", len(files))
+	// The generator ships category subfolders — make sure gather tags them.
+	for _, want := range []string{"judi", "endpoint", "general"} {
+		if !seenCategory[want] {
+			t.Errorf("expected to find rules in category %q", want)
+		}
+	}
+	t.Logf("classified %d bundled rules across %d categories", len(files), len(seenCategory))
 }
 
 func TestTitleOf(t *testing.T) {

@@ -25,6 +25,21 @@ tags:
 type KindFilter = 'all' | 'single' | 'aggregation'
 type StatusFilter = 'all' | 'enabled' | 'disabled'
 
+// Human labels for the on-disk rule categories (folder names). Unknown categories fall
+// back to a capitalized form.
+const CATEGORY_LABEL: Record<string, string> = {
+  judi: 'Judi Online',
+  deface: 'Web Defacement',
+  fim: 'FIM',
+  endpoint: 'Endpoint',
+  agg: 'Aggregation',
+  general: 'General',
+  custom: 'Custom',
+}
+
+const categoryLabel = (c: string): string =>
+  CATEGORY_LABEL[c] ?? (c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Uncategorized')
+
 export default function Rules() {
   const [rules, setRules] = useState<Rule[]>([])
   const [error, setError] = useState('')
@@ -33,6 +48,7 @@ export default function Rules() {
   const [query, setQuery] = useState('')
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
 
   const load = () => {
     fetchRules()
@@ -66,6 +82,22 @@ export default function Rules() {
     [rules],
   )
 
+  // Distinct categories present, with a count each, for the category filter. Ordered by the
+  // known-label order first, then any extras alphabetically.
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const r of rules) {
+      const c = r.category || 'general'
+      counts.set(c, (counts.get(c) ?? 0) + 1)
+    }
+    const order = Object.keys(CATEGORY_LABEL)
+    return [...counts.entries()].sort((a, b) => {
+      const ia = order.indexOf(a[0]), ib = order.indexOf(b[0])
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+      return a[0].localeCompare(b[0])
+    })
+  }, [rules])
+
   // Precompute a lowercase search haystack (name + source + YAML body) once per load,
   // so filtering across ~1000 rules stays cheap on every keystroke.
   const indexed = useMemo(
@@ -76,6 +108,7 @@ export default function Rules() {
   const filtered = useMemo(() => {
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
     return indexed
+      .filter(({ r }) => categoryFilter === 'all' || (r.category || 'general') === categoryFilter)
       .filter(({ r }) => kindFilter === 'all' || r.kind === kindFilter)
       .filter(({ r }) =>
         statusFilter === 'all' || (statusFilter === 'enabled' ? r.enabled : !r.enabled),
@@ -83,7 +116,7 @@ export default function Rules() {
       // every whitespace-separated term must appear (AND) — lets you narrow with "judi gacor".
       .filter(({ hay }) => terms.every((t) => hay.includes(t)))
       .map(({ r }) => r)
-  }, [indexed, query, kindFilter, statusFilter])
+  }, [indexed, query, kindFilter, statusFilter, categoryFilter])
 
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
@@ -124,6 +157,18 @@ export default function Rules() {
           )}
         </div>
         <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
+        >
+          <option value="all">All categories</option>
+          {categories.map(([c, n]) => (
+            <option key={c} value={c}>
+              {categoryLabel(c)} ({n})
+            </option>
+          ))}
+        </select>
+        <select
           value={kindFilter}
           onChange={(e) => setKindFilter(e.target.value as KindFilter)}
           className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
@@ -151,6 +196,7 @@ export default function Rules() {
           <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
+              <th className="px-4 py-2 font-medium">Category</th>
               <th className="px-4 py-2 font-medium">Type</th>
               <th className="px-4 py-2 font-medium">Source</th>
               <th className="px-4 py-2 font-medium">Status</th>
@@ -160,7 +206,7 @@ export default function Rules() {
           <tbody className="divide-y divide-slate-800 bg-slate-900/40">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                   {rules.length === 0 ? 'No rules.' : 'No rules match your search.'}
                 </td>
               </tr>
@@ -170,6 +216,15 @@ export default function Rules() {
                 <td className="px-4 py-2 font-medium text-slate-200">
                   {r.name}
                   {r.builtin && <span className="ml-2 rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">builtin</span>}
+                </td>
+                <td className="px-4 py-2">
+                  <button
+                    onClick={() => setCategoryFilter(r.category || 'general')}
+                    title="Filter by this category"
+                    className="rounded bg-slate-700/40 px-1.5 py-0.5 text-xs text-slate-300 hover:bg-slate-700"
+                  >
+                    {categoryLabel(r.category || 'general')}
+                  </button>
                 </td>
                 <td className="px-4 py-2">
                   <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${KIND_BADGE[r.kind] ?? 'text-slate-400 bg-slate-700/40'}`}>

@@ -23,7 +23,8 @@ import (
 type Rule struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
-	Kind      string    `json:"kind"` // single | aggregation
+	Kind      string    `json:"kind"`     // single | aggregation
+	Category  string    `json:"category"` // judi | deface | fim | endpoint | agg | general | custom
 	YAML      string    `json:"yaml"`
 	Enabled   bool      `json:"enabled"`
 	Builtin   bool      `json:"builtin"`
@@ -36,11 +37,11 @@ type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-const cols = `id, name, kind, yaml, enabled, builtin, created_at, updated_at`
+const cols = `id, name, kind, category, yaml, enabled, builtin, created_at, updated_at`
 
 func scan(row pgx.Row) (*Rule, error) {
 	var r Rule
-	if err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.YAML, &r.Enabled, &r.Builtin, &r.CreatedAt, &r.UpdatedAt); err != nil {
+	if err := row.Scan(&r.ID, &r.Name, &r.Kind, &r.Category, &r.YAML, &r.Enabled, &r.Builtin, &r.CreatedAt, &r.UpdatedAt); err != nil {
 		return nil, err
 	}
 	return &r, nil
@@ -85,7 +86,7 @@ func (s *Store) Create(ctx context.Context, name, yamlText string) (*Rule, error
 		name = titleOf(yamlText, "rule")
 	}
 	return scan(s.pool.QueryRow(ctx,
-		`INSERT INTO rules (name, kind, yaml, enabled, builtin) VALUES ($1,$2,$3,true,false) RETURNING `+cols,
+		`INSERT INTO rules (name, kind, category, yaml, enabled, builtin) VALUES ($1,$2,'custom',$3,true,false) RETURNING `+cols,
 		name, kind, yamlText))
 }
 
@@ -142,7 +143,7 @@ func (s *Store) SeedFromDir(ctx context.Context, dir string) (int, error) {
 	}
 	seeded := 0
 	for _, f := range gather(dir) {
-		data, err := os.ReadFile(f)
+		data, err := os.ReadFile(f.path)
 		if err != nil {
 			continue
 		}
@@ -150,10 +151,10 @@ func (s *Store) SeedFromDir(ctx context.Context, dir string) (int, error) {
 		if err != nil {
 			continue // skip anything that doesn't parse
 		}
-		name := titleOf(string(data), filepath.Base(f))
+		name := titleOf(string(data), filepath.Base(f.path))
 		if _, err := s.pool.Exec(ctx,
-			`INSERT INTO rules (name, kind, yaml, enabled, builtin) VALUES ($1,$2,$3,true,true)`,
-			name, kind, string(data)); err == nil {
+			`INSERT INTO rules (name, kind, category, yaml, enabled, builtin) VALUES ($1,$2,$3,$4,true,true)`,
+			name, kind, f.category, string(data)); err == nil {
 			seeded++
 		}
 	}
@@ -162,12 +163,13 @@ func (s *Store) SeedFromDir(ctx context.Context, dir string) (int, error) {
 
 // SyncBuiltinsFromDir inserts on-disk rules that are not already present (matched by name),
 // so new bundled rules from an upgrade are picked up without disturbing existing or
-// user-edited rules. Returns how many were added. Note: a builtin the operator deliberately
-// deleted may be re-added on a later upgrade.
+// user-edited rules. It also backfills the category of existing builtins that don't have one
+// yet (from an upgrade that predates categories). Returns how many were added. Note: a builtin
+// the operator deliberately deleted may be re-added on a later upgrade.
 func (s *Store) SyncBuiltinsFromDir(ctx context.Context, dir string) (int, error) {
 	added := 0
 	for _, f := range gather(dir) {
-		data, err := os.ReadFile(f)
+		data, err := os.ReadFile(f.path)
 		if err != nil {
 			continue
 		}
@@ -175,14 +177,22 @@ func (s *Store) SyncBuiltinsFromDir(ctx context.Context, dir string) (int, error
 		if err != nil {
 			continue
 		}
-		name := titleOf(string(data), filepath.Base(f))
-		var exists bool
-		if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM rules WHERE name=$1)`, name).Scan(&exists); err != nil || exists {
+		name := titleOf(string(data), filepath.Base(f.path))
+		var id, category string
+		err = s.pool.QueryRow(ctx, `SELECT id, category FROM rules WHERE name=$1`, name).Scan(&id, &category)
+		if err == nil {
+			// Already present — backfill its category if it predates this feature.
+			if category == "" && f.category != "" {
+				_, _ = s.pool.Exec(ctx, `UPDATE rules SET category=$1 WHERE id=$2`, f.category, id)
+			}
 			continue
 		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			continue // a real error — skip this file
+		}
 		if _, err := s.pool.Exec(ctx,
-			`INSERT INTO rules (name, kind, yaml, enabled, builtin) VALUES ($1,$2,$3,true,true)`,
-			name, kind, string(data)); err == nil {
+			`INSERT INTO rules (name, kind, category, yaml, enabled, builtin) VALUES ($1,$2,$3,$4,true,true)`,
+			name, kind, f.category, string(data)); err == nil {
 			added++
 		}
 	}
@@ -214,15 +224,26 @@ func (s *Store) Enabled(ctx context.Context) (sigma.Ruleset, []*sigma.AggRule, e
 	return single, agg, rows.Err()
 }
 
-// gather collects *.yml/*.yaml in dir and one level of subdirectories.
-func gather(dir string) []string {
-	var out []string
+// ruleFile is one on-disk rule with the category derived from its folder.
+type ruleFile struct {
+	path     string
+	category string // subfolder name (judi/deface/...); "general" for a root-level rule
+}
+
+// gather collects *.yml/*.yaml in dir and one level of subdirectories, tagging each with
+// the category (its subfolder name; root-level rules get "general").
+func gather(dir string) []ruleFile {
+	var out []ruleFile
 	for _, pat := range []string{"*.yml", "*.yaml"} {
 		if m, err := filepath.Glob(filepath.Join(dir, pat)); err == nil {
-			out = append(out, m...)
+			for _, f := range m {
+				out = append(out, ruleFile{path: f, category: "general"})
+			}
 		}
 		if sub, err := filepath.Glob(filepath.Join(dir, "*", pat)); err == nil {
-			out = append(out, sub...)
+			for _, f := range sub {
+				out = append(out, ruleFile{path: f, category: filepath.Base(filepath.Dir(f))})
+			}
 		}
 	}
 	return out

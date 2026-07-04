@@ -720,6 +720,7 @@ export type Rule = {
   id: string
   name: string
   kind: 'single' | 'aggregation'
+  category: string
   yaml: string
   enabled: boolean
   builtin: boolean
