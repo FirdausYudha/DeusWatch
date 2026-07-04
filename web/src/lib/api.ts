@@ -876,7 +876,15 @@ export async function fetchReportSummary(): Promise<ReportSummary> {
 
 export async function generateReportSummary(hours = 24): Promise<ReportSummary> {
   const res = await authFetch(`/api/report/summary?hours=${hours}`, { method: 'POST' })
-  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  if (!res.ok) {
+    const body = (await res.text()).trim()
+    // A reverse-proxy timeout (e.g. 504) returns an HTML page, not our JSON/plain error —
+    // don't dump raw HTML into the UI as if it were a summary.
+    const msg = /^<(!doctype|html)/i.test(body) || body.includes('<html')
+      ? `Report generation failed (HTTP ${res.status}). The LLM likely took too long — try a shorter window (24h) or a faster model.`
+      : body || `HTTP ${res.status}`
+    throw new Error(msg)
+  }
   return res.json()
 }
 
