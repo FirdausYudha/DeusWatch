@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
@@ -119,8 +120,9 @@ func main() {
 	// The responder comes from the Integrations registry (MikroTik) first, else RESPONDER env
 	// (dry-run unless RESPONSE_LIVE=1). RESPONSE_AUTO_APPROVE=1 executes without manual approval.
 	respStore := respond.NewStore(st.Pool())
+	responder := resolveResponder(ctx, intStore)
 	var engine *respond.Engine
-	if responder := resolveResponder(ctx, intStore); responder != nil {
+	if responder != nil {
 		autoApprove, _ := strconv.ParseBool(os.Getenv("RESPONSE_AUTO_APPROVE"))
 		policy, perr := respStore.LoadPolicy(ctx)
 		if perr != nil {
@@ -138,6 +140,19 @@ func main() {
 		log.Printf("worker: response engine disabled (RESPONDER=none)")
 	}
 
+	// Network containment engine (host isolation): isolates a compromised agent host from the
+	// LAN except the manager. Works even when the IP-ban responder is nil (host self-isolation
+	// is the primary control; the responder, when present, adds the best-effort edge block).
+	// Auto-contain is gated by CONTAINMENT_AUTO=1 AND each rule's criticality_threshold.
+	containAuto, _ := strconv.ParseBool(os.Getenv("CONTAINMENT_AUTO"))
+	containEngine := respond.NewContainmentEngine(respStore, responder, containAuto)
+	containEngine.SetAllowIPs(splitCSV(os.Getenv("DEUSWATCH_CONTAINMENT_ALLOW_IPS")))
+	if nets := parseCIDRs(splitCSV(os.Getenv("DEUSWATCH_MANAGER_IPS"))); len(nets) > 0 {
+		containEngine.SetManagerNets(nets)
+	}
+	log.Printf("worker: containment engine active (auto=%v, edge=%v)", containAuto, responder != nil)
+	go runContainmentSweep(ctx, containEngine)
+
 	// Live-reload rules + ban policy from the DB so UI edits take effect without a restart.
 	go reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, respStore)
 
@@ -149,7 +164,7 @@ func main() {
 		log.Printf("worker: notifications disabled (set TELEGRAM_*/WEBHOOK_URL/SMTP_* to enable)")
 	}
 
-	onAlert := makeAlertHook(engine, dispatcher)
+	onAlert := makeAlertHook(engine, containEngine, dispatcher)
 
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
 		worker.Handler(ctx, st, enricher, onAlert, bruteForce, sigmaDet))
@@ -200,16 +215,21 @@ func main() {
 	log.Println("worker: shutdown")
 }
 
-// makeAlertHook combines the response engine + notification dispatcher into a single
-// worker.AlertHook (nil if both are disabled).
-func makeAlertHook(engine *respond.Engine, dispatcher *notify.Dispatcher) worker.AlertHook {
-	if engine == nil && !dispatcher.Enabled() {
-		return nil
-	}
+// makeAlertHook combines the response engine, containment engine + notification dispatcher
+// into a single worker.AlertHook. containment is always evaluated (it self-gates on the rule's
+// mitigation_action), so the hook is never nil.
+func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, dispatcher *notify.Dispatcher) worker.AlertHook {
 	return func(ctx context.Context, alert *ingest.Event) {
 		if engine != nil {
 			if _, err := engine.Recommend(ctx, alert); err != nil {
 				log.Printf("worker: response recommendation failed: %v", err)
+			}
+		}
+		// Host containment: isolate the compromised host when a rule authorized it. Cheap for
+		// the common case — returns immediately unless the alert carries a containment directive.
+		if contain != nil {
+			if _, err := contain.Evaluate(ctx, alert); err != nil {
+				log.Printf("worker: containment evaluation failed: %v", err)
 			}
 		}
 		if dispatcher.Enabled() {
@@ -218,6 +238,41 @@ func makeAlertHook(engine *respond.Engine, dispatcher *notify.Dispatcher) worker
 			}
 		}
 	}
+}
+
+// runContainmentSweep auto-releases contained hosts whose timeout has elapsed.
+func runContainmentSweep(ctx context.Context, engine *respond.ContainmentEngine) {
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			sc, cancel := context.WithTimeout(ctx, 20*time.Second)
+			if n, err := engine.SweepExpired(sc); err != nil {
+				log.Printf("worker: containment sweep: %v", err)
+			} else if n > 0 {
+				log.Printf("worker: auto-released %d expired containment(s)", n)
+			}
+			cancel()
+		}
+	}
+}
+
+// parseCIDRs parses IPs/CIDRs into networks, skipping invalid entries (bare IPs become /32|/128).
+func parseCIDRs(items []string) []*net.IPNet {
+	var nets []*net.IPNet
+	for _, s := range items {
+		norm, err := respond.NormalizeCIDR(s)
+		if err != nil {
+			continue
+		}
+		if _, n, err := net.ParseCIDR(norm); err == nil {
+			nets = append(nets, n)
+		}
+	}
+	return nets
 }
 
 // runAggregation runs the aggregation runner every aggInterval, storing fired alerts.

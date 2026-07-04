@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -120,6 +122,11 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	// poll the manager's known-bad file list and quarantine/delete matching files.
 	if mode := strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_FILE_REMEDIATION"))); mode == "quarantine" || mode == "delete" {
 		go runFileRemediation(ctx, shipper, mode)
+	}
+	// Host network containment (opt-in via AGENT_CONTAINMENT=1): poll the manager's isolation
+	// directive and firewall the host off from the LAN (except the manager) when told to.
+	if containmentEnabled(os.Getenv("AGENT_CONTAINMENT")) {
+		go runContainment(ctx, shipper, gatewayURL)
 	}
 
 	lines := make(chan agent.Line, 256)
@@ -267,6 +274,81 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper) {
 			log.Printf("agent: firewall synced %d blocked IP(s) into nft set %s/%s", len(ips), table, set)
 		}
 	}
+}
+
+// containmentEnabled reports whether AGENT_CONTAINMENT opts the host into isolation.
+// Any non-empty value except 0/false/off/no enables it (so "1", "nftables", "netsh" all work).
+func containmentEnabled(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "0", "false", "off", "no":
+		return false
+	default:
+		return true
+	}
+}
+
+// runContainment polls the manager's host-isolation directive and applies/clears local
+// isolation live. The agent ALWAYS keeps its own gateway reachable, so containment can never
+// sever the agent↔manager link (and thus this very poll loop that also lifts the isolation).
+func runContainment(ctx context.Context, shipper *agent.Shipper, gatewayURL string) {
+	selfAllow := gatewayIPs(gatewayURL)
+	t := time.NewTicker(20 * time.Second)
+	defer t.Stop()
+	isolated := false
+	lastKey := ""
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			d, err := shipper.FetchContainment(ctx)
+			if err != nil {
+				log.Printf("agent: fetch containment: %v", err)
+				continue
+			}
+			if d.Isolate {
+				allow := append(append([]string{}, selfAllow...), d.AllowIPs...)
+				key := strings.Join(allow, ",")
+				if isolated && key == lastKey {
+					continue // already isolated with the same allow-list
+				}
+				if err := agent.ApplyIsolation(allow); err != nil {
+					log.Printf("agent: apply isolation: %v", err)
+					continue
+				}
+				isolated, lastKey = true, key
+				log.Printf("agent: HOST ISOLATED (reason=%q; %d allow IP(s)) — LAN cut except manager", d.Reason, len(allow))
+			} else if isolated {
+				if err := agent.ClearIsolation(); err != nil {
+					log.Printf("agent: clear isolation: %v", err)
+					continue
+				}
+				isolated, lastKey = false, ""
+				log.Printf("agent: isolation lifted — connectivity restored")
+			}
+		}
+	}
+}
+
+// gatewayIPs resolves the manager/gateway host to IP literals the agent must always allow
+// while isolated, so its lifeline to the manager is never cut.
+func gatewayIPs(gatewayURL string) []string {
+	u, err := url.Parse(gatewayURL)
+	if err != nil {
+		return nil
+	}
+	host := u.Hostname()
+	if host == "" {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return []string{ip.String()}
+	}
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return nil
+	}
+	return addrs
 }
 
 // runFileRemediation polls the manager's known-bad file list and quarantines/deletes any

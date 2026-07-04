@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,6 +46,7 @@ func main() {
 	var seenFunc gateway.SeenFunc
 	var blockFunc gateway.BlocklistFunc
 	var quarantineFunc gateway.QuarantineFunc
+	var containFunc gateway.ContainmentFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
@@ -82,7 +84,19 @@ func main() {
 				}
 				return out, nil
 			}
-			log.Printf("gateway: revocation, config push, heartbeat, agent-block & file-quarantine feeds enabled")
+			// Network containment: serve each agent its host-isolation directive, derived from
+			// the active containment row. AllowIPs (manager/DNS the isolated host must keep
+			// reaching) come from DEUSWATCH_CONTAINMENT_ALLOW_IPS; the agent also always keeps
+			// its own gateway reachable, so its link to the manager can never be cut.
+			allowIPs := splitCSV(os.Getenv("DEUSWATCH_CONTAINMENT_ALLOW_IPS"))
+			containFunc = func(ctx context.Context, cn string) (gateway.ContainmentDirective, error) {
+				c, err := rs.ActiveContainmentByAgent(ctx, cn)
+				if err != nil || c == nil {
+					return gateway.ContainmentDirective{}, err
+				}
+				return gateway.ContainmentDirective{Isolate: true, AllowIPs: allowIPs, Reason: c.Reason}, nil
+			}
+			log.Printf("gateway: revocation, config push, heartbeat, agent-block, file-quarantine & containment feeds enabled")
 		}
 	}
 
@@ -92,6 +106,7 @@ func main() {
 	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc, revoked))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistHandler(blockFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
+	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))
@@ -124,4 +139,15 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// splitCSV parses a comma-separated env value into a trimmed, non-empty slice.
+func splitCSV(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

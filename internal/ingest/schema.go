@@ -12,7 +12,10 @@
 // deuswatch.enrichment.status -> dw_enrichment_status).
 package ingest
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Severity follows the 5-level model from design doc section 9, stored numerically
 // 0..4 so the dashboard can aggregate it easily. Values intentionally match Sigma levels.
@@ -43,6 +46,25 @@ func (s Severity) String() string {
 		return "critical"
 	default:
 		return "unknown"
+	}
+}
+
+// ParseSeverity maps a Sigma level / severity word to a Severity. Unknown/empty values
+// return the given fallback so callers can pick a safe default.
+func ParseSeverity(s string, fallback Severity) Severity {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "info", "informational":
+		return SeverityInfo
+	case "low":
+		return SeverityLow
+	case "medium":
+		return SeverityMedium
+	case "high":
+		return SeverityHigh
+	case "critical":
+		return SeverityCritical
+	default:
+		return fallback
 	}
 }
 
@@ -211,6 +233,15 @@ type FileReputation struct {
 	Detail  string `json:"detail,omitempty"`  // e.g. "12/70 engines flagged"
 }
 
+// Containment = deuswatch.containment.* — an auto-response directive carried on an alert
+// when the matched rule has a `mitigation_action: network_containment` block. The response
+// engine reads it to decide whether to isolate the alert's host (see internal/respond).
+type Containment struct {
+	ActionType     string   `json:"action_type,omitempty"` // network_containment
+	TimeoutSeconds int      `json:"timeout,omitempty"`     // auto-release after N seconds (0 = manual)
+	Threshold      Severity `json:"criticality_threshold"` // min severity for AUTOMATIC containment
+}
+
 // DeusWatch = the entire deuswatch.* namespace.
 type DeusWatch struct {
 	Enrichment  Enrichment     `json:"enrichment,omitempty"`
@@ -219,6 +250,7 @@ type DeusWatch struct {
 	Severity    SeverityMeta   `json:"severity,omitempty"`
 	Remediation Remediation    `json:"remediation,omitempty"`
 	FileHash    FileReputation `json:"file_hash,omitempty"`
+	Containment *Containment   `json:"containment,omitempty"`
 }
 
 // ── Main record ───────────────────────────────────────────

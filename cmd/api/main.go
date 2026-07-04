@@ -206,6 +206,14 @@ func main() {
 		mux.Handle("POST /api/whitelist", protect(auth.PermManageSettings, whitelistAddHandler(respStore)))
 		mux.Handle("DELETE /api/whitelist/{id}", protect(auth.PermManageSettings, whitelistDeleteHandler(respStore)))
 
+		// Network containment (host isolation): analyst list + approve/dismiss/release. The
+		// edge-block half of a release executes via the same responder as the worker.
+		containEngine := respond.NewContainmentEngine(respStore, respond.ResponderFromEnv(), false)
+		mux.Handle("GET /api/containments", protect(auth.PermViewDashboard, containmentsHandler(respStore)))
+		mux.Handle("POST /api/containments/{id}/approve", protect(auth.PermApproveRemediation, approveContainmentHandler(containEngine)))
+		mux.Handle("POST /api/containments/{id}/dismiss", protect(auth.PermApproveRemediation, dismissContainmentHandler(containEngine)))
+		mux.Handle("POST /api/containments/{id}/release", protect(auth.PermApproveRemediation, releaseContainmentHandler(containEngine)))
+
 		// Integrations registry (firewalls, bouncers, CTI providers). Secret config
 		// fields are encrypted at rest with the secrets cipher.
 		if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
@@ -1256,6 +1264,52 @@ func dismissResponseHandler(e *respond.Engine) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "dismissed", "id": id})
+	}
+}
+
+// ── Network containment (host isolation) ──────────────────
+
+func containmentsHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		list, err := s.ListContainments(r.Context(), r.URL.Query().Get("status"), queryLimit(r, 100, 500))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	}
+}
+
+func approveContainmentHandler(e *respond.ContainmentEngine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := e.Approve(r.Context(), id, currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "contained", "id": id})
+	}
+}
+
+func dismissContainmentHandler(e *respond.ContainmentEngine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := e.Dismiss(r.Context(), id, currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "dismissed", "id": id})
+	}
+}
+
+func releaseContainmentHandler(e *respond.ContainmentEngine) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if err := e.Release(r.Context(), id, currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "released", "id": id})
 	}
 }
 

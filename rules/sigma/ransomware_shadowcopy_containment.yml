@@ -1,0 +1,33 @@
+title: Ransomware Shadow Copy Deletion (auto-containment)
+id: 9f2c7b41-3e8a-4d15-9c60-2a7f1b6e4d33
+status: experimental
+description: >
+  Deleting volume shadow copies (vssadmin/wmic) is a hallmark of ransomware removing the
+  victim's ability to recover files before it encrypts them. This rule authorizes AUTOMATIC
+  host network containment: when it fires at/above the criticality threshold, the response
+  engine isolates the host from the LAN (except the manager) and blocks its IP at the edge,
+  stopping the ransomware from reaching file servers, storage and other users.
+references:
+  - https://attack.mitre.org/techniques/T1490/
+author: DeusWatch
+level: critical
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    process.command_line|contains:
+      - 'vssadmin delete shadows'
+      - 'vssadmin.exe delete'
+      - 'wmic shadowcopy delete'
+      - 'delete catalog -quiet'
+      - 'wbadmin delete catalog'
+  condition: selection
+# DeusWatch extension: what automated response this rule authorizes.
+mitigation_action:
+  action_type: network_containment
+  timeout: 1800                 # auto-release the isolation after 30 minutes (0 = manual only)
+  criticality_threshold: high   # only auto-isolate when the alert severity is >= high
+tags:
+  - attack.t1490
+  - attack.impact

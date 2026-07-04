@@ -136,6 +136,36 @@ func (s *Shipper) FetchQuarantine(ctx context.Context) ([]FileTarget, error) {
 	return body.Files, nil
 }
 
+// ContainmentDirective is the manager's host-isolation instruction for this agent
+// (GET /v1/containment). Isolate=true means firewall the host off from the LAN except AllowIPs.
+type ContainmentDirective struct {
+	Isolate  bool     `json:"isolate"`
+	AllowIPs []string `json:"allow_ips"`
+	Reason   string   `json:"reason,omitempty"`
+}
+
+// FetchContainment retrieves this agent's host-isolation directive from the manager
+// (GET /v1/containment). A zero value (Isolate=false) means "do not isolate".
+func (s *Shipper) FetchContainment(ctx context.Context) (ContainmentDirective, error) {
+	var d ContainmentDirective
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/v1/containment", nil)
+	if err != nil {
+		return d, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return d, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return d, fmt.Errorf("agent: fetch containment (status %d)", resp.StatusCode)
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&d); err != nil {
+		return d, err
+	}
+	return d, nil
+}
+
 // FetchConfig retrieves this agent's push-config from the manager (GET /v1/config).
 // Returns (nil, nil) when the manager has not set a config yet (HTTP 204).
 func (s *Shipper) FetchConfig(ctx context.Context) (*Config, error) {

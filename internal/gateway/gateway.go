@@ -124,6 +124,45 @@ func ConfigHandler(cfg ConfigFunc) http.HandlerFunc {
 	}
 }
 
+// ContainmentDirective tells an agent whether to isolate itself (host network containment)
+// and which IPs it must keep reachable (the manager/gateway + allow-list) so its link to the
+// manager survives the isolation.
+type ContainmentDirective struct {
+	Isolate  bool     `json:"isolate"`
+	AllowIPs []string `json:"allow_ips"`
+	Reason   string   `json:"reason,omitempty"`
+}
+
+// ContainmentFunc returns the isolation directive for an agent (by certificate CN). A zero
+// value (Isolate=false) means the agent should NOT be isolated.
+type ContainmentFunc func(ctx context.Context, agentName string) (ContainmentDirective, error)
+
+// ContainmentHandler serves the per-agent isolation directive over mTLS. Agents that opted
+// in (AGENT_CONTAINMENT) poll this; when Isolate is true they firewall themselves off from
+// the LAN except AllowIPs. The agent is identified by the mTLS certificate CN, so one agent
+// can never read or trigger another's containment.
+func ContainmentHandler(fn ContainmentFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		d := ContainmentDirective{AllowIPs: []string{}}
+		if fn != nil {
+			var cn string
+			if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+				cn = r.TLS.PeerCertificates[0].Subject.CommonName
+			}
+			if cn != "" {
+				if got, err := fn(r.Context(), cn); err == nil {
+					d = got
+				}
+			}
+		}
+		if d.AllowIPs == nil {
+			d.AllowIPs = []string{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(d)
+	}
+}
+
 // LogsHandler receives a RawLog batch (JSON array) from an agent, normalizes each
 // entry to DCS, and publishes them to logs.normalized. The agent identity is taken
 // from the client certificate's Common Name (more trustworthy than the submitted value).

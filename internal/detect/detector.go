@@ -102,8 +102,22 @@ func buildSigmaAlert(r *sigma.Rule, src *ingest.Event) *ingest.Event {
 	if src.Host != nil {
 		alert.Host = &ingest.Host{Name: src.Host.Name, OSType: src.Host.OSType, IP: src.Host.IP}
 	}
+	// Carry the agent identity over — the response engine needs it to isolate the host.
+	if src.Agent != nil {
+		alert.Agent = &ingest.Agent{ID: src.Agent.ID, Version: src.Agent.Version}
+	}
 	if src.User != nil {
 		alert.User = &ingest.User{Name: src.User.Name, Domain: src.User.Domain}
+	}
+	// A rule with a mitigation_action block authorizes automated containment. Carry the
+	// directive onto the alert so the response engine can act without re-parsing the rule.
+	if m := r.Mitigation; m != nil && m.ActionType == "network_containment" {
+		alert.DeusWatch.Containment = &ingest.Containment{
+			ActionType:     m.ActionType,
+			TimeoutSeconds: m.TimeoutSeconds,
+			// Default to High so an unspecified threshold still needs a serious alert to auto-isolate.
+			Threshold: ingest.ParseSeverity(m.CriticalityThreshold, ingest.SeverityHigh),
+		}
 	}
 	return alert
 }

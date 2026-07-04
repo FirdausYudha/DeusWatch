@@ -11,11 +11,17 @@ import {
   fetchWhitelist,
   addWhitelist,
   deleteWhitelist,
+  fetchContainments,
+  approveContainment,
+  dismissContainment,
+  releaseContainment,
   can,
   type ResponseAction,
   type ResponseStatus,
   type Offender,
   type WhitelistEntry,
+  type Containment,
+  type ContainmentStatus,
   type Me,
 } from '../lib/api'
 
@@ -189,6 +195,7 @@ export default function Response({ me }: { me: Me }) {
         </div>
       </header>
 
+      <ContainmentPanel canApprove={canApprove} />
       <BanPolicyEditor canManage={can(me, 'manage_settings')} />
       <WhitelistEditor canManage={can(me, 'manage_settings')} />
 
@@ -847,5 +854,143 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
         </div>
       )}
     </div>
+  )
+}
+
+const CONTAIN_BADGE: Record<ContainmentStatus, string> = {
+  recommended: 'text-amber-300 bg-amber-500/15',
+  contained: 'text-rose-300 bg-rose-500/15',
+  released: 'text-slate-300 bg-slate-600/30',
+  dismissed: 'text-slate-400 bg-slate-700/40',
+  failed: 'text-rose-300 bg-rose-500/15',
+}
+
+// expiryLabel shows the time left before an isolated host auto-releases (or "manual").
+function expiryLabel(c: Containment): string {
+  if (c.status !== 'contained') return '—'
+  if (!c.expires_at) return 'manual'
+  const ms = new Date(c.expires_at).getTime() - Date.now()
+  if (ms <= 0) return 'expiring…'
+  const m = Math.round(ms / 60000)
+  return m >= 60 ? `${Math.round(m / 60)}h left` : `${m}m left`
+}
+
+// ContainmentPanel lists isolated/recommended hosts and lets an analyst isolate (approve),
+// dismiss a recommendation, or release an active containment. Self-contained (own polling).
+function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
+  const [items, setItems] = useState<Containment[]>([])
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState('')
+
+  const load = () => {
+    fetchContainments()
+      .then(setItems)
+      .catch((e) => setError((e as Error).message))
+  }
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 10_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const act = async (id: string, host: string, kind: 'approve' | 'dismiss' | 'release') => {
+    const verb = kind === 'approve' ? 'Isolate' : kind === 'release' ? 'Release' : 'Dismiss'
+    if (!confirm(`${verb} ${host}?`)) return
+    setBusy(id)
+    setError('')
+    try {
+      if (kind === 'approve') await approveContainment(id)
+      else if (kind === 'release') await releaseContainment(id)
+      else await dismissContainment(id)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const active = items.filter((c) => c.status === 'contained').length
+  const pending = items.filter((c) => c.status === 'recommended').length
+
+  return (
+    <section className="mb-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+      <div className="border-b border-slate-800 px-4 py-3">
+        <h2 className="text-sm font-semibold text-white">Network containment</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Isolated hosts (host firewall + edge block).{' '}
+          {active > 0 && <span className="text-rose-300">{active} contained</span>}
+          {active > 0 && pending > 0 && ' · '}
+          {pending > 0 && <span className="text-amber-300">{pending} awaiting approval</span>}
+          {active === 0 && pending === 0 && 'No active isolations.'}
+        </p>
+      </div>
+      {error && <p className="px-4 py-2 text-sm text-rose-400">{error}</p>}
+      {items.length > 0 && (
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th className="px-4 py-2 font-medium">Host / Agent</th>
+              <th className="px-4 py-2 font-medium">IP</th>
+              <th className="px-4 py-2 font-medium">Reason</th>
+              <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium">Expiry</th>
+              <th className="px-4 py-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {items.map((c) => (
+              <tr key={c.id} className="hover:bg-slate-800/40">
+                <td className="px-4 py-2 text-slate-200">
+                  {c.host_name || c.agent_id}
+                  {c.auto && (
+                    <span className="ml-2 rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">auto</span>
+                  )}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs text-slate-400">{c.ip_address || '—'}</td>
+                <td className="px-4 py-2 text-slate-400">{c.reason || '—'}</td>
+                <td className="px-4 py-2">
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${CONTAIN_BADGE[c.status]}`}>{c.status}</span>
+                </td>
+                <td className="px-4 py-2 text-xs text-slate-400">{expiryLabel(c)}</td>
+                <td className="px-4 py-2 text-right">
+                  {canApprove && (
+                    <div className="flex justify-end gap-2">
+                      {c.status === 'recommended' && (
+                        <>
+                          <button
+                            onClick={() => act(c.id, c.host_name || c.agent_id, 'approve')}
+                            disabled={busy === c.id}
+                            className="rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+                          >
+                            Isolate
+                          </button>
+                          <button
+                            onClick={() => act(c.id, c.host_name || c.agent_id, 'dismiss')}
+                            disabled={busy === c.id}
+                            className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                          >
+                            Dismiss
+                          </button>
+                        </>
+                      )}
+                      {c.status === 'contained' && (
+                        <button
+                          onClick={() => act(c.id, c.host_name || c.agent_id, 'release')}
+                          disabled={busy === c.id}
+                          className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+                        >
+                          Release
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   )
 }

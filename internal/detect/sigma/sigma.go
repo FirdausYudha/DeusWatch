@@ -31,8 +31,25 @@ type Rule struct {
 	Tags      []string
 	LogSource map[string]string
 
+	// Mitigation is an optional DeusWatch auto-response directive (mitigation_action:).
+	Mitigation *MitigationAction
+
 	condition  string
 	selections map[string]selection
+}
+
+// MitigationAction is the DeusWatch extension block that tells the response engine what
+// automated action a rule authorizes when it fires. Currently only network containment
+// (host isolation + edge block) is defined.
+//
+//	mitigation_action:
+//	  action_type: network_containment
+//	  timeout: 1800                 # auto-release after N seconds (0 = until manual release)
+//	  criticality_threshold: high   # min alert severity for AUTOMATIC containment
+type MitigationAction struct {
+	ActionType           string // "network_containment"
+	TimeoutSeconds       int
+	CriticalityThreshold string // informational|low|medium|high|critical
 }
 
 // selection is either a map field->value (fields) OR a list of keywords (keywords)
@@ -51,12 +68,17 @@ type fieldCond struct {
 // ParseRule parses a single Sigma rule from YAML.
 func ParseRule(data []byte) (*Rule, error) {
 	var raw struct {
-		ID        string            `yaml:"id"`
-		Title     string            `yaml:"title"`
-		Level     string            `yaml:"level"`
-		Tags      []string          `yaml:"tags"`
-		LogSource map[string]string `yaml:"logsource"`
-		Detection map[string]any    `yaml:"detection"`
+		ID         string            `yaml:"id"`
+		Title      string            `yaml:"title"`
+		Level      string            `yaml:"level"`
+		Tags       []string          `yaml:"tags"`
+		LogSource  map[string]string `yaml:"logsource"`
+		Detection  map[string]any    `yaml:"detection"`
+		Mitigation *struct {
+			ActionType           string `yaml:"action_type"`
+			Timeout              int    `yaml:"timeout"`
+			CriticalityThreshold string `yaml:"criticality_threshold"`
+		} `yaml:"mitigation_action"`
 	}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("sigma: parse YAML: %w", err)
@@ -78,10 +100,18 @@ func ParseRule(data []byte) (*Rule, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Rule{
+	r := &Rule{
 		ID: raw.ID, Title: raw.Title, Level: raw.Level, Tags: raw.Tags,
 		LogSource: raw.LogSource, condition: cond, selections: sels,
-	}, nil
+	}
+	if raw.Mitigation != nil && raw.Mitigation.ActionType != "" {
+		r.Mitigation = &MitigationAction{
+			ActionType:           strings.ToLower(strings.TrimSpace(raw.Mitigation.ActionType)),
+			TimeoutSeconds:       raw.Mitigation.Timeout,
+			CriticalityThreshold: strings.ToLower(strings.TrimSpace(raw.Mitigation.CriticalityThreshold)),
+		}
+	}
+	return r, nil
 }
 
 // parseSelections turns the detection block (except "condition"/"timeframe") into a

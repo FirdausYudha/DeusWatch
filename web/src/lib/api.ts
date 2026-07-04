@@ -619,6 +619,51 @@ export async function dismissPendingForIP(ip: string): Promise<number> {
   return body.dismissed ?? 0
 }
 
+// ── Network containment (host isolation) ──────────────────
+
+export type ContainmentStatus = 'recommended' | 'contained' | 'released' | 'dismissed' | 'failed'
+
+export type Containment = {
+  id: string
+  created_at: string
+  agent_id: string
+  host_name: string
+  ip_address: string
+  reason: string
+  rule_id: string
+  timeout_seconds: number
+  status: ContainmentStatus
+  auto: boolean
+  decided_by: string
+  contained_at: string | null
+  expires_at: string | null
+  released_at: string | null
+  error: string
+}
+
+export async function fetchContainments(status = ''): Promise<Containment[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+  const res = await authFetch(`/api/containments${qs}`)
+  if (!res.ok) throw new Error(`containments: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+// approveContainment isolates a recommended host; releaseContainment lifts an active one.
+export async function approveContainment(id: string): Promise<void> {
+  const res = await authFetch(`/api/containments/${id}/approve`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function dismissContainment(id: string): Promise<void> {
+  const res = await authFetch(`/api/containments/${id}/dismiss`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function releaseContainment(id: string): Promise<void> {
+  const res = await authFetch(`/api/containments/${id}/release`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // ── Customizable dashboard (data + per-user widget layout) ─
 
 export type SeriesPoint = { label: string; count: number }
