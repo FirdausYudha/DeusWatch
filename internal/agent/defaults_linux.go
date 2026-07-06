@@ -11,5 +11,8 @@ func DefaultSources() []Source {
 		// Firewall drops for port-scan detection. Requires the firewall to log (UFW logging
 		// on, or an iptables/nftables LOG rule). Missing file = simply no events.
 		{Dataset: "firewall", Type: "file", Path: "/var/log/ufw.log"},
+		// Web access log for the web-defacement / judi-online / path-scan rules. nginx default;
+		// for apache add /var/log/apache2/access.log via config. Missing file = no events.
+		{Dataset: "web", Type: "file", Path: "/var/log/nginx/access.log"},
 	}
 }

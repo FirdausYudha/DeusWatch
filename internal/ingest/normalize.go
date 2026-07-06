@@ -32,6 +32,10 @@ var (
 	reFwSRC   = regexp.MustCompile(`\bSRC=(\S+)`)
 	reFwDPT   = regexp.MustCompile(`\bDPT=(\d+)`)
 	reFwProto = regexp.MustCompile(`\bPROTO=(\S+)`)
+
+	// Client IP at the start of a web access log line (Combined/Common Log Format):
+	//   1.2.3.4 - - [10/Oct/2026:...] "GET /slot HTTP/1.1" 200 1234 "-" "curl/8"
+	reWebIP = regexp.MustCompile(`(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})`)
 )
 
 // Normalize turns a RawLog into a DCS Event. Returns (event, true) when the line is
@@ -69,7 +73,26 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if raw.Dataset == "firewall" && normalizeFirewall(raw.Message, e) {
 		return e, true
 	}
+	if raw.Dataset == "web" || raw.Dataset == "nginx" || raw.Dataset == "apache" {
+		return e, normalizeWeb(raw.Message, e)
+	}
 	return e, false
+}
+
+// normalizeWeb maps a web-server access log line (nginx/apache Combined Log Format) to a DCS
+// web event. It keeps the full line as event.original so the keyword-based web detection rules
+// (web defacement, judi-online markers, path scanning) match against it, and extracts the
+// client IP so a matched attacker can be banned by the response engine.
+func normalizeWeb(msg string, e *Event) bool {
+	e.Event.Category = "web"
+	e.Event.Action = "http_request"
+	e.Event.Severity = SeverityInfo // a single request is noise; the rules raise real hits
+	if m := reWebIP.FindStringSubmatch(msg); m != nil {
+		if ip := m[1]; ip != "127.0.0.1" && ip != "0.0.0.0" {
+			e.Source = &Endpoint{IP: ip}
+		}
+	}
+	return true // original carries the full line for keyword matching
 }
 
 // normalizeFirewall parses a Netfilter/UFW/iptables kernel log line into DCS network.*

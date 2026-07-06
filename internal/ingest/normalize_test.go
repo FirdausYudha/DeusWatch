@@ -189,3 +189,27 @@ func TestNormalizeFirewallAllowAndNonMatch(t *testing.T) {
 		t.Fatal("a line without SRC= must not be treated as a firewall event")
 	}
 }
+
+// Web access log lines -> web event with the client IP + full line kept in event.original,
+// so the keyword-based web-defacement / judi-online rules can match against it.
+func TestNormalizeWeb(t *testing.T) {
+	line := `154.127.69.8 - - [10/Oct/2026:13:55:36 +0000] "GET /slot-3-kingdoms/ HTTP/1.1" 200 5120 "-" "Mozilla/5.0"`
+	e, ok := Normalize(RawLog{Dataset: "web", Host: "web01", Message: line})
+	if !ok {
+		t.Fatal("a web access line should be recognized")
+	}
+	if e.Event.Category != "web" || e.Event.Action != "http_request" {
+		t.Fatalf("wrong event: %+v", e.Event)
+	}
+	if e.Source == nil || e.Source.IP != "154.127.69.8" {
+		t.Fatalf("client IP not extracted: %+v", e.Source)
+	}
+	if e.Event.Original != line {
+		t.Fatalf("original line not kept (needed for keyword rules): %q", e.Event.Original)
+	}
+	// loopback must not become a bannable source
+	e2, _ := Normalize(RawLog{Dataset: "nginx", Message: `127.0.0.1 - - [..] "GET / HTTP/1.1" 200 1`})
+	if e2.Source != nil {
+		t.Fatalf("loopback should be ignored as a source: %+v", e2.Source)
+	}
+}

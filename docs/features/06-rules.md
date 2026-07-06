@@ -40,6 +40,21 @@ Frontend: [`web/src/rules/`](../../web/src/rules/). Backend:
 - Browser → Web `9173` → API `9080`. Language: Go (Sigma parser + SQL compiler for
   aggregation), React/TypeScript (UI). Rules stored in PostgreSQL.
 
+## Log sources a rule needs
+
+A rule only fires if the pipeline produces the matching events. Coverage by category:
+
+| Rule category | Fires from | Log source (agent) |
+|---|---|---|
+| SSH / auth (brute force, invalid user, sudo) | `sshd` events | `/var/log/auth.log` (default) |
+| FIM (file change, malicious hash, monitored dirs) | `fim` events | agent FIM watcher |
+| Port scan | `firewall` drops | `/var/log/ufw.log` (default; enable firewall logging) |
+| Windows logon (4625/4624/4740) | `windows-security` | Windows agent Event Log |
+| **Web (defacement, judi-online, path scan)** | **`web` events** | **`/var/log/nginx/access.log` (default)** - keyword rules match the raw request line; the client IP is extracted for banning. For apache add `/var/log/apache2/access.log` via the agent config. |
+
+> Process/EDR rules (`category: process_creation`) need a process-audit source (auditd/sysmon)
+> which is not shipped yet - those rules are present but stay dormant until such a source exists.
+
 ## Variables
 
 - No env for the rules themselves - they live in the DB and are edited in the UI (live-reload).
