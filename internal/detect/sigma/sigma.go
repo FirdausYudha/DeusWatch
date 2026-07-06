@@ -141,6 +141,53 @@ func parseSelections(detection map[string]any) (map[string]selection, error) {
 	return out, nil
 }
 
+// logsourceCategory maps a Sigma logsource.category to the DeusWatch event.category the
+// normalizer assigns (see internal/ingest/normalize.go). This is what keeps a rule scoped to
+// its real source: a `category: web` (judi/deface/path-scan) rule only fires on web events,
+// a `category: file_event` (FIM) rule only on file events, a `category: process_creation`
+// (endpoint) rule only on process events, etc. Unmapped categories fall back to an exact,
+// case-insensitive comparison so a category named identically on both sides still works.
+var logsourceCategory = map[string]string{
+	"web":                "web",
+	"webserver":          "web",
+	"file_event":         "file",
+	"file_change":        "file",
+	"process_creation":   "process",
+	"network_connection": "network",
+	"firewall":           "network",
+	"dns":                "network",
+	"authentication":     "authentication",
+}
+
+// AppliesTo reports whether the event is in scope for this rule's logsource. A rule with no
+// logsource is global (applies to every event). When a logsource category or product is
+// declared, the event MUST match it before the rule is evaluated - this is the guard that
+// stops a web rule from firing on an sshd/FIM/firewall line (and vice-versa), i.e. it places
+// each rule on its proper source (network vs FIM vs endpoint).
+func (r *Rule) AppliesTo(event map[string]any) bool {
+	if len(r.LogSource) == 0 {
+		return true
+	}
+	if cat := strings.TrimSpace(r.LogSource["category"]); cat != "" {
+		want := strings.ToLower(cat)
+		if m, ok := logsourceCategory[want]; ok {
+			want = m
+		}
+		got := strings.ToLower(toStr(event["event.category"]))
+		if got == "" || got != want {
+			return false // a categorized rule needs a matching, categorized event
+		}
+	}
+	// product maps to the host OS type (linux/windows). Only enforce when the event actually
+	// carries an OS type, so events without host context are not silently dropped.
+	if prod := strings.TrimSpace(r.LogSource["product"]); prod != "" {
+		if os := toStr(event["host.os.type"]); os != "" && !strings.EqualFold(os, prod) {
+			return false
+		}
+	}
+	return true
+}
+
 // Matches evaluates the rule against an already-flattened event (dotted ECS keys).
 func (r *Rule) Matches(event map[string]any) (bool, error) {
 	results := make(map[string]bool, len(r.selections))
@@ -215,27 +262,28 @@ func (s selection) match(event map[string]any) bool {
 	return len(s.fields) > 0
 }
 
-// matchKeywords matches if any keyword appears (substring, case-insensitive) in the
-// joined string values of the event (mainly event.original = the raw log line).
+// matchKeywords matches if any keyword appears (substring, case-insensitive) in the raw
+// log line (event.original) ONLY.
+//
+// Standard Sigma keyword semantics scan the raw message, not the parsed structured fields.
+// Matching against every string value of the event (source.ip, source.port, host.name,
+// file hash, ...) produced false positives: a short or leetspeak keyword (e.g. the judi
+// term '5107'/'510t' for "slot") collided with an IP octet, a port, a PID or a hash on an
+// unrelated event, and synthetic detection events (event.dataset=deuswatch.detect, which
+// carry NO event.original) could self-trigger keyword rules. Scoping to event.original
+// fixes both classes at once. Pair this with Rule.AppliesTo so a web keyword rule only ever
+// runs on web events in the first place.
 func matchKeywords(keywords []string, event map[string]any) bool {
-	hay := haystack(event)
+	hay := strings.ToLower(toStr(event["event.original"]))
+	if hay == "" {
+		return false // no raw log line to scan (e.g. a structured-only or synthetic event)
+	}
 	for _, kw := range keywords {
 		if strings.Contains(hay, strings.ToLower(kw)) {
 			return true
 		}
 	}
 	return false
-}
-
-func haystack(event map[string]any) string {
-	var b strings.Builder
-	for _, v := range event {
-		if s, ok := v.(string); ok {
-			b.WriteString(strings.ToLower(s))
-			b.WriteByte('\n')
-		}
-	}
-	return b.String()
 }
 
 func (fc fieldCond) match(event map[string]any) bool {

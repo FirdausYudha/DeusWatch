@@ -176,6 +176,105 @@ tags: [attack.t1595]`)
 	}
 }
 
+// TestKeywordScopedToOriginal proves a keyword rule matches ONLY the raw log line
+// (event.original), not other structured fields. This kills the false-positive class where a
+// short/leetspeak judi keyword (e.g. '5107' = "slot") collides with an IP octet or port, and
+// stops synthetic detect events (no event.original) from self-triggering keyword rules.
+func TestKeywordScopedToOriginal(t *testing.T) {
+	r := mustParse(t, `
+title: Judi keyword
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '5107'
+  condition: keywords
+tags: [attack.t1491.002]`)
+
+	// A real web access line carrying the term in the URL -> match.
+	webHit := FlattenEvent(&ingest.Event{
+		Event:  ingest.EventFields{Category: "web", Original: `1.2.3.4 - - "GET /5107-gacor HTTP/1.1" 200`},
+		Source: &ingest.Endpoint{IP: "1.2.3.4"},
+	})
+	if ok, err := r.Matches(webHit); err != nil || !ok {
+		t.Fatalf("web line containing the keyword should match (ok=%v err=%v)", ok, err)
+	}
+	// Same digits appear only in the source IP (85.107.x) - must NOT match: keywords scan
+	// event.original, not the flattened fields.
+	ipOnly := FlattenEvent(&ingest.Event{
+		Event:  ingest.EventFields{Category: "web", Original: `85.107.9.9 - - "GET /index.html HTTP/1.1" 200`},
+		Source: &ingest.Endpoint{IP: "85.107.9.9"},
+	})
+	if ok, _ := r.Matches(ipOnly); ok {
+		t.Fatal("digits present only in the IP (not the URL) must not match a keyword rule")
+	}
+	// A synthetic detection event has no event.original -> must never keyword-match.
+	synthetic := FlattenEvent(&ingest.Event{Event: ingest.EventFields{
+		Category: "intrusion_detection", Dataset: "deuswatch.detect",
+	}})
+	if ok, _ := r.Matches(synthetic); ok {
+		t.Fatal("a synthetic detect event (no event.original) must not keyword-match")
+	}
+}
+
+// TestLogsourceScoping proves a rule is placed on its real source: a web rule does not run on
+// an sshd line even if that line contains the keyword, and a FIM rule does not run on web.
+func TestLogsourceScoping(t *testing.T) {
+	web := mustParse(t, `
+title: Judi keyword
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'gacor'
+  condition: keywords
+tags: [attack.t1491.002]`)
+
+	// An sshd auth line that happens to contain "gacor" (e.g. a username) is out of scope.
+	sshLine := FlattenEvent(&ingest.Event{Event: ingest.EventFields{
+		Category: "authentication", Dataset: "sshd",
+		Original: "Failed password for gacor from 1.2.3.4 port 22 ssh2",
+	}})
+	if web.AppliesTo(sshLine) {
+		t.Fatal("a category:web rule must not apply to an authentication event")
+	}
+	// The same content on a real web event is in scope and matches.
+	webLine := FlattenEvent(&ingest.Event{Event: ingest.EventFields{
+		Category: "web", Original: `1.2.3.4 - - "GET /gacor HTTP/1.1" 200`,
+	}})
+	if !web.AppliesTo(webLine) {
+		t.Fatal("a category:web rule must apply to a web event")
+	}
+	if ok, _ := web.Matches(webLine); !ok {
+		t.Fatal("the web keyword should match on a web event")
+	}
+
+	// A FIM rule (file_event) must not apply to a web event.
+	fim := mustParse(t, `
+title: FIM etc
+level: high
+logsource:
+  product: linux
+  category: file_event
+detection:
+  selection:
+    file.path|contains: '/etc/'
+  condition: selection`)
+	if fim.AppliesTo(webLine) {
+		t.Fatal("a category:file_event rule must not apply to a web event")
+	}
+	fileEvent := FlattenEvent(&ingest.Event{
+		Event: ingest.EventFields{Category: "file", Action: "file_modified"},
+		Host:  &ingest.Host{Name: "h1", OSType: "linux"},
+		File:  &ingest.File{Path: "/etc/passwd"},
+	})
+	if !fim.AppliesTo(fileEvent) {
+		t.Fatal("a category:file_event/product:linux rule must apply to a linux file event")
+	}
+}
+
 func TestFieldAlias(t *testing.T) {
 	r := mustParse(t, `
 title: Alias test

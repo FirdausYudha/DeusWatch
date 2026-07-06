@@ -102,9 +102,15 @@ func LoadAggDir(dir string) ([]*AggRule, error) {
 }
 
 // Match returns the rules that match the event (the event is already flattened).
+// A rule is only evaluated when the event is in scope for its logsource (AppliesTo), so a
+// web/judi/deface rule never runs on an sshd/FIM/firewall line and a FIM rule never runs on
+// a web line - each rule stays on its real source.
 func (rs Ruleset) Match(event map[string]any) []*Rule {
 	var hits []*Rule
 	for _, r := range rs {
+		if !r.AppliesTo(event) {
+			continue
+		}
 		if ok, err := r.Matches(event); err == nil && ok {
 			hits = append(hits, r)
 		}
