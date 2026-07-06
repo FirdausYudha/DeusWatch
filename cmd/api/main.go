@@ -703,6 +703,43 @@ func storageRetentionHandler(st *store.Store) http.HandlerFunc {
 // updateCheckHandler compares the running build against the latest commit on GitHub's main
 // branch (read-only). It never executes an update — that stays a host operation
 // (./scripts/update.sh) so the web container needs no Docker/host access.
+// parseSemver extracts the major/minor/patch from a tag like "v1.2.3" (any pre-release or
+// "-N-gsha" build suffix after the patch is ignored). ok=false when it doesn't parse.
+func parseSemver(s string) ([3]int, bool) {
+	s = strings.TrimPrefix(strings.TrimSpace(s), "v")
+	if i := strings.IndexAny(s, "-+ "); i >= 0 {
+		s = s[:i]
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) < 3 {
+		return [3]int{}, false
+	}
+	var out [3]int
+	for i := 0; i < 3; i++ {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return [3]int{}, false
+		}
+		out[i] = n
+	}
+	return out, true
+}
+
+// semverLess reports whether version a is strictly older than b. Non-parseable => false.
+func semverLess(a, b string) bool {
+	pa, oka := parseSemver(a)
+	pb, okb := parseSemver(b)
+	if !oka || !okb {
+		return false
+	}
+	for i := 0; i < 3; i++ {
+		if pa[i] != pb[i] {
+			return pa[i] < pb[i]
+		}
+	}
+	return false
+}
+
 // appVersion returns the human-friendly version: the baked semver from git tags
 // (e.g. "v1.1.1", or "v1.1.1-3-gabc" between releases), falling back to the const.
 func appVersion() string {
@@ -752,9 +789,9 @@ func updateCheckHandler() http.HandlerFunc {
 			return
 		}
 		latest := gh.TagName
-		// Available when the latest release tag differs from our version and we are not a dev
-		// build already ahead of it (e.g. "v1.1.1-3-g..." sits past release "v1.1.1").
-		available := latest != "" && cur != "dev" && cur != latest && !strings.HasPrefix(cur, latest+"-")
+		// Available only when the latest release is a strictly newer semver than our version
+		// (a dev build ahead of the latest release is "up to date", not behind).
+		available := latest != "" && cur != "dev" && semverLess(cur, latest)
 		writeJSON(w, http.StatusOK, result{
 			Current: cur, Latest: latest, LatestDate: gh.PublishedAt,
 			UpdateAvailable: available,
