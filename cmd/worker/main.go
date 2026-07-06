@@ -181,24 +181,33 @@ func main() {
 	// only when explicitly enabled, continuous per-alert triage. Per-alert triage is OFF
 	// by default (LLM_PER_ALERT=1 to enable) so a paid API isn't called on every alert —
 	// AI is primarily a periodic/on-demand report (see the Report page + scheduler).
-	analyzer, haveAnalyzer := resolveAnalyzer(ctx, intStore)
-	if haveAnalyzer {
+	// The "Use for" dropdown on the LLM integration decides which model powers which task, so
+	// triage and report analyzers are resolved independently (they may be the same model when
+	// purpose=both, or two different models).
+	triageAnalyzer, haveTriage := resolveAnalyzer(ctx, intStore, "triage")
+	reportAnalyzer, haveReport := resolveAnalyzer(ctx, intStore, "report")
+	if haveTriage {
 		perAlert, _ := strconv.ParseBool(os.Getenv("LLM_PER_ALERT"))
 		if perAlert {
-			log.Printf("worker: LLM per-alert triage active (%s)", analyzer.Name())
-			go runLLM(ctx, st, analyzer)
+			log.Printf("worker: LLM per-alert triage active (%s)", triageAnalyzer.Name())
+			go runLLM(ctx, st, triageAnalyzer)
 		} else {
-			log.Printf("worker: LLM analyzer ready for reports (%s); per-alert triage off (set LLM_PER_ALERT=1 to enable)", analyzer.Name())
+			log.Printf("worker: LLM triage analyzer ready (%s); per-alert triage off (set LLM_PER_ALERT=1 to enable)", triageAnalyzer.Name())
 		}
-		go runReportScheduler(ctx, st, analyzer) // configurable AI report summaries
 	} else {
-		log.Printf("worker: LLM analyzer disabled (add an LLM integration, or set ANTHROPIC_API_KEY / LLM_BASE_URL / LLM_ENABLED=1)")
-		analyzer = nil
+		log.Printf("worker: LLM triage disabled (add an LLM integration set to triage/both, or set ANTHROPIC_API_KEY / LLM_BASE_URL / LLM_ENABLED=1)")
+	}
+	if haveReport {
+		log.Printf("worker: LLM report analyzer ready (%s)", reportAnalyzer.Name())
+		go runReportScheduler(ctx, st, reportAnalyzer) // configurable AI report summaries
+	} else {
+		reportAnalyzer = nil
+		log.Printf("worker: LLM report summaries disabled (add an LLM integration set to report/both)")
 	}
 
 	// Notification config: live-reload the alert severity threshold + scheduled report
 	// delivery to channels (Telegram/email). Runs even without an analyzer (plain report).
-	go runNotifyScheduler(ctx, st, dispatcher, analyzer)
+	go runNotifyScheduler(ctx, st, dispatcher, reportAnalyzer)
 
 	// Storage monitor: warn (Telegram/email) when the log DB approaches its budget.
 	go runStorageMonitor(ctx, st, dispatcher)
@@ -595,17 +604,24 @@ func resolveCTIKeys(ctx context.Context, intStore *integrations.Store) (abuseKey
 	return
 }
 
-// resolveAnalyzer builds the LLM analyzer from an enabled "llm" integration if present
-// (UI-configured: provider/base_url/model/api_key), otherwise falls back to the env path.
-func resolveAnalyzer(ctx context.Context, intStore *integrations.Store) (llm.Analyzer, bool) {
+// resolveAnalyzer builds the LLM analyzer for a given task ("triage" or "report") from the
+// first enabled "llm" integration whose "Use for" purpose matches (triage | report | both),
+// otherwise falls back to the env path. This lets a deployment point a small local model at
+// per-alert triage while a stronger model writes report summaries (or use one for both).
+func resolveAnalyzer(ctx context.Context, intStore *integrations.Store, purpose string) (llm.Analyzer, bool) {
 	if intStore != nil {
-		if rows, err := intStore.Resolve(ctx, "llm"); err == nil && len(rows) > 0 {
-			c := rows[0].Config
-			if a, aerr := llm.NewAnalyzer(c["provider"], c["base_url"], c["api_key"], c["model"]); aerr == nil {
-				log.Printf("worker: LLM analyzer from Integrations %q", rows[0].Name)
-				return a, true
-			} else {
-				log.Printf("worker: LLM integration invalid, falling back to env: %v", aerr)
+		if rows, err := intStore.Resolve(ctx, "llm"); err == nil {
+			for _, row := range rows {
+				c := row.Config
+				if !integrations.LLMPurposeMatches(c["purpose"], purpose) {
+					continue
+				}
+				a, aerr := llm.NewAnalyzer(c["provider"], c["base_url"], c["api_key"], c["model"])
+				if aerr == nil {
+					log.Printf("worker: LLM %s analyzer from Integrations %q (%s)", purpose, row.Name, a.Name())
+					return a, true
+				}
+				log.Printf("worker: LLM integration %q invalid: %v", row.Name, aerr)
 			}
 		}
 	}

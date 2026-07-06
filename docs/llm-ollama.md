@@ -1,8 +1,10 @@
 # Connect a local LLM (Ollama) for AI report summaries
 
 DeusWatch can turn the security report into a short AI executive summary. It works with any
-**OpenAI-compatible** endpoint - the easiest free/offline option is **Ollama**. The LLM is used
-for **reports** (on-demand or scheduled), not per alert, so there is no per-alert cost.
+**OpenAI-compatible** endpoint - the easiest free/offline option is **Ollama**. By default the
+LLM is used for **reports** (on-demand or scheduled) only, so there is no per-alert cost;
+per-alert **triage** is opt-in (`LLM_PER_ALERT=1`). For all providers (OpenAI, Gemini, Groq,
+Claude) and the triage-vs-report selector, see [AI / LLM providers](llm-providers.md).
 
 ## 1. Run Ollama and pull a model
 
@@ -16,11 +18,12 @@ docker exec ollama ollama list               # note the exact tag, e.g. llama3:l
 
 ## 2. Connect it in DeusWatch
 
-**Integrations -> LLM analyzer (AI triage) -> Enable**, then fill:
+**Integrations -> LLM analyzer (AI) -> Enable**, then fill:
 
 | Field | Value |
 |---|---|
 | Provider | `ollama` |
+| Use for | `both` (or `triage` / `report`) |
 | Base URL | `http://host.docker.internal:11434/v1` (note the `/v1`) |
 | Model | the exact tag from `ollama list`, e.g. `llama3:latest` |
 | API key | leave blank (not needed for local Ollama) |
@@ -43,8 +46,10 @@ docker compose -f deploy/docker-compose.yml up -d worker
 ```bash
 docker compose -f deploy/docker-compose.yml logs worker | grep -i "LLM analyzer"
 ```
-- `LLM analyzer ready for reports (openai-compat(llama3:latest))` -> configured.
-- `LLM analyzer disabled ...` -> not picked up (re-check step 2, then recreate the worker).
+- `LLM report analyzer ready (openai-compat(llama3:latest))` (and/or `LLM triage analyzer
+  ready ...`) -> configured.
+- `LLM report summaries disabled ...` / `LLM triage disabled ...` -> not picked up (re-check
+  step 2, including the **Use for** value, then recreate the worker).
 
 **Real test:** open **Report -> AI Executive Summary -> Generate now**. A summary appears when
 it truly reached the model. Any error is shown in full so you can act on it (see below).

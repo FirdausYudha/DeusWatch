@@ -432,7 +432,7 @@ export async function setAgentConfig(id: string, sources: AgentSource[]): Promis
 
 // ── Integrations (firewalls, bouncers, CTI providers) ─────
 
-export type IntegrationField = { key: string; label: string; secret?: boolean; optional?: boolean; help?: string }
+export type IntegrationField = { key: string; label: string; secret?: boolean; optional?: boolean; help?: string; options?: string[] }
 export type IntegrationType = { type: string; label: string; category: string; desc: string; fields: IntegrationField[] }
 
 export type Integration = {

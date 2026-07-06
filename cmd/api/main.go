@@ -561,10 +561,16 @@ func reportHandler(st *store.Store) http.HandlerFunc {
 func apiResolveAnalyzer(ctx context.Context, st *store.Store) (llm.Analyzer, bool) {
 	if cipher, _, err := secret.FromEnv(); err == nil {
 		intStore := integrations.NewStore(st.Pool(), cipher)
-		if rows, rerr := intStore.Resolve(ctx, "llm"); rerr == nil && len(rows) > 0 {
-			c := rows[0].Config
-			if a, aerr := llm.NewAnalyzer(c["provider"], c["base_url"], c["api_key"], c["model"]); aerr == nil {
-				return a, true
+		if rows, rerr := intStore.Resolve(ctx, "llm"); rerr == nil {
+			// On-demand summary is a report task: prefer a model set to report/both.
+			for _, row := range rows {
+				c := row.Config
+				if !integrations.LLMPurposeMatches(c["purpose"], "report") {
+					continue
+				}
+				if a, aerr := llm.NewAnalyzer(c["provider"], c["base_url"], c["api_key"], c["model"]); aerr == nil {
+					return a, true
+				}
 			}
 		}
 	}

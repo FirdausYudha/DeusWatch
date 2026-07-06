@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,13 +19,15 @@ import (
 	"deuswatch/internal/secret"
 )
 
-// Field describes one config field of an integration type (drives the UI form).
+// Field describes one config field of an integration type (drives the UI form). When
+// Options is non-empty the UI renders a dropdown (select) instead of a free-text input.
 type Field struct {
-	Key      string `json:"key"`
-	Label    string `json:"label"`
-	Secret   bool   `json:"secret,omitempty"`
-	Optional bool   `json:"optional,omitempty"`
-	Help     string `json:"help,omitempty"`
+	Key      string   `json:"key"`
+	Label    string   `json:"label"`
+	Secret   bool     `json:"secret,omitempty"`
+	Optional bool     `json:"optional,omitempty"`
+	Help     string   `json:"help,omitempty"`
+	Options  []string `json:"options,omitempty"`
 }
 
 // TypeInfo describes an integration type and its config schema.
@@ -106,15 +109,30 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
-		Type: "llm", Label: "LLM analyzer (AI triage)", Category: "llm",
-		Desc: "AI triage of alerts (verdict + summary). Use a free, self-hosted, open-source model via Ollama / any OpenAI-compatible endpoint — or Anthropic Claude.",
+		Type: "llm", Label: "LLM analyzer (AI)", Category: "llm",
+		Desc: "AI analysis powered by a free self-hosted model (Ollama / any OpenAI-compatible endpoint), a hosted OpenAI-compatible provider (OpenAI, Gemini, Groq, OpenRouter), or Anthropic Claude. Pick whether this model powers per-alert triage, report summaries, or both.",
 		Fields: []Field{
-			{Key: "provider", Label: "Provider", Help: "ollama | openai-compatible | anthropic"},
-			{Key: "base_url", Label: "Base URL", Optional: true, Help: "OpenAI-compatible endpoint, e.g. http://host.docker.internal:11434/v1 (Ollama). Leave blank for anthropic."},
-			{Key: "model", Label: "Model", Optional: true, Help: "e.g. llama3.1, qwen2.5, mistral, or claude-opus-4-8"},
+			{Key: "provider", Label: "Provider", Options: []string{"ollama", "openai-compatible", "anthropic"},
+				Help: "ollama = local; openai-compatible = OpenAI/Gemini/Groq/OpenRouter/vLLM (set Base URL); anthropic = Claude."},
+			{Key: "purpose", Label: "Use for", Options: []string{"both", "triage", "report"},
+				Help: "triage = per-alert verdict; report = AI executive summary; both = one model for everything (default)."},
+			{Key: "base_url", Label: "Base URL", Optional: true, Help: "OpenAI-compatible endpoint. Ollama: http://host.docker.internal:11434/v1 · OpenAI: https://api.openai.com/v1 · Gemini: https://generativelanguage.googleapis.com/v1beta/openai · Groq: https://api.groq.com/openai/v1. Leave blank for anthropic."},
+			{Key: "model", Label: "Model", Optional: true, Help: "e.g. llama3.1, qwen2.5, gpt-4o-mini, gemini-2.5-flash, or claude-opus-4-8"},
 			{Key: "api_key", Label: "API key", Secret: true, Optional: true, Help: "Not needed for local Ollama; required for hosted providers / Anthropic."},
 		},
 	},
+}
+
+// LLMPurposeMatches reports whether an LLM integration whose "purpose" field is `configured`
+// (triage | report | both; empty = both, for older integrations) should serve the `want`
+// task ("triage" or "report"). This is what lets one deployment point a small local model at
+// per-alert triage while a stronger model writes the report summaries.
+func LLMPurposeMatches(configured, want string) bool {
+	configured = strings.ToLower(strings.TrimSpace(configured))
+	if configured == "" || configured == "both" {
+		return true
+	}
+	return configured == strings.ToLower(strings.TrimSpace(want))
 }
 
 // HasEnabled reports whether any enabled integration of the given type exists. It reads

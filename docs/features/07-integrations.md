@@ -12,8 +12,9 @@ only their *config* lives in the DB, encrypted at rest.
 - You save config (API key, URL, creds) per connector. **Secrets are AES-GCM encrypted** with
   `SECRETS_KEY` and are **write-only** (masked in the UI).
 - Consumers resolve them at startup: the worker's **enrichment** uses CTI/FIM, the **response
-  engine** uses firewall/bouncer, **reports** use LLM. The Integrations registry takes
-  precedence over the equivalent env vars.
+  engine** uses firewall/bouncer, and **LLM** powers **triage** and/or **reports** per the
+  connector's **Use for** setting. The Integrations registry takes precedence over the
+  equivalent env vars.
 - CTI provider **live-reloads** (~1 min) - adding an AbuseIPDB key in the UI activates real
   lookups without restarting the worker. Response/LLM drivers are picked up at worker start.
 
@@ -22,8 +23,10 @@ only their *config* lives in the DB, encrypted at rest.
 - **Integrations** menu → pick a type from the catalog → fill fields (e.g. AbuseIPDB
   `api_key`) → **Enable**.
 - Threat Intel status is shown in **Settings → Threat-intel (CTI) caching** (real vs mock).
-- **LLM (Ollama / OpenAI-compatible)**: step-by-step connect + troubleshooting (DNS, nginx 504,
-  slow model) is in [docs/llm-ollama.md](../llm-ollama.md).
+- **LLM**: pick **Provider** (ollama / openai-compatible / anthropic) and **Use for** (triage /
+  report / both). All providers (OpenAI, Gemini, Groq, Claude) + the triage-vs-report selector
+  are in [docs/llm-providers.md](../llm-providers.md); Ollama connect + troubleshooting (DNS,
+  nginx 504, slow model) is in [docs/llm-ollama.md](../llm-ollama.md).
 
 ## Endpoints & source
 

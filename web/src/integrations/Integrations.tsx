@@ -40,20 +40,36 @@ function FieldInput({
   configured: boolean
   onChange: (v: string) => void
 }) {
+  const hasOptions = !!field.options && field.options.length > 0
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-slate-400">
         {field.label}
         {field.optional && <span className="ml-1 text-slate-600">(optional)</span>}
       </span>
-      <input
-        type={field.secret ? 'password' : 'text'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={field.secret && configured ? '•••••••• configured (leave blank to keep)' : field.help ?? ''}
-        autoComplete="off"
-        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
-      />
+      {hasOptions ? (
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+        >
+          {!value && <option value="">Select…</option>}
+          {field.options!.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={field.secret ? 'password' : 'text'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.secret && configured ? '•••••••• configured (leave blank to keep)' : field.help ?? ''}
+          autoComplete="off"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+        />
+      )}
       {field.help && !(field.secret && configured) && (
         <span className="mt-1 block text-[11px] text-slate-600">{field.help}</span>
       )}
