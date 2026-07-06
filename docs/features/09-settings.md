@@ -17,7 +17,8 @@ DB and are picked up live (no restart).
 
 - **Alert notifications / CTI caching / retention** are read live by the worker (threshold +
   TTL reload each minute; retention re-applies the TimescaleDB policy on save).
-- **Software updates** only *checks* (compares the baked git commit vs GitHub's latest). The
+- **Software updates** only *checks* (compares the running version - a git tag like `v1.1.1`,
+  baked at build time - against the latest GitHub **release**). The
   update itself runs on the host with `./scripts/update.sh` - the web app never controls Docker,
   by design (small attack surface).
 - **Config profile** exports rules, ban policy, whitelist, AI-report schedule, notification

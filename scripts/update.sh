@@ -10,8 +10,9 @@ echo "==> Pulling latest from GitHub"
 git pull --ff-only
 
 COMPOSE="deploy/docker-compose.yml"
-# Bake the commit into the build so the UI's "check for update" knows what's running.
-export DEUSWATCH_VERSION="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
+# Bake the semantic version (nearest git tag, e.g. v1.1.1) into the build so the UI's
+# "check for update" shows a real version, not a commit hash.
+export DEUSWATCH_VERSION="$(git describe --tags --always 2>/dev/null || echo dev)"
 echo "==> Rebuilding & restarting containers (version=$DEUSWATCH_VERSION; migrations auto-apply on api start)"
 if [ -f deploy/.env ]; then
   docker compose -f "$COMPOSE" --env-file deploy/.env up -d --build

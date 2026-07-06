@@ -252,7 +252,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("DeusWatch API %s listening on %s", version, addr)
+	log.Printf("DeusWatch API %s listening on %s", appVersion(), addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
@@ -327,7 +327,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]string{
 		"name":    "DeusWatch API",
-		"version": version,
+		"version": appVersion(),
 		"status":  "ok",
 	})
 }
@@ -703,6 +703,15 @@ func storageRetentionHandler(st *store.Store) http.HandlerFunc {
 // updateCheckHandler compares the running build against the latest commit on GitHub's main
 // branch (read-only). It never executes an update — that stays a host operation
 // (./scripts/update.sh) so the web container needs no Docker/host access.
+// appVersion returns the human-friendly version: the baked semver from git tags
+// (e.g. "v1.1.1", or "v1.1.1-3-gabc" between releases), falling back to the const.
+func appVersion() string {
+	if buildVersion != "" && buildVersion != "dev" {
+		return buildVersion
+	}
+	return version
+}
+
 func updateCheckHandler() http.HandlerFunc {
 	type result struct {
 		Current         string `json:"current"`
@@ -715,41 +724,41 @@ func updateCheckHandler() http.HandlerFunc {
 	hc := &http.Client{Timeout: 8 * time.Second}
 	return func(w http.ResponseWriter, r *http.Request) {
 		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet,
-			"https://api.github.com/repos/"+githubRepo+"/commits/main", nil)
+			"https://api.github.com/repos/"+githubRepo+"/releases/latest", nil)
 		req.Header.Set("Accept", "application/vnd.github+json")
+		cur := appVersion()
 		resp, err := hc.Do(req)
 		if err != nil {
 			http.Error(w, "could not reach GitHub: "+err.Error(), http.StatusBadGateway)
 			return
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			// No published releases yet - report the running version, nothing to compare.
+			writeJSON(w, http.StatusOK, result{Current: cur, UpdateAvailable: false,
+				RepoURL: "https://github.com/" + githubRepo, UpdateCommand: "./scripts/update.sh"})
+			return
+		}
 		if resp.StatusCode != http.StatusOK {
 			http.Error(w, fmt.Sprintf("GitHub returned HTTP %d", resp.StatusCode), http.StatusBadGateway)
 			return
 		}
 		var gh struct {
-			SHA    string `json:"sha"`
-			Commit struct {
-				Committer struct {
-					Date string `json:"date"`
-				} `json:"committer"`
-			} `json:"commit"`
+			TagName     string `json:"tag_name"`
+			PublishedAt string `json:"published_at"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&gh); err != nil {
 			http.Error(w, "bad response from GitHub", http.StatusBadGateway)
 			return
 		}
-		latest := gh.SHA
-		if len(latest) > 7 {
-			latest = latest[:7]
-		}
-		cur := buildVersion
-		// Update available when we know our commit and it isn't the latest.
-		available := cur != "dev" && cur != "" && latest != "" && !strings.HasPrefix(gh.SHA, cur)
+		latest := gh.TagName
+		// Available when the latest release tag differs from our version and we are not a dev
+		// build already ahead of it (e.g. "v1.1.1-3-g..." sits past release "v1.1.1").
+		available := latest != "" && cur != "dev" && cur != latest && !strings.HasPrefix(cur, latest+"-")
 		writeJSON(w, http.StatusOK, result{
-			Current: cur, Latest: latest, LatestDate: gh.Commit.Committer.Date,
+			Current: cur, Latest: latest, LatestDate: gh.PublishedAt,
 			UpdateAvailable: available,
-			RepoURL:         "https://github.com/" + githubRepo,
+			RepoURL:         "https://github.com/" + githubRepo + "/releases",
 			UpdateCommand:   "./scripts/update.sh",
 		})
 	}

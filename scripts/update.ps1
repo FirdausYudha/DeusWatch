@@ -8,8 +8,9 @@ Write-Host "==> Pulling latest from GitHub"
 git pull --ff-only
 
 $compose = "deploy/docker-compose.yml"
-# Bake the commit into the build so the UI's "check for update" knows what's running.
-$env:DEUSWATCH_VERSION = (git rev-parse --short HEAD)
+# Bake the semantic version (nearest git tag, e.g. v1.1.1) into the build so the UI's
+# "check for update" shows a real version, not a commit hash.
+$env:DEUSWATCH_VERSION = (git describe --tags --always)
 Write-Host "==> Rebuilding & restarting containers (version=$($env:DEUSWATCH_VERSION); migrations auto-apply on api start)"
 if (Test-Path deploy/.env) {
   docker compose -f $compose --env-file deploy/.env up -d --build
