@@ -3,6 +3,7 @@ module deuswatch
 go 1.25.0
 
 require (
+	github.com/anthropics/anthropic-sdk-go v1.50.1
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/nats-io/nats.go v1.52.0
 	github.com/pquerna/otp v1.5.0
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.50.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
