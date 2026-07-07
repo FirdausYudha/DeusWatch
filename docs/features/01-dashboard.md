@@ -18,7 +18,8 @@ and health panels.
 - **Time range**: use the presets (`1h/6h/24h/7d/30d`) or the calendar for a custom window.
 - **Search bar (top)**: free-text - matches source **IP**, rule name/id, MITRE technique, host,
   user, file path, label, and raw message. Tick **Alerts only** to hide raw info events.
-- **Filters panel**: narrow by Source IP, Rule, MITRE ID, Min level, From/To.
+- **Filters panel**: narrow by Source IP, **Agent**, Rule, MITRE ID, Min level, From/To.
+  Clicking an agent name in the table applies the Agent filter.
 - **Events & Alerts table**: each row shows the **Agent** (which host reported it) and, for FIM
   or path-based rules, the changed **file path** under the rule name. **Click any row** to expand
   the **full log as JSON** (Wazuh-style raw event).

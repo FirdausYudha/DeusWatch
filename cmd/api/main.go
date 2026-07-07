@@ -386,6 +386,7 @@ func parseEventFilter(r *http.Request) store.EventFilter {
 	f := store.EventFilter{
 		Text:        q.Get("q"),
 		SourceIP:    q.Get("ip"),
+		Agent:       q.Get("agent"),
 		RuleID:      q.Get("rule"),
 		TechniqueID: q.Get("technique"),
 		Category:    q.Get("category"),

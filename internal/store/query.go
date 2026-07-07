@@ -136,6 +136,7 @@ func (s *Store) QuarantineTargets(ctx context.Context) ([]FileTarget, error) {
 type EventFilter struct {
 	Text        string    // free text over original/rule/host/user/file/label
 	SourceIP    string    // substring match on the source IP
+	Agent       string    // substring on the agent name (agent_id)
 	RuleID      string    // substring on rule_id OR rule_name
 	TechniqueID string    // substring on the MITRE technique id
 	Category    string    // exact event.category
@@ -172,6 +173,9 @@ func (s *Store) SearchEvents(ctx context.Context, f EventFilter) ([]EventRow, er
 	if f.SourceIP != "" {
 		args = append(args, "%"+f.SourceIP+"%")
 		conds = append(conds, fmt.Sprintf("host(source_ip) ILIKE $%d", len(args)))
+	}
+	if f.Agent != "" {
+		like("agent_id", f.Agent)
 	}
 	if f.RuleID != "" {
 		args = append(args, "%"+f.RuleID+"%")

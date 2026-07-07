@@ -92,6 +92,7 @@ export type Stats = {
 export type EventSearch = {
   q?: string
   ip?: string
+  agent?: string
   rule?: string
   technique?: string
   category?: string
@@ -106,6 +107,7 @@ function eventSearchParams(f: EventSearch): URLSearchParams {
   const qs = new URLSearchParams()
   if (f.q) qs.set('q', f.q)
   if (f.ip) qs.set('ip', f.ip)
+  if (f.agent) qs.set('agent', f.agent)
   if (f.rule) qs.set('rule', f.rule)
   if (f.technique) qs.set('technique', f.technique)
   if (f.category) qs.set('category', f.category)

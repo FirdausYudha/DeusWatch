@@ -549,6 +549,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   const [expanded, setExpanded] = useState<number | null>(null)
   const [q, setQ] = useState('')
   const [ip, setIp] = useState('')
+  const [agent, setAgent] = useState('')
   const [rule, setRule] = useState('')
   const [technique, setTechnique] = useState('')
   const [severity, setSeverity] = useState(-1)
@@ -566,6 +567,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
       const f: EventSearch = {
         q: q || undefined,
         ip: ip || undefined,
+        agent: agent || undefined,
         rule: rule || undefined,
         technique: technique || undefined,
         severity: severity >= 0 ? severity : undefined,
@@ -581,18 +583,18 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
     const t = setTimeout(load, 300)
     const id = setInterval(load, 10_000)
     return () => { active = false; clearTimeout(t); clearInterval(id) }
-  }, [q, ip, rule, technique, severity, from, to, alertsOnly, limit])
+  }, [q, ip, agent, rule, technique, severity, from, to, alertsOnly, limit])
 
-  const hasFilter = !!(ip || rule || technique || severity >= 0 || from || to || alertsOnly)
+  const hasFilter = !!(ip || agent || rule || technique || severity >= 0 || from || to || alertsOnly)
   const reset = () => {
-    setIp(''); setRule(''); setTechnique(''); setSeverity(-1); setFrom(''); setTo(''); setAlertsOnly(false)
+    setIp(''); setAgent(''); setRule(''); setTechnique(''); setSeverity(-1); setFrom(''); setTo(''); setAlertsOnly(false)
   }
   const [whMsg, setWhMsg] = useState('')
   const sendWebhook = async () => {
     setWhMsg('Sending…')
     try {
       const n = await exportEventsToWebhook({
-        q: q || undefined, ip: ip || undefined, rule: rule || undefined, technique: technique || undefined,
+        q: q || undefined, ip: ip || undefined, agent: agent || undefined, rule: rule || undefined, technique: technique || undefined,
         severity: severity >= 0 ? severity : undefined, alerts: alertsOnly || undefined,
         from: from ? new Date(from).toISOString() : undefined, to: to ? new Date(to).toISOString() : undefined, limit,
       })
@@ -644,6 +646,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
       {open && (
         <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 px-4 py-3">
           <Field label="Source IP"><input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="e.g. 45.155" className={`${fieldCls} w-32`} /></Field>
+          <Field label="Agent"><input value={agent} onChange={(e) => setAgent(e.target.value)} placeholder="agent name" className={`${fieldCls} w-32`} /></Field>
           <Field label="Rule"><input value={rule} onChange={(e) => setRule(e.target.value)} placeholder="rule id/name" className={`${fieldCls} w-36`} /></Field>
           <Field label="MITRE ID"><input value={technique} onChange={(e) => setTechnique(e.target.value)} placeholder="e.g. T1110" className={`${fieldCls} w-28`} /></Field>
           <Field label="Min level">
@@ -688,7 +691,17 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                     title="Click to view the full JSON log"
                   >
                     <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('en-US')}</td>
-                    <td className="px-4 py-2 text-slate-300">{a.agent_id || '—'}</td>
+                    <td className="px-4 py-2 text-slate-300">
+                      {a.agent_id ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setAgent(a.agent_id); setOpen(true) }}
+                          className="rounded text-slate-300 hover:text-indigo-300"
+                          title={`Filter by agent ${a.agent_id}`}
+                        >
+                          {a.agent_id}
+                        </button>
+                      ) : '—'}
+                    </td>
                     <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
                     <td className="px-4 py-2 text-slate-300">
                       {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
