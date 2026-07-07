@@ -160,6 +160,10 @@ services:
       RESPONDER: "${RESPONDER:-dryrun}"
       RESPONSE_LIVE: "${RESPONSE_LIVE:-0}"
       RESPONSE_AUTO_APPROVE: "${RESPONSE_AUTO_APPROVE:-0}"
+      # Trusted-session gate: suppress a plain file-change alert when the host had a successful
+      # login from a whitelisted IP within this window (an official deploy/content edit).
+      # Webshell/containment rules are never gated. Inert when the IP whitelist is empty.
+      FILE_CHANGE_TRUSTED_WINDOW: "${FILE_CHANGE_TRUSTED_WINDOW:-15m}"
       # Notifications (optional): active when any channel is filled in.
       NOTIFY_MIN_SEVERITY: "${NOTIFY_MIN_SEVERITY:-high}"
       NOTIFY_THROTTLE: "${NOTIFY_THROTTLE:-10m}"

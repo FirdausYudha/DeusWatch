@@ -65,6 +65,16 @@ func (e *Engine) SetWhitelist(nets []*net.IPNet) {
 	e.mu.Unlock()
 }
 
+// Whitelisted reports whether ip is in the trusted whitelist (thread-safe). Beyond the ban
+// engine, the trusted-session gate uses it to tell an official change (a file edited during a
+// login from a whitelisted admin/deploy IP) from an attacker's change.
+func (e *Engine) Whitelisted(ip string) bool {
+	e.mu.RLock()
+	wl := e.whitelist
+	e.mu.RUnlock()
+	return ipInNets(ip, wl)
+}
+
 // Recommend creates a block recommendation from an alert (needs a source IP). The ban
 // duration is computed progressively from the IP's history. If autoApprove is on & a
 // responder exists, it executes immediately. Returns nil,nil for irrelevant events (no IP).

@@ -14,6 +14,58 @@ import (
 	"deuswatch/internal/store"
 )
 
+// recSink records inserted events (a fake EventSink, no DB).
+type recSink struct{ events []*ingest.Event }
+
+func (r *recSink) InsertEvent(_ context.Context, e *ingest.Event) error {
+	r.events = append(r.events, e)
+	return nil
+}
+
+// stubDetector always returns the pre-built alert.
+type stubDetector struct{ alert *ingest.Event }
+
+func (d stubDetector) Inspect(_ *ingest.Event) *ingest.Event { return d.alert }
+
+// TestHandlerSuppressesGatedAlert proves the trusted-session gate path: a suppressed alert is
+// neither stored nor forwarded to onAlert, while the raw source event still is. The inverse
+// case (not suppressed) stores the alert and calls onAlert.
+func TestHandlerSuppressesGatedAlert(t *testing.T) {
+	raw, _ := json.Marshal(ingest.Event{Event: ingest.EventFields{Category: "file", Action: "file_modified"}})
+	alert := &ingest.Event{
+		Event: ingest.EventFields{Category: "intrusion_detection", Dataset: "deuswatch.detect"},
+		File:  &ingest.File{Path: "/var/www/html/index.php"},
+		DeusWatch: ingest.DeusWatch{Label: "impact"},
+	}
+
+	for _, tc := range []struct {
+		name       string
+		suppress   AlertSuppressor
+		wantStored int // raw + (alert unless suppressed)
+		wantHook   bool
+	}{
+		{"suppressed", func(context.Context, *ingest.Event) bool { return true }, 1, false},
+		{"kept", func(context.Context, *ingest.Event) bool { return false }, 2, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sink := &recSink{}
+			hookCalled := false
+			h := Handler(context.Background(), sink, nil,
+				func(context.Context, *ingest.Event) { hookCalled = true },
+				tc.suppress, stubDetector{alert})
+			if err := h(bus.SubjectLogsNormalized, raw); err != nil {
+				t.Fatalf("handler: %v", err)
+			}
+			if len(sink.events) != tc.wantStored {
+				t.Fatalf("stored %d events, want %d", len(sink.events), tc.wantStored)
+			}
+			if hookCalled != tc.wantHook {
+				t.Fatalf("onAlert called=%v, want %v", hookCalled, tc.wantHook)
+			}
+		})
+	}
+}
+
 func envOr(k, d string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
@@ -46,7 +98,7 @@ func TestPipelineEndToEnd(t *testing.T) {
 	durable := fmt.Sprintf("test-pipeline-%d", nonce)
 
 	det := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig()) // threshold 5
-	stop, err := b.Consume(ctx, bus.StreamLogs, durable, bus.SubjectLogsNormalized, Handler(ctx, st, nil, nil, det))
+	stop, err := b.Consume(ctx, bus.StreamLogs, durable, bus.SubjectLogsNormalized, Handler(ctx, st, nil, nil, nil, det))
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
 	}

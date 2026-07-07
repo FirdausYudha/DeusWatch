@@ -19,6 +19,11 @@ import (
 // respond/notify details.
 type AlertHook func(ctx context.Context, alert *ingest.Event)
 
+// AlertSuppressor decides whether a fired alert should be dropped (not stored, not acted on).
+// It powers the trusted-session gate: a file-change alert correlated with a recent login from a
+// whitelisted admin/deploy IP is an official change, not an attack. nil = never suppress.
+type AlertSuppressor func(ctx context.Context, alert *ingest.Event) bool
+
 // EventSink writes DCS events (satisfied by *store.Store).
 type EventSink interface {
 	InsertEvent(ctx context.Context, e *ingest.Event) error
@@ -27,7 +32,7 @@ type EventSink interface {
 // Handler returns a bus.Handler for the logs.normalized subject: enrich the event
 // (if an enricher is set), persist it, run the detectors, persist any fired alerts,
 // then call onAlert for each alert. enricher & onAlert may be nil.
-func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, detectors ...detect.Detector) bus.Handler {
+func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, suppress AlertSuppressor, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -55,6 +60,11 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 			if alert == nil {
 				continue
 			}
+			if suppress != nil && suppress(ic, alert) {
+				log.Printf("worker: suppressed %s alert on %s (trusted session)",
+					alert.DeusWatch.Label, alertTarget(alert))
+				continue
+			}
 			if err := sink.InsertEvent(ic, alert); err != nil {
 				return err
 			}
@@ -73,6 +83,15 @@ func alertSourceIP(e *ingest.Event) string {
 		return e.Source.IP
 	}
 	return "-"
+}
+
+// alertTarget is the most identifying locator for a log line: the changed file path for a
+// file event, else the source IP.
+func alertTarget(e *ingest.Event) string {
+	if e.File != nil && e.File.Path != "" {
+		return e.File.Path
+	}
+	return alertSourceIP(e)
 }
 
 func ruleID(e *ingest.Event) string {

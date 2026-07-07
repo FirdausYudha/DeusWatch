@@ -32,6 +32,19 @@ host self-isolation (the agent applies its own firewall) plus an optional edge I
   `webshell_upload_containment` rule, isolates the web server. Needs FIM watching the web root
   and an agent that can self-isolate (Linux/Windows).
 
+### Trusted-session gate (official change vs attack)
+
+Since a file-change event carries **no source IP** (the OS reports *what* changed, not *who*),
+the IP whitelist alone cannot tell a legit deploy/content edit from an attack. The gate bridges
+that: when a **plain file-change alert** fires (e.g. `index.php` edited), the worker checks
+whether that host had a **successful login from a whitelisted IP** within
+`FILE_CHANGE_TRUSTED_WINDOW`. If so, it is an **official change** and the alert is **suppressed**
+(the raw event is still stored); otherwise it alerts as normal. Two guardrails: it never gates
+alerts that authorize **containment** (a webshell in an uploads dir still fires), and it does
+nothing when the IP whitelist is empty. It relies on the login being reported to DeusWatch
+(SSH via the agent), so keep 2FA/audit on trusted hosts - a stolen credential from a whitelisted
+IP would pass the gate.
+
 ## How to use
 
 Two views (toggle top-right):
@@ -73,6 +86,8 @@ In `deploy/.env` (worker):
 - `RESPONDER` - `dryrun` (default, log only), or a real driver via Integrations.
 - `RESPONSE_LIVE=1` - actually enforce (otherwise dry-run).
 - `RESPONSE_AUTO_APPROVE=1` - skip manual approval.
+- `CONTAINMENT_AUTO=1` - auto-isolate on containment rules (else recommend-only).
+- `FILE_CHANGE_TRUSTED_WINDOW` - trusted-session gate window (default `15m`).
 
 Live in the **UI** (no restart): the ban ladder, permanent cap, observation window,
 auto-approve toggle, and the IP whitelist. Enforcement targets (MikroTik/CrowdSec creds) are

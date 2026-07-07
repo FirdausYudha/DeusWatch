@@ -163,8 +163,15 @@ func main() {
 
 	onAlert := makeAlertHook(engine, containEngine, dispatcher)
 
+	// Trusted-session gate: a plain file-change alert (e.g. index.php edited) is treated as an
+	// official change - and suppressed - when the host had a recent successful login from a
+	// whitelisted admin/deploy IP. Alerts that authorize containment (e.g. a webshell in an
+	// uploads dir) are NEVER gated, so genuine backdoors still fire. Window: env
+	// FILE_CHANGE_TRUSTED_WINDOW (default 15m). Inert when the IP whitelist is empty.
+	fileGate := makeTrustedSessionGate(st, engine, trustedWindowFromEnv())
+
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
-		worker.Handler(ctx, st, enricher, onAlert, bruteForce, sigmaDet))
+		worker.Handler(ctx, st, enricher, onAlert, fileGate, bruteForce, sigmaDet))
 	if err != nil {
 		log.Fatalf("worker: consume: %v", err)
 	}
@@ -240,6 +247,50 @@ func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, d
 				log.Printf("worker: notification failed: %v", err)
 			}
 		}
+	}
+}
+
+// trustedWindowFromEnv reads the correlation window for the trusted-session gate
+// (FILE_CHANGE_TRUSTED_WINDOW, e.g. "15m", "1h"); default 15 minutes.
+func trustedWindowFromEnv() time.Duration {
+	if d, err := time.ParseDuration(os.Getenv("FILE_CHANGE_TRUSTED_WINDOW")); err == nil && d > 0 {
+		return d
+	}
+	return 15 * time.Minute
+}
+
+// makeTrustedSessionGate builds the AlertSuppressor. It suppresses a file-change alert when the
+// reporting agent had a successful login from a whitelisted IP within `window` - an official
+// change (deploy/content edit), not an attack. It never suppresses:
+//   - non-file alerts (network attacks keep their own IP-whitelist handling), or
+//   - alerts that authorize network containment (e.g. a webshell in an uploads dir), which are
+//     unambiguous and must always fire.
+//
+// Returns nil (no gating) when there is no ban engine to hold the live whitelist.
+func makeTrustedSessionGate(st *store.Store, engine *respond.Engine, window time.Duration) worker.AlertSuppressor {
+	if engine == nil {
+		return nil
+	}
+	return func(ctx context.Context, alert *ingest.Event) bool {
+		if alert.File == nil || alert.File.Path == "" { // only plain file-change alerts
+			return false
+		}
+		if alert.DeusWatch.Containment != nil { // webshell/containment rules are never gated
+			return false
+		}
+		if alert.Agent == nil || alert.Agent.ID == "" {
+			return false // no host identity to correlate a session against
+		}
+		ips, err := st.RecentAuthSuccessIPs(ctx, alert.Agent.ID, time.Now().Add(-window))
+		if err != nil {
+			return false // fail open: on a query error, keep the alert
+		}
+		for _, ip := range ips {
+			if engine.Whitelisted(ip) {
+				return true // official change: a trusted admin/deploy session is present
+			}
+		}
+		return false
 	}
 }
 

@@ -131,6 +131,30 @@ func (s *Store) QuarantineTargets(ctx context.Context) ([]FileTarget, error) {
 	return out, rows.Err()
 }
 
+// RecentAuthSuccessIPs returns the distinct source IPs of SUCCESSFUL authentications reported
+// by the given agent since `since`. It powers the trusted-session gate: a file change on a host
+// that had a recent login from a whitelisted IP is an official change (deploy/content edit),
+// not an attack.
+func (s *Store) RecentAuthSuccessIPs(ctx context.Context, agentID string, since time.Time) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT host(source_ip) FROM events
+		WHERE event_category = 'authentication' AND event_outcome = 'success'
+		  AND agent_id = $1 AND source_ip IS NOT NULL AND time >= $2`, agentID, since)
+	if err != nil {
+		return nil, fmt.Errorf("store: recent auth ips: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var ip string
+		if err := rows.Scan(&ip); err != nil {
+			return nil, err
+		}
+		out = append(out, ip)
+	}
+	return out, rows.Err()
+}
+
 // EventFilter holds the optional search criteria for SearchEvents. Zero-value fields
 // are ignored, so any combination narrows the result.
 type EventFilter struct {
