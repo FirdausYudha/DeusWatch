@@ -275,6 +275,49 @@ detection:
 	}
 }
 
+// TestWebshellUploadContainmentRule locks in the boss requirement: a PHP file dropped in a web
+// upload dir fires the rule, carries the network_containment directive, and applies only to
+// file events - while a legit image upload or a .php outside an upload dir does NOT fire.
+func TestWebshellUploadContainmentRule(t *testing.T) {
+	data, err := os.ReadFile("../../../rules/sigma/webshell_upload_containment.yml")
+	if err != nil {
+		t.Fatalf("read rule: %v", err)
+	}
+	r := mustParse(t, string(data))
+	if r.Mitigation == nil || r.Mitigation.ActionType != "network_containment" {
+		t.Fatalf("rule must authorize network_containment, got %+v", r.Mitigation)
+	}
+
+	drop := FlattenEvent(&ingest.Event{
+		Event: ingest.EventFields{Category: "file", Action: "file_created"},
+		Host:  &ingest.Host{Name: "web01", OSType: "linux"},
+		File:  &ingest.File{Path: "/var/www/html/wp-content/uploads/2026/shell.php"},
+	})
+	if !r.AppliesTo(drop) {
+		t.Fatal("rule should apply to a linux file event")
+	}
+	if ok, err := r.Matches(drop); err != nil || !ok {
+		t.Fatalf("a .php dropped in uploads should match (ok=%v err=%v)", ok, err)
+	}
+
+	// A legit image upload must NOT fire.
+	img := FlattenEvent(&ingest.Event{
+		Event: ingest.EventFields{Category: "file", Action: "file_created"},
+		File:  &ingest.File{Path: "/var/www/html/wp-content/uploads/2026/photo.jpg"},
+	})
+	if ok, _ := r.Matches(img); ok {
+		t.Fatal("a .jpg upload must not match the webshell rule")
+	}
+	// A .php outside an upload dir (e.g. a normal app deploy) must NOT fire this rule.
+	deploy := FlattenEvent(&ingest.Event{
+		Event: ingest.EventFields{Category: "file", Action: "file_modified"},
+		File:  &ingest.File{Path: "/var/www/html/index.php"},
+	})
+	if ok, _ := r.Matches(deploy); ok {
+		t.Fatal("a .php outside an upload dir must not match this (deploy-safe) rule")
+	}
+}
+
 func TestFieldAlias(t *testing.T) {
 	r := mustParse(t, `
 title: Alias test

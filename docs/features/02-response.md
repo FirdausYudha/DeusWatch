@@ -14,6 +14,24 @@ bans on real devices via the **progressive-ban** engine.
   `unbanned`.
 - All state lives in the `response_actions` table.
 
+### Network containment (host isolation)
+
+The IP-ban engine blocks an external attacker's IP. **Network containment** does the opposite:
+it isolates one of **your own** agent hosts from the LAN (everything except the manager) to
+stop lateral spread when that host is compromised. It fires only for rules that carry a
+`mitigation_action: network_containment` block (e.g. ransomware shadow-copy deletion, or a
+**webshell / PHP dropped in a web upload dir**). Two enforcement points, best-effort together:
+host self-isolation (the agent applies its own firewall) plus an optional edge IP block.
+
+- Auto vs recommend: with `CONTAINMENT_AUTO=1` and the alert severity at/above the rule's
+  `criticality_threshold`, the host is isolated **immediately**; otherwise it becomes a
+  **recommended** containment awaiting one-click approval (safe default). Auto-release after the
+  rule's `timeout`.
+- Example - a webshell drop: dropping `shell.php` into `/var/www/html/wp-content/uploads/`
+  raises a **critical** alert (with `location:` = the file) and, via the
+  `webshell_upload_containment` rule, isolates the web server. Needs FIM watching the web root
+  and an agent that can self-isolate (Linux/Windows).
+
 ## How to use
 
 Two views (toggle top-right):

@@ -1,0 +1,54 @@
+title: Webshell / PHP dropped in a web upload dir (auto-containment)
+id: b7e4d2a1-9c3f-4a6e-8b12-5f0a7c9d3e21
+status: experimental
+description: >
+  A PHP-executable file (.php/.phtml/.phar/...) was created or modified inside a web
+  upload/media directory (uploads, images, media, assets) - a directory that should only ever
+  hold static content. This is the classic webshell drop / PHP-injection defacement: an
+  attacker who found a file-upload or RCE flaw writes a backdoor there to run commands on the
+  server. High confidence (executable content has no business in an uploads dir), so this rule
+  authorizes AUTOMATIC host network containment: when it fires at/above the threshold the web
+  server host is isolated from the LAN (except the manager) and its IP is blocked at the edge,
+  cutting the attacker off and stopping lateral movement, while the alert is raised for the
+  analyst. Needs FIM watching the web root (e.g. /var/www/html) on the agent.
+references:
+  - https://attack.mitre.org/techniques/T1505/003/
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: critical
+logsource:
+  product: linux
+  category: file_event
+detection:
+  location:
+    file.path|contains:
+      - '/uploads/'
+      - '/upload/'
+      - '/images/'
+      - '/img/'
+      - '/media/'
+      - '/assets/'
+      - '/wp-content/uploads/'
+      - '/files/'
+  executable:
+    file.path|endswith:
+      - '.php'
+      - '.php5'
+      - '.php7'
+      - '.phtml'
+      - '.pht'
+      - '.phar'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: location and executable and change
+# DeusWatch extension: authorize automated host isolation when this fires.
+mitigation_action:
+  action_type: network_containment
+  timeout: 1800                 # auto-release the isolation after 30 minutes (0 = manual only)
+  criticality_threshold: high   # auto-isolate only when the alert is >= high (this rule is critical)
+tags:
+  - attack.t1505.003
+  - attack.persistence
+  - attack.impact
