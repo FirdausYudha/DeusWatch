@@ -184,6 +184,12 @@ func (s *Store) BuildReport(ctx context.Context, hours int) (report.Report, erro
 		 GROUP BY threat_technique_id, threat_tactic_name ORDER BY count(*) DESC LIMIT 10`, since); err != nil {
 		return r, err
 	}
+	if r.TopAgents, err = s.topCounts(ctx,
+		`SELECT agent_id, count(*) FROM events
+		 WHERE time >= $1 AND dw_label IS NOT NULL AND agent_id IS NOT NULL AND agent_id <> ''
+		 GROUP BY agent_id ORDER BY count(*) DESC LIMIT 10`, since); err != nil {
+		return r, err
+	}
 	if r.ByVerdict, err = s.topCounts(ctx,
 		`SELECT dw_llm_verdict, count(*) FROM events
 		 WHERE time >= $1 AND dw_llm_verdict IS NOT NULL

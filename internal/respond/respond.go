@@ -29,7 +29,8 @@ type Action struct {
 	ID           string     `json:"id"`
 	CreatedAt    time.Time  `json:"created_at"`
 	SourceIP     string     `json:"source_ip"`
-	ActionType   string     `json:"action"` // "block"
+	AgentID      string     `json:"agent_id"` // agent (cert CN) whose alert triggered this, "" if unknown
+	ActionType   string     `json:"action"`   // "block"
 	Reason       string     `json:"reason"`
 	RuleID       string     `json:"rule_id"`
 	BanSeconds   int        `json:"ban_seconds"` // 0 = permanent

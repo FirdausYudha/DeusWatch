@@ -19,7 +19,8 @@ bans on real devices via the **progressive-ban** engine.
 Two views (toggle top-right):
 
 - **By IP** - per-offender rollup; approve/dismiss, or bulk-dismiss all pending for one IP.
-- **Events** - every action as a row:
+  Shows the **Agent** whose alert last triggered a block for that IP.
+- **Events** - every action as a row (with the triggering **Agent**):
   - **Search bar** - free-text over IP / rule / reason.
   - **Checkboxes + select-all** - pick many rows, then **Approve / Dismiss / Unban selected**.
   - Per-row **Approve/Dismiss** (recommended) or **Unban** (executed/approved block).

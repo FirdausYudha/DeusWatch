@@ -113,6 +113,9 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 	if ev.Rule != nil {
 		a.RuleID = ev.Rule.ID
 	}
+	if ev.Agent != nil {
+		a.AgentID = ev.Agent.ID
+	}
 	id, err := e.store.Insert(ctx, a)
 	if err != nil {
 		return nil, err

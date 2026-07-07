@@ -23,11 +23,11 @@ func (s *Store) Insert(ctx context.Context, a *Action) (string, error) {
 	var id string
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO response_actions
-			(source_ip, action, reason, rule_id, ban_seconds, offense_count, source, status)
-		VALUES ($1::inet, $2, $3, $4, $5, $6, $7, $8)
+			(source_ip, action, reason, rule_id, ban_seconds, offense_count, source, status, agent_id)
+		VALUES ($1::inet, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id`,
 		a.SourceIP, a.ActionType, strOrNil(a.Reason), strOrNil(a.RuleID),
-		a.BanSeconds, a.OffenseCount, a.Source, string(a.Status)).Scan(&id)
+		a.BanSeconds, a.OffenseCount, a.Source, string(a.Status), strOrNil(a.AgentID)).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("respond: insert: %w", err)
 	}
@@ -140,6 +140,7 @@ type Offender struct {
 	LastSeen     time.Time  `json:"last_seen"`     // most recent action
 	LastStatus   string     `json:"last_status"`   // status of the most recent action
 	LastReason   string     `json:"last_reason"`   // reason of the most recent action
+	LastAgent    string     `json:"last_agent"`    // agent (cert CN) of the most recent action
 	LastBanSecs  int        `json:"last_ban_secs"` // ban duration of the most recent action
 	PendingID    string     `json:"pending_id"`    // newest recommended action id (for approve/dismiss), "" if none
 	BlockedUntil *time.Time `json:"blocked_until"` // when the current block expires (nil = none / permanent)
@@ -159,6 +160,7 @@ func (s *Store) Offenders(ctx context.Context, limit int) ([]Offender, error) {
 		       max(created_at)                                                                  AS last_seen,
 		       (array_agg(status      ORDER BY created_at DESC))[1]                             AS last_status,
 		       (array_agg(COALESCE(reason,'') ORDER BY created_at DESC))[1]                     AS last_reason,
+		       (array_agg(COALESCE(agent_id,'') ORDER BY created_at DESC))[1]                   AS last_agent,
 		       (array_agg(ban_seconds ORDER BY created_at DESC))[1]                             AS last_ban,
 		       (array_agg(id ORDER BY created_at DESC) FILTER (WHERE status = 'recommended'))[1] AS pending_id,
 		       max(COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds))
@@ -179,7 +181,7 @@ func (s *Store) Offenders(ctx context.Context, limit int) ([]Offender, error) {
 		var o Offender
 		var pendingID *string
 		if err := rows.Scan(&o.SourceIP, &o.Offenses, &o.Total, &o.Pending, &o.LastSeen,
-			&o.LastStatus, &o.LastReason, &o.LastBanSecs, &pendingID, &o.BlockedUntil, &o.Blocked); err != nil {
+			&o.LastStatus, &o.LastReason, &o.LastAgent, &o.LastBanSecs, &pendingID, &o.BlockedUntil, &o.Blocked); err != nil {
 			return nil, err
 		}
 		if pendingID != nil {
@@ -192,14 +194,14 @@ func (s *Store) Offenders(ctx context.Context, limit int) ([]Offender, error) {
 
 const actionCols = `id, created_at, host(source_ip), action, COALESCE(reason,''), COALESCE(rule_id,''),
 	ban_seconds, offense_count, source, status, COALESCE(responder,''),
-	COALESCE(decided_by,''), decided_at, executed_at, COALESCE(error,'')`
+	COALESCE(decided_by,''), decided_at, executed_at, COALESCE(error,''), COALESCE(agent_id,'')`
 
 func scanAction(row pgx.Row) (*Action, error) {
 	var a Action
 	var status, action string
 	if err := row.Scan(&a.ID, &a.CreatedAt, &a.SourceIP, &action, &a.Reason, &a.RuleID,
 		&a.BanSeconds, &a.OffenseCount, &a.Source, &status, &a.Responder,
-		&a.DecidedBy, &a.DecidedAt, &a.ExecutedAt, &a.Error); err != nil {
+		&a.DecidedBy, &a.DecidedAt, &a.ExecutedAt, &a.Error, &a.AgentID); err != nil {
 		return nil, err
 	}
 	a.ActionType, a.Status = action, Status(status)

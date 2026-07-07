@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, Fragment, type ReactNode } from 'react'
 import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData, fetchLayout, saveLayout,
   fetchStorageStatus,
@@ -533,8 +533,20 @@ const SEV_OPTIONS: { label: string; value: number }[] = [
 const fieldCls =
   'rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]'
 
+// cleanEvent drops empty/null fields so the expanded "full log" JSON shows only what the
+// event actually carries (Wazuh-style), rather than a wall of blank keys.
+function cleanEvent(a: EventRow): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(a)) {
+    if (v === '' || v === null || v === undefined) continue
+    out[k] = v
+  }
+  return out
+}
+
 function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTicketInput) => void; apiDown: boolean }) {
   const [rows, setRows] = useState<EventRow[]>([])
+  const [expanded, setExpanded] = useState<number | null>(null)
   const [q, setQ] = useState('')
   const [ip, setIp] = useState('')
   const [rule, setRule] = useState('')
@@ -656,6 +668,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
           <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Time</th>
+              <th className="px-4 py-2 font-medium">Agent</th>
               <th className="px-4 py-2 font-medium">Source IP</th>
               <th className="px-4 py-2 font-medium">Rule / Event</th>
               <th className="px-4 py-2 font-medium">MITRE</th>
@@ -668,24 +681,48 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
           <tbody className="divide-y divide-slate-800 bg-slate-900/40">
             {rows.length ? (
               rows.map((a, i) => (
-                <tr key={i} className="hover:bg-slate-800/40">
-                  <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('en-US')}</td>
-                  <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
-                  <td className="px-4 py-2 text-slate-300">{a.rule_name || a.dw_label || a.file_path || a.event_action || a.event_category || '—'}</td>
-                  <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
-                  <td className="px-4 py-2"><ThreatIntel a={a} /></td>
-                  <td className="px-4 py-2"><LLMVerdict a={a} /></td>
-                  <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
-                  {onCreateTicket && (
-                    <td className="px-4 py-2 text-right">
-                      <button onClick={() => onCreateTicket(alertToTicket(a))} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800" title="Raise a Tier-2 ticket from this event">+ Ticket</button>
+                <Fragment key={i}>
+                  <tr
+                    className="cursor-pointer hover:bg-slate-800/40"
+                    onClick={() => setExpanded(expanded === i ? null : i)}
+                    title="Click to view the full JSON log"
+                  >
+                    <td className="px-4 py-2 text-slate-400">{new Date(a.time).toLocaleString('en-US')}</td>
+                    <td className="px-4 py-2 text-slate-300">{a.agent_id || '—'}</td>
+                    <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip || '—'}</td>
+                    <td className="px-4 py-2 text-slate-300">
+                      {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
+                      {a.file_path && (
+                        <span className="mt-0.5 block truncate font-mono text-xs text-slate-500" title={a.file_path}>
+                          {a.file_path}
+                        </span>
+                      )}
                     </td>
+                    <td className="px-4 py-2 text-slate-400">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
+                    <td className="px-4 py-2"><ThreatIntel a={a} /></td>
+                    <td className="px-4 py-2"><LLMVerdict a={a} /></td>
+                    <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
+                    {onCreateTicket && (
+                      <td className="px-4 py-2 text-right">
+                        <button onClick={(e) => { e.stopPropagation(); onCreateTicket(alertToTicket(a)) }} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800" title="Raise a Tier-2 ticket from this event">+ Ticket</button>
+                      </td>
+                    )}
+                  </tr>
+                  {expanded === i && (
+                    <tr className="bg-slate-950/60">
+                      <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-3">
+                        <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Full log (JSON)</div>
+                        <pre className="max-h-96 overflow-auto rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs leading-relaxed text-slate-300">
+{JSON.stringify(cleanEvent(a), null, 2)}
+                        </pre>
+                      </td>
+                    </tr>
                   )}
-                </tr>
+                </Fragment>
               ))
             ) : (
               <tr>
-                <td colSpan={onCreateTicket ? 8 : 7} className="px-4 py-6 text-center text-sm text-slate-600">
+                <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-6 text-center text-sm text-slate-600">
                   {apiDown ? 'API unreachable — run docker compose up' : hasFilter || q ? 'No events match these filters.' : 'No events yet.'}
                 </td>
               </tr>

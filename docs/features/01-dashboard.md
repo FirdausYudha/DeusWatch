@@ -19,6 +19,9 @@ and health panels.
 - **Search bar (top)**: free-text - matches source **IP**, rule name/id, MITRE technique, host,
   user, file path, label, and raw message. Tick **Alerts only** to hide raw info events.
 - **Filters panel**: narrow by Source IP, Rule, MITRE ID, Min level, From/To.
+- **Events & Alerts table**: each row shows the **Agent** (which host reported it) and, for FIM
+  or path-based rules, the changed **file path** under the rule name. **Click any row** to expand
+  the **full log as JSON** (Wazuh-style raw event).
 - **Webhook** button: POST the current events/alerts as JSON to your export webhook.
 - **Customize**: rearrange/add/remove widgets, then Save.
 - **Log Storage** panel: DB size vs budget, retention lifecycle, replication status.

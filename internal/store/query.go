@@ -20,6 +20,7 @@ type EventRow struct {
 	SourceIP    string    `json:"source_ip"`
 	HostName    string    `json:"host_name"`
 	UserName    string    `json:"user_name"`
+	AgentID     string    `json:"agent_id"` // the agent NAME (cert CN) that reported the event
 	RuleID      string    `json:"rule_id"`
 	RuleName    string    `json:"rule_name"`
 	TechniqueID string    `json:"threat_technique_id"`
@@ -56,7 +57,8 @@ const selectCols = `
 	COALESCE(dw_enrichment_status,''), COALESCE(dw_severity_escalated_by,''),
 	COALESCE(dw_llm_verdict,''), COALESCE(dw_llm_summary,''),
 	COALESCE(file_path,''), COALESCE(file_hash_sha256,''),
-	COALESCE(dw_filehash_verdict,''), COALESCE(dw_filehash_detail,'')`
+	COALESCE(dw_filehash_verdict,''), COALESCE(dw_filehash_detail,''),
+	COALESCE(agent_id,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -71,6 +73,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.AbuseConfidence, &e.OTXPulseCount, &e.EnrichStatus, &e.EscalatedBy,
 			&e.LLMVerdict, &e.LLMSummary,
 			&e.FilePath, &e.FileHash, &e.FileHashVerdict, &e.FileHashDetail,
+			&e.AgentID,
 		); err != nil {
 			return nil, err
 		}

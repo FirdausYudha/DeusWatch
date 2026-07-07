@@ -55,6 +55,7 @@ export type EventRow = {
   source_ip: string
   host_name: string
   user_name: string
+  agent_id: string
   rule_id: string
   rule_name: string
   threat_technique_id: string
@@ -500,6 +501,7 @@ export type ResponseAction = {
   id: string
   created_at: string
   source_ip: string
+  agent_id: string
   action: string
   reason: string
   rule_id: string
@@ -538,6 +540,7 @@ export type Offender = {
   last_seen: string
   last_status: ResponseStatus
   last_reason: string
+  last_agent: string
   last_ban_secs: number
   pending_id: string
   blocked_until: string | null
@@ -848,6 +851,7 @@ export type SecurityReport = {
   total_alerts: number
   by_severity: ReportCount[] | null
   top_source_ips: ReportCount[] | null
+  top_agents: ReportCount[] | null
   top_rules: ReportCount[] | null
   top_techniques: ReportCount[] | null
   by_verdict: ReportCount[] | null

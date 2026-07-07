@@ -5,8 +5,9 @@ A security summary over a time window, an optional **AI executive summary**, and
 
 ## How it works
 
-- `GET /api/report?hours=N` builds the summary (totals, severity, top IPs/rules, MITRE, LLM
-  verdicts) from the `events` hypertable - same data as the dashboard, presented for reading.
+- `GET /api/report?hours=N` builds the summary (totals, severity, top IPs, top **agents**
+  (most-affected hosts), top rules, MITRE, LLM verdicts) from the `events` hypertable - same
+  data as the dashboard, presented for reading.
 - **AI executive summary**: an LLM turns the report into a short narrative. Generated
   **on-demand** (button) or on a **schedule** by the worker; stored in `report_summaries`.
   Cost-controlled - the LLM runs on reports, not per alert.

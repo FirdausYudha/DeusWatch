@@ -27,6 +27,7 @@ type Report struct {
 	TopSourceIPs  []Count   `json:"top_source_ips"`
 	TopRules      []Count   `json:"top_rules"`
 	TopTechniques []Count   `json:"top_techniques"`
+	TopAgents     []Count   `json:"top_agents"` // most active agents/hosts (by alert count)
 	ByVerdict     []Count   `json:"by_verdict"`
 }
 
@@ -40,6 +41,7 @@ func RenderMarkdown(r Report) string {
 
 	section(&b, "Severity", r.BySeverity)
 	section(&b, "Top source IP", r.TopSourceIPs)
+	section(&b, "Top agent (affected host)", r.TopAgents)
 	section(&b, "Top rule", r.TopRules)
 	section(&b, "Top MITRE technique", r.TopTechniques)
 	section(&b, "LLM verdict", r.ByVerdict)
@@ -53,6 +55,7 @@ func SummaryPrompt(r Report) string {
 	fmt.Fprintf(&b, "Total events: %d. Total alerts: %d.\n", r.TotalEvents, r.TotalAlerts)
 	promptLine(&b, "Severity breakdown", r.BySeverity)
 	promptLine(&b, "Top source IPs", r.TopSourceIPs)
+	promptLine(&b, "Top agents (affected hosts)", r.TopAgents)
 	promptLine(&b, "Top rules", r.TopRules)
 	promptLine(&b, "Top MITRE techniques", r.TopTechniques)
 	promptLine(&b, "Verdicts", r.ByVerdict)

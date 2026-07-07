@@ -273,6 +273,7 @@ function OffendersTable({
         <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
           <tr>
             <th className="px-4 py-2 font-medium">Source IP</th>
+            <th className="px-4 py-2 font-medium">Agent</th>
             <th className="px-4 py-2 font-medium">Offenses</th>
             <th className="px-4 py-2 font-medium">Last reason</th>
             <th className="px-4 py-2 font-medium">Current ban</th>
@@ -284,7 +285,7 @@ function OffendersTable({
         <tbody className="divide-y divide-slate-800 bg-slate-900/40">
           {offenders.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+              <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                 No offending IPs yet. Alerts with a source IP will appear here, one row per IP.
               </td>
             </tr>
@@ -292,6 +293,7 @@ function OffendersTable({
           {offenders.map((o) => (
             <tr key={o.source_ip} className="hover:bg-slate-800/40">
               <td className="px-4 py-2 font-mono text-slate-300">{o.source_ip}</td>
+              <td className="px-4 py-2 text-slate-300">{o.last_agent || '—'}</td>
               <td className="px-4 py-2 text-slate-400">
                 {o.offenses}
                 {o.pending > 0 && <span className="ml-1 text-amber-300">(+{o.pending})</span>}
@@ -387,6 +389,7 @@ function EventsTable({
               </th>
             )}
             <th className="px-4 py-2 font-medium">Time</th>
+            <th className="px-4 py-2 font-medium">Agent</th>
             <th className="px-4 py-2 font-medium">Source IP</th>
             <th className="px-4 py-2 font-medium">Reason</th>
             <th className="px-4 py-2 font-medium">Ban</th>
@@ -398,7 +401,7 @@ function EventsTable({
         <tbody className="divide-y divide-slate-800 bg-slate-900/40">
           {actions.length === 0 && (
             <tr>
-              <td colSpan={canApprove ? 8 : 7} className="px-4 py-8 text-center text-slate-500">
+              <td colSpan={canApprove ? 9 : 8} className="px-4 py-8 text-center text-slate-500">
                 No response actions match. Alerts with a source IP produce block recommendations.
               </td>
             </tr>
@@ -414,6 +417,7 @@ function EventsTable({
                   </td>
                 )}
                 <td className="px-4 py-2 text-slate-400">{new Date(a.created_at).toLocaleString('en-US')}</td>
+                <td className="px-4 py-2 text-slate-300">{a.agent_id || '—'}</td>
                 <td className="px-4 py-2 font-mono text-slate-300">{a.source_ip}</td>
                 <td className="px-4 py-2 text-slate-300">{a.reason || a.rule_id || '—'}</td>
                 <td className="px-4 py-2 text-slate-400">{banLabel(a.ban_seconds)}</td>
