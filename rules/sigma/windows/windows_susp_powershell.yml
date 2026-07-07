@@ -1,0 +1,30 @@
+title: Windows - Suspicious PowerShell (encoded / download cradle)
+id: 673fcbcc-7000-49e5-a1bc-0e6e88d09df1
+status: experimental
+description: >
+  A process-creation (4688) or PowerShell scriptblock (4104) event whose command line shows an
+  encoded command or an in-memory download-and-execute cradle (-EncodedCommand, hidden window,
+  DownloadString, IEX, FromBase64String, ExecutionPolicy Bypass). Hallmark of fileless attacks.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: DeusWatch
+level: high
+logsource:
+  product: windows
+  category: process
+detection:
+  keywords:
+    - '-encodedcommand'
+    - '-enc '
+    - '-nop -w hidden'
+    - 'downloadstring'
+    - 'downloadfile'
+    - 'invoke-expression'
+    - 'iex('
+    - 'frombase64string'
+    - 'executionpolicy bypass'
+    - '-ep bypass'
+  condition: keywords
+tags:
+  - attack.t1059.001
+  - attack.execution

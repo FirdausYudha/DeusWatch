@@ -1,0 +1,20 @@
+title: Windows - New user account created
+id: 89df2278-215a-4e3c-8751-bd3568a1c216
+status: experimental
+description: >
+  A new Windows user account was created (Event ID 4720). Attackers create accounts for
+  persistence. Expected during legitimate provisioning, so treat as medium and correlate with
+  who/when.
+references:
+  - https://attack.mitre.org/techniques/T1136/001/
+author: DeusWatch
+level: medium
+logsource:
+  product: windows
+detection:
+  selection:
+    event.action: windows_account_created
+  condition: selection
+tags:
+  - attack.t1136.001
+  - attack.persistence

@@ -1,0 +1,30 @@
+title: Windows - LOLBin download / proxy execution
+id: 15976d58-5bf7-4941-92b3-66ed7304567f
+status: experimental
+description: >
+  A process-creation (4688) event whose command line uses a living-off-the-land binary to fetch
+  or proxy-execute code (certutil -urlcache, bitsadmin /transfer, mshta http, regsvr32 scriptlet,
+  rundll32 javascript, wmic process call create) or to delete shadow copies (ransomware). Strong
+  malicious signal.
+references:
+  - https://attack.mitre.org/techniques/T1218/
+  - https://attack.mitre.org/techniques/T1105/
+author: DeusWatch
+level: high
+logsource:
+  product: windows
+  category: process
+detection:
+  keywords:
+    - 'certutil -urlcache'
+    - 'certutil.exe -urlcache'
+    - 'bitsadmin /transfer'
+    - 'mshta http'
+    - 'regsvr32 /s /u /i:http'
+    - 'rundll32 javascript:'
+    - 'wmic process call create'
+    - 'vssadmin delete shadows'
+  condition: keywords
+tags:
+  - attack.t1218
+  - attack.defense_evasion

@@ -1,0 +1,22 @@
+title: Linux - sudo attempt by a user not in sudoers
+id: 570ce86f-edcf-495d-8dd4-c13bc0692bd8
+status: experimental
+description: >
+  A user tried to run sudo but is not authorized ("is not in the sudoers file",
+  "user NOT authorized"). Indicates an attempt to escalate privileges from an unprivileged
+  account.
+references:
+  - https://attack.mitre.org/techniques/T1548/003/
+author: DeusWatch
+level: medium
+logsource:
+  category: authentication
+detection:
+  keywords:
+    - 'is not in the sudoers file'
+    - 'user NOT authorized'
+    - 'NOT in sudoers'
+  condition: keywords
+tags:
+  - attack.t1548.003
+  - attack.privilege_escalation

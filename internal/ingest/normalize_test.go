@@ -1,6 +1,9 @@
 package ingest
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestNormalizeSSHDFailed(t *testing.T) {
 	e, ok := Normalize(RawLog{
@@ -142,6 +145,33 @@ func TestNormalizeFIMBadPayload(t *testing.T) {
 
 // An sshd line we don't structure into user/outcome still gets category=authentication, so
 // category-scoped auth rules can match its raw text (e.g. break-in / scanning signatures).
+func TestNormalizeWindowsExtendedIDs(t *testing.T) {
+	cases := []struct {
+		id       int
+		category string
+		action   string
+	}{
+		{4688, "process", "windows_process_created"},
+		{4104, "process", "powershell_scriptblock"},
+		{4720, "iam", "windows_account_created"},
+		{4732, "iam", "windows_group_member_added"},
+		{1102, "iam", "windows_audit_log_cleared"},
+	}
+	for _, c := range cases {
+		msg := fmt.Sprintf(`{"id":%d,"text":"rendered event text"}`, c.id)
+		e, ok := Normalize(RawLog{Dataset: "windows-security", Host: "win01", Message: msg})
+		if !ok {
+			t.Fatalf("event %d should be recognized", c.id)
+		}
+		if e.Event.Category != c.category || e.Event.Action != c.action {
+			t.Fatalf("event %d: got cat=%q act=%q want %q/%q", c.id, e.Event.Category, e.Event.Action, c.category, c.action)
+		}
+		if e.Host == nil || e.Host.OSType != "windows" {
+			t.Fatalf("event %d should carry host.os.type=windows", c.id)
+		}
+	}
+}
+
 func TestNormalizeSSHDUnstructuredGetsAuthCategory(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "reverse mapping ... POSSIBLE BREAK-IN ATTEMPT!"})
 	if ok {

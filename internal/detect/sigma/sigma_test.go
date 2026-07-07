@@ -372,6 +372,44 @@ func TestAuthoredRuleSetsFireAndScope(t *testing.T) {
 	}
 }
 
+// TestWindowsAuthoredRules loads the Windows rule dir and checks the structured (event.action)
+// and process command-line (keyword-on-text) rules fire, and stay quiet on benign process text.
+func TestWindowsAuthoredRules(t *testing.T) {
+	win, err := LoadDir("../../../rules/sigma/windows")
+	if err != nil || len(win) == 0 {
+		t.Fatalf("load windows rules: %v (n=%d)", err, len(win))
+	}
+	winEvt := func(action, text string) map[string]any {
+		return FlattenEvent(&ingest.Event{
+			Event: ingest.EventFields{Category: catFor(action), Action: action, Original: text},
+			Host:  &ingest.Host{Name: "win01", OSType: "windows"},
+		})
+	}
+	// Audit-log-cleared (structured event.action).
+	if len(win.Match(winEvt("windows_audit_log_cleared", "The audit log was cleared"))) == 0 {
+		t.Fatal("audit-log-cleared should fire")
+	}
+	// Suspicious PowerShell (keyword on the 4688 rendered command line).
+	ps := winEvt("windows_process_created", `New Process Name: powershell.exe  Command Line: powershell -nop -w hidden -EncodedCommand ZQBjAGgAbwA=`)
+	if len(win.Match(ps)) == 0 {
+		t.Fatal("encoded PowerShell should fire a windows rule")
+	}
+	// A benign process line stays quiet.
+	if n := len(win.Match(winEvt("windows_process_created", `New Process Name: C:\Windows\System32\notepad.exe`))); n != 0 {
+		t.Fatalf("a benign process should not match windows rules (got %d)", n)
+	}
+}
+
+// catFor mirrors the normalizer's category for a Windows action (test helper).
+func catFor(action string) string {
+	switch action {
+	case "windows_process_created", "powershell_scriptblock":
+		return "process"
+	default:
+		return "iam"
+	}
+}
+
 func TestFieldAlias(t *testing.T) {
 	r := mustParse(t, `
 title: Alias test

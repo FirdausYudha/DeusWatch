@@ -1,0 +1,20 @@
+title: Windows - Member added to a security-enabled group
+id: 62aebc0a-b5f0-4840-853c-8f42959e90d0
+status: experimental
+description: >
+  A member was added to a security-enabled group (Event ID 4728/4732/4756), e.g. Administrators
+  or Domain Admins. A common privilege-escalation / persistence step; verify the change was
+  authorized.
+references:
+  - https://attack.mitre.org/techniques/T1098/
+author: DeusWatch
+level: medium
+logsource:
+  product: windows
+detection:
+  selection:
+    event.action: windows_group_member_added
+  condition: selection
+tags:
+  - attack.t1098
+  - attack.persistence

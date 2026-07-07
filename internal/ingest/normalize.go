@@ -292,6 +292,36 @@ func normalizeWindows(msg string, e *Event) bool {
 		e.Event.Outcome = "failure"
 		e.Event.Severity = SeverityMedium
 		return true
+	case 4688: // A new process was created (command line is in the rendered text if auditing is on)
+		e.Event.Category = "process"
+		e.Event.Action = "windows_process_created"
+		e.Event.Severity = SeverityInfo
+		return true
+	case 4104: // PowerShell scriptblock logging (Microsoft-Windows-PowerShell/Operational)
+		e.Event.Category = "process"
+		e.Event.Action = "powershell_scriptblock"
+		e.Event.Severity = SeverityLow
+		return true
+	case 4720: // A user account was created
+		e.Event.Category = "iam"
+		e.Event.Action = "windows_account_created"
+		e.Event.Severity = SeverityMedium
+		return true
+	case 4726: // A user account was deleted
+		e.Event.Category = "iam"
+		e.Event.Action = "windows_account_deleted"
+		e.Event.Severity = SeverityMedium
+		return true
+	case 4728, 4732, 4756: // A member was added to a security-enabled (global/local/universal) group
+		e.Event.Category = "iam"
+		e.Event.Action = "windows_group_member_added"
+		e.Event.Severity = SeverityMedium
+		return true
+	case 1102: // The Windows Security audit log was cleared (classic anti-forensics)
+		e.Event.Category = "iam"
+		e.Event.Action = "windows_audit_log_cleared"
+		e.Event.Severity = SeverityHigh
+		return true
 	default:
 		return false // unmapped Windows event: stored as a raw info log
 	}
