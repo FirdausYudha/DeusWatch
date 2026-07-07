@@ -38,6 +38,19 @@ var (
 	reWebIP = regexp.MustCompile(`(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})`)
 )
 
+// datasetKind reduces a source's (possibly descriptive) dataset label to the base keyword the
+// normalizer dispatches on. Operators name sources freely in the UI - "fim (download)",
+// "firewall (ufw)", "nginx prod" - so matching the raw label exactly would silently drop them
+// to raw/unknown events. We take the first token (lowercased, before any space or "("), so the
+// label is preserved for display while the kind still routes to the right parser.
+func datasetKind(ds string) string {
+	ds = strings.ToLower(strings.TrimSpace(ds))
+	if i := strings.IndexAny(ds, " (\t"); i >= 0 {
+		ds = ds[:i]
+	}
+	return ds
+}
+
 // Normalize turns a RawLog into a DCS Event. Returns (event, true) when the line is
 // recognized and mapped. For unknown formats it still produces a minimal event
 // (dataset + original) so the log is not lost, with the flag set to false.
@@ -46,13 +59,14 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if ts.IsZero() {
 		ts = time.Now()
 	}
+	kind := datasetKind(raw.Dataset)
 	e := &Event{
 		Timestamp: ts,
 		Event:     EventFields{Dataset: raw.Dataset, Original: raw.Message, Severity: SeverityInfo},
 	}
 	if raw.Host != "" {
 		osType := "linux"
-		if strings.HasPrefix(raw.Dataset, "windows") {
+		if strings.HasPrefix(kind, "windows") {
 			osType = "windows"
 		}
 		e.Host = &Host{Name: raw.Host, OSType: osType}
@@ -61,19 +75,19 @@ func Normalize(raw RawLog) (*Event, bool) {
 		e.Agent = &Agent{ID: raw.AgentID}
 	}
 
-	if raw.Dataset == "sshd" && normalizeSSHD(raw.Message, e) {
+	if kind == "sshd" && normalizeSSHD(raw.Message, e) {
 		return e, true
 	}
-	if raw.Dataset == "fim" && normalizeFIM(raw.Message, e) {
+	if kind == "fim" && normalizeFIM(raw.Message, e) {
 		return e, true
 	}
-	if strings.HasPrefix(raw.Dataset, "windows") {
+	if strings.HasPrefix(kind, "windows") {
 		return e, normalizeWindows(raw.Message, e)
 	}
-	if raw.Dataset == "firewall" && normalizeFirewall(raw.Message, e) {
+	if kind == "firewall" && normalizeFirewall(raw.Message, e) {
 		return e, true
 	}
-	if raw.Dataset == "web" || raw.Dataset == "nginx" || raw.Dataset == "apache" {
+	if kind == "web" || kind == "nginx" || kind == "apache" {
 		return e, normalizeWeb(raw.Message, e)
 	}
 	return e, false

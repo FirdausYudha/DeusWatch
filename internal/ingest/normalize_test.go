@@ -81,6 +81,26 @@ func TestNormalizeFIMCreatedLowSeverity(t *testing.T) {
 	}
 }
 
+// A descriptively-named source ("fim (download)", "firewall (ufw)", "nginx prod") must still
+// route to the right parser - the label is free-form in the UI, so matching must be on the
+// base keyword, not the exact string.
+func TestNormalizeDescriptiveDatasetNames(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "fim (download)", Host: "dev", Message: `{"path":"/home/deus/Download/test.txt","action":"created","sha256":"x"}`})
+	if !ok || e.Event.Category != "file" || e.Event.Action != "file_created" {
+		t.Fatalf("fim (download) should normalize as a file event: ok=%v cat=%q act=%q", ok, e.Event.Category, e.Event.Action)
+	}
+	if e.Event.Dataset != "fim (download)" {
+		t.Fatalf("original dataset label must be preserved, got %q", e.Event.Dataset)
+	}
+	fw, ok := Normalize(RawLog{Dataset: "firewall (ufw)", Host: "edge", Message: "[UFW BLOCK] SRC=1.2.3.4 DST=5.6.7.8 PROTO=TCP SPT=40000 DPT=23"})
+	if !ok || fw.Event.Category != "network" || fw.Source == nil || fw.Source.IP != "1.2.3.4" {
+		t.Fatalf("firewall (ufw) should normalize as a network event with the source IP: ok=%v cat=%q", ok, fw.Event.Category)
+	}
+	if _, ok := Normalize(RawLog{Dataset: "windows-security", Message: `{"id":4625,"user":"admin"}`}); !ok {
+		t.Fatal("windows-* datasets must still route to the windows parser")
+	}
+}
+
 func TestNormalizeFIMBadPayload(t *testing.T) {
 	if _, ok := Normalize(RawLog{Dataset: "fim", Message: "not json"}); ok {
 		t.Fatal("a broken FIM payload must not be flagged as recognized")
