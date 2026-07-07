@@ -1,0 +1,28 @@
+title: Web - Vulnerability scanner / attack tool user-agent
+id: 6af96915-88e5-424d-b1fc-4f3429c1b60a
+status: experimental
+description: >
+  A request carries the user-agent of a well-known web scanner or attack tool (sqlmap, nikto,
+  Nmap NSE, masscan, acunetix, nessus, dirbuster, gobuster, wpscan). Indicates active scanning
+  of the site.
+references:
+  - https://attack.mitre.org/techniques/T1595/
+author: DeusWatch
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'sqlmap'
+    - 'nikto'
+    - 'nmap scripting engine'
+    - 'masscan'
+    - 'acunetix'
+    - 'nessus'
+    - 'dirbuster'
+    - 'gobuster'
+    - 'wpscan'
+  condition: keywords
+tags:
+  - attack.t1595
+  - attack.reconnaissance

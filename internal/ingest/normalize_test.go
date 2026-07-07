@@ -140,6 +140,18 @@ func TestNormalizeFIMBadPayload(t *testing.T) {
 	}
 }
 
+// An sshd line we don't structure into user/outcome still gets category=authentication, so
+// category-scoped auth rules can match its raw text (e.g. break-in / scanning signatures).
+func TestNormalizeSSHDUnstructuredGetsAuthCategory(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "reverse mapping ... POSSIBLE BREAK-IN ATTEMPT!"})
+	if ok {
+		t.Fatal("this line is not a structured Failed/Accepted event")
+	}
+	if e.Event.Category != "authentication" {
+		t.Fatalf("any sshd line should carry category=authentication, got %q", e.Event.Category)
+	}
+}
+
 func TestNormalizeUnknownKeepsOriginal(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "Server listening on 0.0.0.0 port 22."})
 	if ok {

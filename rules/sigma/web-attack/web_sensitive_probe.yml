@@ -1,0 +1,27 @@
+title: Web - Sensitive file / secret probing
+id: c256ac0a-e5b0-4ad5-a6e9-98166a103d12
+status: experimental
+description: >
+  A request targets a secret or config file that is never meant to be web-served (.env,
+  .git/config, wp-config.php, .htpasswd, id_rsa, .aws/credentials, server-status). Classic
+  recon for leaked credentials/source before an attack.
+references:
+  - https://attack.mitre.org/techniques/T1595/
+author: DeusWatch
+level: medium
+logsource:
+  category: web
+detection:
+  keywords:
+    - '/.env'
+    - '/.git/config'
+    - '/.git/head'
+    - 'wp-config.php'
+    - '/.htpasswd'
+    - '/.ssh/id_rsa'
+    - '/.aws/credentials'
+    - '/server-status'
+  condition: keywords
+tags:
+  - attack.t1595
+  - attack.reconnaissance

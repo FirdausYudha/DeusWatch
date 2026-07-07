@@ -1,0 +1,20 @@
+title: SSH - Client sent no identification string (scanning)
+id: bc4cb263-6bb2-4b04-8545-71ecfa3fa550
+status: experimental
+description: >
+  A client connected to SSH but never sent an identification string ("Did not receive
+  identification string"). This is the signature of a port scanner or a health check hitting
+  the SSH port, and at volume indicates active scanning/reconnaissance.
+references:
+  - https://attack.mitre.org/techniques/T1595/
+author: DeusWatch
+level: low
+logsource:
+  category: authentication
+detection:
+  keywords:
+    - 'Did not receive identification string'
+  condition: keywords
+tags:
+  - attack.t1595
+  - attack.reconnaissance

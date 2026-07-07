@@ -1,0 +1,21 @@
+title: SSH - Too many authentication failures (single session)
+id: e97573c0-bb6b-47f1-9c2e-69fd2df4121a
+status: experimental
+description: >
+  OpenSSH disconnected a session for exceeding the authentication-attempt limit
+  ("maximum authentication attempts exceeded" / "Disconnecting: Too many authentication
+  failures"). Indicates key/password guessing within one connection.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch
+level: medium
+logsource:
+  category: authentication
+detection:
+  keywords:
+    - 'maximum authentication attempts exceeded'
+    - 'Too many authentication failures'
+  condition: keywords
+tags:
+  - attack.t1110
+  - attack.credential_access

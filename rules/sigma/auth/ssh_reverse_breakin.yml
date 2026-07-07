@@ -1,0 +1,20 @@
+title: SSH - Possible break-in attempt (reverse-DNS mismatch)
+id: 31ba2b2e-d3c9-46b6-b99c-5b2f4f5f8263
+status: experimental
+description: >
+  OpenSSH reported that a connecting host's reverse DNS does not map back to its address
+  ("POSSIBLE BREAK-IN ATTEMPT"). Common with spoofed or scanning hosts and a frequent precursor
+  to brute-force attempts.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch
+level: medium
+logsource:
+  category: authentication
+detection:
+  keywords:
+    - 'POSSIBLE BREAK-IN ATTEMPT'
+  condition: keywords
+tags:
+  - attack.t1110
+  - attack.credential_access

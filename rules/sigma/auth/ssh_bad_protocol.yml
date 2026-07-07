@@ -1,0 +1,20 @@
+title: SSH - Bad protocol version / version probing
+id: 1bcc613d-69a8-4c74-a9e6-cd8ea66f0de9
+status: experimental
+description: >
+  OpenSSH logged a malformed protocol handshake ("Bad protocol version identification"). This
+  is typically a scanner or exploit tool probing the SSH service for its version/banner, or a
+  malformed attack against the daemon.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: medium
+logsource:
+  category: authentication
+detection:
+  keywords:
+    - 'Bad protocol version identification'
+  condition: keywords
+tags:
+  - attack.t1190
+  - attack.initial_access

@@ -323,6 +323,10 @@ func normalizeFIM(msg string, e *Event) bool {
 }
 
 func normalizeSSHD(msg string, e *Event) bool {
+	// Any sshd line is an authentication-service log: set the category up front (even for lines
+	// we don't structure into user/outcome below) so category-scoped auth rules can match the
+	// raw text (e.g. "POSSIBLE BREAK-IN ATTEMPT", "Bad protocol version identification").
+	e.Event.Category = "authentication"
 	if m := reSSHFailed.FindStringSubmatch(msg); m != nil {
 		e.Event.Category = "authentication"
 		e.Event.Action = "ssh_login"

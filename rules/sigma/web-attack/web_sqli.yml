@@ -1,0 +1,32 @@
+title: Web - SQL injection attempt
+id: b2e7de7e-6820-40f5-bbbe-c5c9c7fb7f93
+status: experimental
+description: >
+  A web request contains SQL-injection payload markers (UNION SELECT, information_schema,
+  boolean tautologies, time-based functions). Matched against the raw access-log line, so it
+  covers plain and URL-encoded forms of the classic tokens.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'union select'
+    - 'union+select'
+    - 'union%20select'
+    - 'information_schema'
+    - '/*!'
+    - 'concat(0x'
+    - 'group_concat('
+    - '@@version'
+    - 'sleep('
+    - 'benchmark('
+    - 'waitfor delay'
+    - "'or'1'='1"
+    - 'or 1=1--'
+  condition: keywords
+tags:
+  - attack.t1190
+  - attack.initial_access

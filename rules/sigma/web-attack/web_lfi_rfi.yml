@@ -1,0 +1,25 @@
+title: Web - PHP wrapper / remote-file-inclusion attempt
+id: 3437c8ea-811e-469e-9ec4-2ad50d9d7ffe
+status: experimental
+description: >
+  A web request uses a PHP stream wrapper or inclusion payload (php://filter, php://input,
+  data://, expect://, zip://) - used for local/remote file inclusion and code execution against
+  a vulnerable include parameter. These wrappers essentially never appear in benign traffic.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'php://filter'
+    - 'php://input'
+    - 'data://text'
+    - 'expect://'
+    - 'zip://'
+    - 'phar://'
+  condition: keywords
+tags:
+  - attack.t1190
+  - attack.initial_access

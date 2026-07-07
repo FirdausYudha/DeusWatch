@@ -318,6 +318,60 @@ func TestWebshellUploadContainmentRule(t *testing.T) {
 	}
 }
 
+// TestAuthoredRuleSetsFireAndScope loads the hand-authored auth + web-attack rule dirs and
+// checks they fire on real attack log lines, stay quiet on benign traffic, and respect
+// logsource scope (a web rule must not run on an sshd line and vice-versa).
+func TestAuthoredRuleSetsFireAndScope(t *testing.T) {
+	web, err := LoadDir("../../../rules/sigma/web-attack")
+	if err != nil || len(web) == 0 {
+		t.Fatalf("load web-attack rules: %v (n=%d)", err, len(web))
+	}
+	auth, err := LoadDir("../../../rules/sigma/auth")
+	if err != nil || len(auth) == 0 {
+		t.Fatalf("load auth rules: %v (n=%d)", err, len(auth))
+	}
+
+	webEvent := func(line string) map[string]any {
+		return FlattenEvent(&ingest.Event{Event: ingest.EventFields{Category: "web", Original: line}})
+	}
+	authEvent := func(line string) map[string]any {
+		return FlattenEvent(&ingest.Event{Event: ingest.EventFields{Category: "authentication", Original: line}})
+	}
+
+	// Web attacks fire.
+	for _, line := range []string{
+		`1.2.3.4 - - "GET /p?id=1 UNION SELECT username,password FROM users HTTP/1.1" 200`,
+		`1.2.3.4 - - "GET /?file=../../../../etc/passwd HTTP/1.1" 200`,
+		`1.2.3.4 - - "GET / HTTP/1.1" 200 "-" "sqlmap/1.7"`,
+		`1.2.3.4 - - "GET /wp-content/uploads/c99.php HTTP/1.1" 200`,
+		`1.2.3.4 - - "GET /.env HTTP/1.1" 404`,
+	} {
+		if len(web.Match(webEvent(line))) == 0 {
+			t.Fatalf("expected a web-attack rule to fire on: %s", line)
+		}
+	}
+	// Benign web traffic stays quiet.
+	if n := len(web.Match(webEvent(`8.8.8.8 - - "GET /index.html HTTP/1.1" 200 1024 "-" "Mozilla/5.0"`))); n != 0 {
+		t.Fatalf("benign web request should not match any web-attack rule (got %d)", n)
+	}
+	// A web rule must not run on an sshd line (logsource scope).
+	if n := len(web.Match(authEvent("Failed password for root from 1.2.3.4 port 22 ssh2"))); n != 0 {
+		t.Fatalf("web-attack rules must not fire on an authentication event (got %d)", n)
+	}
+
+	// Auth signatures fire.
+	if len(auth.Match(authEvent("reverse mapping checking getaddrinfo failed - POSSIBLE BREAK-IN ATTEMPT!"))) == 0 {
+		t.Fatal("expected an auth rule to fire on a break-in attempt line")
+	}
+	if len(auth.Match(authEvent("Did not receive identification string from 1.2.3.4"))) == 0 {
+		t.Fatal("expected an auth rule to fire on a scanner line")
+	}
+	// Benign auth line stays quiet.
+	if n := len(auth.Match(authEvent("Accepted password for deploy from 10.0.0.5 port 22 ssh2"))); n != 0 {
+		t.Fatalf("a normal accepted login should not match these auth rules (got %d)", n)
+	}
+}
+
 func TestFieldAlias(t *testing.T) {
 	r := mustParse(t, `
 title: Alias test

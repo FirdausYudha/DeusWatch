@@ -1,0 +1,21 @@
+title: SSH - Root login refused
+id: bf0b4a2b-5d58-4012-b5d4-5e2bc6c7f3fc
+status: experimental
+description: >
+  A direct SSH login as root was refused by policy ("ROOT LOGIN REFUSED" / "User root from ...
+  not allowed because"). Attackers routinely target the root account first; a refusal still
+  signals an attempt to use the most privileged account.
+references:
+  - https://attack.mitre.org/techniques/T1078/
+author: DeusWatch
+level: high
+logsource:
+  category: authentication
+detection:
+  keywords:
+    - 'ROOT LOGIN REFUSED'
+    - 'User root from'
+  condition: keywords
+tags:
+  - attack.t1078
+  - attack.initial_access

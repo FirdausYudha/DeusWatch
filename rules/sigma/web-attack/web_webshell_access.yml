@@ -1,0 +1,26 @@
+title: Web - Known webshell access
+id: fa426396-66c7-40e8-889d-d41e3051fa32
+status: experimental
+description: >
+  A request hits a known webshell filename (c99, r57, wso, b374k, alfa, indoxploit, adminer).
+  Access to one of these means a backdoor is (or is being) used for remote command execution on
+  the server.
+references:
+  - https://attack.mitre.org/techniques/T1505/003/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - 'c99.php'
+    - 'r57.php'
+    - 'wso.php'
+    - 'b374k'
+    - 'alfa.php'
+    - 'indoxploit'
+    - 'adminer.php'
+  condition: keywords
+tags:
+  - attack.t1505.003
+  - attack.persistence

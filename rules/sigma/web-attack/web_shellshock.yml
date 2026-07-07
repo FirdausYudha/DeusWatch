@@ -1,0 +1,21 @@
+title: Web - Shellshock exploitation attempt (CVE-2014-6271)
+id: 828ee4ba-0e70-4b6a-b3ff-fb98402ac82c
+status: experimental
+description: >
+  A request contains the Shellshock function-definition prefix ("() { :; };") used to inject
+  commands through Bash via CGI/headers. A direct remote-code-execution attempt.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: critical
+logsource:
+  category: web
+detection:
+  keywords:
+    - '() { :;};'
+    - '() { :; };'
+    - '() {:;};'
+  condition: keywords
+tags:
+  - attack.t1190
+  - attack.initial_access

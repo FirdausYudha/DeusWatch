@@ -1,0 +1,27 @@
+title: Web - Path traversal / local file access
+id: ca87d2c5-e845-4af4-ac66-929903e00b49
+status: experimental
+description: >
+  A web request tries to climb out of the web root or read a sensitive system file
+  (../, encoded variants, /etc/passwd, /etc/shadow, win.ini). Classic path-traversal / LFI
+  reconnaissance against a vulnerable parameter.
+references:
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  keywords:
+    - '../../'
+    - '..%2f'
+    - '%2e%2e%2f'
+    - '..%5c'
+    - '/etc/passwd'
+    - '/etc/shadow'
+    - 'c:\\windows\\win.ini'
+    - '/windows/win.ini'
+  condition: keywords
+tags:
+  - attack.t1190
+  - attack.initial_access

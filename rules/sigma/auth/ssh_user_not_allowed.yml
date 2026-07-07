@@ -1,0 +1,22 @@
+title: SSH - Login blocked by account policy
+id: 1405ec52-eb74-42e0-b5d3-ee08eed7a769
+status: experimental
+description: >
+  An SSH login was blocked by account policy ("not allowed because not listed in AllowUsers",
+  "User not known to the underlying authentication module", "account is locked"). Repeated hits
+  suggest an attacker trying disallowed or non-existent accounts.
+references:
+  - https://attack.mitre.org/techniques/T1078/
+author: DeusWatch
+level: medium
+logsource:
+  category: authentication
+detection:
+  keywords:
+    - 'not listed in AllowUsers'
+    - 'User not known to the underlying authentication module'
+    - 'because account is locked'
+  condition: keywords
+tags:
+  - attack.t1078
+  - attack.initial_access
