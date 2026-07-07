@@ -109,6 +109,15 @@ func buildSigmaAlert(r *sigma.Rule, src *ingest.Event) *ingest.Event {
 	if src.User != nil {
 		alert.User = &ingest.User{Name: src.User.Name, Domain: src.User.Domain}
 	}
+	// Carry the file identity over so FIM / file-based rule alerts show WHICH file changed
+	// (the raw FIM event carries it, but the labeled alert is a separate event that would
+	// otherwise have no path/location).
+	if src.File != nil {
+		alert.File = &ingest.File{
+			Path: src.File.Path, HashSHA256: src.File.HashSHA256,
+			Owner: src.File.Owner, Mode: src.File.Mode,
+		}
+	}
 	// A rule with a mitigation_action block authorizes automated containment. Carry the
 	// directive onto the alert so the response engine can act without re-parsing the rule.
 	if m := r.Mitigation; m != nil && m.ActionType == "network_containment" {

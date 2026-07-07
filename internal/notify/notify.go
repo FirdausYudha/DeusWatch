@@ -20,6 +20,8 @@ type Notification struct {
 	Title     string
 	Severity  ingest.Severity
 	SourceIP  string
+	Agent     string // agent (cert CN) that reported it
+	FilePath  string // changed file location (FIM / file-based rules)
 	Rule      string
 	Technique string
 	Tactic    string
@@ -36,6 +38,12 @@ func FromEvent(ev *ingest.Event) Notification {
 	}
 	if ev.Source != nil {
 		n.SourceIP = ev.Source.IP
+	}
+	if ev.Agent != nil {
+		n.Agent = ev.Agent.ID
+	}
+	if ev.File != nil {
+		n.FilePath = ev.File.Path
 	}
 	if ev.Rule != nil {
 		n.Rule = ev.Rule.Name
@@ -54,15 +62,23 @@ func FromEvent(ev *ingest.Event) Notification {
 	return n
 }
 
-// dedupKey: a notification is considered a duplicate if rule + source IP match within the window.
-func (n Notification) dedupKey() string { return n.Rule + "|" + n.SourceIP }
+// dedupKey: a notification is a duplicate if rule + source IP + file path match within the
+// window. Including the file path keeps distinct FIM changes (which share a rule and have no
+// source IP) from collapsing into a single notification.
+func (n Notification) dedupKey() string { return n.Rule + "|" + n.SourceIP + "|" + n.FilePath }
 
 // Text returns the plain-text message body (used by Telegram/email/log).
 func (n Notification) Text() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "🚨 [%s] %s\n", strings.ToUpper(n.Severity.String()), n.Title)
+	if n.Agent != "" {
+		fmt.Fprintf(&b, "Agent: %s\n", n.Agent)
+	}
 	if n.SourceIP != "" {
 		fmt.Fprintf(&b, "Source IP: %s\n", n.SourceIP)
+	}
+	if n.FilePath != "" {
+		fmt.Fprintf(&b, "Location: %s\n", n.FilePath)
 	}
 	if n.Technique != "" {
 		fmt.Fprintf(&b, "MITRE: %s %s\n", n.Technique, n.Tactic)
