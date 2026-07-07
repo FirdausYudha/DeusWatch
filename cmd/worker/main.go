@@ -101,10 +101,7 @@ func main() {
 	} else {
 		log.Printf("worker: mock CTI provider (add an AbuseIPDB/OTX integration or set the env keys for real)")
 	}
-	ctiTTL := 24 * time.Hour // dedup window; UI-managed via cti_config (Settings)
-	if c, err := st.LoadCTIConfig(ctx); err == nil {
-		ctiTTL = c.TTL()
-	}
+	ctiTTL := resolveCTITTL(ctx, intStore) // dedup window; configured on the CTI integration
 	enricher := enrich.NewEnricher(provider, enrich.NewCache(st.Pool()), ctiTTL, enrich.EscalationFromEnv())
 
 	// FIM file-hash reputation (optional): CIRCL hashlookup (free) + VirusTotal, from the
@@ -212,11 +209,8 @@ func main() {
 	// Storage monitor: warn (Telegram/email) when the log DB approaches its budget.
 	go runStorageMonitor(ctx, st, dispatcher)
 
-	// Live-reload the CTI cache TTL (dedup window) from the UI-managed config.
-	go runCTIConfigReload(ctx, st, enricher)
-
-	// Live-reload the CTI provider so adding an AbuseIPDB/OTX integration in the UI takes
-	// effect without restarting the worker.
+	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
+	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
 	go runCTIProviderReload(ctx, intStore, enricher, geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
 
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
@@ -317,11 +311,13 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 	}
 }
 
-// runCTIProviderReload re-resolves the AbuseIPDB/OTX keys from the Integrations registry
-// every minute and rebuilds the CTI provider when they change, so a key added in the UI
-// activates real lookups without a worker restart. GeoIP/blocklist stay from env (restart).
+// runCTIProviderReload re-resolves the AbuseIPDB/OTX keys AND the cache window (dedup TTL)
+// from the Integrations registry every minute, rebuilding the CTI provider when the keys
+// change and applying the TTL when it changes, so adding/editing a CTI integration in the UI
+// takes effect without a worker restart. GeoIP/blocklist stay from env (restart).
 func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enricher *enrich.Enricher, geoOn bool, blURLs []string, abuseKey, otxKey string) {
 	sig := abuseKey + "|" + otxKey
+	ttlSig := resolveCTITTL(ctx, intStore)
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
 	for {
@@ -329,6 +325,11 @@ func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enr
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			if ttl := resolveCTITTL(ctx, intStore); ttl != ttlSig {
+				ttlSig = ttl
+				enricher.SetTTL(ttl)
+				log.Printf("worker: CTI cache window reloaded from UI change (%s)", ttl)
+			}
 			ak, ox := resolveCTIKeys(ctx, intStore)
 			if ak+"|"+ox == sig {
 				continue
@@ -341,21 +342,32 @@ func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enr
 	}
 }
 
-// runCTIConfigReload applies UI changes to the CTI cache TTL (dedup window) without a
-// restart, checking every minute.
-func runCTIConfigReload(ctx context.Context, st *store.Store, enricher *enrich.Enricher) {
-	t := time.NewTicker(1 * time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if c, err := st.LoadCTIConfig(ctx); err == nil {
-				enricher.SetTTL(c.TTL())
-			}
-		}
+// resolveCTITTL reads the CTI cache dedup window (hours) from the enabled CTI integrations,
+// with AbuseIPDB taking precedence over OTX, falling back to 24h. The window now lives on the
+// CTI integration config ("cache_ttl_hours"), not a separate Settings section.
+func resolveCTITTL(ctx context.Context, intStore *integrations.Store) time.Duration {
+	const def = 24 * time.Hour
+	if intStore == nil {
+		return def
 	}
+	pick := func(typ string) (time.Duration, bool) {
+		rows, err := intStore.Resolve(ctx, typ)
+		if err != nil || len(rows) == 0 {
+			return 0, false
+		}
+		v := strings.TrimSpace(rows[0].Config["cache_ttl_hours"])
+		if n, aerr := strconv.Atoi(v); aerr == nil && n >= 1 && n <= 8760 {
+			return time.Duration(n) * time.Hour, true
+		}
+		return 0, false
+	}
+	if d, ok := pick("abuseipdb"); ok {
+		return d
+	}
+	if d, ok := pick("otx"); ok {
+		return d
+	}
+	return def
 }
 
 // runStorageMonitor checks log-DB size against STORAGE_BUDGET_GB hourly and sends one alert

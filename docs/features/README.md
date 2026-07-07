@@ -13,7 +13,7 @@ ports it uses**, **what language/tech it's built with**, and **how to change its
 | 6 | [Rules](06-rules.md) | DB-backed Sigma detection rules, managed from the UI |
 | 7 | [Integrations](07-integrations.md) | Connectors: CTI, firewall/bouncer, LLM, FIM reputation, export |
 | 8 | [Users](08-users.md) | Accounts, RBAC roles & permissions, audit trail |
-| 9 | [Settings](09-settings.md) | 2FA, password, notifications, storage lifecycle, CTI cache, config profile, updates |
+| 9 | [Settings](09-settings.md) | 2FA, password, notifications, storage lifecycle, config profile, updates |
 
 ---
 
@@ -68,8 +68,8 @@ internal port - you only remap the host side.
    ```
    Full list + comments: [`deploy/.env.example`](../../deploy/.env.example).
 2. **UI / database** (behaviour, live - no restart): detection rules, ban policy, whitelist,
-   alert threshold, report schedule, storage retention, CTI cache TTL, integrations. These are
-   stored in the DB and edited from the relevant menu.
+   alert threshold, report schedule, storage retention, integrations (including the CTI cache
+   window on each CTI connector). These are stored in the DB and edited from the relevant menu.
 
 ## Access control (RBAC)
 

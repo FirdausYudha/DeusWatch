@@ -15,14 +15,20 @@ only their *config* lives in the DB, encrypted at rest.
   engine** uses firewall/bouncer, and **LLM** powers **triage** and/or **reports** per the
   connector's **Use for** setting. The Integrations registry takes precedence over the
   equivalent env vars.
-- CTI provider **live-reloads** (~1 min) - adding an AbuseIPDB key in the UI activates real
-  lookups without restarting the worker. Response/LLM drivers are picked up at worker start.
+- CTI provider **live-reloads** (~1 min) - adding an AbuseIPDB key (or changing its **cache
+  window**) in the UI takes effect without restarting the worker. Response/LLM drivers are
+  picked up at worker start.
+- Each CTI connector (AbuseIPDB / OTX) carries its own **cache window (hours)** - the dedup TTL
+  that serves a recently-looked-up IP from cache instead of re-querying the API (protects your
+  quota; default 24, AbuseIPDB's value wins if both are set).
 
 ## How to use
 
 - **Integrations** menu → pick a type from the catalog → fill fields (e.g. AbuseIPDB
   `api_key`) → **Enable**.
-- Threat Intel status is shown in **Settings → Threat-intel (CTI) caching** (real vs mock).
+- For **AbuseIPDB / OTX** set the API key and, optionally, the **Cache window (hours)**. Real
+  threat-intel is active whenever an enabled CTI connector has a key (otherwise the Threat
+  Intel column shows "-").
 - **LLM**: pick **Provider** (ollama / openai-compatible / anthropic) and **Use for** (triage /
   report / both). All providers (OpenAI, Gemini, Groq, Claude) + the triage-vs-report selector
   are in [docs/llm-providers.md](../llm-providers.md); Ollama connect + troubleshooting (DNS,

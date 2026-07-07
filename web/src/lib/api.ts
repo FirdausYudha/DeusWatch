@@ -903,25 +903,6 @@ export async function fetchUpdateCheck(): Promise<UpdateInfo> {
   return res.json()
 }
 
-// ── CTI enrichment (threat-intel cache / dedup window) ─────────
-// provider/sources are reported by GET (computed server-side) so the UI can show whether
-// real threat-intel is active or it's the mock (which renders "—").
-export type CTIConfig = { cache_ttl_hours: number; provider?: string; sources?: string[] }
-export async function fetchCTIConfig(): Promise<CTIConfig> {
-  const res = await authFetch('/api/cti-config')
-  if (!res.ok) throw new Error(`cti config: HTTP ${res.status}`)
-  return res.json()
-}
-export async function saveCTIConfig(c: CTIConfig): Promise<CTIConfig> {
-  const res = await authFetch('/api/cti-config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(c),
-  })
-  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
-  return res.json()
-}
-
 // ── Notifications (alert threshold + scheduled report delivery) ─
 export type NotifyConfig = {
   min_severity: number

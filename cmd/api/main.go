@@ -169,8 +169,6 @@ func main() {
 		mux.Handle("GET /api/update-check", protect(auth.PermViewDashboard, updateCheckHandler()))
 
 		// CTI enrichment: dedup cache TTL (UI-managed).
-		mux.Handle("GET /api/cti-config", protect(auth.PermViewDashboard, ctiConfigGetHandler(st)))
-		mux.Handle("PUT /api/cti-config", protect(auth.PermManageSettings, ctiConfigSetHandler(st)))
 
 		// Notifications: alert severity threshold + scheduled report delivery to channels.
 		mux.Handle("GET /api/notify-config", protect(auth.PermViewDashboard, notifyConfigGetHandler(st)))
@@ -804,69 +802,6 @@ func updateCheckHandler() http.HandlerFunc {
 			RepoURL:         "https://github.com/" + githubRepo + "/releases",
 			UpdateCommand:   "./scripts/update.sh",
 		})
-	}
-}
-
-func ctiConfigGetHandler(st *store.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		c, err := st.LoadCTIConfig(ctx)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// Report which CTI sources are active so the UI can explain a "—" threat-intel column
-		// (mock = nothing configured) instead of leaving the operator guessing.
-		abuse := os.Getenv("ABUSEIPDB_API_KEY") != ""
-		otx := os.Getenv("OTX_API_KEY") != ""
-		if cipher, _, cerr := secret.FromEnv(); cerr == nil {
-			is := integrations.NewStore(st.Pool(), cipher)
-			if rows, e := is.Resolve(ctx, "abuseipdb"); e == nil && len(rows) > 0 && rows[0].Config["api_key"] != "" {
-				abuse = true
-			}
-			if rows, e := is.Resolve(ctx, "otx"); e == nil && len(rows) > 0 && rows[0].Config["api_key"] != "" {
-				otx = true
-			}
-		}
-		geo, _ := strconv.ParseBool(os.Getenv("GEOIP_ENABLED"))
-		sources := []string{}
-		if abuse {
-			sources = append(sources, "abuseipdb")
-		}
-		if otx {
-			sources = append(sources, "otx")
-		}
-		if geo {
-			sources = append(sources, "geoip")
-		}
-		provider := "mock"
-		if len(sources) > 0 {
-			provider = "real"
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"cache_ttl_hours": c.CacheTTLHours,
-			"provider":        provider,
-			"sources":         sources,
-		})
-	}
-}
-
-func ctiConfigSetHandler(st *store.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var c store.CTIConfig
-		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-			http.Error(w, "invalid body", http.StatusBadRequest)
-			return
-		}
-		if c.CacheTTLHours < 1 || c.CacheTTLHours > 8760 {
-			http.Error(w, "cache_ttl_hours must be 1..8760", http.StatusBadRequest)
-			return
-		}
-		if err := st.SaveCTIConfig(r.Context(), c); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		writeJSON(w, http.StatusOK, c)
 	}
 }
 

@@ -73,6 +73,7 @@ var Catalog = []TypeInfo{
 		Desc: "Enrich source IPs with an abuse-confidence score. Paid plans raise rate limits.",
 		Fields: []Field{
 			{Key: "api_key", Label: "API key", Secret: true},
+			{Key: "cache_ttl_hours", Label: "Cache window (hours)", Optional: true, Help: "Dedup window: an IP looked up within this many hours is served from cache instead of re-queried. Default 24 (1..8760)."},
 		},
 	},
 	{
@@ -80,6 +81,7 @@ var Catalog = []TypeInfo{
 		Desc: "Enrich source IPs with OTX pulse counts (threat-intel mentions).",
 		Fields: []Field{
 			{Key: "api_key", Label: "OTX API key", Secret: true},
+			{Key: "cache_ttl_hours", Label: "Cache window (hours)", Optional: true, Help: "Dedup window: an IP looked up within this many hours is served from cache instead of re-queried. Default 24 (1..8760). AbuseIPDB's value takes precedence if both are set."},
 		},
 	},
 	{

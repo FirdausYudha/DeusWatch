@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchCTIConfig, saveCTIConfig, fetchUpdateCheck, type NotifyConfig, type StorageStatus, type CTIConfig, type UpdateInfo } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, type NotifyConfig, type StorageStatus, type UpdateInfo } from '../lib/api'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -96,28 +96,6 @@ export default function Settings() {
     }
   }
 
-  // CTI cache / dedup window + provider status.
-  const [cti, setCti] = useState<CTIConfig | null>(null)
-  const [ctiTTL, setCtiTTL] = useState('')
-  const [ctiMsg, setCtiMsg] = useState('')
-  const [ctiErr, setCtiErr] = useState('')
-  const [ctiBusy, setCtiBusy] = useState(false)
-  useEffect(() => {
-    fetchCTIConfig().then((c) => { setCti(c); setCtiTTL(String(c.cache_ttl_hours)) }).catch(() => {})
-  }, [])
-  const saveCti = async (e: FormEvent) => {
-    e.preventDefault()
-    setCtiMsg(''); setCtiErr(''); setCtiBusy(true)
-    try {
-      const c = await saveCTIConfig({ cache_ttl_hours: Number(ctiTTL) })
-      setCtiTTL(String(c.cache_ttl_hours))
-      setCtiMsg('CTI cache window saved.')
-    } catch (err) {
-      setCtiErr((err as Error).message)
-    } finally {
-      setCtiBusy(false)
-    }
-  }
 
   // Software update check (read-only).
   const [upd, setUpd] = useState<UpdateInfo | null>(null)
@@ -343,35 +321,6 @@ export default function Settings() {
         </form>
         {stErr && <p className="mt-3 text-sm text-rose-400">{stErr}</p>}
         {stMsg && <p className="mt-3 text-sm text-emerald-400">{stMsg}</p>}
-      </section>
-
-      <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="text-sm font-medium text-slate-200">Threat-intel (CTI) caching</h2>
-        {cti && (
-          <p className={`mt-1 text-sm ${cti.provider === 'real' ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {cti.provider === 'real'
-              ? `Active sources: ${(cti.sources || []).join(', ')} — real reputation & country shown.`
-              : 'No CTI source configured (mock) — the Threat Intel column shows “—”. Add an AbuseIPDB integration (or set GEOIP_ENABLED) for real data.'}
-          </p>
-        )}
-        <p className="mb-4 mt-1 text-sm text-slate-500">
-          Deduplication window for CTI lookups: an IP looked up within this period is served
-          from cache instead of being re-queried against the external API (AbuseIPDB/OTX) -
-          this protects your API quota. e.g. 24 = re-scan a given IP at most once a day.
-        </p>
-        <form onSubmit={saveCti} className="flex flex-wrap items-end gap-3">
-          <label className="text-sm text-slate-300">
-            <span className="mb-1 block text-xs text-slate-400">Re-scan an IP at most once every (hours)</span>
-            <input type="number" min={1} max={8760} value={ctiTTL} onChange={(e) => setCtiTTL(e.target.value)}
-              className="w-40 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
-          </label>
-          <button type="submit" disabled={ctiBusy || !ctiTTL}
-            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50">
-            {ctiBusy ? 'Saving…' : 'Save'}
-          </button>
-        </form>
-        {ctiErr && <p className="mt-3 text-sm text-rose-400">{ctiErr}</p>}
-        {ctiMsg && <p className="mt-3 text-sm text-emerald-400">{ctiMsg}</p>}
       </section>
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">

@@ -11,12 +11,15 @@ DB and are picked up live (no restart).
 | **Change password** | rotate your password (Argon2id) | `users` | yes |
 | **Alert notifications** | severity threshold for Telegram/email alerts | `notify_config` | ~1 min |
 | **Log storage lifecycle** | retention (days) + compression (days) - TimescaleDB policy | policy | immediate |
-| **Threat-intel (CTI) caching** | dedup window (hours) + shows provider status (real/mock) | `cti_config` | ~1 min |
 | **Software updates** | check GitHub for a newer build (read-only) | - | on click |
 | **Config profile** | export/import all settings to clone server A → B | JSON | on import |
 
-- **Alert notifications / CTI caching / retention** are read live by the worker (threshold +
-  TTL reload each minute; retention re-applies the TimescaleDB policy on save).
+> The **CTI cache window** (dedup TTL) is no longer here - it now lives on each CTI
+> integration (AbuseIPDB / AlienVault OTX) under **Integrations**. See
+> [Integrations](07-integrations.md).
+
+- **Alert notifications / retention** are read live by the worker (threshold reload each
+  minute; retention re-applies the TimescaleDB policy on save).
 - **Software updates** only *checks* (compares the running version - a git tag like `v1.1.1`,
   baked at build time - against the latest GitHub **release**). The
   update itself runs on the host with `./scripts/update.sh` - the web app never controls Docker,
@@ -38,7 +41,6 @@ DB and are picked up live (no restart).
 | `PUT /api/me/password` | change password | auth |
 | `GET/PUT /api/notify-config` | alert threshold + delivery | `view_dashboard` / `manage_settings` |
 | `GET /api/storage/status`, `PUT /api/storage/retention` | storage + lifecycle | `view_dashboard` / `manage_settings` |
-| `GET/PUT /api/cti-config` | CTI cache TTL + status | `view_dashboard` / `manage_settings` |
 | `GET /api/update-check` | update check (GitHub) | `view_dashboard` |
 | `GET /api/config/export`, `POST /api/config/import` | config profile | `manage_settings` |
 
@@ -54,7 +56,8 @@ Frontend: [`web/src/settings/`](../../web/src/settings/).
 - **Credentials & infra** in `deploy/.env`: `TELEGRAM_*`, `SMTP_*` (notification channels),
   `SECRETS_KEY`, `STORAGE_BUDGET_GB` / `STORAGE_ALERT_PERCENT`, ports.
 - **Behaviour** in the UI (DB-backed, live): severity threshold, report/AI schedules, retention,
-  compression, CTI cache TTL.
+  compression. The CTI cache window moved to the CTI integrations (see
+  [Integrations](07-integrations.md)).
 - **Auto-update (optional, host-level)** - a cron running the updater; the web UI does **not**
   execute updates:
   ```bash
