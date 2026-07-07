@@ -55,6 +55,19 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 		if err := sink.InsertEvent(ic, &e); err != nil {
 			return err // returned -> Nak -> redeliver
 		}
+		// A pre-labeled ingested event (e.g. a Suricata/IDS alert consumed as a log source) is
+		// already an alert - an external detector decided so. Drive response/notify on it
+		// directly, without a DeusWatch rule needing to re-fire. The trusted-session gate still
+		// applies (a no-op for non-file alerts).
+		if e.DeusWatch.Label != "" {
+			if suppress == nil || !suppress(ic, &e) {
+				log.Printf("worker: ALERT %s from %s (rule=%s)",
+					e.DeusWatch.Label, alertSourceIP(&e), ruleID(&e))
+				if onAlert != nil {
+					onAlert(ic, &e)
+				}
+			}
+		}
 		for _, det := range detectors {
 			alert := det.Inspect(&e)
 			if alert == nil {

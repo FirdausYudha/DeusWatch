@@ -55,3 +55,6 @@ agent in [`cmd/agent/`](../../cmd/agent/).
 - Ports agents use: `DEUSWATCH_API_PORT` (9080) and `DEUSWATCH_GATEWAY_PORT` (9443) - the
   wizard reads them automatically so the generated command is correct.
 - Per-agent **sources** (which logs to tail) are pushed via `PUT /api/agents/{id}/config`.
+  Built-in datasets: `sshd`, `syslog`, `firewall`, `web`/`nginx`/`apache`, `fim`, `windows-*`,
+  and `suricata` (Suricata/Snort EVE JSON - see [docs/suricata.md](../suricata.md) for the
+  Emerging Threats ET Open/ET Pro network-IDS integration).

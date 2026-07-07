@@ -101,6 +101,39 @@ func TestNormalizeDescriptiveDatasetNames(t *testing.T) {
 	}
 }
 
+func TestNormalizeSuricataAlert(t *testing.T) {
+	line := `{"event_type":"alert","src_ip":"1.2.3.4","src_port":40000,"dest_ip":"10.0.0.5","dest_port":443,"proto":"TCP","app_proto":"tls","alert":{"action":"allowed","signature_id":2020123,"signature":"ET MALWARE Win32/Trojan CnC Checkin","category":"A Network Trojan was detected","severity":1,"metadata":{"mitre_technique_id":["T1071"],"mitre_tactic_name":["command_and_control"]}}}`
+	e, ok := Normalize(RawLog{Dataset: "suricata", Host: "ids01", AgentID: "sensor", Message: line})
+	if !ok {
+		t.Fatal("a Suricata alert should be recognized")
+	}
+	if e.Event.Category != "intrusion_detection" || e.Event.Severity != SeverityHigh {
+		t.Fatalf("bad mapping: cat=%q sev=%v", e.Event.Category, e.Event.Severity)
+	}
+	if e.Source == nil || e.Source.IP != "1.2.3.4" || e.Source.Port != 40000 {
+		t.Fatalf("bad source: %+v", e.Source)
+	}
+	if e.Destination == nil || e.Destination.IP != "10.0.0.5" {
+		t.Fatalf("bad dest: %+v", e.Destination)
+	}
+	if e.Rule == nil || e.Rule.ID != "suricata-2020123" || e.Rule.Name == "" {
+		t.Fatalf("bad rule: %+v", e.Rule)
+	}
+	if e.Threat == nil || e.Threat.Technique.ID != "T1071" {
+		t.Fatalf("bad threat: %+v", e.Threat)
+	}
+	if e.DeusWatch.Label == "" {
+		t.Fatal("a Suricata alert must be pre-labeled so it surfaces as an alert and drives response")
+	}
+	// A descriptive dataset name still routes, and a non-alert EVE line is ignored.
+	if _, ok := Normalize(RawLog{Dataset: "suricata (eve)", Message: line}); !ok {
+		t.Fatal("descriptive 'suricata (eve)' dataset must still route")
+	}
+	if _, ok := Normalize(RawLog{Dataset: "suricata", Message: `{"event_type":"flow","src_ip":"1.2.3.4"}`}); ok {
+		t.Fatal("a non-alert EVE record (flow) must not be flagged as an alert")
+	}
+}
+
 func TestNormalizeFIMBadPayload(t *testing.T) {
 	if _, ok := Normalize(RawLog{Dataset: "fim", Message: "not json"}); ok {
 		t.Fatal("a broken FIM payload must not be flagged as recognized")

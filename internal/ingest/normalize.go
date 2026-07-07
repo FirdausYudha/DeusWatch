@@ -90,7 +90,110 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if kind == "web" || kind == "nginx" || kind == "apache" {
 		return e, normalizeWeb(raw.Message, e)
 	}
+	if kind == "suricata" || kind == "eve" || kind == "snort" {
+		return e, normalizeSuricata(raw.Message, e)
+	}
 	return e, false
+}
+
+// suricataEVE is the subset of a Suricata/Snort EVE JSON record DeusWatch maps (the "alert"
+// event type). Other EVE event types (flow/http/dns/tls telemetry) are ignored.
+type suricataEVE struct {
+	EventType string `json:"event_type"`
+	SrcIP     string `json:"src_ip"`
+	SrcPort   int    `json:"src_port"`
+	DestIP    string `json:"dest_ip"`
+	DestPort  int    `json:"dest_port"`
+	Proto     string `json:"proto"`
+	AppProto  string `json:"app_proto"`
+	Alert     *struct {
+		Action      string `json:"action"`
+		SignatureID int    `json:"signature_id"`
+		Signature   string `json:"signature"`
+		Category    string `json:"category"`
+		Severity    int    `json:"severity"`
+		Metadata    struct {
+			MitreTechniqueID []string `json:"mitre_technique_id"`
+			MitreTacticName  []string `json:"mitre_tactic_name"`
+		} `json:"metadata"`
+	} `json:"alert"`
+}
+
+// normalizeSuricata maps a Suricata/Snort EVE JSON "alert" record into a DCS network-intrusion
+// alert: the signature becomes the rule (id + name), src/dest IP+port and protocol are carried,
+// the Suricata priority maps to a DCS severity, and MITRE tags (when the ruleset carries them,
+// e.g. ET Pro) are mapped. It is PRE-LABELED (dw_label set) because an IDS already decided this
+// is an alert - so it surfaces in the Alerts view and the worker drives response/notify on it
+// directly, without a DeusWatch rule re-firing. event.category is "intrusion_detection" so the
+// log-based Sigma rules (scoped by category) never re-evaluate it. Non-alert EVE lines return
+// false; configure Suricata's eve-log to emit only 'alert' to keep volume sane.
+func normalizeSuricata(msg string, e *Event) bool {
+	var s suricataEVE
+	if err := json.Unmarshal([]byte(msg), &s); err != nil || s.EventType != "alert" || s.Alert == nil {
+		return false
+	}
+	e.Event.Category = "intrusion_detection"
+	e.Event.Action = "network_ids_alert"
+	e.Event.Severity = suricataSeverity(s.Alert.Severity)
+	e.Event.Outcome = "detected"
+	if a := strings.ToLower(s.Alert.Action); a == "blocked" || a == "dropped" {
+		e.Event.Outcome = "blocked" // Suricata was inline (IPS) and already dropped it
+	}
+	if s.SrcIP != "" {
+		e.Source = endpointNum(s.SrcIP, s.SrcPort)
+	}
+	if s.DestIP != "" {
+		e.Destination = endpointNum(s.DestIP, s.DestPort)
+	}
+	if s.Proto != "" || s.AppProto != "" {
+		e.Network = &Network{Transport: strings.ToLower(s.Proto), Protocol: strings.ToLower(s.AppProto)}
+	}
+	e.Rule = &Rule{ID: "suricata-" + strconv.Itoa(s.Alert.SignatureID), Name: s.Alert.Signature}
+	if tech := firstNonEmpty(s.Alert.Metadata.MitreTechniqueID); tech != "" {
+		e.Threat = &Threat{
+			Technique:  Technique{ID: strings.ToUpper(tech)},
+			TacticName: cleanTactic(firstNonEmpty(s.Alert.Metadata.MitreTacticName)),
+		}
+	}
+	e.DeusWatch.Label = "network_intrusion" // pre-labeled: an IDS already caught this
+	return true
+}
+
+// suricataSeverity maps a Suricata alert priority (1 highest .. 3 lowest) to a DCS severity.
+func suricataSeverity(prio int) Severity {
+	switch prio {
+	case 1:
+		return SeverityHigh
+	case 2:
+		return SeverityMedium
+	case 3:
+		return SeverityLow
+	default:
+		return SeverityMedium
+	}
+}
+
+func endpointNum(ip string, port int) *Endpoint {
+	ep := &Endpoint{IP: ip}
+	if port > 0 && port <= 65535 {
+		ep.Port = uint16(port)
+	}
+	return ep
+}
+
+func firstNonEmpty(ss []string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// cleanTactic turns an ET/MITRE tactic token ("command_and_control", "credential-access") into
+// readable text ("command and control").
+func cleanTactic(s string) string {
+	return strings.NewReplacer("_", " ", "-", " ").Replace(strings.ToLower(strings.TrimSpace(s)))
 }
 
 // normalizeWeb maps a web-server access log line (nginx/apache Combined Log Format) to a DCS
