@@ -56,3 +56,9 @@ Thumbs.db
 
 # ── Local-only demo/seed data (kept out of the repo) ──────
 scripts/demo-seed.sql
+
+# ── Wazuh ruleset (GPLv2, Copyright Wazuh Inc.) + rules derived from it ────
+# Kept out of this (public) repo to avoid GPL/license conflicts. The wazuh2sigma
+# converter under tools/ is original code and IS tracked; its INPUT and OUTPUT are not.
+Wazuh_Rules/
+rules/wazuh-imported/
