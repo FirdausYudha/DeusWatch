@@ -84,6 +84,19 @@ func ValidateDecoder(sp DecoderSpec) error {
 	return err
 }
 
+// TestDecoder applies a spec to a single raw line and reports whether it matched plus the
+// resulting event (so the UI can show the operator exactly which fields a decoder extracts from
+// a real log line). It does not touch the installed decoder set.
+func TestDecoder(sp DecoderSpec, line string) (matched bool, ev *Event, err error) {
+	d, err := sp.compile()
+	if err != nil {
+		return false, nil, err
+	}
+	e := &Event{Event: EventFields{Dataset: sp.Dataset, Original: line, Severity: SeverityInfo}}
+	set := &DecoderSet{byDataset: map[string][]*Decoder{datasetKind(sp.Dataset): {d}}}
+	return set.apply(datasetKind(sp.Dataset), line, e), e, nil
+}
+
 // LoadDecoderDir loads *.yml / *.yaml decoders from dir (non-recursive). A missing dir yields an
 // empty set (not an error), so decoders are optional.
 func LoadDecoderDir(dir string) (*DecoderSet, error) {
@@ -131,6 +144,11 @@ func applyDecoders(kind, msg string, e *Event) bool {
 	if set == nil {
 		return false
 	}
+	return set.apply(kind, msg, e)
+}
+
+// apply runs this set's decoders for a dataset kind against msg, filling e.
+func (set *DecoderSet) apply(kind, msg string, e *Event) bool {
 	for _, d := range set.byDataset[kind] {
 		m := d.re.FindStringSubmatch(msg)
 		if m == nil {

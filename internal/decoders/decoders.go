@@ -171,6 +171,33 @@ func (s *Store) SyncBuiltinsFromDir(ctx context.Context, dir string) (int, error
 	return added, nil
 }
 
+// RecentRawByDataset returns up to `limit` recent distinct raw log lines (event.original) seen
+// for a dataset. This is what lets an operator SEE their own raw lines when writing a decoder
+// (they cannot otherwise). Matched loosely so "postfix" also finds "postfix (mail)".
+func (s *Store) RecentRawByDataset(ctx context.Context, dataset string, limit int) ([]string, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT ON (event_original) event_original FROM events
+		WHERE event_dataset ILIKE $1 AND event_original IS NOT NULL AND event_original <> ''
+		ORDER BY event_original, time DESC
+		LIMIT $2`, dataset+"%", limit)
+	if err != nil {
+		return nil, fmt.Errorf("decoders: samples: %w", err)
+	}
+	defer rows.Close()
+	out := make([]string, 0, limit)
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // readSpecs reads decoder specs from *.yml/*.yaml in dir (non-recursive), skipping bad files.
 func readSpecs(dir string) []ingest.DecoderSpec {
 	var out []ingest.DecoderSpec

@@ -61,4 +61,6 @@ scripts/demo-seed.sql
 # Kept out of this (public) repo to avoid GPL/license conflicts. The wazuh2sigma
 # converter under tools/ is original code and IS tracked; its INPUT and OUTPUT are not.
 Wazuh_Rules/
+Wazuh_Decoders/
 rules/wazuh-imported/
+decoders/wazuh-imported/

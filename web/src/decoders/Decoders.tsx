@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   fetchDecoders, createDecoder, updateDecoder, deleteDecoder,
+  fetchDecoderSamples, testDecoder,
   type Decoder, type DecoderSpec,
 } from '../lib/api'
 
@@ -47,6 +48,27 @@ export default function Decoders() {
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<Decoder | null>(null)
   const [editSpec, setEditSpec] = useState<DecoderSpec>(EMPTY)
+  // Tester: show real raw lines for a dataset + try the regex against one.
+  const [samples, setSamples] = useState<string[]>([])
+  const [testLine, setTestLine] = useState('')
+  const [testResult, setTestResult] = useState<{ matched: boolean; fields: Record<string, string> } | null>(null)
+  const [testMsg, setTestMsg] = useState('')
+
+  const loadSamples = async () => {
+    setTestMsg(''); setSamples([])
+    if (!add.dataset) { setTestMsg('Enter a dataset first.'); return }
+    try {
+      const lines = await fetchDecoderSamples(add.dataset)
+      setSamples(lines)
+      if (lines.length === 0) setTestMsg(`No recent logs seen for dataset "${add.dataset}" yet.`)
+    } catch (err) { setTestMsg((err as Error).message) }
+  }
+  const runTest = async (line: string) => {
+    setTestMsg(''); setTestResult(null)
+    if (!add.regex || !line) { setTestMsg('Need a regex and a line to test.'); return }
+    try { setTestResult(await testDecoder(add, line)) }
+    catch (err) { setTestMsg((err as Error).message) }
+  }
 
   const load = () => fetchDecoders().then(setItems).catch((e) => setError((e as Error).message))
   useEffect(() => { load() }, [])
@@ -98,6 +120,49 @@ export default function Decoders() {
           </div>
         </form>
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+
+        {/* Tester: the answer to "how do I know my raw lines?" - pull real lines, try the regex. */}
+        <div className="mt-5 border-t border-slate-800 pt-4">
+          <div className="mb-2 flex items-center gap-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Test against real log lines</h3>
+            <button onClick={loadSamples} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">
+              Load recent lines for "{add.dataset || '…'}"
+            </button>
+          </div>
+          {samples.length > 0 && (
+            <div className="mb-3 max-h-40 overflow-auto rounded-lg border border-slate-800 bg-slate-950/60 p-2">
+              {samples.map((l, i) => (
+                <button key={i} onClick={() => { setTestLine(l); runTest(l) }}
+                  className="block w-full truncate px-2 py-1 text-left font-mono text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200" title={l}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input className={`${input} font-mono`} value={testLine} onChange={(e) => setTestLine(e.target.value)} placeholder="paste one raw log line to test the regex against" />
+            <button onClick={() => runTest(testLine)} className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">Test</button>
+          </div>
+          {testMsg && <p className="mt-2 text-xs text-amber-400">{testMsg}</p>}
+          {testResult && (
+            <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-sm">
+              {testResult.matched ? (
+                <>
+                  <span className="text-emerald-400">✓ matched</span>
+                  {Object.keys(testResult.fields).length > 0 ? (
+                    <table className="mt-2 text-xs">
+                      <tbody>
+                        {Object.entries(testResult.fields).map(([k, v]) => (
+                          <tr key={k}><td className="pr-3 font-mono text-slate-500">{k}</td><td className="font-mono text-slate-300">{v}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : <span className="ml-2 text-slate-500">(no named groups extracted; only category/defaults applied)</span>}
+                </>
+              ) : <span className="text-rose-400">✗ no match on this line</span>}
+            </div>
+          )}
+        </div>
       </section>
 
       <section>

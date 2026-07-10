@@ -242,6 +242,8 @@ func main() {
 		mux.Handle("/api/rules", protect(auth.PermManageRules, ruleStore.CollectionHandler()))
 		mux.Handle("/api/rules/{id}", protect(auth.PermManageRules, ruleStore.ItemHandler()))
 		mux.Handle("/api/decoders", protect(auth.PermManageRules, decoderStore.CollectionHandler()))
+		mux.Handle("GET /api/decoders/samples", protect(auth.PermManageRules, decoderStore.SamplesHandler()))
+		mux.Handle("POST /api/decoders/test", protect(auth.PermManageRules, decoderStore.TestHandler()))
 		mux.Handle("/api/decoders/{id}", protect(auth.PermManageRules, decoderStore.ItemHandler()))
 
 		// Tier-2 DFIR ticketing (case management).

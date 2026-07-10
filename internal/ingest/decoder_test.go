@@ -63,6 +63,32 @@ func TestLoadDecoderDirExamples(t *testing.T) {
 	}
 }
 
+func TestTestDecoder(t *testing.T) {
+	sp := DecoderSpec{
+		Dataset: "haproxy", Category: "web", Outcome: "failure",
+		Regex: `(?P<source_ip>\d{1,3}(?:\.\d{1,3}){3}):\d+ .* (?P<destination_port>\d+)/`,
+	}
+	matched, ev, err := TestDecoder(sp, `1.2.3.4:5678 [08/Jul/2026] frontend backend/srv 0/0 200 80/`)
+	if err != nil || !matched {
+		t.Fatalf("expected a match: matched=%v err=%v", matched, err)
+	}
+	if ev.Source == nil || ev.Source.IP != "1.2.3.4" || ev.Event.Category != "web" {
+		t.Fatalf("wrong extraction: src=%+v cat=%q", ev.Source, ev.Event.Category)
+	}
+	// A non-matching line reports matched=false without error.
+	if m, _, err := TestDecoder(sp, "not a haproxy line"); err != nil || m {
+		t.Fatalf("expected no match: matched=%v err=%v", m, err)
+	}
+	// An invalid regex is an error (surfaced to the UI), not a panic.
+	if _, _, err := TestDecoder(DecoderSpec{Dataset: "x", Regex: "("}, "y"); err == nil {
+		t.Fatal("invalid regex should error")
+	}
+	// TestDecoder must not disturb the installed set (nil here) for other callers.
+	if activeDecoders.Load() != nil {
+		t.Fatal("TestDecoder leaked into the global decoder set")
+	}
+}
+
 func TestCompileDecoderValidation(t *testing.T) {
 	if err := ValidateDecoder(DecoderSpec{Regex: "x", Dataset: ""}); err == nil {
 		t.Fatal("missing dataset should error")

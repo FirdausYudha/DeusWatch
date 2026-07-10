@@ -809,6 +809,20 @@ export async function deleteDecoder(id: string): Promise<void> {
   const res = await authFetch(`/api/decoders/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
+export async function fetchDecoderSamples(dataset: string): Promise<string[]> {
+  const res = await authFetch(`/api/decoders/samples?dataset=${encodeURIComponent(dataset)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).lines ?? []
+}
+export async function testDecoder(spec: DecoderSpec, line: string): Promise<{ matched: boolean; fields: Record<string, string> }> {
+  const res = await authFetch('/api/decoders/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...spec, line }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
 
 // ── Ticketing (Tier-2 DFIR case management) ───────────────
 
