@@ -15,6 +15,7 @@ import (
 	"deuswatch/internal/bus"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/gateway"
+	"deuswatch/internal/ingest"
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/respond"
@@ -39,6 +40,16 @@ func main() {
 		log.Fatalf("gateway: bus: %v", err)
 	}
 	defer b.Close()
+
+	// Custom decoders (optional, data-driven): regex-based field extraction for log sources
+	// without a built-in normalizer. Loaded once at startup from DECODERS_DIR.
+	decoderDir := getenv("DECODERS_DIR", "/decoders")
+	if ds, derr := ingest.LoadDecoderDir(decoderDir); derr != nil {
+		log.Printf("gateway: custom decoders disabled (%v)", derr)
+	} else if n := ds.Count(); n > 0 {
+		ingest.SetDecoders(ds)
+		log.Printf("gateway: loaded %d custom decoder(s) from %s", n, decoderDir)
+	}
 
 	// Revocation + config push + agent-block feed (optional): needs DB access.
 	var revoked gateway.RevokedFunc

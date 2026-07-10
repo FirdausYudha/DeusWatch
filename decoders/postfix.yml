@@ -1,0 +1,9 @@
+# Example custom decoder: Postfix mail log.
+# Extracts the connecting client IP from lines like:
+#   ... postfix/smtpd[123]: connect from mail.bad.example[1.2.3.4]
+#   ... postfix/smtpd[123]: NOQUEUE: reject: RCPT ... client=host[1.2.3.4]
+# Setting category=mail lets keyword rules scope to mail, and the source IP enables banning.
+name: postfix-client
+dataset: postfix
+category: mail
+regex: '(?:client=|connect from )[^[]*\[(?P<source_ip>\d{1,3}(?:\.\d{1,3}){3})\]'

@@ -93,6 +93,10 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if kind == "suricata" || kind == "eve" || kind == "snort" {
 		return e, normalizeSuricata(raw.Message, e)
 	}
+	// No built-in matched: fall back to any operator-defined custom decoder for this dataset.
+	if applyDecoders(kind, raw.Message, e) {
+		return e, true
+	}
 	return e, false
 }
 

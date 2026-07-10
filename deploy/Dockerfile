@@ -35,6 +35,8 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/app /app
 # Detection rules (used by the worker; ignored by other services).
 COPY rules /rules
+# Custom decoders (used by the gateway to normalize log sources without a built-in decoder).
+COPY decoders /decoders
 # Agent binaries served by the api's one-line installer (empty for other services).
 COPY --from=build /agents /agents
 USER nonroot:nonroot

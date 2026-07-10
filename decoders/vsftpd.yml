@@ -1,0 +1,11 @@
+# Example custom decoder: vsftpd FTP failed login.
+# Matches lines like:
+#   Mon Jul  8 10:00:00 2026 [pid 2] [alice] FAIL LOGIN: Client "1.2.3.4"
+# Sets category=authentication + outcome=failure and extracts the source IP, so a brute-force
+# aggregation / ban can act on repeated FTP failures.
+name: vsftpd-fail-login
+dataset: vsftpd
+category: authentication
+outcome: failure
+level: low
+regex: 'FAIL LOGIN: Client "(?P<source_ip>\d{1,3}(?:\.\d{1,3}){3})"'

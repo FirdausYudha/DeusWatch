@@ -58,3 +58,7 @@ agent in [`cmd/agent/`](../../cmd/agent/).
   Built-in datasets: `sshd`, `syslog`, `firewall`, `web`/`nginx`/`apache`, `fim`, `windows-*`,
   and `suricata` (Suricata/Snort EVE JSON - see [docs/suricata.md](../suricata.md) for the
   Emerging Threats ET Open/ET Pro network-IDS integration).
+- **Custom decoders**: to support any OTHER log source without code, add a regex decoder under
+  [`decoders/`](../../decoders/README.md) that sets a category and extracts fields; then write
+  rules scoped to that category. The gateway applies them as a fallback for datasets with no
+  built-in decoder.
