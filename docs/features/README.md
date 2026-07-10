@@ -14,6 +14,8 @@ ports it uses**, **what language/tech it's built with**, and **how to change its
 | 7 | [Integrations](07-integrations.md) | Connectors: CTI, firewall/bouncer, LLM, FIM reputation, export |
 | 8 | [Users](08-users.md) | Accounts, RBAC roles & permissions, audit trail |
 | 9 | [Settings](09-settings.md) | 2FA, password, notifications, storage lifecycle, config profile, updates |
+| 10 | [Network Containment](10-network-containment.md) | Isolate a compromised host from the LAN (host self-isolation + edge block) |
+| 11 | [Decoders](11-decoders.md) | Data-driven regex log parsing for sources without a built-in decoder (Wazuh-style) |
 
 ---
 

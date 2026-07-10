@@ -46,14 +46,23 @@ A rule only fires if the pipeline produces the matching events. Coverage by cate
 
 | Rule category | Fires from | Log source (agent) |
 |---|---|---|
-| SSH / auth (brute force, invalid user, sudo) | `sshd` events | `/var/log/auth.log` (default) |
-| FIM (file change, malicious hash, monitored dirs) | `fim` events | agent FIM watcher |
+| SSH / auth (brute force, invalid user, break-in, scan, max-auth, root-refused) + **sudo/su privesc** | `sshd` events | `/var/log/auth.log` (default) |
+| FIM (file change, malicious hash, monitored dirs, **webshell/PHP in uploads → containment**) | `fim` events | agent FIM watcher |
 | Port scan | `firewall` drops | `/var/log/ufw.log` (default; enable firewall logging) |
-| Windows logon (4625/4624/4740) | `windows-security` | Windows agent Event Log |
-| **Web (defacement, judi-online, path scan)** | **`web` events** | **`/var/log/nginx/access.log` (default)** - keyword rules match the raw request line; the client IP is extracted for banning. For apache add `/var/log/apache2/access.log` via the agent config. |
+| **Windows** logon (4625/4624/4740) + **process (4688) / PowerShell (4104): suspicious PowerShell, LOLBin exec** + account/group changes (4720/4728/4732) + **audit-log-cleared (1102)** | `windows-*` | Windows agent Event Log (Security channel; enable command-line auditing for 4688) |
+| **Web attacks** (SQLi, path traversal, LFI/RFI, scanner UAs, Shellshock, sensitive-file probe, webshell access) + defacement / judi-online | `web` events | `/var/log/nginx/access.log` (default) - keyword rules match the raw request line; the client IP is extracted for banning. For apache add `/var/log/apache2/access.log`. |
+| **Network IDS** (Emerging Threats / any Suricata signature) | `suricata` alerts | a Suricata sensor's `eve.json` (see [docs/suricata.md](../../suricata.md)) |
 
-> Process/EDR rules (`category: process_creation`) need a process-audit source (auditd/sysmon)
-> which is not shipped yet - those rules are present but stay dormant until such a source exists.
+> Linux process/EDR rules (`category: process_creation`) need a process-audit source
+> (auditd/sysmon) which is not shipped yet - those rules stay dormant until such a source exists.
+> Windows process detection works via Event ID 4688/4104 (rendered command line).
+
+## Adding rules for new log sources
+
+To detect on a source DeusWatch does not parse yet, add a **[decoder](11-decoders.md)** (regex →
+fields + a `category`), then write rules scoped to that category - the decoder and rule work
+together. `tools/wazuh2sigma` can draft rules from the Wazuh ruleset as a starting reference
+(review before enabling; the output is gitignored for licensing).
 
 ## Variables
 

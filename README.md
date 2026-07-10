@@ -37,9 +37,10 @@ experience that no single vendor packages together.
 **Collect → Detect → Enrich → Decide → Respond**, with a human-friendly UI over every step.
 
 - **Ingest** - lightweight Go agents ship logs over mTLS (Linux/Windows); a gateway normalizes them into a common event schema on NATS JetStream.
-- **Detect** - [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP; **port scan** = many firewall drops from one IP; Windows logon brute force). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete - built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
+- **Detect** - [Sigma](https://github.com/SigmaHQ/sigma) rules, both single-event and aggregation/correlation (e.g. SSH brute force = N failures from one IP; **port scan** = many firewall drops from one IP; Windows logon brute force). Coverage spans **SSH/auth + sudo privesc**, **web attacks** (SQLi, path traversal, LFI/RFI, scanner UAs, Shellshock, webshell), **FIM** (incl. webshell-in-uploads → containment), and **Windows** (process/PowerShell LOLBins, account/group changes, audit-log-cleared). Rules are **DB-backed and fully managed from the UI** (Wazuh-style): browse, edit, toggle, add or delete - built-ins are seeded on first start, custom rules validated on save. Alerts are auto-labeled with **MITRE ATT&CK** technique/tactic.
+- **Extend** - support **new log sources without code** via **[custom decoders](docs/features/11-decoders.md)** (data-driven regex → fields, live-reloaded, with an in-UI tester on your own raw lines), and ingest **Suricata / Emerging Threats (ET Open/Pro)** network-IDS alerts as a first-class source (see [docs/suricata.md](docs/suricata.md)).
 - **Enrich** - source IPs scored with CTI (AbuseIPDB, AlienVault OTX) and GeoIP; **country resolved from AbuseIPDB → OTX → GeoIP** and severity escalates automatically on high-confidence threats. Lookups are cached with a **UI-configurable dedup window** so an IP isn't re-queried (sparing API quota); no key configured shows an honest "-", never fabricated data. Optional **LLM analysis** (provider-agnostic: Claude, Ollama, or any OpenAI-compatible endpoint) powers AI report summaries (on-demand + scheduled), with opt-in per-alert triage.
-- **Respond (SOAR)** - a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), a **per-IP response view**, **free-text search**, **bulk select/approve/dismiss**, and **unban** to lift an active block on the enforcer. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI.
+- **Respond (SOAR)** - a **progressive ban** engine: repeat offenders escalate down a configurable duration ladder (e.g. `10m → 30m → 1h → 24h → permanent`), all editable from the UI. Supports **automatic banning** (no manual approval), an **observation window**, an **IP whitelist** (trusted IPs are never banned), per-offender **dedup** (one open action per IP), a **per-IP response view**, **free-text search**, **bulk select/approve/dismiss**, and **unban** to lift an active block on the enforcer. Enforcement via nftables (agent-side), MikroTik, or CrowdSec LAPI. Beyond IP bans, **[network containment](docs/features/10-network-containment.md)** isolates a *compromised host* from the LAN (host self-isolation + edge block) when a rule authorizes it, and a **trusted-session gate** suppresses file-change alerts that correlate with a login from a whitelisted admin/deploy IP (an official change, not an attack).
 - **Visualize** - a customizable, drag-and-drop dashboard (stats, severity, top IPs/rules, MITRE, attack-origin map, gap-filled timeline) with a precise **calendar + time range picker**, a **log-storage health panel** (DB size/budget, retention lifecycle, replication status), plus automated reports.
 - **Operate** - RBAC with granular permissions, TOTP 2FA, append-only audit log, ticketing (Tier-2 escalation), notifications (Telegram / email / webhook with a UI-configurable severity threshold + scheduled report delivery), JSON **webhook export** to external tools, **config profile import/export** to clone one server's setup onto another, an in-app **update check**, and full **i18n**.
 
@@ -52,7 +53,8 @@ experience that no single vendor packages together.
 | **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
 | **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban (auto-ban + IP whitelist + dedup), per-IP response view, dashboard time-range picker + searchable events/alerts | ✅ |
 | **Phase 5** | FIM + file-hash reputation (CIRCL/VirusTotal), endpoint file quarantine/delete on known-bad hash, agent self-uninstall on revoke, open-source/self-hosted LLM (Ollama), AI report summary (on-demand + scheduled), **JSON webhook export, config-profile import/export, UI alert threshold + scheduled report delivery to Telegram/email** | ✅ |
-| Phase 6 | Windows detection rules, rule/integration marketplace, Helm chart | planned |
+| **Phase 6** | **Windows detection rules** (process/PowerShell/account/audit), **web-attack + sudo rule sets**, **network containment + trusted-session gate**, **Suricata/ET network-IDS ingestion**, **custom decoders** (data-driven log sources, UI editor + tester), agent name across Events/Response/Report + full-JSON log view | ✅ |
+| Phase 7 | Linux process audit (auditd/sysmon), rule/integration marketplace, Helm chart | planned |
 
 ### Detection coverage by platform
 
@@ -62,8 +64,10 @@ parsing + detection rules are still in progress.
 
 | Platform | Log collection | Detection (parse + rules) | End-to-end verified |
 |---|---|---|---|
-| **Linux** (sshd / journald / firewall) | ✅ | ✅ SSH brute force, invalid user, root login, sudo, FIM + malicious-hash, **port scan / network probe** (firewall drops) | ✅ tested |
-| **Windows** (Event Log: Security/System) | ✅ ships events | ✅ 4625 brute force (RDP type 10 / SMB-network type 3 / interactive) + 4740 lockout - EventID normalizer + Sigma rules | 🟡 server pipeline verified; real-agent log read pending |
+| **Linux** (sshd / journald / firewall / web / FIM) | ✅ | ✅ SSH brute force + break-in/scan/root-refused, **sudo/su privesc**, **web attacks** (SQLi, traversal, LFI/RFI, scanner UAs, Shellshock, webshell), FIM + malicious-hash + **webshell-in-uploads → containment**, **port scan** (firewall drops) | ✅ tested |
+| **Windows** (Event Log: Security/System) | ✅ ships events | ✅ 4625 brute force + 4740 lockout; **4688/4104 process & PowerShell (suspicious PowerShell, LOLBin exec)**, account/group changes (4720/4728/4732), **1102 audit-log-cleared** - EventID normalizer + Sigma rules | 🟡 server pipeline verified; real-agent log read pending |
+| **Network** (Suricata / Emerging Threats) | ✅ via a Suricata sensor's `eve.json` | ✅ every ET/Suricata alert ingested as a first-class event (bans/containment apply) | 🟡 needs a Suricata sensor - see [docs/suricata.md](docs/suricata.md) |
+| **Any other source** | via a **[custom decoder](docs/features/11-decoders.md)** (regex → fields, no code) | write rules scoped to the decoder's category | operator-defined |
 
 > Linux detection & response are validated end-to-end. **Windows** maps logon events by
 > numeric EventID (4625 failed, 4624 success, 4740 lockout) - language independent - with a
@@ -242,9 +246,12 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 | Doc | Purpose |
 |---|---|
 | [DeusWatch.md](DeusWatch.md) | Full architecture & design reference |
-| [docs/features/](docs/features/) | **Per-menu modules** - how each feature works, how to use it, ports, tech, variables |
+| [docs/features/](docs/features/) | **Per-menu modules** (11) - how each feature works, how to use it, ports, tech, variables |
 | [docs/notifications.md](docs/notifications.md) | Connect Telegram / email + scheduled report delivery |
-| [docs/llm-ollama.md](docs/llm-ollama.md) | Connect a local LLM (Ollama) for AI report summaries + troubleshooting |
+| [docs/llm-providers.md](docs/llm-providers.md) | AI providers (Ollama / OpenAI / Gemini / Groq / Claude) + triage-vs-report selector |
+| [docs/llm-ollama.md](docs/llm-ollama.md) | Connect a local LLM (Ollama) for AI summaries + troubleshooting |
+| [docs/suricata.md](docs/suricata.md) | Suricata / Emerging Threats (ET Open/Pro) network-IDS integration |
+| [decoders/](decoders/README.md) | Custom decoders: data-driven log parsing for new sources |
 | [docs/storage.md](docs/storage.md) | Log storage: retention/lifecycle, remote DB (Server B), replication, near-full alerts |
 | [SECURITY.md](SECURITY.md) | Threat model & responsible-disclosure policy |
 | [LICENSE](LICENSE) | AGPL-3.0 |
