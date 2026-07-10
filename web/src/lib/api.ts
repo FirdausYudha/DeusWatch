@@ -764,6 +764,52 @@ export async function deleteRule(id: string): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+// ── Custom decoders (data-driven log-source support) ──────
+export type DecoderSpec = {
+  name: string
+  dataset: string
+  category: string
+  action: string
+  outcome: string
+  level: string
+  regex: string
+}
+export type Decoder = DecoderSpec & {
+  id: string
+  enabled: boolean
+  builtin: boolean
+  created_at: string
+  updated_at: string
+}
+
+export async function fetchDecoders(): Promise<Decoder[]> {
+  const res = await authFetch('/api/decoders')
+  if (!res.ok) throw new Error(`decoders: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+export async function createDecoder(spec: DecoderSpec): Promise<Decoder> {
+  const res = await authFetch('/api/decoders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(spec),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function updateDecoder(id: string, spec: DecoderSpec, enabled: boolean): Promise<Decoder> {
+  const res = await authFetch(`/api/decoders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...spec, enabled }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function deleteDecoder(id: string): Promise<void> {
+  const res = await authFetch(`/api/decoders/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // ── Ticketing (Tier-2 DFIR case management) ───────────────
 
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'

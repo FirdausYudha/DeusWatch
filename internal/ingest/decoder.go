@@ -51,38 +51,25 @@ var activeDecoders atomic.Pointer[DecoderSet]
 // SetDecoders installs the active decoder set (called at startup / on reload).
 func SetDecoders(s *DecoderSet) { activeDecoders.Store(s) }
 
-// decoderFile is the on-disk YAML form of a decoder.
-type decoderFile struct {
-	Name     string `yaml:"name"`
-	Dataset  string `yaml:"dataset"`
-	Category string `yaml:"category"`
-	Action   string `yaml:"action"`
-	Outcome  string `yaml:"outcome"`
-	Level    string `yaml:"level"` // info|low|medium|high|critical
-	Regex    string `yaml:"regex"`
+// DecoderSpec is the declarative form of a decoder (on-disk YAML or a DB row).
+type DecoderSpec struct {
+	Name     string `yaml:"name" json:"name"`
+	Dataset  string `yaml:"dataset" json:"dataset"`
+	Category string `yaml:"category" json:"category"`
+	Action   string `yaml:"action" json:"action"`
+	Outcome  string `yaml:"outcome" json:"outcome"`
+	Level    string `yaml:"level" json:"level"` // info|low|medium|high|critical
+	Regex    string `yaml:"regex" json:"regex"`
 }
 
-// LoadDecoderDir loads *.yml / *.yaml decoders from dir (non-recursive). A missing dir yields an
-// empty set (not an error), so decoders are optional.
-func LoadDecoderDir(dir string) (*DecoderSet, error) {
+// BuildDecoderSet compiles specs into a dataset-indexed set. A bad spec fails the whole build so
+// callers can surface the error (the DB store validates each spec on write, so this rarely fails).
+func BuildDecoderSet(specs []DecoderSpec) (*DecoderSet, error) {
 	set := &DecoderSet{byDataset: map[string][]*Decoder{}}
-	var files []string
-	for _, pat := range []string{"*.yml", "*.yaml"} {
-		m, _ := filepath.Glob(filepath.Join(dir, pat))
-		files = append(files, m...)
-	}
-	for _, f := range files {
-		data, err := os.ReadFile(f)
+	for _, sp := range specs {
+		d, err := sp.compile()
 		if err != nil {
-			return nil, fmt.Errorf("decoder: read %s: %w", f, err)
-		}
-		var df decoderFile
-		if err := yaml.Unmarshal(data, &df); err != nil {
-			return nil, fmt.Errorf("decoder: parse %s: %w", filepath.Base(f), err)
-		}
-		d, err := compileDecoder(df)
-		if err != nil {
-			return nil, fmt.Errorf("decoder %s: %w", filepath.Base(f), err)
+			return nil, fmt.Errorf("decoder %q: %w", sp.Name, err)
 		}
 		key := datasetKind(d.Dataset)
 		set.byDataset[key] = append(set.byDataset[key], d)
@@ -90,21 +77,49 @@ func LoadDecoderDir(dir string) (*DecoderSet, error) {
 	return set, nil
 }
 
-func compileDecoder(df decoderFile) (*Decoder, error) {
-	if strings.TrimSpace(df.Dataset) == "" {
+// ValidateDecoder reports whether a spec is well-formed (dataset + compilable regex). Used by the
+// API before storing operator input.
+func ValidateDecoder(sp DecoderSpec) error {
+	_, err := sp.compile()
+	return err
+}
+
+// LoadDecoderDir loads *.yml / *.yaml decoders from dir (non-recursive). A missing dir yields an
+// empty set (not an error), so decoders are optional.
+func LoadDecoderDir(dir string) (*DecoderSet, error) {
+	var specs []DecoderSpec
+	for _, pat := range []string{"*.yml", "*.yaml"} {
+		m, _ := filepath.Glob(filepath.Join(dir, pat))
+		for _, f := range m {
+			data, err := os.ReadFile(f)
+			if err != nil {
+				return nil, fmt.Errorf("decoder: read %s: %w", f, err)
+			}
+			var sp DecoderSpec
+			if err := yaml.Unmarshal(data, &sp); err != nil {
+				return nil, fmt.Errorf("decoder: parse %s: %w", filepath.Base(f), err)
+			}
+			specs = append(specs, sp)
+		}
+	}
+	return BuildDecoderSet(specs)
+}
+
+func (sp DecoderSpec) compile() (*Decoder, error) {
+	if strings.TrimSpace(sp.Dataset) == "" {
 		return nil, fmt.Errorf("dataset is required")
 	}
-	if strings.TrimSpace(df.Regex) == "" {
+	if strings.TrimSpace(sp.Regex) == "" {
 		return nil, fmt.Errorf("regex is required")
 	}
-	re, err := regexp.Compile(df.Regex)
+	re, err := regexp.Compile(sp.Regex)
 	if err != nil {
 		return nil, fmt.Errorf("invalid regex: %w", err)
 	}
 	return &Decoder{
-		Name: df.Name, Dataset: df.Dataset, Category: df.Category,
-		Action: df.Action, Outcome: df.Outcome,
-		Severity: ParseSeverity(df.Level, SeverityInfo),
+		Name: sp.Name, Dataset: sp.Dataset, Category: sp.Category,
+		Action: sp.Action, Outcome: sp.Outcome,
+		Severity: ParseSeverity(sp.Level, SeverityInfo),
 		re:       re,
 	}, nil
 }

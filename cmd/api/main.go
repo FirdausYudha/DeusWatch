@@ -21,6 +21,7 @@ import (
 
 	"deuswatch/internal/agentinstall"
 	"deuswatch/internal/auth"
+	"deuswatch/internal/decoders"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
@@ -104,6 +105,17 @@ func main() {
 			log.Printf("api: added %d new builtin detection rules", n)
 		}
 		scancel()
+
+		// Custom decoders (data-driven log-source support): seed/sync the bundled examples,
+		// then manage from the UI; the gateway loads the enabled set and live-reloads.
+		decoderStore := decoders.NewStore(st.Pool())
+		dctx, dcancel := context.WithTimeout(context.Background(), 20*time.Second)
+		if n, derr := decoderStore.SyncBuiltinsFromDir(dctx, getenv("DECODERS_DIR", "/decoders")); derr != nil {
+			log.Printf("api: decoder sync: %v", derr)
+		} else if n > 0 {
+			log.Printf("api: added %d builtin decoder(s)", n)
+		}
+		dcancel()
 
 		// Public (no token).
 		mux.HandleFunc("/api/login", authStore.LoginHandler())
@@ -229,6 +241,8 @@ func main() {
 		// Detection rules CRUD (Wazuh-style management).
 		mux.Handle("/api/rules", protect(auth.PermManageRules, ruleStore.CollectionHandler()))
 		mux.Handle("/api/rules/{id}", protect(auth.PermManageRules, ruleStore.ItemHandler()))
+		mux.Handle("/api/decoders", protect(auth.PermManageRules, decoderStore.CollectionHandler()))
+		mux.Handle("/api/decoders/{id}", protect(auth.PermManageRules, decoderStore.ItemHandler()))
 
 		// Tier-2 DFIR ticketing (case management).
 		ticketStore := tickets.NewStore(st.Pool())

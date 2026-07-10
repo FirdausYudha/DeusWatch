@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deuswatch/internal/bus"
+	"deuswatch/internal/decoders"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/gateway"
 	"deuswatch/internal/ingest"
@@ -63,6 +64,9 @@ func main() {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
 		} else {
 			defer st.Close()
+			// Custom decoders from the DB, live-reloaded so UI edits take effect without a
+			// restart (overrides the file bootstrap above once the DB is reachable).
+			go runDecoderReload(ctx, decoders.NewStore(st.Pool()))
 			es := enroll.NewStore(st.Pool(), nil)
 			revoked = es.IsRevoked
 			cfgFunc = es.GetConfigByName
@@ -150,6 +154,32 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// runDecoderReload installs the enabled custom decoders from the DB and re-reads them every 30s,
+// so decoders added/edited/toggled in the UI take effect without restarting the gateway.
+func runDecoderReload(ctx context.Context, ds *decoders.Store) {
+	load := func() {
+		rc, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		set, err := ds.EnabledSet(rc)
+		if err != nil {
+			log.Printf("gateway: decoder reload: %v", err)
+			return
+		}
+		ingest.SetDecoders(set)
+	}
+	load()
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			load()
+		}
+	}
 }
 
 // splitCSV parses a comma-separated env value into a trimmed, non-empty slice.

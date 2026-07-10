@@ -8,8 +8,13 @@ you set, fire on that source.
 Decoders run in the **gateway**, only as a fallback for datasets that have no built-in decoder
 (sshd, web, firewall, fim, windows, suricata are built in). They are compiled once and indexed by
 dataset, so a line only tries the decoders for its own dataset - the cost is one linear-time
-(RE2) regex per line. Loaded at startup from `DECODERS_DIR` (default `/decoders`, baked into the
-image).
+(RE2) regex per line.
+
+**Manage them in the UI** (the **Decoders** page): add/edit/enable/delete without a restart -
+the gateway live-reloads within ~30s. The `.yml` files in this directory are **seeds**: on first
+start they are loaded into the DB as builtins (and new ones are added on upgrade), then the DB is
+the source of truth. `DECODERS_DIR` (default `/decoders`, baked into the image) is where those
+seeds live.
 
 ## Format
 
@@ -46,9 +51,11 @@ backreferences or lookaround, but linear-time and safe for operator input.
 
 ## Workflow
 
-1. Add a `.yml` here, matching your source's lines and setting a `category`.
+1. **Decoders** page -> Add: set the `dataset`, a `category`, and the `regex` (or add a `.yml`
+   here to ship it as a seed).
 2. Add a rule under `rules/sigma/` scoped to that category (keyword on `event.original`, or a
    field selection on what you extracted).
-3. Point the agent at the log with a source whose `dataset` matches, and restart the gateway.
+3. Point the agent at the log with a source whose `dataset` matches. No restart needed - the
+   gateway live-reloads decoders.
 
 See `postfix.yml` and `vsftpd.yml` for working examples.

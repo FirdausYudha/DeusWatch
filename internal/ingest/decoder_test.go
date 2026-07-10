@@ -2,17 +2,17 @@ package ingest
 
 import "testing"
 
-func mustDecoder(t *testing.T, df decoderFile) *DecoderSet {
+func mustDecoder(t *testing.T, sp DecoderSpec) *DecoderSet {
 	t.Helper()
-	d, err := compileDecoder(df)
+	set, err := BuildDecoderSet([]DecoderSpec{sp})
 	if err != nil {
-		t.Fatalf("compile decoder: %v", err)
+		t.Fatalf("build decoder: %v", err)
 	}
-	return &DecoderSet{byDataset: map[string][]*Decoder{datasetKind(d.Dataset): {d}}}
+	return set
 }
 
 func TestCustomDecoderExtractsFields(t *testing.T) {
-	set := mustDecoder(t, decoderFile{
+	set := mustDecoder(t, DecoderSpec{
 		Name: "app", Dataset: "myapp", Category: "authentication", Outcome: "failure", Level: "medium",
 		Regex: `login failed for (?P<user_name>\w+) from (?P<source_ip>\d{1,3}(?:\.\d{1,3}){3})`,
 	})
@@ -64,10 +64,10 @@ func TestLoadDecoderDirExamples(t *testing.T) {
 }
 
 func TestCompileDecoderValidation(t *testing.T) {
-	if _, err := compileDecoder(decoderFile{Regex: "x", Dataset: ""}); err == nil {
+	if err := ValidateDecoder(DecoderSpec{Regex: "x", Dataset: ""}); err == nil {
 		t.Fatal("missing dataset should error")
 	}
-	if _, err := compileDecoder(decoderFile{Dataset: "d", Regex: "("}); err == nil {
+	if err := ValidateDecoder(DecoderSpec{Dataset: "d", Regex: "("}); err == nil {
 		t.Fatal("an invalid regex should error")
 	}
 }
