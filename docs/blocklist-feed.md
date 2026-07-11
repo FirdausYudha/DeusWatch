@@ -7,14 +7,16 @@ dynamic list" feature these products already have.
 
 ## Enable it
 
-Set a random token (this is what gates the feed) and restart the api:
+**From the UI (recommended):** **Response** page → **Blocklist feed** panel → **Enable feed
+(generate token)**. It shows the ready-to-use URL with a **Copy** and **Regenerate token** button
+(admin / `manage_settings` only). Regenerating rotates the token and invalidates the old URL.
+
+**From env (optional seed):** set `BLOCKLIST_FEED_TOKEN` in `deploy/.env` and it is loaded into
+the DB on first start (so an existing deployment keeps working); after that, manage it in the UI.
 
 ```bash
-# in deploy/.env
+# optional, in deploy/.env
 BLOCKLIST_FEED_TOKEN=$(openssl rand -hex 24)
-```
-
-```bash
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d api
 ```
 

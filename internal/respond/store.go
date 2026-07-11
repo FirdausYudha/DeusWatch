@@ -291,6 +291,44 @@ func (s *Store) List(ctx context.Context, status, search string, limit int) ([]A
 	return out, rows.Err()
 }
 
+// FeedToken returns the current blocklist-feed token ("" = feed disabled).
+func (s *Store) FeedToken(ctx context.Context) (string, error) {
+	var tok string
+	err := s.pool.QueryRow(ctx, `SELECT token FROM blocklist_feed WHERE id = 1`).Scan(&tok)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("respond: feed token: %w", err)
+	}
+	return tok, nil
+}
+
+// SetFeedToken upserts the blocklist-feed token.
+func (s *Store) SetFeedToken(ctx context.Context, token string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO blocklist_feed (id, token, updated_at) VALUES (1, $1, now())
+		 ON CONFLICT (id) DO UPDATE SET token = $1, updated_at = now()`, token)
+	if err != nil {
+		return fmt.Errorf("respond: set feed token: %w", err)
+	}
+	return nil
+}
+
+// SeedFeedTokenFromEnv writes envToken into the DB only if no token is stored yet, so an existing
+// BLOCKLIST_FEED_TOKEN deployment keeps working and becomes UI-manageable. No-op if env is empty
+// or a token already exists.
+func (s *Store) SeedFeedTokenFromEnv(ctx context.Context, envToken string) error {
+	if envToken == "" {
+		return nil
+	}
+	cur, err := s.FeedToken(ctx)
+	if err != nil || cur != "" {
+		return err
+	}
+	return s.SetFeedToken(ctx, envToken)
+}
+
 // ActiveBlocks returns the source IPs that should currently be blocked: approved or
 // executed block actions whose ban window has not expired (ban_seconds = 0 = permanent).
 // Used to feed agent-side firewalls.

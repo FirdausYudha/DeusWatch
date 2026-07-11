@@ -50,10 +50,10 @@ IP would pass the gate.
 Beyond the per-device responders, DeusWatch can publish the **currently-banned IPs** as a
 dynamic block list that any firewall fetches on a schedule - the vendor-agnostic, pull-based way
 to enforce bans on **Palo Alto (EDL)**, **OPNsense (URL table)**, **pfSense (pfBlockerNG)**, and
-**MikroTik**. Set `BLOCKLIST_FEED_TOKEN` and point the firewall at
-`GET /api/blocklist?token=...` (plaintext, one IP per line; `&format=json` for JSON). Expired /
-unbanned IPs drop off automatically. Full per-firewall setup:
-[docs/blocklist-feed.md](../blocklist-feed.md).
+**MikroTik**. Enable it from the **Blocklist feed** panel on this page (generate/regenerate the
+token, copy the URL), then point the firewall at `GET /api/blocklist?token=...` (plaintext, one
+IP per line; `&format=json` for JSON). Expired / unbanned IPs drop off automatically. Full
+per-firewall setup: [docs/blocklist-feed.md](../blocklist-feed.md).
 
 ## How to use
 
@@ -76,6 +76,7 @@ Two views (toggle top-right):
 | `GET /api/responses?status=&q=` | list/search actions | `view_dashboard` |
 | `GET /api/responses/offenders` | per-IP rollup | `view_dashboard` |
 | `GET /api/blocklist?token=` | active bans as a firewall feed (txt/json) | token only |
+| `GET /api/blocklist-config`, `POST /api/blocklist-config/regenerate` | feed token show / rotate | `manage_settings` |
 | `POST /api/responses/{id}/approve` | approve + execute | `approve_remediation` |
 | `POST /api/responses/{id}/dismiss` | dismiss a recommendation | `approve_remediation` |
 | `POST /api/responses/{id}/unban` | lift an active block | `approve_remediation` |

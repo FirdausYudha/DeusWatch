@@ -528,6 +528,19 @@ export async function fetchResponses(status = '', search = ''): Promise<Response
   return (await res.json()) ?? []
 }
 
+// Blocklist feed: the UI-managed token for GET /api/blocklist (external-firewall feed).
+export type BlocklistConfig = { token: string; enabled: boolean }
+export async function fetchBlocklistConfig(): Promise<BlocklistConfig> {
+  const res = await authFetch('/api/blocklist-config')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function regenerateBlocklistToken(): Promise<BlocklistConfig> {
+  const res = await authFetch('/api/blocklist-config/regenerate', { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // Progressive-ban policy: the escalation ladder (durations in seconds for the 1st, 2nd,
 // … offense), whether offenses beyond the ladder are permanent, and the observation
 // window in seconds (0 = count all history).

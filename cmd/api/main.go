@@ -7,7 +7,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -204,8 +206,17 @@ func main() {
 		// Blocklist feed (pull model): a token-gated, unauthenticated URL that serves the active
 		// banned IPs as a plaintext/JSON list, so any external firewall that fetches a dynamic
 		// block list (Palo Alto EDL, OPNsense URL-table alias, pfSense pfBlockerNG, MikroTik
-		// fetch) can mirror our bans. Disabled unless BLOCKLIST_FEED_TOKEN is set.
-		mux.HandleFunc("GET /api/blocklist", blocklistFeedHandler(respStore, os.Getenv("BLOCKLIST_FEED_TOKEN")))
+		// fetch) can mirror our bans. The token is UI-managed (Response page); an existing
+		// BLOCKLIST_FEED_TOKEN env is seeded into the DB once so it keeps working.
+		if sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second); true {
+			if err := respStore.SeedFeedTokenFromEnv(sctx, os.Getenv("BLOCKLIST_FEED_TOKEN")); err != nil {
+				log.Printf("api: seed feed token: %v", err)
+			}
+			cancel()
+		}
+		mux.HandleFunc("GET /api/blocklist", blocklistFeedHandler(respStore, respStore.FeedToken))
+		mux.Handle("GET /api/blocklist-config", protect(auth.PermManageSettings, blocklistConfigHandler(respStore)))
+		mux.Handle("POST /api/blocklist-config/regenerate", protect(auth.PermManageSettings, blocklistRegenerateHandler(respStore)))
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("GET /api/responses/offenders", protect(auth.PermViewDashboard, offendersHandler(respStore)))
 		mux.Handle("POST /api/responses/dismiss-ip", protect(auth.PermApproveRemediation, dismissIPHandler(respStore)))
@@ -1204,13 +1215,56 @@ type blockLister interface {
 	ActiveBlocks(ctx context.Context) ([]string, error)
 }
 
-// blocklistFeedHandler serves the currently-banned IPs as a firewall-consumable dynamic block
-// list. It is token-gated (BLOCKLIST_FEED_TOKEN) and unauthenticated so a firewall appliance can
-// poll it on a schedule. The default body is one IP per line (what Palo Alto EDL / OPNsense URL
-// tables / pfSense pfBlockerNG / MikroTik fetch expect); ?format=json returns JSON. Disabled
-// (404) when no token is configured, so the feed is never exposed by accident.
-func blocklistFeedHandler(bl blockLister, token string) http.HandlerFunc {
+// blocklistFeedConfig is the store the UI config handlers need.
+type blocklistFeedConfig interface {
+	FeedToken(ctx context.Context) (string, error)
+	SetFeedToken(ctx context.Context, token string) error
+}
+
+// blocklistConfigHandler (GET /api/blocklist-config) returns the current feed token + whether the
+// feed is enabled, for the Response page's feed panel (admin only).
+func blocklistConfigHandler(s blocklistFeedConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		tok, err := s.FeedToken(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": tok != ""})
+	}
+}
+
+// blocklistRegenerateHandler (POST /api/blocklist-config/regenerate) mints a new random feed
+// token (rotating it, which invalidates the old URL) and returns it.
+func blocklistRegenerateHandler(s blocklistFeedConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 24)
+		if _, err := rand.Read(buf); err != nil {
+			http.Error(w, "token generation failed", http.StatusInternalServerError)
+			return
+		}
+		tok := hex.EncodeToString(buf)
+		if err := s.SetFeedToken(r.Context(), tok); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": true})
+	}
+}
+
+// blocklistFeedHandler serves the currently-banned IPs as a firewall-consumable dynamic block
+// list. It is token-gated (the UI-managed feed token) and unauthenticated so a firewall appliance
+// can poll it on a schedule. The default body is one IP per line (what Palo Alto EDL / OPNsense
+// URL tables / pfSense pfBlockerNG / MikroTik fetch expect); ?format=json returns JSON. The token
+// is read per request so a regenerate takes effect immediately; an empty token disables the feed
+// (404), so it is never exposed by accident.
+func blocklistFeedHandler(bl blockLister, tokenFn func(context.Context) (string, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token, err := tokenFn(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		if token == "" {
 			http.NotFound(w, r) // feed not enabled
 			return

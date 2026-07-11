@@ -11,6 +11,8 @@ import {
   fetchWhitelist,
   addWhitelist,
   deleteWhitelist,
+  fetchBlocklistConfig,
+  regenerateBlocklistToken,
   fetchContainments,
   approveContainment,
   dismissContainment,
@@ -198,6 +200,7 @@ export default function Response({ me }: { me: Me }) {
       <ContainmentPanel canApprove={canApprove} />
       <BanPolicyEditor canManage={can(me, 'manage_settings')} />
       <WhitelistEditor canManage={can(me, 'manage_settings')} />
+      <BlocklistFeedPanel canManage={can(me, 'manage_settings')} />
 
       {view === 'events' && (
         <div className="mb-4 space-y-3">
@@ -707,6 +710,67 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Blocklist feed (external-firewall sync) ─────────────────
+function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
+  const [token, setToken] = useState('')
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    if (!canManage) return
+    fetchBlocklistConfig().then((c) => { setToken(c.token); setEnabled(c.enabled) }).catch(() => {})
+  }, [canManage])
+
+  if (!canManage) return null
+
+  const url = enabled ? `${window.location.origin}/api/blocklist?token=${token}` : ''
+  const regenerate = async () => {
+    setBusy(true); setErr('')
+    try { const c = await regenerateBlocklistToken(); setToken(c.token); setEnabled(true) }
+    catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { /* ignore */ }
+  }
+
+  return (
+    <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <h2 className="text-sm font-semibold text-white">Blocklist feed (external firewalls)</h2>
+      <p className="mb-3 mt-1 text-sm text-slate-500">
+        A token-gated URL of the currently-banned IPs. Point a firewall's dynamic block list
+        at it (Palo Alto EDL, OPNsense URL table, pfSense pfBlockerNG, MikroTik) to mirror your
+        bans. Expired/unbanned IPs drop off automatically.
+      </p>
+      {enabled ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
+            className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-300 outline-none" />
+          <button onClick={copy} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">{copied ? 'Copied ✓' : 'Copy'}</button>
+          <button onClick={regenerate} disabled={busy}
+            className="rounded-lg border border-amber-700/60 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
+            {busy ? 'Regenerating…' : 'Regenerate token'}
+          </button>
+        </div>
+      ) : (
+        <button onClick={regenerate} disabled={busy}
+          className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
+          {busy ? 'Generating…' : 'Enable feed (generate token)'}
+        </button>
+      )}
+      {enabled && (
+        <p className="mt-2 text-xs text-slate-600">
+          The token is in the URL - serve it over HTTPS / LAN. Regenerating invalidates the old URL.
+          Add <span className="font-mono">&amp;format=json</span> for JSON.
+        </p>
+      )}
+      {err && <p className="mt-2 text-sm text-rose-400">{err}</p>}
+    </section>
   )
 }
 
