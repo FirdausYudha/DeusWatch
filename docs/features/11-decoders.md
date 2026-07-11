@@ -4,6 +4,9 @@ Data-driven log parsing - the DeusWatch equivalent of Wazuh decoders. A decoder 
 log source without writing code**: a regex extracts fields from a dataset's raw lines, and rules
 scoped to the category you set then fire on it.
 
+> New here? The end-to-end walkthrough (agent source -> decoder -> test -> rule -> ban) is in
+> [docs/new-log-source.md](../new-log-source.md).
+
 ## How it works
 
 - A decoder is a **Go RE2 regex** with **named capture groups** (`?P<source_ip>...`) that map to

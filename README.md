@@ -247,6 +247,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 |---|---|
 | [DeusWatch.md](DeusWatch.md) | Full architecture & design reference |
 | [docs/features/](docs/features/) | **Per-menu modules** (11) - how each feature works, how to use it, ports, tech, variables |
+| [docs/new-log-source.md](docs/new-log-source.md) | **Tutorial**: add a new log source end-to-end (decoder → test → rule → ban) |
 | [docs/notifications.md](docs/notifications.md) | Connect Telegram / email + scheduled report delivery |
 | [docs/llm-providers.md](docs/llm-providers.md) | AI providers (Ollama / OpenAI / Gemini / Groq / Claude) + triage-vs-report selector |
 | [docs/llm-ollama.md](docs/llm-ollama.md) | Connect a local LLM (Ollama) for AI summaries + troubleshooting |

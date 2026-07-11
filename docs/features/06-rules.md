@@ -61,8 +61,9 @@ A rule only fires if the pipeline produces the matching events. Coverage by cate
 
 To detect on a source DeusWatch does not parse yet, add a **[decoder](11-decoders.md)** (regex →
 fields + a `category`), then write rules scoped to that category - the decoder and rule work
-together. `tools/wazuh2sigma` can draft rules from the Wazuh ruleset as a starting reference
-(review before enabling; the output is gitignored for licensing).
+together. Full end-to-end walkthrough: [docs/new-log-source.md](../new-log-source.md).
+`tools/wazuh2sigma` can draft rules from the Wazuh ruleset as a starting reference (review before
+enabling; the output is gitignored for licensing).
 
 ## Variables
 
