@@ -203,7 +203,7 @@ export default function Response({ me }: { me: Me }) {
       <BlocklistFeedPanel canManage={can(me, 'manage_settings')} />
 
       {view === 'events' && (
-        <div className="mb-4 space-y-3">
+        <div className="mt-6 mb-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             {FILTERS.map((f) => (
               <button
@@ -243,7 +243,9 @@ export default function Response({ me }: { me: Me }) {
       {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
 
       {view === 'ip' ? (
-        <OffendersTable offenders={offenders} canApprove={canApprove} busy={busy} act={act} dismissAll={dismissAll} />
+        <div className="mt-6">
+          <OffendersTable offenders={offenders} canApprove={canApprove} busy={busy} act={act} dismissAll={dismissAll} />
+        </div>
       ) : (
         <EventsTable actions={actions} canApprove={canApprove} busy={busy} act={act} unban={unban} selected={selected} toggleSel={toggleSel} toggleAll={toggleAll} />
       )}
