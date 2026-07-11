@@ -88,6 +88,10 @@ services:
       # the generated one-liner is correct when you remap the ports below.
       PUBLIC_API_PORT: "${DEUSWATCH_API_PORT:-9080}"
       PUBLIC_GATEWAY_PORT: "${DEUSWATCH_GATEWAY_PORT:-9443}"
+      # Blocklist feed: set a random token to expose GET /api/blocklist?token=... so external
+      # firewalls (Palo Alto EDL, OPNsense, pfSense, MikroTik) can fetch the active bans. Empty
+      # = feed disabled. Generate: openssl rand -hex 24
+      BLOCKLIST_FEED_TOKEN: "${BLOCKLIST_FEED_TOKEN:-}"
     volumes:
       - ./certs:/certs:ro
     ports:

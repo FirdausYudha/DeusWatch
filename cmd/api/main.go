@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -199,6 +201,11 @@ func main() {
 		// as the worker — RESPONDER/RESPONSE_LIVE). See internal/respond.
 		respStore := respond.NewStore(st.Pool())
 		respEngine := respond.NewEngine(respStore, respond.ResponderFromEnv(), respond.DefaultBanPolicy(), false)
+		// Blocklist feed (pull model): a token-gated, unauthenticated URL that serves the active
+		// banned IPs as a plaintext/JSON list, so any external firewall that fetches a dynamic
+		// block list (Palo Alto EDL, OPNsense URL-table alias, pfSense pfBlockerNG, MikroTik
+		// fetch) can mirror our bans. Disabled unless BLOCKLIST_FEED_TOKEN is set.
+		mux.HandleFunc("GET /api/blocklist", blocklistFeedHandler(respStore, os.Getenv("BLOCKLIST_FEED_TOKEN")))
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("GET /api/responses/offenders", protect(auth.PermViewDashboard, offendersHandler(respStore)))
 		mux.Handle("POST /api/responses/dismiss-ip", protect(auth.PermApproveRemediation, dismissIPHandler(respStore)))
@@ -1189,6 +1196,51 @@ func whitelistDeleteHandler(s *respond.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	}
+}
+
+// blockLister is the subset of the response store the blocklist feed needs (stubbable in tests).
+type blockLister interface {
+	ActiveBlocks(ctx context.Context) ([]string, error)
+}
+
+// blocklistFeedHandler serves the currently-banned IPs as a firewall-consumable dynamic block
+// list. It is token-gated (BLOCKLIST_FEED_TOKEN) and unauthenticated so a firewall appliance can
+// poll it on a schedule. The default body is one IP per line (what Palo Alto EDL / OPNsense URL
+// tables / pfSense pfBlockerNG / MikroTik fetch expect); ?format=json returns JSON. Disabled
+// (404) when no token is configured, so the feed is never exposed by accident.
+func blocklistFeedHandler(bl blockLister, token string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if token == "" {
+			http.NotFound(w, r) // feed not enabled
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("token")), []byte(token)) != 1 {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		ips, err := bl.ActiveBlocks(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		sort.Strings(ips)
+		if r.URL.Query().Get("format") == "json" {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"generated": time.Now().UTC().Format(time.RFC3339),
+				"count":     len(ips),
+				"ips":       ips,
+			})
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		var b strings.Builder
+		fmt.Fprintf(&b, "# DeusWatch blocklist - %d active blocks - %s\n", len(ips), time.Now().UTC().Format(time.RFC3339))
+		for _, ip := range ips {
+			b.WriteString(ip)
+			b.WriteByte('\n')
+		}
+		_, _ = io.WriteString(w, b.String())
 	}
 }
 
