@@ -202,6 +202,20 @@ tutorial.
 - API rate limiting / login brute-force lockout, TLS on API+web (or documented reverse-proxy
   recipe), password policy, DB backup/restore runbook, resource limits in compose.
 
+**Design-doc audit 2026-07-13 (DeusWatch.md goals not yet built - candidates, not debt):**
+- Remediation **playbooks** (§9): `rules/playbooks/` exists but is empty; per-label YAML
+  playbook catalog + UI editor never built (progressive ban covers part of the intent).
+- **Self-monitoring** (§13): no `degraded`/`stale` agent states, **no auto high-alert when an
+  agent dies** (design calls this out: a killed agent may be an attacker), no internal
+  `selfhealth` monitor (NATS lag / ingest-vs-write rate), no System Health page; `/healthz`
+  missing on the worker.
+- **Disk-watermark janitor** (§8): near-full alert exists; auto-drop of oldest chunks at 90% doesn't.
+- Cold archive to MinIO/S3 Parquet (§8, optional); ntfy/Gotify + WhatsApp-gateway channels +
+  per-channel routing/quiet hours (§11); agent self-update w/ cosign verification (§12);
+  Windows Firewall as a *ban* enforcer (§10, currently isolation-only); ML anomaly baseline +
+  pgvector RAG (§6 Phase 3).
+- Deliberately dropped (not debt): Android + macOS agents. Scheduled (Phase 7): marketplace, Helm, auditd.
+
 **Smaller refinements (carried over):**
 - Real-time FIM via fsnotify (currently polling); canary config deploy.
 - Per-agent block scoping (gateway filters blocklist by `agent_scope` + CN).
