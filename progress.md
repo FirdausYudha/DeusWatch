@@ -190,6 +190,22 @@ agent name surfaced across Events/Response/Report + full-JSON log view + agent f
 FIM changed-path on alerts; per-menu feature docs (`docs/features/01-11`) + new-log-source
 tutorial.
 
+## Project principle: honesty (standing rule, 2026-07-13)
+
+We are building an ambitious security app - **and every claim must be honest**. People
+depend on a security product's claims for their actual security; an overclaimed
+"verified" can mean an undetected incident on someone else's server. Concretely:
+
+- **implemented ≠ verified.** ✅ = code done + auto-tested; "verified" = proven in real
+  conditions. The README status badge, roadmap rows and coverage table use ✅/🟡 markers.
+- A platform/feature is never marked verified until a live run proved it.
+- Limitations and beta status go in prominent places, not fine print (this is already
+  the project's DNA: CTI shows "-" instead of fabricated data; Windows agent labeled
+  beta; WhatsApp channel documented with its real risks).
+- Release notes state what was NOT verified when relevant.
+- When an overclaim is caught, fix it immediately (precedent: README "Phase 1-6
+  complete" → "implemented · Linux verified e2e").
+
 ## Versioning & release convention (decided 2026-07-13)
 
 Semantic versioning `MAJOR.MINOR.PATCH`, applied from **v1.2.0 onwards** (the v1.1.x
