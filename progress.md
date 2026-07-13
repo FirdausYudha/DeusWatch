@@ -186,6 +186,23 @@ agent name surfaced across Events/Response/Report + full-JSON log view + agent f
 FIM changed-path on alerts; per-menu feature docs (`docs/features/01-11`) + new-log-source
 tutorial.
 
+## Versioning & release convention (decided 2026-07-13)
+
+Semantic versioning `MAJOR.MINOR.PATCH`, applied from **v1.2.0 onwards** (the v1.1.x
+line bumped patch for features - accepted as history, not repeated):
+
+- **PATCH** (v1.2.0 → v1.2.1): bugfixes/docs/perf only - updating requires no reading.
+- **MINOR** (v1.1.x → v1.2.0): new backward-compatible features (a work cycle like
+  auditd, self-monitoring, playbooks, Windows-agent verified). Patch resets to 0.
+- **MAJOR** (→ v2.0.0): breaking change only - agent protocol incompatibility (mass
+  re-enroll), non-auto-migratable schema, renamed/removed env vars or API endpoints.
+  Never bump major just because a feature feels big.
+
+**Release mechanics** (nothing in the code needs editing - the version comes from the
+git tag): `git tag -a vX.Y.Z` → `git push origin vX.Y.Z` → publish a GitHub Release
+from that tag (the in-app update check reads `releases/latest`; a tag alone is not
+enough). `scripts/update.sh` bakes `git describe --tags` into the build.
+
 ## Next-step candidates (updated 2026-07-13)
 
 **Verification gaps (highest value, no new code):**
