@@ -1,0 +1,87 @@
+flowchart TB
+
+  %% ══════════════ ENDPOINTS ══════════════
+  subgraph EP["🖥️ ENDPOINTS - monitored hosts"]
+    direction TB
+    subgraph LA["Linux Agent (Go, systemd service)"]
+      LC["Collectors:<br/>auth/syslog (file tail) · journald<br/>web access log (nginx/apache)<br/>firewall log (ufw/iptables)<br/>FIM + SHA-256 hashing"]
+      LB["Offline buffer<br/>(store-and-forward, no log loss)"]
+      LR["Responders:<br/>nftables auto-block (polls blocklist)<br/>host self-isolation (containment)<br/>quarantine/delete known-bad files<br/>self-uninstall on revoke"]
+    end
+    subgraph WA["Windows Agent (Go, native Windows service)"]
+      WC["Collectors:<br/>Event Log Security/System<br/>(4625/4624/4740 logon · 4688/4104 process/PS<br/>4720/4728/4732 accounts · 1102 audit cleared)<br/>FIM + hashing"]
+      WR["Isolation via Windows Firewall"]
+    end
+    SUR["Suricata / Snort sensor<br/>eve.json alerts (ET Open/Pro rulesets)"]
+  end
+
+  %% ══════════════ MANAGER ══════════════
+  subgraph MGR["🏰 MANAGER - one docker compose host"]
+    direction TB
+    CG["certgen (init container)<br/>private CA + mTLS certificates"]
+    GW["Ingest Gateway :9443 (mTLS only)<br/>enrollment: one-time token → client cert<br/>config push · heartbeat · revocation<br/>custom decoders (regex→fields, live-reload)<br/>normalization → DCS event schema"]
+    BUS["NATS JetStream<br/>durable event bus"]
+    subgraph WK["Worker (detection pipeline)"]
+      DET["Detection<br/>Sigma single-event engine +<br/>aggregation compiled to SQL<br/>1000+ DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling"]
+      ENR["CTI Enrichment<br/>abuse score + country + escalation<br/>TTL cache (quota-friendly)<br/>community blocklists"]
+      HREP["File-hash reputation<br/>known-bad detection on FIM events"]
+      RSP["Response Engine (SOAR)<br/>progressive ban ladder 10m→30m→1h→24h→perm<br/>IP whitelist · dedup · approval or auto-ban<br/>unban · network containment<br/>trusted-session gate"]
+      NTF["Notifications<br/>severity threshold (UI) · dedup/throttle<br/>scheduled report delivery"]
+      LLMW["LLM Worker<br/>alert triage (opt-in) +<br/>AI report summaries (on-demand + scheduled)"]
+    end
+    DB[("PostgreSQL 16 + TimescaleDB<br/>events hypertable: per-day chunks,<br/>columnar compression, retention policy<br/>alerts · rules · decoders · bans · tickets<br/>users/RBAC/audit log (append-only)<br/>integrations: secrets AES-256-GCM at rest")]
+    API["API Server :9080<br/>Argon2id auth · TOTP 2FA · granular RBAC<br/>login brute-force lockout · password policy<br/>auto-migrations · reports (JSON/MD/PDF)<br/>webhook export · config profiles<br/>agent one-line installer · update check"]
+    WEB["Web UI :9173 (React+Vite via nginx)<br/>drag-and-drop Dashboard · Events · Response<br/>Rules · Decoders · Agents · Integrations<br/>Tickets · Report · Users · Settings"]
+  end
+
+  %% ══════════════ EXTERNAL ══════════════
+  subgraph EXT["🌐 EXTERNAL SERVICES & DEVICES"]
+    direction TB
+    CTI["AbuseIPDB · AlienVault OTX<br/>ip-api GeoIP"]
+    HASHSVC["CIRCL hashlookup · VirusTotal"]
+    LLMP["Anthropic Claude · Ollama (local/free)<br/>any OpenAI-compatible endpoint"]
+    CHAN["Telegram · Email (SMTP)<br/>webhook targets (SIEM / n8n / Zapier)"]
+    ENF["MikroTik RouterOS (REST)<br/>CrowdSec LAPI (bouncer ecosystem)"]
+    EDL["External firewalls (pull model):<br/>Palo Alto EDL · OPNsense · pfSense<br/>MikroTik address-list"]
+    GH["GitHub Releases<br/>(read-only update check)"]
+  end
+
+  %% ══════════════ FLOWS ══════════════
+  LC --> LB
+  LB -- "logs + heartbeat<br/>mTLS :9443" --> GW
+  WC -- "logs + heartbeat<br/>mTLS :9443" --> GW
+  SUR -- "eve.json tailed by agent" --> LC
+  CG -.->|issues certs| GW
+  GW -- "normalized events" --> BUS
+  BUS --> DET
+  DET -- "alerts" --> DB
+  DET --> ENR
+  ENR <--> CTI
+  HREP <--> HASHSVC
+  ENR --> RSP
+  RSP -- "ban / contain decisions" --> DB
+  RSP --> NTF
+  RSP --> ENF
+  NTF --> CHAN
+  LLMW <--> LLMP
+  LLMW <--> DB
+  WK <--> DB
+  API <--> DB
+  WEB -- "/api reverse proxy" --> API
+  API -- "enroll · config · installer :9080" --> LA
+  API -- "enroll · config · installer :9080" --> WA
+  LR -- "poll active blocklist (mTLS)" --> GW
+  GW -- "block + isolate orders" --> LR
+  GW -- "isolate orders" --> WR
+  EDL -- "GET /api/blocklist?token=..." --> API
+  API -.-> GH
+
+  %% ══════════════ STYLES ══════════════
+  classDef endpoint fill:#e8f4fd,stroke:#2980b9,color:#1a1a2e
+  classDef manager fill:#fef9e7,stroke:#b7950b,color:#1a1a2e
+  classDef storage fill:#e8f8f0,stroke:#1e8449,color:#1a1a2e
+  classDef external fill:#fdedec,stroke:#c0392b,color:#1a1a2e
+  class LC,LB,LR,WC,WR,SUR endpoint
+  class CG,GW,BUS,DET,ENR,HREP,RSP,NTF,LLMW,API,WEB manager
+  class DB storage
+  class CTI,HASHSVC,LLMP,CHAN,ENF,EDL,GH external
