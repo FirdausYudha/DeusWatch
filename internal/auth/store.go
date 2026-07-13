@@ -54,11 +54,15 @@ func permsArg(ps []Permission) any {
 
 // Store is the auth repository (users, sessions, audit_log) in Postgres.
 type Store struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	limiter *LoginLimiter
 }
 
-// NewStore wraps an existing pool (shared with the main store).
-func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+// NewStore wraps an existing pool (shared with the main store). The login
+// brute-force limiter is configured from LOGIN_MAX_FAILURES / LOGIN_LOCKOUT.
+func NewStore(pool *pgxpool.Pool) *Store {
+	return &Store{pool: pool, limiter: newLoginLimiterFromEnv()}
+}
 
 // dummyHash is used to equalize timing when a username is not found.
 var dummyHash, _ = HashPassword("deuswatch-timing-equalizer")

@@ -51,6 +51,21 @@ const githubRepo = "FirdausYudha/DeusWatch"
 func main() {
 	addr := getenv("HTTP_ADDR", ":8080")
 
+	// Reverse proxies whose X-Forwarded-For we trust (the bundled web/nginx
+	// container in compose). Without this the login rate limiter and audit log
+	// would see every UI request as the proxy's IP.
+	if tp := os.Getenv("TRUSTED_PROXIES"); tp != "" {
+		if err := auth.SetTrustedProxies(tp); err != nil {
+			log.Printf("api: %v", err)
+		}
+	}
+	// Password policy floor for NEW passwords (existing hashes are untouched).
+	if v := os.Getenv("PASSWORD_MIN_LEN"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			auth.SetMinPasswordLen(n)
+		}
+	}
+
 	// The store connection is optional: if the DB is not ready, /api/* endpoints reply
 	// 503, but liveness stays up.
 	var st *store.Store

@@ -17,10 +17,12 @@ SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis - in
 
 ---
 
-> ⚠️ **Status: active development.** Phases 1-5 are implemented (ingest, detection, enrichment,
-> response, FIM + hash reputation, endpoint remediation, AI reports). Detection & response are
-> verified end-to-end on Linux; Windows detection is still in progress. Functional for labs
-> and self-hosting; not yet hardened for production.
+> ⚠️ **Status: active development.** Phases 1-6 are implemented (ingest, detection, enrichment,
+> response, FIM + hash reputation, endpoint remediation, AI reports, custom decoders,
+> Suricata ingest, network containment). Detection & response are verified end-to-end on
+> Linux; the Windows agent's live Security-log read is still beta. Suitable for labs and
+> self-hosting; for real networks follow the [production hardening guide](docs/production.md)
+> (TLS, login lockout, port exposure, backups).
 
 ## What is DeusWatch?
 
@@ -255,6 +257,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 | [docs/blocklist-feed.md](docs/blocklist-feed.md) | Sync bans to external firewalls (Palo Alto EDL, OPNsense, pfSense, MikroTik) |
 | [decoders/](decoders/README.md) | Custom decoders: data-driven log parsing for new sources |
 | [docs/storage.md](docs/storage.md) | Log storage: retention/lifecycle, remote DB (Server B), replication, near-full alerts |
+| [docs/production.md](docs/production.md) | **Production hardening**: TLS reverse proxy, login lockout & password policy, port exposure, backup/restore runbook |
 | [SECURITY.md](SECURITY.md) | Threat model & responsible-disclosure policy |
 | [LICENSE](LICENSE) | AGPL-3.0 |
 
@@ -270,7 +273,9 @@ Docker · provider-agnostic LLM (official Anthropic SDK for Claude; OpenAI-compa
 ## Security
 
 A security system that isn't secure is an irony. mTLS is required, RBAC from day one,
-encrypted secrets, append-only audit log. See [SECURITY.md](SECURITY.md) for the
+encrypted secrets, append-only audit log, login brute-force lockout + password policy,
+loopback-bound internal ports. Hardening for real networks (TLS, backups, firewalling):
+[docs/production.md](docs/production.md). See [SECURITY.md](SECURITY.md) for the
 responsible-disclosure policy.
 
 ## License

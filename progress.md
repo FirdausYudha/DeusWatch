@@ -63,6 +63,7 @@ agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect)
 | **Suricata / ET ingest** (Phase 6) | Suricata/Snort **EVE JSON alerts** as a first-class source (Emerging Threats Open/Pro); bans/containment apply; [docs/suricata.md](docs/suricata.md) | ✅ (needs a real sensor to verify live) |
 | **Network containment** (Phase 6) | isolate a compromised host from the LAN (host self-isolation + edge block) when a rule authorizes it (e.g. **webshell-in-uploads → containment**); **trusted-session gate** suppresses file-change alerts correlated with a whitelisted admin/deploy login | ✅ + UI |
 | **Blocklist feed** (Phase 6) | pull-model feed of active bans for **external firewalls** (Palo Alto EDL, OPNsense, pfSense, MikroTik) + UI panel (URL + token regenerate); [docs/blocklist-feed.md](docs/blocklist-feed.md) | ✅ + UI |
+| **Production hardening** | login brute-force lockout (per IP+username, `LOGIN_MAX_FAILURES`/`LOGIN_LOCKOUT`, audit `login_locked`, 429 + Retry-After) + registration throttle; password policy (`PASSWORD_MIN_LEN` floor 8, common-list/username/repeat checks); proxy-aware `ClientIP` (`TRUSTED_PROXIES`, anti-spoof rightmost-untrusted XFF); db/NATS host ports bound to 127.0.0.1 (`DEUSWATCH_DB_BIND` for replication); container memory caps; `scripts/backup.sh/.ps1` + `restore.sh/.ps1` (TimescaleDB pre/post-restore flow); [docs/production.md](docs/production.md) (TLS via Caddy/nginx+certbot, port exposure, runbook) | ✅ |
 
 All tests (unit + integration + e2e) pass; gosec & govulncheck clean. Sigma ADR: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
 
@@ -198,9 +199,9 @@ tutorial.
   process visibility; Windows already has 4688/4104).
 - Rule/integration **marketplace**; **Helm chart** for Kubernetes deploys.
 
-**Production hardening (README still says "not yet hardened"):**
-- API rate limiting / login brute-force lockout, TLS on API+web (or documented reverse-proxy
-  recipe), password policy, DB backup/restore runbook, resource limits in compose.
+**Production hardening - DONE 2026-07-13** (login lockout, password policy, TLS recipe,
+backup/restore scripts, loopback-bound internal ports, memory caps - see the Done table
+and [docs/production.md](docs/production.md)).
 
 **Design-doc audit 2026-07-13 (DeusWatch.md goals not yet built - candidates, not debt):**
 - Remediation **playbooks** (§9): `rules/playbooks/` exists but is empty; per-label YAML
@@ -226,6 +227,7 @@ tutorial.
 ## Commit map (newest → oldest, partial)
 
 ```
+feat(security): production hardening - login lockout, password policy, backups, TLS docs
 feat(response): blocklist feed (external firewalls, pull model) + UI panel
 docs: per-menu feature modules + new-log-source tutorial
 feat(decoders): DB-backed custom decoders + UI editor/tester + live-reload + converters

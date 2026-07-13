@@ -12,8 +12,12 @@ services:
       POSTGRES_USER: deuswatch
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deuswatch_dev}
       POSTGRES_DB: deuswatch
+    # Bound to loopback by default: the stack talks to db over the internal Docker
+    # network; the host mapping exists for local psql/tools only. Set
+    # DEUSWATCH_DB_BIND=0.0.0.0 to accept LAN connections (e.g. a streaming-
+    # replication standby - see docs/storage.md) and firewall it accordingly.
     ports:
-      - "${DEUSWATCH_DB_PORT:-5432}:5432"
+      - "${DEUSWATCH_DB_BIND:-127.0.0.1}:${DEUSWATCH_DB_PORT:-5432}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,15 +25,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    # Memory cap so one runaway service cannot OOM the whole host
+    # (a limit, not a reservation - normal usage sits far below it).
+    deploy:
+      resources:
+        limits:
+          memory: ${DEUSWATCH_DB_MEM:-1g}
     restart: unless-stopped
 
   nats:
     image: nats:2.10.22-alpine
     # -js: aktifkan JetStream, -sd: direktori penyimpanan, -m: port monitoring (healthz).
     command: ["-js", "-sd", "/data", "-m", "8222"]
+    # Loopback only: nothing outside this host ever talks to NATS directly
+    # (agents go through the mTLS gateway); the mapping is for local debugging.
     ports:
-      - "4222:4222" # client
-      - "8222:8222" # monitoring / healthz
+      - "127.0.0.1:4222:4222" # client
+      - "127.0.0.1:8222:8222" # monitoring / healthz
     volumes:
       - nats_data:/data
     healthcheck:
@@ -37,6 +49,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    # Memory cap so one runaway service cannot OOM the whole host
+    # (a limit, not a reservation - normal usage sits far below it).
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     restart: unless-stopped
 
   # Init container: generate the mTLS certificates into ./certs once (idempotent —
@@ -92,6 +110,14 @@ services:
       # firewalls (Palo Alto EDL, OPNsense, pfSense, MikroTik) can fetch the active bans. Empty
       # = feed disabled. Generate: openssl rand -hex 24
       BLOCKLIST_FEED_TOKEN: "${BLOCKLIST_FEED_TOKEN:-}"
+      # Login hardening: lock an IP/username out after N failed logins (0 disables)
+      # for LOGIN_LOCKOUT (Go duration). New passwords must be >= PASSWORD_MIN_LEN.
+      LOGIN_MAX_FAILURES: "${LOGIN_MAX_FAILURES:-5}"
+      LOGIN_LOCKOUT: "${LOGIN_LOCKOUT:-15m}"
+      PASSWORD_MIN_LEN: "${PASSWORD_MIN_LEN:-8}"
+      # The web (nginx) container proxies /api and sets X-Forwarded-For; trusting the
+      # Docker network range lets the rate limiter + audit log see the real client IP.
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-172.16.0.0/12}"
     volumes:
       - ./certs:/certs:ro
     ports:
@@ -103,6 +129,12 @@ services:
         condition: service_healthy
       certgen:
         condition: service_completed_successfully
+    # Memory cap so one runaway service cannot OOM the whole host
+    # (a limit, not a reservation - normal usage sits far below it).
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     restart: unless-stopped
 
   # Ingest gateway (mTLS). Server certificate in ./certs is created by the certgen service.
@@ -130,6 +162,12 @@ services:
         condition: service_healthy
       certgen:
         condition: service_completed_successfully
+    # Memory cap so one runaway service cannot OOM the whole host
+    # (a limit, not a reservation - normal usage sits far below it).
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     restart: unless-stopped
 
   # Detection worker: enrich + Sigma (single-event & aggregation) + response engine.
@@ -185,6 +223,12 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+    # Memory cap so one runaway service cannot OOM the whole host
+    # (a limit, not a reservation - normal usage sits far below it).
+    deploy:
+      resources:
+        limits:
+          memory: ${DEUSWATCH_WORKER_MEM:-1g}
     restart: unless-stopped
 
   # Web UI (React+Vite) disajikan nginx; proxy /api ke service api.
@@ -196,6 +240,12 @@ services:
       - "${DEUSWATCH_WEB_PORT:-9173}:80"
     depends_on:
       - api
+    # Memory cap so one runaway service cannot OOM the whole host
+    # (a limit, not a reservation - normal usage sits far below it).
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     restart: unless-stopped
 
 volumes:

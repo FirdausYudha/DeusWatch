@@ -206,6 +206,9 @@ export async function login(username: string, password: string, totp?: string): 
     if (text.includes('2fa_required')) throw new TwoFactorRequired()
     throw new Error('Incorrect username or password')
   }
+  if (res.status === 429) {
+    throw new Error('Too many failed attempts - please wait a few minutes and try again')
+  }
   if (!res.ok) throw new Error(`login: HTTP ${res.status}`)
   const data = await res.json()
   setToken(data.token)

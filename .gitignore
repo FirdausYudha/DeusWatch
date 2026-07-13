@@ -64,3 +64,6 @@ Wazuh_Rules/
 Wazuh_Decoders/
 rules/wazuh-imported/
 decoders/wazuh-imported/
+
+# ── Database backups (scripts/backup.sh) ──────────────────
+/backups/

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -32,6 +34,16 @@ func (s *Store) LoginHandler() http.HandlerFunc {
 			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
+		ip := ClientIP(r)
+		// Brute-force guard: failures are counted per source IP AND per target
+		// username, so a distributed spray on one account locks the account key
+		// while a single host spraying many accounts locks the IP key.
+		limitKeys := []string{"ip:" + ip, "user:" + strings.ToLower(req.Username)}
+		if wait := s.limiter.RetryAfter(limitKeys...); wait > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+			http.Error(w, "too many failed login attempts - try again later", http.StatusTooManyRequests)
+			return
+		}
 		u, token, err := s.Login(r.Context(), req.Username, req.Password, req.TOTP, SessionTTL)
 		if errors.Is(err, Err2FARequired) {
 			// Password correct; ask for the 2FA code (the UI shows a code field).
@@ -39,11 +51,15 @@ func (s *Store) LoginHandler() http.HandlerFunc {
 			return
 		}
 		if err != nil {
-			s.Audit(r.Context(), req.Username, "", "login_failed", "", "", ClientIP(r))
+			if s.limiter.Fail(limitKeys...) {
+				s.Audit(r.Context(), req.Username, "", "login_locked", "", "too many failed attempts", ip)
+			}
+			s.Audit(r.Context(), req.Username, "", "login_failed", "", "", ip)
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}
-		s.Audit(r.Context(), u.Username, string(u.Role), "login", "", "", ClientIP(r))
+		s.limiter.Reset(limitKeys...)
+		s.Audit(r.Context(), u.Username, string(u.Role), "login", "", "", ip)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"token": token, "username": u.Username, "role": u.Role,
 			"permissions": u.EffectivePermissions(),
@@ -68,10 +84,23 @@ func (s *Store) RegisterHandler() http.HandlerFunc {
 			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
-		if len(req.Username) < 3 || len(req.Password) < 8 {
-			http.Error(w, "username must be at least 3 and password at least 8 characters", http.StatusBadRequest)
+		if len(req.Username) < 3 {
+			http.Error(w, "username must be at least 3 characters", http.StatusBadRequest)
 			return
 		}
+		if err := ValidatePassword(req.Username, req.Password); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Throttle registration per source IP (every attempt counts, success or
+		// not) so an open registration page cannot be scripted into account spam.
+		ip := ClientIP(r)
+		if wait := s.limiter.RetryAfter("reg:" + ip); wait > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+			http.Error(w, "too many registration attempts - try again later", http.StatusTooManyRequests)
+			return
+		}
+		s.limiter.Fail("reg:" + ip)
 		if err := s.CreateUser(r.Context(), req.Username, req.Password, RoleViewer, nil); err != nil {
 			http.Error(w, "registration failed (username may already be taken)", http.StatusBadRequest)
 			return
@@ -135,8 +164,12 @@ func (s *Store) UsersHandler() http.HandlerFunc {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			if len(req.Username) < 3 || len(req.Password) < 8 {
-				http.Error(w, "username must be at least 3 and password at least 8 characters", http.StatusBadRequest)
+			if len(req.Username) < 3 {
+				http.Error(w, "username must be at least 3 characters", http.StatusBadRequest)
+				return
+			}
+			if err := ValidatePassword(req.Username, req.Password); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if err := s.CreateUser(r.Context(), req.Username, req.Password, role, perms); err != nil {
@@ -356,8 +389,8 @@ func (s *Store) ChangePasswordHandler() http.HandlerFunc {
 			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
-		if len(req.NewPassword) < 8 {
-			http.Error(w, "new password must be at least 8 characters", http.StatusBadRequest)
+		if err := ValidatePassword(u.Username, req.NewPassword); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if err := s.ChangePassword(r.Context(), u.ID, req.CurrentPassword, req.NewPassword); err != nil {
