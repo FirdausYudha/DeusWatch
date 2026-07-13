@@ -1,17 +1,20 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-06-22.
+> Last updated: 2026-07-13.
 
 ## Status summary
 
-The security detection platform **runs end-to-end**, Phases 1-3 complete **plus a Phase 4
-admin/UX layer** (granular RBAC, Integrations registry, central agent management +
-enrollment wizard, Tier-2 ticketing, customizable drag-and-drop dashboard). The **entire
-codebase is in English** (i18n pass done - UI, Go comments/logs/errors, tests, SQL, Sigma
-YAML, docs). Stack: Go (agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS JetStream,
-React+Vite+Tailwind. Verified live: the pipeline event→detection(Sigma single+aggregation)→
-enrich→alert→response(dry-run)→LLM triage→report.
+The security detection platform **runs end-to-end**, **Phases 1-6 complete** (see the
+roadmap table in [README.md](README.md)): ingest → Sigma detection (single + aggregation)
+→ CTI enrichment → progressive-ban response → LLM triage/report, plus the Phase 4 admin
+layer (granular RBAC, Integrations registry, agent management + enrollment wizard, Tier-2
+ticketing, drag-and-drop dashboard), the Phase 5 endpoint/ops layer (FIM hash reputation +
+quarantine, webhook export, config profiles, provider-agnostic LLM incl. Ollama, scheduled
+AI reports), and the Phase 6 detection-depth layer (custom decoders, Suricata/ET ingest,
+~1000+ UI-managed rules, network containment, blocklist feed). The **entire codebase is in
+English**. Stack: Go (agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS JetStream,
+React+Vite+Tailwind.
 
 > **Detection validated end-to-end on Linux.** Linux/sshd is fully verified.
 > **Windows:** the agent ships Security/System events with structured EventData (Id,
@@ -49,6 +52,17 @@ agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect)
 | **Agent mgmt** (Phase 4) | central monitoring config (sources + per-source scan `interval`), Wazuh-style OS/arch enrollment wizard | ✅ + UI |
 | **Ticketing/DFIR** (Phase 4) | `internal/tickets`: open→in_progress→resolved→closed, assignee, case notes, time-to-resolve; "+ Ticket" from an alert | ✅ + UI |
 | **Customizable dashboard** (Phase 4) | per-user widget layout (`user_dashboards`), `GET /api/dashboard` series + timeline; SVG widgets (stat/bar/donut/line/table/attack-map), edit mode with **drag-and-drop** reorder, type/color/size | ✅ + UI |
+| **Hash reputation + quarantine** (Phase 5) | `internal/hashrep` (CIRCL + VirusTotal, TTL cache) wired into FIM; opt-in endpoint file **quarantine/delete** on known-bad hash | ✅ + UI |
+| **Provider-agnostic LLM** (Phase 5) | Claude (official SDK) / **Ollama** / any OpenAI-compatible endpoint; per-integration "Use for" selector (triage / report / both); AI report summary **on-demand + scheduled** + PDF export + UI-editable prompt template | ✅ + UI |
+| **Export & config profiles** (Phase 5) | JSON **webhook export** (events/alerts/report → SIEM/n8n/Zapier); **config-profile import/export** to clone a server; in-app **update check** (semver vs GitHub Releases) + `scripts/update.sh` | ✅ + UI |
+| **Notifications v2** (Phase 5) | UI-configurable severity threshold + **scheduled report delivery** (Telegram/email/webhook); docs in [docs/notifications.md](docs/notifications.md) | ✅ + UI |
+| **Storage ops** (Phase 5) | dashboard log-storage panel (DB size/budget, retention lifecycle, replication status), near-full alert, retention/compression editable from Settings; [docs/storage.md](docs/storage.md) | ✅ + UI |
+| **UI-managed rules** (Phase 6) | rules **DB-backed, managed from the UI** (browse/edit/toggle/add/delete, validated on save, builtins seeded + auto-synced); **~1000+ rules** across `auth/ web-attack/ fim/ endpoint/ windows/ deface/ judi/ agg/` with category folders + filters + search | ✅ + UI |
+| **Detection coverage** (Phase 6) | SSH + **sudo/su privesc**, **web attacks** (SQLi/traversal/LFI-RFI/scanner-UA/Shellshock/webshell; nginx access-log normalizer), **port scan** (T1046, firewall drops), **Windows** (4625/4624/4740 + 4688/4104 process & PowerShell LOLBins, account/group changes, 1102 audit-cleared), keyword-rule FP fixes (scoped to `event.original` + logsource) | ✅ (Linux e2e-tested; Windows server-side verified) |
+| **Custom decoders** (Phase 6) | data-driven regex → fields for **new log sources without code**: DB-backed, UI editor + **tester on raw lines**, gateway live-reload; `wazuh2decoder` + `wazuh2sigma` converters in `tools/` | ✅ + UI |
+| **Suricata / ET ingest** (Phase 6) | Suricata/Snort **EVE JSON alerts** as a first-class source (Emerging Threats Open/Pro); bans/containment apply; [docs/suricata.md](docs/suricata.md) | ✅ (needs a real sensor to verify live) |
+| **Network containment** (Phase 6) | isolate a compromised host from the LAN (host self-isolation + edge block) when a rule authorizes it (e.g. **webshell-in-uploads → containment**); **trusted-session gate** suppresses file-change alerts correlated with a whitelisted admin/deploy login | ✅ + UI |
+| **Blocklist feed** (Phase 6) | pull-model feed of active bans for **external firewalls** (Palo Alto EDL, OPNsense, pfSense, MikroTik) + UI panel (URL + token regenerate); [docs/blocklist-feed.md](docs/blocklist-feed.md) | ✅ + UI |
 
 All tests (unit + integration + e2e) pass; gosec & govulncheck clean. Sigma ADR: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
 
@@ -145,20 +159,78 @@ Full i18n (codebase → English); granular per-user RBAC; Integrations registry 
 secrets); central agent monitoring config + OS/arch enrollment wizard; Tier-2 DFIR
 ticketing; customizable drag-and-drop dashboard; eye logo wired in.
 
-## Follow-up ideas
+## Phase 5 (endpoint & ops) - DONE ✅
 
-- Enforcement wiring is **done** (CTI/MikroTik from registry; agent nftables block feed).
-  Possible refinements: per-agent block scoping (gateway filters by `agent_scope` + CN);
-  CrowdSec/Mikrotik config fully from DB; run the agent nft applier on a real Linux box.
-- Dashboard: free-form X/Y + drag-to-resize via `react-grid-layout`; a real geographic
-  world map for the attack-origins widget.
-- Sigma: mature Go fork for single-event; expand datasets (process/web); rules from the UI.
-- Agent: canary config deploy, real-time FIM (fsnotify) instead of polling.
-- pgvector for RAG/LLM (the embedding column is prepared in the schema).
+File-hash reputation (CIRCL/VirusTotal) + opt-in quarantine/delete on known-bad hash;
+agent **self-uninstall on revoke**; provider-agnostic LLM (Ollama / OpenAI-compatible /
+Claude) + AI report summary (on-demand + scheduled + PDF + editable prompt); JSON webhook
+export; config-profile import/export; UI alert threshold + scheduled report delivery;
+storage panel + UI retention control; configurable host ports (**9080/9443/9173**);
+in-app update check (semver vs GitHub Releases) + `scripts/update.sh`; searchable
+Events/Alerts; unban + free-text search + bulk actions in Response; CTI honesty fixes
+(no fabricated intel, UI-managed cache TTL, live provider reload, OTX country fallback);
+macOS/mobile agents dropped (focus Linux + Windows).
+
+## Phase 6 (detection depth & extensibility) - DONE ✅
+
+~1000+ DB-backed rules managed from the UI (categories: auth/web-attack/fim/endpoint/
+windows/deface/judi/agg) + validation + builtin auto-sync; web access-log normalizer
+(nginx) activating the web keyword rules; expanded Windows normalizer (process/PowerShell/
+account/audit-cleared); sudo privesc + port-scan (T1046) rules; **custom decoders**
+(DB-backed regex → fields, UI editor + tester, gateway live-reload) + `wazuh2decoder`/
+`wazuh2sigma` converters; **Suricata/ET EVE JSON ingest**; **network containment** (host
+isolation + edge block) + webshell-in-uploads containment rule + trusted-session gate;
+**blocklist feed** for external firewalls (EDL/OPNsense/pfSense/MikroTik) + UI panel;
+agent name surfaced across Events/Response/Report + full-JSON log view + agent filter;
+FIM changed-path on alerts; per-menu feature docs (`docs/features/01-11`) + new-log-source
+tutorial.
+
+## Next-step candidates (updated 2026-07-13)
+
+**Verification gaps (highest value, no new code):**
+- **Windows agent live Security-log read on real hardware** - the one remaining beta piece;
+  server-side pipeline is already verified over real mTLS.
+- **Suricata with a real sensor** - ingest path is code-complete; needs an eve.json from a
+  live sensor to call it verified.
+
+**Phase 7 (per README roadmap):**
+- Linux **process audit** (auditd/execve) - biggest detection blind spot on Linux (no
+  process visibility; Windows already has 4688/4104).
+- Rule/integration **marketplace**; **Helm chart** for Kubernetes deploys.
+
+**Production hardening (README still says "not yet hardened"):**
+- API rate limiting / login brute-force lockout, TLS on API+web (or documented reverse-proxy
+  recipe), password policy, DB backup/restore runbook, resource limits in compose.
+
+**Smaller refinements (carried over):**
+- Real-time FIM via fsnotify (currently polling); canary config deploy.
+- Per-agent block scoping (gateway filters blocklist by `agent_scope` + CN).
+- Dashboard: `react-grid-layout` free-form X/Y + resize; real geographic world map widget.
+- Mature Sigma Go fork for the single-event engine.
+- pgvector for RAG/LLM (embedding column already in the schema).
 
 ## Commit map (newest → oldest, partial)
 
 ```
+feat(response): blocklist feed (external firewalls, pull model) + UI panel
+docs: per-menu feature modules + new-log-source tutorial
+feat(decoders): DB-backed custom decoders + UI editor/tester + live-reload + converters
+feat(rules): Windows/process/PowerShell + sudo privesc + SSH/web-attack rule sets
+feat(ingest): Suricata/Snort EVE JSON (ET Open/Pro) as a log source
+feat(respond): network containment + trusted-session gate + webshell containment rule
+feat(ui): agent name across Events/Response/Report + full-JSON view + agent filter
+feat(detect): web access-log normalizer (nginx) - activates ~772 web keyword rules
+feat(rules): ~1000 rules (judi/deface/FIM/endpoint) + category folders + UI filters
+feat(report): AI summary - custom prompt template, schedule, PDF; Ollama guide
+feat(update): semver update check vs GitHub Releases + update.sh
+feat(storage): log-storage dashboard panel + UI retention/compression control
+feat(detect): Windows EventID normalizer + brute-force/lockout; port-scan T1046
+feat(response): unban + search + bulk actions; CTI live-reload + honest enrichment
+feat(notify): UI severity threshold + scheduled report delivery
+feat(config): profile export/import; webhook export (JSON)
+feat(fim): hash reputation (CIRCL/VirusTotal) + quarantine; agent self-uninstall
+feat(llm): Ollama / OpenAI-compatible providers
+feat(deploy): configurable host ports (9080/9443/9173) + wizard auto-detect
 feat(dashboard): drag-and-drop widget reordering
 feat(dashboard): customizable Kibana-style widget dashboard
 feat(tickets): Tier-2 DFIR ticketing + logo
