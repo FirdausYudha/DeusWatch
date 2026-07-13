@@ -18,6 +18,13 @@ and push config. This is the **only** feature that uses the Gateway (mTLS), not 
   attacker disabling it to erase their tracks (MITRE T1562.001). Recovery is logged as an
   info event. **Revoke** flips a flag so the gateway rejects that cert; the agent then
   self-uninstalls.
+- **Revoked entries stay in the list on purpose** - the old mTLS certificate remains
+  cryptographically valid until it expires, and the revoked row is exactly what keeps the
+  gateway rejecting it (deleting the row would let the old cert back in). The name is NOT
+  blocked though: **enrolling again with a revoked agent's name takes over that entry**
+  (new certificate, un-revoked, health reset, config kept), and the superseded certificate
+  stays locked out via a **serial pin** - the gateway checks the certificate serial, not
+  just the CN. An *active* agent's name stays taken until you revoke it.
 - Agent binaries (Linux/Windows, amd64/arm64) are cross-compiled and served by the API's
   one-line installer - no host build step.
 

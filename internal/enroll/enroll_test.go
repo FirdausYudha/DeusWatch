@@ -85,15 +85,54 @@ func TestEnrollFlow(t *testing.T) {
 		t.Fatalf("token must be single-use, got: %v", err)
 	}
 
+	// Re-enrolling a name that is taken by an ACTIVE agent must fail.
+	raw2, _, err := s.CreateToken(ctx, "test")
+	if err != nil {
+		t.Fatalf("CreateToken: %v", err)
+	}
+	if _, err := s.Enroll(ctx, raw2, name, "linux"); err == nil {
+		t.Fatal("enrolling an active agent's name must fail")
+	}
+
 	// Revocation.
-	if rev, _ := s.IsRevoked(ctx, name); rev {
+	if rev, _ := s.IsRevoked(ctx, name, ""); rev {
 		t.Fatal("agent not yet revoked, IsRevoked must be false")
 	}
 	if err := s.Revoke(ctx, bundle.AgentID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
-	if rev, _ := s.IsRevoked(ctx, name); !rev {
+	if rev, _ := s.IsRevoked(ctx, name, ""); !rev {
 		t.Fatal("after Revoke, IsRevoked must be true")
 	}
-	t.Logf("OK: enroll -> unique CA-signed cert CN=%s; single-use token; revoke works", name)
+
+	// A REVOKED name may be re-used: enrollment takes over the row (same id,
+	// un-revoked, new certificate) and the superseded cert's serial stays dead.
+	oldSerial := cert.SerialNumber.String()
+	raw3, _, err := s.CreateToken(ctx, "test")
+	if err != nil {
+		t.Fatalf("CreateToken: %v", err)
+	}
+	bundle2, err := s.Enroll(ctx, raw3, name, "linux")
+	if err != nil {
+		t.Fatalf("re-enroll of a revoked name must succeed: %v", err)
+	}
+	if bundle2.AgentID != bundle.AgentID {
+		t.Fatalf("re-enroll must take over the existing row (id %s), got new id %s", bundle.AgentID, bundle2.AgentID)
+	}
+	cb2, _ := pem.Decode([]byte(bundle2.ClientCert))
+	cert2, err := x509.ParseCertificate(cb2.Bytes)
+	if err != nil {
+		t.Fatalf("parse re-enrolled cert: %v", err)
+	}
+	newSerial := cert2.SerialNumber.String()
+	if newSerial == oldSerial {
+		t.Fatal("re-enrollment must issue a NEW certificate serial")
+	}
+	if rev, _ := s.IsRevoked(ctx, name, newSerial); rev {
+		t.Fatal("the re-enrolled agent's new cert must be accepted")
+	}
+	if rev, _ := s.IsRevoked(ctx, name, oldSerial); !rev {
+		t.Fatal("the superseded (revoked-era) cert must STAY rejected after the name is re-used")
+	}
+	t.Logf("OK: enroll -> unique cert CN=%s; single-use token; revoke; name re-use with serial pinning", name)
 }

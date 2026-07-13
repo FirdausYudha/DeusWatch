@@ -98,12 +98,27 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 		return nil, fmt.Errorf("enroll: issue cert: %w", err)
 	}
 
+	// A REVOKED agent's name may be re-used: enrollment takes over the old row
+	// (new certificate serial, un-revoked, health reset) so a re-deployed host can
+	// keep its name. The row must survive revocation rather than be deleted - the
+	// old mTLS cert stays cryptographically valid until it expires, and the gateway's
+	// serial check against this row is what keeps it locked out. An ACTIVE agent's
+	// name stays taken (the DO UPDATE is gated on agents.revoked -> no row -> error).
 	var agentID string
 	err = tx.QueryRow(ctx,
-		`INSERT INTO agents (name, os, cert_serial) VALUES ($1,$2,$3) RETURNING id`,
+		`INSERT INTO agents (name, os, cert_serial) VALUES ($1,$2,$3)
+		 ON CONFLICT (name) DO UPDATE SET
+		     os = EXCLUDED.os, cert_serial = EXCLUDED.cert_serial, revoked = false,
+		     enrolled_at = now(), last_seen_at = NULL,
+		     status = 'unknown', health_degraded = false, health_detail = ''
+		 WHERE agents.revoked
+		 RETURNING id`,
 		name, nilIfEmpty(os), serial).Scan(&agentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("enroll: name %q is taken by an active agent (revoke it first to re-use the name)", name)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("enroll: register agent (name taken?): %w", err)
+		return nil, fmt.Errorf("enroll: register agent: %w", err)
 	}
 	_, _ = tx.Exec(ctx, `UPDATE agent_enroll_tokens SET used_by_agent = $1 WHERE token_hash = $2`,
 		agentID, hashToken(rawToken))
@@ -172,18 +187,31 @@ func (s *Store) Revoke(ctx context.Context, id string) error {
 	return nil
 }
 
-// IsRevoked reports whether the agent with name (certificate CN) is revoked or
-// unknown. Used by the gateway to reject connections.
-func (s *Store) IsRevoked(ctx context.Context, name string) (bool, error) {
+// IsRevoked reports whether a presented client certificate (CN + serial) must be
+// rejected. Two ways to be dead: the agent row is revoked, or the certificate's
+// serial no longer matches the registered one - re-enrolling a name issues a new
+// certificate, and the superseded cert must stay locked out even though the row
+// itself is active again. Used by the gateway to reject connections.
+func (s *Store) IsRevoked(ctx context.Context, name, certSerial string) (bool, error) {
 	var revoked bool
-	err := s.pool.QueryRow(ctx, `SELECT revoked FROM agents WHERE name = $1`, name).Scan(&revoked)
+	var storedSerial *string
+	err := s.pool.QueryRow(ctx, `SELECT revoked, cert_serial FROM agents WHERE name = $1`, name).
+		Scan(&revoked, &storedSerial)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil // agent not registered (e.g. old/shared cert) — don't block here
 	}
 	if err != nil {
 		return false, err
 	}
-	return revoked, nil
+	if revoked {
+		return true, nil
+	}
+	// Serial pinning: only enforced when both sides are known (old rows without a
+	// stored serial, or callers without one, keep the name-only behaviour).
+	if storedSerial != nil && *storedSerial != "" && certSerial != "" && certSerial != *storedSerial {
+		return true, nil
+	}
+	return false, nil
 }
 
 // MarkSeen updates the agent's last_seen_at (used by heartbeat / ingest).

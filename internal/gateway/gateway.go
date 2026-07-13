@@ -19,8 +19,11 @@ type Publisher interface {
 	Publish(ctx context.Context, subject string, data []byte) error
 }
 
-// RevokedFunc reports whether an agent (by certificate CN) has been revoked. nil = skip.
-type RevokedFunc func(ctx context.Context, agentName string) (bool, error)
+// RevokedFunc reports whether a presented client certificate must be rejected -
+// either the agent (by CN) is revoked, or the certificate serial was superseded by a
+// re-enrollment (the serial pin keeps an old cert dead after its name is re-used).
+// nil = skip.
+type RevokedFunc func(ctx context.Context, agentName, certSerial string) (bool, error)
 
 // ConfigFunc returns the push-config JSON for an agent (by CN). nil/len 0 = none yet.
 type ConfigFunc func(ctx context.Context, agentName string) ([]byte, error)
@@ -90,12 +93,13 @@ func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 // agent to self-uninstall and stop.
 func HeartbeatHandler(seen SeenFunc, health HealthFunc, revoked RevokedFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var cn string
+		var cn, serial string
 		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
 			cn = r.TLS.PeerCertificates[0].Subject.CommonName
+			serial = r.TLS.PeerCertificates[0].SerialNumber.String()
 		}
 		if revoked != nil && cn != "" {
-			if rev, err := revoked(r.Context(), cn); err == nil && rev {
+			if rev, err := revoked(r.Context(), cn, serial); err == nil && rev {
 				http.Error(w, "agent revoked", http.StatusGone)
 				return
 			}
@@ -205,16 +209,17 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 		}
 
 		// Identity from the mTLS certificate (binds logs to the authenticated agent).
-		var certCN string
+		var certCN, certSerial string
 		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
 			certCN = r.TLS.PeerCertificates[0].Subject.CommonName
+			certSerial = r.TLS.PeerCertificates[0].SerialNumber.String()
 		}
 
 		ctx := r.Context()
 
 		// Reject revoked agents — even if their certificate is still cryptographically valid.
 		if revoked != nil && certCN != "" {
-			if rev, err := revoked(ctx, certCN); err == nil && rev {
+			if rev, err := revoked(ctx, certCN, certSerial); err == nil && rev {
 				http.Error(w, "agent revoked", http.StatusForbidden)
 				return
 			}

@@ -26,7 +26,7 @@ func TestHeartbeatHandlerRevoked(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	seenFn := func(_ context.Context, cn string) error { seen[cn] = true; return nil }
-	revokedFn := func(_ context.Context, cn string) (bool, error) { return cn == "bad-agent", nil }
+	revokedFn := func(_ context.Context, cn, _ string) (bool, error) { return cn == "bad-agent", nil }
 	h := HeartbeatHandler(seenFn, nil, revokedFn)
 
 	// A revoked agent gets 410 Gone (its cue to self-uninstall) and is not marked seen.
