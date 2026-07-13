@@ -203,6 +203,13 @@ git tag): `git tag -a vX.Y.Z` → `git push origin vX.Y.Z` → publish a GitHub 
 from that tag (the in-app update check reads `releases/latest`; a tag alone is not
 enough). `scripts/update.sh` bakes `git describe --tags` into the build.
 
+**Automatic version bumping** (decided 2026-07-13): the release version is derived from
+conventional-commit prefixes since the last tag - any `feat:` → MINOR bump; only
+`fix:`/`refactor:`/`perf:` → PATCH; a breaking change (`!` suffix, e.g. `feat!:`, or
+one flagged in review) → MAJOR, always raised explicitly with the owner first;
+`docs:`/`chore:`-only → no release needed. The release is prepared (tag + generated
+notes) and shown as a draft; publishing happens after the owner confirms.
+
 ## Next-step candidates (updated 2026-07-13)
 
 **Verification gaps (highest value, no new code):**
