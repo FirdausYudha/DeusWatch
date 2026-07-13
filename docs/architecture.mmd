@@ -19,7 +19,7 @@ flowchart TB
   subgraph MGR["🏰 MANAGER - one docker compose host"]
     direction TB
     CG["certgen (init container)<br/>private CA + mTLS certificates"]
-    GW["Ingest Gateway :9443 (mTLS only)<br/>enrollment: one-time token → client cert<br/>config push · heartbeat · revocation<br/>custom decoders (regex→fields, live-reload)<br/>normalization → DCS event schema"]
+    GW["Ingest Gateway :9443 (mTLS only)<br/>enrollment: one-time token → client cert<br/>(revoked names re-usable, cert takeover)<br/>config push · heartbeat · revocation<br/>(CN + certificate serial pinning)<br/>custom decoders (regex→fields, live-reload)<br/>normalization → DCS event schema"]
     BUS["NATS JetStream<br/>durable event bus"]
     subgraph WK["Worker (detection pipeline)"]
       DET["Detection<br/>Sigma single-event engine +<br/>aggregation compiled to SQL<br/>1000+ DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling"]
@@ -28,6 +28,7 @@ flowchart TB
       RSP["Response Engine (SOAR)<br/>progressive ban ladder 10m→30m→1h→24h→perm<br/>IP whitelist · dedup · approval or auto-ban<br/>unban · network containment<br/>trusted-session gate"]
       NTF["Notifications<br/>severity threshold (UI) · dedup/throttle<br/>scheduled report delivery"]
       LLMW["LLM Worker<br/>alert triage (opt-in) +<br/>AI report summaries (on-demand + scheduled)"]
+      SELF["Self-Monitoring<br/>agent health: online→degraded→disconnected→stale<br/>agent-down HIGH alert (MITRE T1562.001)<br/>disk-watermark janitor (drops oldest chunks<br/>at 90% of budget + HIGH alert)<br/>worker /healthz + /readyz"]
     end
     DB[("PostgreSQL 16 + TimescaleDB<br/>events hypertable: per-day chunks,<br/>columnar compression, retention policy<br/>alerts · rules · decoders · bans · tickets<br/>users/RBAC/audit log (append-only)<br/>integrations: secrets AES-256-GCM at rest")]
     API["API Server :9080<br/>Argon2id auth · TOTP 2FA · granular RBAC<br/>login brute-force lockout · password policy<br/>auto-migrations · reports (JSON/MD/PDF)<br/>webhook export · config profiles<br/>agent one-line installer · update check"]
@@ -48,8 +49,8 @@ flowchart TB
 
   %% ══════════════ FLOWS ══════════════
   LC --> LB
-  LB -- "logs + heartbeat<br/>mTLS :9443" --> GW
-  WC -- "logs + heartbeat<br/>mTLS :9443" --> GW
+  LB -- "logs + heartbeat w/ self-reported health<br/>mTLS :9443" --> GW
+  WC -- "logs + heartbeat w/ self-reported health<br/>mTLS :9443" --> GW
   SUR -- "eve.json tailed by agent" --> LC
   CG -.->|issues certs| GW
   GW -- "normalized events" --> BUS
@@ -63,6 +64,8 @@ flowchart TB
   RSP --> NTF
   RSP --> ENF
   NTF --> CHAN
+  SELF -- "selfhealth alerts<br/>(same pipeline as attacks)" --> DB
+  SELF --> NTF
   LLMW <--> LLMP
   LLMW <--> DB
   WK <--> DB
@@ -82,6 +85,6 @@ flowchart TB
   classDef storage fill:#e8f8f0,stroke:#1e8449,color:#1a1a2e
   classDef external fill:#fdedec,stroke:#c0392b,color:#1a1a2e
   class LC,LB,LR,WC,WR,SUR endpoint
-  class CG,GW,BUS,DET,ENR,HREP,RSP,NTF,LLMW,API,WEB manager
+  class CG,GW,BUS,DET,ENR,HREP,RSP,NTF,LLMW,SELF,API,WEB manager
   class DB storage
   class CTI,HASHSVC,LLMP,CHAN,ENF,EDL,GH external
