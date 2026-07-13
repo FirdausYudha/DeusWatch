@@ -7,7 +7,7 @@
 SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis - in one lightweight, modular system.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Phase%201--6%20complete%20·%20detection%20Linux--tested-green.svg)]()
+[![Status](https://img.shields.io/badge/status-Phase%201--6%20implemented%20·%20Linux%20verified%20e2e-green.svg)]()
 [![Made with Go](https://img.shields.io/badge/Go-backend-00ADD8.svg)]()
 [![Web: React + Vite](https://img.shields.io/badge/Web-React%20%2B%20Vite-61DAFB.svg)]()
 
@@ -56,8 +56,8 @@ experience that no single vendor packages together.
 | **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
 | **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban (auto-ban + IP whitelist + dedup), per-IP response view, dashboard time-range picker + searchable events/alerts | ✅ |
 | **Phase 5** | FIM + file-hash reputation (CIRCL/VirusTotal), endpoint file quarantine/delete on known-bad hash, agent self-uninstall on revoke, open-source/self-hosted LLM (Ollama), AI report summary (on-demand + scheduled), **JSON webhook export, config-profile import/export, UI alert threshold + scheduled report delivery to Telegram/email** | ✅ |
-| **Phase 6** | **Windows detection rules** (process/PowerShell/account/audit), **web-attack + sudo rule sets**, **network containment + trusted-session gate**, **Suricata/ET network-IDS ingestion**, **custom decoders** (data-driven log sources, UI editor + tester), agent name across Events/Response/Report + full-JSON log view | ✅ |
-| **Phase 6.5** | **Production hardening** (login brute-force lockout, password policy, TLS runbook, backup/restore scripts, loopback-bound internal ports), **self-monitoring** (agent health states + agent-down alert, disk-watermark janitor, worker healthz), **remediation playbooks** (per-label steps on every alert, UI catalog), revoked-agent name re-use + certificate serial pinning | ✅ |
+| **Phase 6** | **Windows detection rules** (process/PowerShell/account/audit), **web-attack + sudo rule sets**, **network containment + trusted-session gate**, **Suricata/ET network-IDS ingestion**, **custom decoders** (data-driven log sources, UI editor + tester), agent name across Events/Response/Report + full-JSON log view | ✅ implemented · 🟡 Windows live-agent read + Suricata sensor verification pending (see [coverage table](#detection-coverage-by-platform)) |
+| **Phase 6.5** | **Production hardening** (login brute-force lockout, password policy, TLS runbook, backup/restore scripts, loopback-bound internal ports), **self-monitoring** (agent health states + agent-down alert, disk-watermark janitor, worker healthz), **remediation playbooks** (per-label steps on every alert, UI catalog), revoked-agent name re-use + certificate serial pinning | ✅ implemented · playbooks + enrollment verified live; 🟡 agent-down alert live run pending |
 | Phase 7 | Linux process audit (auditd/sysmon), rule/integration marketplace, Helm chart | planned |
 
 ### Detection coverage by platform
