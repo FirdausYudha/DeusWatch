@@ -1,0 +1,7 @@
+label: privilege_escalation
+name: Privilege Escalation (sudo/su abuse)
+steps:
+  - "Identify the user attempting escalation (user.name) and whether any attempt SUCCEEDED (check subsequent sudo/su success events)"
+  - "If unauthorized: lock the account, terminate its sessions, and review what it accessed (audit log / shell history)"
+  - "Review sudoers for over-broad rules (NOPASSWD, wildcard commands) on the affected host"
+  - "Check how the account was obtained - correlate with brute-force or credential-access alerts for the same user/host"

@@ -30,6 +30,7 @@ import (
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
 	"deuswatch/internal/migrate"
+	"deuswatch/internal/playbooks"
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
@@ -135,6 +136,18 @@ func main() {
 			log.Printf("api: added %d builtin decoder(s)", n)
 		}
 		dcancel()
+
+		// Remediation playbooks (design doc section 9): seed/sync the bundled catalog
+		// (rules/playbooks/), then manage from the UI; the worker live-reloads the
+		// enabled set and stamps the matching playbook onto every fired alert.
+		playbookStore := playbooks.NewStore(st.Pool())
+		pbctx, pbcancel := context.WithTimeout(context.Background(), 20*time.Second)
+		if n, perr := playbookStore.SyncBuiltinsFromDir(pbctx, getenv("PLAYBOOKS_DIR", "/rules/playbooks")); perr != nil {
+			log.Printf("api: playbook sync: %v", perr)
+		} else if n > 0 {
+			log.Printf("api: added %d builtin playbook(s)", n)
+		}
+		pbcancel()
 
 		// Public (no token).
 		mux.HandleFunc("/api/login", authStore.LoginHandler())
@@ -278,6 +291,8 @@ func main() {
 		mux.Handle("GET /api/decoders/samples", protect(auth.PermManageRules, decoderStore.SamplesHandler()))
 		mux.Handle("POST /api/decoders/test", protect(auth.PermManageRules, decoderStore.TestHandler()))
 		mux.Handle("/api/decoders/{id}", protect(auth.PermManageRules, decoderStore.ItemHandler()))
+		mux.Handle("/api/playbooks", protect(auth.PermManageRules, playbookStore.CollectionHandler()))
+		mux.Handle("/api/playbooks/{id}", protect(auth.PermManageRules, playbookStore.ItemHandler()))
 
 		// Tier-2 DFIR ticketing (case management).
 		ticketStore := tickets.NewStore(st.Pool())

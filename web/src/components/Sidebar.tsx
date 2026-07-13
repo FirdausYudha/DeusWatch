@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { logout, can, type Me } from '../lib/api'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'integrations' | 'users' | 'settings'
+export type View = 'dashboard' | 'agents' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'integrations' | 'users' | 'settings'
 
 type NavItem = { id: string; label: string; icon: string; view?: View; perm?: string }
 
@@ -14,6 +14,7 @@ const NAV: NavItem[] = [
   { id: 'agents', label: 'Agents', icon: '▤', view: 'agents', perm: 'view_dashboard' },
   { id: 'rules', label: 'Rules', icon: '⌘', view: 'rules', perm: 'manage_rules' },
   { id: 'decoders', label: 'Decoders', icon: '⋔', view: 'decoders', perm: 'manage_rules' },
+  { id: 'playbooks', label: 'Playbooks', icon: '☰', view: 'playbooks', perm: 'manage_rules' },
   { id: 'integrations', label: 'Integrations', icon: '⧉', view: 'integrations', perm: 'manage_integrations' },
   { id: 'users', label: 'Users', icon: '◉', view: 'users', perm: 'manage_users' },
   { id: 'settings', label: 'Settings', icon: '⚙', view: 'settings', perm: 'manage_settings' },

@@ -1,0 +1,7 @@
+label: discovery
+name: Port Scan / Network Probe
+steps:
+  - "Approve the recommended ban for the scanning IP"
+  - "Review the firewall log: which ports were probed? Confirm nothing unexpected is listening on them"
+  - "If the source is INTERNAL: treat it as a compromised host - investigate it (process list, recent logins) and consider containment"
+  - "Ensure firewall logging stays enabled (this detection depends on it)"

@@ -22,7 +22,7 @@ flowchart TB
     GW["Ingest Gateway :9443 (mTLS only)<br/>enrollment: one-time token → client cert<br/>(revoked names re-usable, cert takeover)<br/>config push · heartbeat · revocation<br/>(CN + certificate serial pinning)<br/>custom decoders (regex→fields, live-reload)<br/>normalization → DCS event schema"]
     BUS["NATS JetStream<br/>durable event bus"]
     subgraph WK["Worker (detection pipeline)"]
-      DET["Detection<br/>Sigma single-event engine +<br/>aggregation compiled to SQL<br/>1000+ DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling"]
+      DET["Detection<br/>Sigma single-event engine +<br/>aggregation compiled to SQL<br/>1000+ DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling<br/>remediation playbooks stamped per label"]
       ENR["CTI Enrichment<br/>abuse score + country + escalation<br/>TTL cache (quota-friendly)<br/>community blocklists"]
       HREP["File-hash reputation<br/>known-bad detection on FIM events"]
       RSP["Response Engine (SOAR)<br/>progressive ban ladder 10m→30m→1h→24h→perm<br/>IP whitelist · dedup · approval or auto-ban<br/>unban · network containment<br/>trusted-session gate"]
@@ -32,7 +32,7 @@ flowchart TB
     end
     DB[("PostgreSQL 16 + TimescaleDB<br/>events hypertable: per-day chunks,<br/>columnar compression, retention policy<br/>alerts · rules · decoders · bans · tickets<br/>users/RBAC/audit log (append-only)<br/>integrations: secrets AES-256-GCM at rest")]
     API["API Server :9080<br/>Argon2id auth · TOTP 2FA · granular RBAC<br/>login brute-force lockout · password policy<br/>auto-migrations · reports (JSON/MD/PDF)<br/>webhook export · config profiles<br/>agent one-line installer · update check"]
-    WEB["Web UI :9173 (React+Vite via nginx)<br/>drag-and-drop Dashboard · Events · Response<br/>Rules · Decoders · Agents · Integrations<br/>Tickets · Report · Users · Settings"]
+    WEB["Web UI :9173 (React+Vite via nginx)<br/>drag-and-drop Dashboard · Events · Response<br/>Rules · Decoders · Playbooks · Agents<br/>Integrations · Tickets · Report · Users · Settings"]
   end
 
   %% ══════════════ EXTERNAL ══════════════

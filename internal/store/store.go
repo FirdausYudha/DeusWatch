@@ -49,7 +49,8 @@ INSERT INTO events (
 	source_geo_city,
 	file_path, file_hash_sha256, file_owner, file_mode,
 	dw_filehash_verdict, dw_filehash_detail,
-	destination_ip, destination_port, network_transport, network_protocol
+	destination_ip, destination_port, network_transport, network_protocol,
+	dw_remediation_action, dw_remediation_source, dw_remediation_status
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -63,7 +64,8 @@ INSERT INTO events (
 	$31,
 	$32, $33, $34, $35,
 	$36, $37,
-	$38::inet, $39, $40, $41
+	$38::inet, $39, $40, $41,
+	$42, $43, $44
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
@@ -161,6 +163,9 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		filePath, fileHash, fileOwner, fileMode,
 		fhVerdict, fhDetail,
 		dstIP, dstPort, netTransport, netProtocol,
+		strOrNil(e.DeusWatch.Remediation.Action),
+		strOrNil(string(e.DeusWatch.Remediation.Source)),
+		strOrNil(string(e.DeusWatch.Remediation.Status)),
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

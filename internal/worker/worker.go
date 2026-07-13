@@ -24,6 +24,10 @@ type AlertHook func(ctx context.Context, alert *ingest.Event)
 // whitelisted admin/deploy IP is an official change, not an attack. nil = never suppress.
 type AlertSuppressor func(ctx context.Context, alert *ingest.Event) bool
 
+// AlertAnnotator enriches an alert in place right before it is stored - e.g. stamping
+// the matching remediation playbook onto deuswatch.remediation.*. nil = no annotation.
+type AlertAnnotator func(alert *ingest.Event)
+
 // EventSink writes DCS events (satisfied by *store.Store).
 type EventSink interface {
 	InsertEvent(ctx context.Context, e *ingest.Event) error
@@ -32,7 +36,7 @@ type EventSink interface {
 // Handler returns a bus.Handler for the logs.normalized subject: enrich the event
 // (if an enricher is set), persist it, run the detectors, persist any fired alerts,
 // then call onAlert for each alert. enricher & onAlert may be nil.
-func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, suppress AlertSuppressor, detectors ...detect.Detector) bus.Handler {
+func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, suppress AlertSuppressor, annotate AlertAnnotator, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -52,6 +56,11 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 			}
 		}
 
+		// Pre-labeled ingested events (e.g. Suricata alerts) are alerts already —
+		// annotate before persisting so the recommendation is stored with them.
+		if annotate != nil && e.DeusWatch.Label != "" {
+			annotate(&e)
+		}
 		if err := sink.InsertEvent(ic, &e); err != nil {
 			return err // returned -> Nak -> redeliver
 		}
@@ -77,6 +86,9 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 				log.Printf("worker: suppressed %s alert on %s (trusted session)",
 					alert.DeusWatch.Label, alertTarget(alert))
 				continue
+			}
+			if annotate != nil {
+				annotate(alert)
 			}
 			if err := sink.InsertEvent(ic, alert); err != nil {
 				return err

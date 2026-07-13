@@ -42,6 +42,9 @@ type EventRow struct {
 	FileHash        string `json:"file_hash_sha256"`
 	FileHashVerdict string `json:"dw_filehash_verdict"`
 	FileHashDetail  string `json:"dw_filehash_detail"`
+	// Remediation recommendation (playbook / LLM).
+	RemediationAction string `json:"dw_remediation_action"`
+	RemediationSource string `json:"dw_remediation_source"`
 }
 
 const selectCols = `
@@ -58,7 +61,8 @@ const selectCols = `
 	COALESCE(dw_llm_verdict,''), COALESCE(dw_llm_summary,''),
 	COALESCE(file_path,''), COALESCE(file_hash_sha256,''),
 	COALESCE(dw_filehash_verdict,''), COALESCE(dw_filehash_detail,''),
-	COALESCE(agent_id,'')`
+	COALESCE(agent_id,''),
+	COALESCE(dw_remediation_action,''), COALESCE(dw_remediation_source,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -74,6 +78,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.LLMVerdict, &e.LLMSummary,
 			&e.FilePath, &e.FileHash, &e.FileHashVerdict, &e.FileHashDetail,
 			&e.AgentID,
+			&e.RemediationAction, &e.RemediationSource,
 		); err != nil {
 			return nil, err
 		}

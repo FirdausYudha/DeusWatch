@@ -1,0 +1,7 @@
+label: selfhealth
+name: DeusWatch Self-Health (agent down, storage janitor)
+steps:
+  - "Agent down: check the host itself first - is it up? (ping / console). A crashed host explains a silent agent"
+  - "If the HOST is fine but the agent is dead: check the service (systemctl status deuswatch-agent / journalctl -u deuswatch-agent) - a killed agent can be an attacker erasing tracks; review that host's last events"
+  - "Restart the agent; if it will not start, re-run the install one-liner from the Agents page"
+  - "Storage janitor fired: oldest events were dropped early - grow the disk / raise STORAGE_BUDGET_GB, or tighten retention (Settings > Log storage)"

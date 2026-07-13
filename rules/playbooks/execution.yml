@@ -1,0 +1,7 @@
+label: execution
+name: Suspicious Execution (PowerShell, LOLBins)
+steps:
+  - "Review the full command line on the alert (process.command_line) - encoded/downloader patterns are rarely legitimate"
+  - "Check the parent process and the user context: an office app or web server spawning PowerShell is a red flag"
+  - "If malicious: isolate the host (Response > containment), then hunt for persistence (services, scheduled tasks, Run keys)"
+  - "Search other agents for the same command-line pattern (Events free-text search)"

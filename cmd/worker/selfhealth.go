@@ -19,7 +19,7 @@ import (
 // recomputes each agent's liveness state and, on a transition, stores the status and
 // emits a selfhealth event through the normal alert pipeline - so a dead agent shows
 // up on the dashboard and in Telegram exactly like an attack alert.
-func runAgentHealth(ctx context.Context, st *store.Store, onAlert worker.AlertHook) {
+func runAgentHealth(ctx context.Context, st *store.Store, onAlert worker.AlertHook, annotate worker.AlertAnnotator) {
 	disconnectedAfter := durEnv("AGENT_DISCONNECT_AFTER", selfhealth.DefaultDisconnectedAfter)
 	staleAfter := durEnv("AGENT_STALE_AFTER", selfhealth.DefaultStaleAfter)
 	log.Printf("worker: agent health checker active (disconnected after %s, stale after %s)",
@@ -53,6 +53,9 @@ func runAgentHealth(ctx context.Context, st *store.Store, onAlert worker.AlertHo
 				if tr.Event == nil {
 					continue
 				}
+				if annotate != nil {
+					annotate(tr.Event)
+				}
 				if err := st.InsertEvent(hc, tr.Event); err != nil {
 					log.Printf("worker: store selfhealth event: %v", err)
 					continue
@@ -72,7 +75,7 @@ func runAgentHealth(ctx context.Context, st *store.Store, onAlert worker.AlertHo
 // chunks earlier than their retention schedule until usage falls below the watermark,
 // and every trigger raises a HIGH selfhealth alert so the admin knows the disk needs
 // growing or retention needs tightening. Inactive without a budget.
-func runDiskJanitor(ctx context.Context, st *store.Store, onAlert worker.AlertHook) {
+func runDiskJanitor(ctx context.Context, st *store.Store, onAlert worker.AlertHook, annotate worker.AlertAnnotator) {
 	budgetGB, _ := strconv.ParseFloat(os.Getenv("STORAGE_BUDGET_GB"), 64)
 	pct := 90
 	if v, err := strconv.Atoi(os.Getenv("STORAGE_JANITOR_PERCENT")); err == nil {
@@ -123,6 +126,9 @@ func runDiskJanitor(ctx context.Context, st *store.Store, onAlert worker.AlertHo
 		}
 		log.Printf("worker: janitor dropped %d chunk(s); DB %d%% -> %d%% of %s", dropped, triggeredAt, s.UsedPercent, budgetLabel)
 		ev := selfhealth.JanitorEvent(time.Now(), dropped, lastBefore, triggeredAt, budgetLabel)
+		if annotate != nil {
+			annotate(ev)
+		}
 		if err := st.InsertEvent(jc, ev); err != nil {
 			log.Printf("worker: store janitor alert: %v", err)
 			return

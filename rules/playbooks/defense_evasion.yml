@@ -1,0 +1,8 @@
+label: defense_evasion
+name: Defense Evasion (audit log cleared, security tooling disabled)
+steps:
+  - "Treat as ACTIVE COMPROMISE until proven otherwise - attackers clear logs to hide tracks"
+  - "Snapshot the host now (memory + disk if virtualized) before further changes destroy evidence"
+  - "Review DeusWatch's own copy of the host's events from BEFORE the clearing (they were already shipped off-host)"
+  - "Identify who/what cleared the log (the 1102 event carries the account) and disable that account"
+  - "Consider network containment of the host from the Response page while investigating"

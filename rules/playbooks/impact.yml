@@ -1,0 +1,8 @@
+label: impact
+name: Impact (defacement, ransomware behaviour)
+steps:
+  - "Isolate the affected host FIRST (network containment) - ransomware/defacement spreads fast"
+  - "For shadow-copy deletion alerts: assume ransomware staging; check for mass file modifications on FIM and stop them at the host"
+  - "Restore defaced/encrypted content from backups ONLY onto a cleaned host (find and close the entry point first)"
+  - "Preserve evidence (copies of defaced pages / ransom notes, timestamps) for the incident record and any disclosure duties"
+  - "Open a ticket (Tier-2) to track the incident end-to-end"

@@ -75,6 +75,8 @@ export type EventRow = {
   file_hash_sha256: string
   dw_filehash_verdict: string
   dw_filehash_detail: string
+  dw_remediation_action: string
+  dw_remediation_source: string
 }
 
 export type IPCount = { ip: string; count: number }
@@ -800,6 +802,42 @@ export type Decoder = DecoderSpec & {
   builtin: boolean
   created_at: string
   updated_at: string
+}
+
+export type PlaybookSpec = { label: string; name: string; steps: string[] }
+export type PlaybookInfo = PlaybookSpec & {
+  id: string
+  enabled: boolean
+  builtin: boolean
+  created_at: string
+  updated_at: string
+}
+export async function fetchPlaybooks(): Promise<PlaybookInfo[]> {
+  const res = await authFetch('/api/playbooks')
+  if (!res.ok) throw new Error(`playbooks: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+export async function createPlaybook(spec: PlaybookSpec): Promise<PlaybookInfo> {
+  const res = await authFetch('/api/playbooks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(spec),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function updatePlaybook(id: string, spec: PlaybookSpec, enabled: boolean): Promise<PlaybookInfo> {
+  const res = await authFetch(`/api/playbooks/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...spec, enabled }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function deletePlaybook(id: string): Promise<void> {
+  const res = await authFetch(`/api/playbooks/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 export async function fetchDecoders(): Promise<Decoder[]> {

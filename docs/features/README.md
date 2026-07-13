@@ -16,6 +16,7 @@ ports it uses**, **what language/tech it's built with**, and **how to change its
 | 9 | [Settings](09-settings.md) | 2FA, password, notifications, storage lifecycle, config profile, updates |
 | 10 | [Network Containment](10-network-containment.md) | Isolate a compromised host from the LAN (host self-isolation + edge block) |
 | 11 | [Decoders](11-decoders.md) | Data-driven regex log parsing for sources without a built-in decoder (Wazuh-style) |
+| 12 | [Playbooks](12-playbooks.md) | Per-label remediation playbooks stamped onto every alert (UI-editable catalog) |
 
 ---
 

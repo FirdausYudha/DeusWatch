@@ -52,7 +52,7 @@ func TestHandlerSuppressesGatedAlert(t *testing.T) {
 			hookCalled := false
 			h := Handler(context.Background(), sink, nil,
 				func(context.Context, *ingest.Event) { hookCalled = true },
-				tc.suppress, stubDetector{alert})
+				tc.suppress, nil, stubDetector{alert})
 			if err := h(bus.SubjectLogsNormalized, raw); err != nil {
 				t.Fatalf("handler: %v", err)
 			}
@@ -98,7 +98,7 @@ func TestPipelineEndToEnd(t *testing.T) {
 	durable := fmt.Sprintf("test-pipeline-%d", nonce)
 
 	det := detect.NewBruteForceDetector(detect.DefaultBruteForceConfig()) // threshold 5
-	stop, err := b.Consume(ctx, bus.StreamLogs, durable, bus.SubjectLogsNormalized, Handler(ctx, st, nil, nil, nil, det))
+	stop, err := b.Consume(ctx, bus.StreamLogs, durable, bus.SubjectLogsNormalized, Handler(ctx, st, nil, nil, nil, nil, det))
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
 	}

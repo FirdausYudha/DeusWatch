@@ -1,0 +1,8 @@
+label: initial_access
+name: Web Attack / Initial Access (SQLi, traversal, RCE attempts)
+steps:
+  - "Approve the recommended ban for source.ip on the Response page"
+  - "Check the web server: did the request return 200/302 (possible success) or 4xx/5xx (blocked)? Inspect the access log around the alert time"
+  - "If the payload may have executed: inspect the web root for new/modified files (FIM alerts) and check for webshells in upload dirs"
+  - "Patch/upgrade the targeted application and add a WAF rule for the pattern if available"
+  - "Search Events for the same IP or the same URI pattern across other hosts"

@@ -724,6 +724,14 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                   {expanded === i && (
                     <tr className="bg-slate-950/60">
                       <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-3">
+                        {a.dw_remediation_action && (
+                          <div className="mb-3 rounded-lg border border-indigo-900/50 bg-indigo-500/5 p-3">
+                            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-indigo-300">
+                              Recommended playbook {a.dw_remediation_source === 'playbook' ? '' : `(${a.dw_remediation_source})`}
+                            </div>
+                            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{a.dw_remediation_action}</pre>
+                          </div>
+                        )}
                         <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Full log (JSON)</div>
                         <pre className="max-h-96 overflow-auto rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs leading-relaxed text-slate-300">
 {JSON.stringify(cleanEvent(a), null, 2)}

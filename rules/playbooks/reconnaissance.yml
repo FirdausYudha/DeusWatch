@@ -1,0 +1,7 @@
+label: reconnaissance
+name: Scanning / Reconnaissance
+steps:
+  - "No immediate compromise implied - scanning is the pre-attack phase; the progressive ban keeps repeat scanners out"
+  - "Verify only intended ports/services are exposed on the scanned host (compare against your service inventory)"
+  - "Check whether the same IP later appears in higher-severity alerts (Events: filter by source IP)"
+  - "If scans are frequent from one network, consider blocking the whole CIDR at the edge (MikroTik / blocklist feed)"

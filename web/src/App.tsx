@@ -7,6 +7,7 @@ import Report from './report/Report'
 import Tickets from './tickets/Tickets'
 import Rules from './rules/Rules'
 import Decoders from './decoders/Decoders'
+import Playbooks from './playbooks/Playbooks'
 import Integrations from './integrations/Integrations'
 import Users from './users/Users'
 import Settings from './settings/Settings'
@@ -59,6 +60,8 @@ export default function App() {
           <Rules />
         ) : view === 'decoders' && can(me, 'manage_rules') ? (
           <Decoders />
+        ) : view === 'playbooks' && can(me, 'manage_rules') ? (
+          <Playbooks />
         ) : view === 'integrations' && can(me, 'manage_integrations') ? (
           <Integrations />
         ) : view === 'users' && can(me, 'manage_users') ? (

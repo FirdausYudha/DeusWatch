@@ -1,0 +1,8 @@
+label: persistence
+name: Persistence (webshell, new accounts, startup changes)
+steps:
+  - "If a webshell rule fired with containment: the host isolation is the first control - verify it on the Response page"
+  - "Quarantine/delete the flagged file (Endpoint file remediation) and preserve a copy for forensics (hash + timestamps)"
+  - "Find the entry point: correlate with earlier web-attack or FIM alerts on the same host"
+  - "Audit accounts and scheduled tasks/services created around the alert time; remove anything unauthorized"
+  - "After cleanup: rotate credentials used on the host and re-verify FIM baselines"

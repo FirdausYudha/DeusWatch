@@ -1,0 +1,8 @@
+label: bruteforce
+name: SSH / Login Brute Force
+steps:
+  - "Confirm the ban: Response page should show a progressive-ban action for source.ip - approve it (or enable auto-ban)"
+  - "Audit the targeted account for a SUCCESSFUL login from the same IP after the failed attempts (Events: filter by user + outcome=success)"
+  - "If a login succeeded: rotate the account's credentials and terminate its active sessions immediately"
+  - "Verify SSH hardening on the host: key-only auth (PasswordAuthentication no), rate limiting, no root login"
+  - "Check whether the IP appears on other hosts (Events: filter by source IP across agents)"

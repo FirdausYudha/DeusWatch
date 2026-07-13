@@ -23,6 +23,7 @@ import (
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
 	"deuswatch/internal/notify"
+	"deuswatch/internal/playbooks"
 	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/rules"
@@ -150,9 +151,6 @@ func main() {
 	log.Printf("worker: containment engine active (auto=%v, edge=%v)", containAuto, responder != nil)
 	go runContainmentSweep(ctx, containEngine)
 
-	// Live-reload rules + ban policy from the DB so UI edits take effect without a restart.
-	go reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, respStore)
-
 	// Notifications (Phase 2): Telegram/email/webhook + dedup/throttle.
 	dispatcher, notifyOn := notify.DispatcherFromEnv()
 	if notifyOn {
@@ -163,6 +161,19 @@ func main() {
 
 	onAlert := makeAlertHook(engine, containEngine, dispatcher)
 
+	// Remediation playbooks (design doc section 9): each alert is stamped with the
+	// remediation steps for its label before it is stored. Live-reloaded on UI edits.
+	pbStore := playbooks.NewStore(st.Pool())
+	pbLive := playbooks.NewLive()
+	if err := pbLive.Reload(ctx, pbStore); err != nil {
+		log.Printf("worker: load playbooks: %v", err)
+	}
+	log.Printf("worker: %d remediation playbooks loaded", pbLive.Len())
+
+	// Live-reload rules + ban policy + playbooks from the DB so UI edits take effect
+	// without a restart.
+	go reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, respStore, pbStore, pbLive)
+
 	// Trusted-session gate: a plain file-change alert (e.g. index.php edited) is treated as an
 	// official change - and suppressed - when the host had a recent successful login from a
 	// whitelisted admin/deploy IP. Alerts that authorize containment (e.g. a webshell in an
@@ -171,14 +182,14 @@ func main() {
 	fileGate := makeTrustedSessionGate(st, engine, trustedWindowFromEnv())
 
 	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
-		worker.Handler(ctx, st, enricher, onAlert, fileGate, bruteForce, sigmaDet))
+		worker.Handler(ctx, st, enricher, onAlert, fileGate, pbLive.Annotate, bruteForce, sigmaDet))
 	if err != nil {
 		log.Fatalf("worker: consume: %v", err)
 	}
 	defer stop()
 
 	if aggRunner.RuleCount() > 0 {
-		go runAggregation(ctx, aggRunner, st, onAlert)
+		go runAggregation(ctx, aggRunner, st, onAlert, pbLive.Annotate)
 	}
 
 	// LLM worker (Phase 3): the analyzer powers report summaries (cost-controlled) and,
@@ -219,8 +230,8 @@ func main() {
 	// Self-monitoring (design doc section 13): agent liveness checker (disconnect ->
 	// HIGH selfhealth alert), the disk-watermark janitor (section 8), and the worker's
 	// own /healthz + /readyz endpoints.
-	go runAgentHealth(ctx, st, onAlert)
-	go runDiskJanitor(ctx, st, onAlert)
+	go runAgentHealth(ctx, st, onAlert, pbLive.Annotate)
+	go runDiskJanitor(ctx, st, onAlert, pbLive.Annotate)
 	go serveHealth(ctx, st, b)
 
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
@@ -340,7 +351,7 @@ func parseCIDRs(items []string) []*net.IPNet {
 // Stops when ctx is cancelled.
 func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink interface {
 	InsertEvent(context.Context, *ingest.Event) error
-}, onAlert worker.AlertHook) {
+}, onAlert worker.AlertHook, annotate worker.AlertAnnotator) {
 	t := time.NewTicker(aggInterval)
 	defer t.Stop()
 	for {
@@ -354,6 +365,9 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 				log.Printf("worker: aggregation: %v", err)
 			}
 			for _, a := range alerts {
+				if annotate != nil {
+					annotate(a)
+				}
 				if err := sink.InsertEvent(rc, a); err != nil {
 					log.Printf("worker: store aggregation alert: %v", err)
 					continue
@@ -616,7 +630,7 @@ func aggGroup(a *ingest.Event) string {
 
 // reloadConfig re-reads the enabled rules, ban policy and IP whitelist from the DB every
 // 30s and swaps them into the live detectors/engine, so UI edits take effect without restarting.
-func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner, engine *respond.Engine, respStore *respond.Store) {
+func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner, engine *respond.Engine, respStore *respond.Store, pbStore *playbooks.Store, pbLive *playbooks.Live) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -629,6 +643,9 @@ func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDete
 			} else {
 				det.SetRules(single)
 				runner.SetRules(agg)
+			}
+			if err := pbLive.Reload(ctx, pbStore); err != nil {
+				log.Printf("worker: reload playbooks: %v", err)
 			}
 			if engine != nil {
 				if p, err := respStore.LoadPolicy(ctx); err != nil {
