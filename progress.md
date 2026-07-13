@@ -200,6 +200,10 @@ line bumped patch for features - accepted as history, not repeated):
 - **MAJOR** (→ v2.0.0): breaking change only - agent protocol incompatibility (mass
   re-enroll), non-auto-migratable schema, renamed/removed env vars or API endpoints.
   Never bump major just because a feature feels big.
+- **Borderline precedent (v1.2.1)**: a `feat:` commit that actually FIXES a defect in an
+  existing workflow (no new feature surface to learn - e.g. revoked-name re-use + serial
+  pinning) may ship as PATCH at the owner's discretion. Genuinely new capabilities always
+  go MINOR.
 
 **Release mechanics** (nothing in the code needs editing - the version comes from the
 git tag): `git tag -a vX.Y.Z` → `git push origin vX.Y.Z` → publish a GitHub Release
