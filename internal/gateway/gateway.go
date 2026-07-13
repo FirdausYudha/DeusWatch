@@ -28,6 +28,17 @@ type ConfigFunc func(ctx context.Context, agentName string) ([]byte, error)
 // SeenFunc marks an agent (by CN) as just seen (heartbeat). nil = skip.
 type SeenFunc func(ctx context.Context, agentName string) error
 
+// HealthFunc records an agent's self-reported health alongside last_seen (heartbeat
+// with a JSON body). nil = fall back to SeenFunc-only behaviour.
+type HealthFunc func(ctx context.Context, agentName string, degraded bool, detail string) error
+
+// heartbeatBody is the OPTIONAL heartbeat payload. Old agents POST an empty body,
+// which decodes to the zero value (healthy) - fully backward compatible.
+type heartbeatBody struct {
+	Degraded bool   `json:"degraded"`
+	Detail   string `json:"detail"`
+}
+
 // BlocklistFunc returns the source IPs agents should block (empty when none/disabled).
 type BlocklistFunc func(ctx context.Context) ([]string, error)
 
@@ -73,9 +84,11 @@ func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 	}
 }
 
-// HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN). A revoked
-// agent gets HTTP 410 Gone — the signal for the agent to self-uninstall and stop.
-func HeartbeatHandler(seen SeenFunc, revoked RevokedFunc) http.HandlerFunc {
+// HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN) and records
+// the agent's self-reported health from the optional JSON body (degraded + detail, e.g.
+// "217 batches buffered"). A revoked agent gets HTTP 410 Gone — the signal for the
+// agent to self-uninstall and stop.
+func HeartbeatHandler(seen SeenFunc, health HealthFunc, revoked RevokedFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var cn string
 		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
@@ -87,8 +100,15 @@ func HeartbeatHandler(seen SeenFunc, revoked RevokedFunc) http.HandlerFunc {
 				return
 			}
 		}
-		if cn != "" && seen != nil {
-			_ = seen(r.Context(), cn)
+		if cn != "" {
+			var hb heartbeatBody
+			_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&hb) // empty body = healthy
+			switch {
+			case health != nil:
+				_ = health(r.Context(), cn, hb.Degraded, hb.Detail)
+			case seen != nil:
+				_ = seen(r.Context(), cn)
+			}
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}

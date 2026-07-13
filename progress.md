@@ -63,6 +63,8 @@ agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect)
 | **Suricata / ET ingest** (Phase 6) | Suricata/Snort **EVE JSON alerts** as a first-class source (Emerging Threats Open/Pro); bans/containment apply; [docs/suricata.md](docs/suricata.md) | ✅ (needs a real sensor to verify live) |
 | **Network containment** (Phase 6) | isolate a compromised host from the LAN (host self-isolation + edge block) when a rule authorizes it (e.g. **webshell-in-uploads → containment**); **trusted-session gate** suppresses file-change alerts correlated with a whitelisted admin/deploy login | ✅ + UI |
 | **Blocklist feed** (Phase 6) | pull-model feed of active bans for **external firewalls** (Palo Alto EDL, OPNsense, pfSense, MikroTik) + UI panel (URL + token regenerate); [docs/blocklist-feed.md](docs/blocklist-feed.md) | ✅ + UI |
+| **Self-monitoring** (§13) | worker health checker: agent states `online → degraded → disconnected → stale` (heartbeat carries self-reported health, e.g. buffer piling up); **disconnect raises a HIGH `selfhealth` alert** (T1562.001) through the normal pipeline; recovery logged as info; status badges in Agents UI; worker `/healthz` + `/readyz` (`WORKER_HTTP_ADDR`); envs `AGENT_DISCONNECT_AFTER`/`AGENT_STALE_AFTER`; migration 000027 | ✅ + UI |
+| **Disk-watermark janitor** (§8) | at `STORAGE_JANITOR_PERCENT` (default 90) of `STORAGE_BUDGET_GB` the worker drops the OLDEST event chunks (max 6/run, newest never) until under the watermark + HIGH `selfhealth` alert per trigger; also fixed: `STORAGE_BUDGET_GB` was documented but never passed to containers in compose | ✅ |
 | **Production hardening** | login brute-force lockout (per IP+username, `LOGIN_MAX_FAILURES`/`LOGIN_LOCKOUT`, audit `login_locked`, 429 + Retry-After) + registration throttle; password policy (`PASSWORD_MIN_LEN` floor 8, common-list/username/repeat checks); proxy-aware `ClientIP` (`TRUSTED_PROXIES`, anti-spoof rightmost-untrusted XFF); db/NATS host ports bound to 127.0.0.1 (`DEUSWATCH_DB_BIND` for replication); container memory caps; `scripts/backup.sh/.ps1` + `restore.sh/.ps1` (TimescaleDB pre/post-restore flow); [docs/production.md](docs/production.md) (TLS via Caddy/nginx+certbot, port exposure, runbook) | ✅ |
 
 All tests (unit + integration + e2e) pass; gosec & govulncheck clean. Sigma ADR: [docs/adr/0001-sigma-detection-engine.md](docs/adr/0001-sigma-detection-engine.md).
@@ -230,11 +232,10 @@ and [docs/production.md](docs/production.md)).
 **Design-doc audit 2026-07-13 (DeusWatch.md goals not yet built - candidates, not debt):**
 - Remediation **playbooks** (§9): `rules/playbooks/` exists but is empty; per-label YAML
   playbook catalog + UI editor never built (progressive ban covers part of the intent).
-- **Self-monitoring** (§13): no `degraded`/`stale` agent states, **no auto high-alert when an
-  agent dies** (design calls this out: a killed agent may be an attacker), no internal
-  `selfhealth` monitor (NATS lag / ingest-vs-write rate), no System Health page; `/healthz`
-  missing on the worker.
-- **Disk-watermark janitor** (§8): near-full alert exists; auto-drop of oldest chunks at 90% doesn't.
+- ~~**Self-monitoring** (§13)~~ **DONE 2026-07-13** (agent states + disconnect alert +
+  worker healthz - see the Done table). Still open from §13: internal pipeline monitor
+  (NATS consumer lag / ingest-vs-write rate) and a dedicated System Health page.
+- ~~**Disk-watermark janitor** (§8)~~ **DONE 2026-07-13** (see the Done table).
 - Cold archive to MinIO/S3 Parquet (§8, optional); ntfy/Gotify + WhatsApp-gateway channels +
   per-channel routing/quiet hours (§11); agent self-update w/ cosign verification (§12);
   Windows Firewall as a *ban* enforcer (§10, currently isolation-only); ML anomaly baseline +
@@ -251,6 +252,7 @@ and [docs/production.md](docs/production.md)).
 ## Commit map (newest → oldest, partial)
 
 ```
+feat(selfhealth): agent health states + disconnect alert + disk janitor + worker healthz
 feat(security): production hardening - login lockout, password policy, backups, TLS docs
 feat(response): blocklist feed (external firewalls, pull model) + UI panel
 docs: per-menu feature modules + new-log-source tutorial

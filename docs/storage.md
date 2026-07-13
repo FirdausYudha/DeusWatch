@@ -45,6 +45,21 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d worker 
 > No budget set = no usage bar and no near-full alert (size is still shown). The retention
 > policy still ages out old data regardless, so the DB does not grow unbounded.
 
+### Disk-watermark janitor (safety net)
+
+If usage keeps climbing past the alert and crosses `STORAGE_JANITOR_PERCENT` (default
+**90%**) of the budget, the worker's janitor **drops the oldest event chunks early** -
+an instant TimescaleDB chunk drop, not a slow delete - until usage falls back under the
+watermark. The threshold is deliberately 90 and not ~98: PostgreSQL actually running out
+of disk risks corruption and a total halt.
+
+Every janitor trigger stores a **high-severity `selfhealth` alert** (rule
+`deuswatch_disk_janitor`) that flows through the normal alert pipeline - dashboard,
+Telegram/email - because early data loss is something the admin must act on: grow the
+disk / raise `STORAGE_BUDGET_GB`, or tighten retention. Safety valves: at most 6 chunks
+per run, and the newest chunk (today's data) is never dropped. `STORAGE_JANITOR_PERCENT=0`
+disables the janitor.
+
 ---
 
 ## 3. Lifecycle: retention + compression (the "ILM")
@@ -148,6 +163,7 @@ For automatic failover, layer Patroni or repmgr on top - out of scope here, but 
 | Goal | Where |
 |---|---|
 | Usage bar + near-full alert | `STORAGE_BUDGET_GB`, `STORAGE_ALERT_PERCENT` in `deploy/.env` |
+| Auto-drop oldest data at watermark | `STORAGE_JANITOR_PERCENT` (default 90; high selfhealth alert on trigger) |
 | Keep logs longer/shorter | `add_retention_policy('events', INTERVAL '<n> days')` |
 | Compress sooner/later | `add_compression_policy('events', INTERVAL '<n> days')` |
 | Logs on another server | `DATABASE_URL` + `STORE_DSN` -> Server B |

@@ -216,6 +216,13 @@ func main() {
 	// Storage monitor: warn (Telegram/email) when the log DB approaches its budget.
 	go runStorageMonitor(ctx, st, dispatcher)
 
+	// Self-monitoring (design doc section 13): agent liveness checker (disconnect ->
+	// HIGH selfhealth alert), the disk-watermark janitor (section 8), and the worker's
+	// own /healthz + /readyz endpoints.
+	go runAgentHealth(ctx, st, onAlert)
+	go runDiskJanitor(ctx, st, onAlert)
+	go serveHealth(ctx, st, b)
+
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
 	go runCTIProviderReload(ctx, intStore, enricher, geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)

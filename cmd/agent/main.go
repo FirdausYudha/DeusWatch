@@ -112,7 +112,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	go watchConfig(ctx, shipper, configVersion, onConfigChange)
 	// Resend buffered batches (store-and-forward) + heartbeat.
 	go drainBuffer(ctx, shipper, buf)
-	go heartbeatLoop(ctx, shipper, onConfigChange)
+	go heartbeatLoop(ctx, shipper, buf, onConfigChange)
 	// Agent-side firewall auto-block (opt-in via AGENT_FIREWALL=nftables, Linux only):
 	// poll the manager's blocklist and apply it to a local nftables set.
 	if strings.EqualFold(os.Getenv("AGENT_FIREWALL"), "nftables") {
@@ -378,9 +378,22 @@ func runFileRemediation(ctx context.Context, shipper *agent.Shipper, mode string
 	}
 }
 
-// heartbeatLoop sends periodic heartbeats to the manager. If the manager reports the
-// agent as revoked (ErrRevoked), the agent self-uninstalls and stops.
-func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, stop func()) {
+// heartbeatLoop sends periodic heartbeats to the manager, carrying self-reported
+// health: degraded when the offline buffer is piling up (log shipping is failing even
+// though the heartbeat itself gets through). If the manager reports the agent as
+// revoked (ErrRevoked), the agent self-uninstalls and stops.
+func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer, stop func()) {
+	health := func() agent.Health {
+		if buf == nil {
+			return agent.Health{}
+		}
+		pending, err := buf.Pending()
+		if err != nil || len(pending) == 0 {
+			return agent.Health{}
+		}
+		return agent.Health{Degraded: true,
+			Detail: fmt.Sprintf("%d buffered batch(es) awaiting delivery", len(pending))}
+	}
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -388,7 +401,7 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, stop func()) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := shipper.Heartbeat(ctx); err != nil {
+			if err := shipper.Heartbeat(ctx, health()); err != nil {
 				if errors.Is(err, agent.ErrRevoked) {
 					log.Printf("agent: this agent was revoked by the manager — self-uninstalling")
 					selfUninstall()

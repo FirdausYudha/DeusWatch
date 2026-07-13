@@ -67,13 +67,26 @@ func (s *Shipper) SendRaw(ctx context.Context, body []byte) error {
 	return nil
 }
 
+// Health is the agent's self-reported state carried on the heartbeat. Degraded means
+// "alive but not fully working" - e.g. the offline buffer is piling up because log
+// batches are not getting through while the heartbeat itself still succeeds.
+type Health struct {
+	Degraded bool   `json:"degraded"`
+	Detail   string `json:"detail,omitempty"`
+}
+
 // Heartbeat sends a liveness signal to POST {url}/v1/heartbeat (the manager updates
-// the agent's last_seen).
-func (s *Shipper) Heartbeat(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/heartbeat", nil)
+// the agent's last_seen and records the self-reported health).
+func (s *Shipper) Heartbeat(ctx context.Context, health Health) error {
+	body, err := json.Marshal(health)
 	if err != nil {
 		return err
 	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/heartbeat", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return err

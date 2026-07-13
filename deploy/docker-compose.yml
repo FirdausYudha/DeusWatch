@@ -118,6 +118,8 @@ services:
       # The web (nginx) container proxies /api and sets X-Forwarded-For; trusting the
       # Docker network range lets the rate limiter + audit log see the real client IP.
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-172.16.0.0/12}"
+      # Soft storage budget (GB) for the dashboard usage bar. 0/empty = no bar.
+      STORAGE_BUDGET_GB: "${STORAGE_BUDGET_GB:-0}"
     volumes:
       - ./certs:/certs:ro
     ports:
@@ -218,6 +220,15 @@ services:
       SMTP_PASS: "${SMTP_PASS:-}"
       SMTP_FROM: "${SMTP_FROM:-}"
       SMTP_TO: "${SMTP_TO:-}"
+      # Storage: near-full notification threshold + the disk-watermark janitor, which
+      # drops the OLDEST event chunks when the DB crosses the percent of the budget
+      # (high selfhealth alert on every trigger). Both need STORAGE_BUDGET_GB > 0.
+      STORAGE_BUDGET_GB: "${STORAGE_BUDGET_GB:-0}"
+      STORAGE_ALERT_PERCENT: "${STORAGE_ALERT_PERCENT:-85}"
+      STORAGE_JANITOR_PERCENT: "${STORAGE_JANITOR_PERCENT:-90}"
+      # Agent self-monitoring: silence thresholds for disconnected (high alert) / stale.
+      AGENT_DISCONNECT_AFTER: "${AGENT_DISCONNECT_AFTER:-2m}"
+      AGENT_STALE_AFTER: "${AGENT_STALE_AFTER:-24h}"
     depends_on:
       db:
         condition: service_healthy

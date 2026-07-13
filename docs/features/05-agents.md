@@ -9,8 +9,15 @@ and push config. This is the **only** feature that uses the Gateway (mTLS), not 
   `9080`) for a unique **client certificate** (mTLS). No plaintext mode.
 - **Ship**: the agent tails its sources and streams logs to the **Gateway** over **mTLS
   (`9443`)** → NATS → worker. A periodic **heartbeat** updates `last_seen_at`.
-- **Online status** = heartbeat within the last 90s (computed in the UI). **Revoke** flips a
-  flag so the gateway rejects that cert; the agent then self-uninstalls.
+- **Health states** (self-monitoring): the worker recomputes each agent's state every 30s -
+  `online` → `degraded` (heartbeat arrives but the agent reports a problem, e.g. its offline
+  buffer is piling up because log shipping fails) → `disconnected` (~3 heartbeats missed,
+  configurable via `AGENT_DISCONNECT_AFTER`) → `stale` (silent > `AGENT_STALE_AFTER`, default
+  24h). The transition to **disconnected raises a high-severity `selfhealth` alert** through
+  the normal pipeline (dashboard + Telegram/email): a dead agent can mean a crash - or an
+  attacker disabling it to erase their tracks (MITRE T1562.001). Recovery is logged as an
+  info event. **Revoke** flips a flag so the gateway rejects that cert; the agent then
+  self-uninstalls.
 - Agent binaries (Linux/Windows, amd64/arm64) are cross-compiled and served by the API's
   one-line installer - no host build step.
 

@@ -27,10 +27,21 @@ function relative(ts: string | null): string {
   return new Date(ts).toLocaleString('en-US')
 }
 
+// StatusBadge blends the live heartbeat check (fresh last_seen) with the worker-
+// maintained health state: degraded/stale come from the server-side checker, while
+// online/disconnected stay accurate even between checker ticks.
 function StatusBadge({ a }: { a: AgentInfo }) {
-  if (a.revoked) return <span className="rounded px-1.5 py-0.5 text-xs font-medium text-rose-300 bg-rose-500/15">revoked</span>
-  if (agentOnline(a)) return <span className="rounded px-1.5 py-0.5 text-xs font-medium text-emerald-300 bg-emerald-500/15">online</span>
-  return <span className="rounded px-1.5 py-0.5 text-xs font-medium text-slate-400 bg-slate-700/40">offline</span>
+  const badge = (cls: string, label: string, title?: string) => (
+    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`} title={title}>{label}</span>
+  )
+  if (a.revoked) return badge('text-rose-300 bg-rose-500/15', 'revoked')
+  const live = agentOnline(a)
+  if (live && a.status === 'degraded')
+    return badge('text-amber-300 bg-amber-500/15', 'degraded', a.health_detail || 'agent reports a problem')
+  if (live) return badge('text-emerald-300 bg-emerald-500/15', 'online')
+  if (!a.last_seen_at) return badge('text-slate-400 bg-slate-700/40', 'never connected')
+  if (a.status === 'stale') return badge('text-slate-400 bg-slate-700/40', 'stale', 'offline for more than 24h')
+  return badge('text-orange-300 bg-orange-500/15', 'disconnected', 'heartbeats missed - a high selfhealth alert was raised')
 }
 
 export default function Agents({ me }: { me: Me }) {

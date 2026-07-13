@@ -353,6 +353,8 @@ export async function deleteUser(id: string): Promise<void> {
 
 export type AgentSource = { dataset: string; type: string; path: string; interval?: number }
 
+export type AgentStatus = 'unknown' | 'online' | 'degraded' | 'disconnected' | 'stale'
+
 export type AgentInfo = {
   id: string
   name: string
@@ -360,6 +362,8 @@ export type AgentInfo = {
   enrolled_at: string
   last_seen_at: string | null
   revoked: boolean
+  status: AgentStatus
+  health_detail?: string
   config_version: number
   sources?: AgentSource[]
 }

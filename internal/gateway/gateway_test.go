@@ -27,7 +27,7 @@ func TestHeartbeatHandlerRevoked(t *testing.T) {
 	seen := map[string]bool{}
 	seenFn := func(_ context.Context, cn string) error { seen[cn] = true; return nil }
 	revokedFn := func(_ context.Context, cn string) (bool, error) { return cn == "bad-agent", nil }
-	h := HeartbeatHandler(seenFn, revokedFn)
+	h := HeartbeatHandler(seenFn, nil, revokedFn)
 
 	// A revoked agent gets 410 Gone (its cue to self-uninstall) and is not marked seen.
 	rr := httptest.NewRecorder()
@@ -39,7 +39,7 @@ func TestHeartbeatHandlerRevoked(t *testing.T) {
 		t.Fatal("a revoked agent must not be marked seen")
 	}
 
-	// A healthy agent gets 204 and is marked seen.
+	// A healthy agent gets 204 and is marked seen (no HealthFunc -> SeenFunc fallback).
 	rr = httptest.NewRecorder()
 	h(rr, withCN("good-agent"))
 	if rr.Code != http.StatusNoContent {
@@ -47,6 +47,35 @@ func TestHeartbeatHandlerRevoked(t *testing.T) {
 	}
 	if !seen["good-agent"] {
 		t.Fatal("a healthy agent should be marked seen")
+	}
+}
+
+// TestHeartbeatHandlerHealth verifies the optional JSON body reaches the HealthFunc
+// and that an empty body (old agents) decodes as healthy - backward compatible.
+func TestHeartbeatHandlerHealth(t *testing.T) {
+	withBody := func(body string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/v1/heartbeat", strings.NewReader(body))
+		r.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{{Subject: pkix.Name{CommonName: "a1"}}}}
+		return r
+	}
+	var gotDegraded bool
+	var gotDetail string
+	healthFn := func(_ context.Context, _ string, degraded bool, detail string) error {
+		gotDegraded, gotDetail = degraded, detail
+		return nil
+	}
+	h := HeartbeatHandler(nil, healthFn, nil)
+
+	rr := httptest.NewRecorder()
+	h(rr, withBody(`{"degraded":true,"detail":"12 buffered batch(es) awaiting delivery"}`))
+	if rr.Code != http.StatusNoContent || !gotDegraded || gotDetail == "" {
+		t.Fatalf("degraded heartbeat not recorded (code=%d degraded=%v detail=%q)", rr.Code, gotDegraded, gotDetail)
+	}
+
+	rr = httptest.NewRecorder()
+	h(rr, withBody("")) // old agent: empty body = healthy
+	if rr.Code != http.StatusNoContent || gotDegraded {
+		t.Fatalf("empty-body heartbeat must decode as healthy (code=%d degraded=%v)", rr.Code, gotDegraded)
 	}
 }
 

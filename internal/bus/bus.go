@@ -125,6 +125,11 @@ func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string
 	return cc.Stop, nil
 }
 
+// Connected reports whether the NATS connection is currently up (used by /readyz).
+func (b *Bus) Connected() bool {
+	return b != nil && b.nc != nil && b.nc.IsConnected()
+}
+
 // Close closes the connection gracefully (drains pending messages first).
 func (b *Bus) Close() {
 	if b.nc != nil {

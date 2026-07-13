@@ -56,6 +56,7 @@ func main() {
 	var revoked gateway.RevokedFunc
 	var cfgFunc gateway.ConfigFunc
 	var seenFunc gateway.SeenFunc
+	var healthFunc gateway.HealthFunc
 	var blockFunc gateway.BlocklistFunc
 	var quarantineFunc gateway.QuarantineFunc
 	var containFunc gateway.ContainmentFunc
@@ -71,6 +72,7 @@ func main() {
 			revoked = es.IsRevoked
 			cfgFunc = es.GetConfigByName
 			seenFunc = es.MarkSeen
+			healthFunc = es.MarkHealth
 			// Agent-side auto-block: only feed the blocklist when the admin has enabled an
 			// nftables_agent integration; the IPs are the active response-engine blocks.
 			rs := respond.NewStore(st.Pool())
@@ -118,7 +120,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
-	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc, revoked))
+	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc, healthFunc, revoked))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistHandler(blockFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))

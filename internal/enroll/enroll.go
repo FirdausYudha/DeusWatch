@@ -125,13 +125,15 @@ type AgentInfo struct {
 	EnrolledAt    time.Time      `json:"enrolled_at"`
 	LastSeenAt    *time.Time     `json:"last_seen_at"`
 	Revoked       bool           `json:"revoked"`
+	Status        string         `json:"status"`                  // unknown|online|degraded|disconnected|stale (worker-maintained)
+	HealthDetail  string         `json:"health_detail,omitempty"` // agent's self-reported problem, e.g. "217 batches buffered"
 	ConfigVersion int            `json:"config_version"`
 	Sources       []agent.Source `json:"sources,omitempty"`
 }
 
 func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, config
+		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, status, health_detail, config
 		 FROM agents ORDER BY enrolled_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("enroll: list agents: %w", err)
@@ -143,7 +145,7 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 			a   AgentInfo
 			raw *string
 		)
-		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &raw); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &a.Status, &a.HealthDetail, &raw); err != nil {
 			return nil, err
 		}
 		if raw != nil {
@@ -187,6 +189,16 @@ func (s *Store) IsRevoked(ctx context.Context, name string) (bool, error) {
 // MarkSeen updates the agent's last_seen_at (used by heartbeat / ingest).
 func (s *Store) MarkSeen(ctx context.Context, name string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
+	return err
+}
+
+// MarkHealth updates last_seen_at plus the agent's self-reported health from the
+// heartbeat body (degraded = e.g. the offline buffer is piling up). The worker's
+// health checker folds this into the agent's status.
+func (s *Store) MarkHealth(ctx context.Context, name string, degraded bool, detail string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3 WHERE name = $1`,
+		name, degraded, detail)
 	return err
 }
 
