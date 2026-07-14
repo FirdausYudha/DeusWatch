@@ -167,7 +167,11 @@ func (r *AggRule) CompileSQL() (query string, args []any) {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "SELECT %s AS grp, count(*) AS n, max(time) AS last_seen\nFROM events\n", grpSelect)
+	// max(agent_id)/max(host_name) give a representative endpoint for the group, so a
+	// "by source.ip" alert can still show which agent/host was attacked (COALESCE to ''
+	// so a group with none scans cleanly into a string).
+	fmt.Fprintf(&b, "SELECT %s AS grp, count(*) AS n, max(time) AS last_seen, "+
+		"COALESCE(max(agent_id),'') AS agent, COALESCE(max(host_name),'') AS host\nFROM events\n", grpSelect)
 	fmt.Fprintf(&b, "WHERE (%s) AND time > now() - %s::interval%s", r.whereSQL, winPlaceholder, notNull)
 	b.WriteString(groupBy)
 	// op & threshold are safe: op from the regex whitelist, threshold an integer.

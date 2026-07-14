@@ -20,7 +20,7 @@ func (s *Store) QueryAgg(ctx context.Context, query string, args []any) ([]detec
 	var out []detect.AggGroup
 	for rows.Next() {
 		var g detect.AggGroup
-		if err := rows.Scan(&g.Group, &g.Count, &g.LastSeen); err != nil {
+		if err := rows.Scan(&g.Group, &g.Count, &g.LastSeen, &g.Agent, &g.Host); err != nil {
 			return nil, fmt.Errorf("store: scan aggregation: %w", err)
 		}
 		out = append(out, g)

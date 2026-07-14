@@ -20,11 +20,15 @@ import (
 // long-running attack doesn't flood alerts.
 const DefaultAggCooldown = 5 * time.Minute
 
-// AggGroup is one aggregation-query result row: group + count + last seen.
+// AggGroup is one aggregation-query result row: group + count + last seen, plus a
+// representative agent/host for the group (so a "by source.ip" brute-force alert can
+// still show WHICH endpoint was attacked). Empty when the grouped events carry none.
 type AggGroup struct {
 	Group    string
 	Count    int64
 	LastSeen time.Time
+	Agent    string
+	Host     string
 }
 
 // AggExecutor runs one already-compiled aggregation query. Satisfied by *store.Store;
@@ -156,6 +160,14 @@ func buildAggAlert(rule *sigma.AggRule, g AggGroup) *ingest.Event {
 		case "user.name", "user", "username":
 			alert.User = &ingest.User{Name: g.Group}
 		}
+	}
+	// Carry the reporting agent + target host of the grouped events, so a "by source.ip"
+	// alert shows which endpoint was hit (the Agent column) - not just the attacker IP.
+	if g.Agent != "" {
+		alert.Agent = &ingest.Agent{ID: g.Agent}
+	}
+	if g.Host != "" && alert.Host == nil {
+		alert.Host = &ingest.Host{Name: g.Host}
 	}
 	return alert
 }
