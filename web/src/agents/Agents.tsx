@@ -50,6 +50,7 @@ export default function Agents({ me }: { me: Me }) {
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<AgentInfo | null>(null)
   const [wizard, setWizard] = useState(false)
+  const [uninstalling, setUninstalling] = useState<AgentInfo | null>(null)
 
   const load = () => {
     fetchAgents()
@@ -133,6 +134,13 @@ export default function Agents({ me }: { me: Me }) {
                       >
                         Monitoring
                       </button>
+                      <button
+                        onClick={() => setUninstalling(a)}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                        title="Show commands to uninstall this agent from its endpoint"
+                      >
+                        Uninstall
+                      </button>
                       {!a.revoked && (
                         <button
                           onClick={() => doRevoke(a)}
@@ -161,6 +169,57 @@ export default function Agents({ me }: { me: Me }) {
           }}
         />
       )}
+      {uninstalling && <UninstallHelp agent={uninstalling} onClose={() => setUninstalling(null)} />}
+    </div>
+  )
+}
+
+// UninstallHelp shows the OS-specific commands to remove an agent from its endpoint.
+// The clean path is Revoke (agent self-uninstalls on next heartbeat); these commands
+// are for a manual/forced cleanup. Mirrors docs/features/05-agents.md.
+function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
+  const isWindows = (agent.os || '').toLowerCase().includes('win')
+  const linux = [
+    'sudo deuswatch-agent -uninstall     # clean removal (service, binary, certs, buffer)',
+    '',
+    '# ...or force it manually if the service is stuck:',
+    'sudo systemctl disable --now deuswatch-agent',
+    'sudo rm -f /etc/systemd/system/deuswatch-agent.service && sudo systemctl daemon-reload',
+    'sudo rm -f /usr/local/bin/deuswatch-agent',
+    'sudo rm -rf /etc/deuswatch /var/lib/deuswatch',
+  ].join('\n')
+  const windows = [
+    '& "C:\\Program Files\\DeusWatch\\deuswatch-agent.exe" -uninstall   # clean removal',
+    '',
+    '# ...or force it manually (elevated PowerShell):',
+    'Stop-Service DeusWatchAgent -Force -ErrorAction SilentlyContinue',
+    'sc.exe delete DeusWatchAgent',
+    "Remove-Item -Recurse -Force 'C:\\Program Files\\DeusWatch','C:\\ProgramData\\DeusWatch'",
+    "Remove-NetFirewallRule -DisplayName 'DeusWatch agent (outbound)' -ErrorAction SilentlyContinue",
+  ].join('\n')
+
+  return (
+    <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="mb-1 text-sm font-semibold text-white">
+          Uninstall agent — <span className="text-indigo-300">{agent.name}</span>
+          <span className="ml-2 rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">{agent.os || 'linux'}</span>
+        </h3>
+        <p className="mb-4 text-xs text-slate-500">
+          Cleanest way: <span className="text-slate-300">Revoke</span> this agent — it self-uninstalls on its
+          next heartbeat. Run the commands below on the endpoint for a manual or forced cleanup.
+        </p>
+        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+          Run on the {isWindows ? 'Windows endpoint (elevated PowerShell)' : 'Linux endpoint'}
+        </div>
+        <Copyable text={isWindows ? windows : linux} />
+        <p className="mt-3 text-xs text-slate-600">
+          Removing the certs de-enrolls the host; re-installing later issues a fresh certificate.
+        </p>
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Close</button>
+        </div>
+      </div>
     </div>
   )
 }
