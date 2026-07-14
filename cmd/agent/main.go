@@ -67,6 +67,7 @@ func main() {
 	// When launched by the Windows Service Control Manager, run as a native service
 	// (runService sets up ctx & reports status). Otherwise run in the console.
 	if runningAsService() {
+		setupServiceLogging() // SCM discards stderr; send logs to a file so they're visible
 		runService()
 		return
 	}

@@ -9,6 +9,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -18,6 +20,37 @@ import (
 )
 
 const serviceName = "DeusWatchAgent"
+
+// ServiceLogPath is where the agent writes its log when running under the SCM. The
+// Service Control Manager discards stderr, so without this the agent's logs (and every
+// diagnostic) vanish. Lives under ProgramData so it survives per-user profiles.
+func serviceLogPath() string {
+	base := os.Getenv("ProgramData")
+	if base == "" {
+		base = `C:\ProgramData`
+	}
+	return filepath.Join(base, "DeusWatch", "agent.log")
+}
+
+// setupServiceLogging redirects the standard logger to a file so the Windows agent's
+// output is visible (SCM throws stderr away). Best-effort: on any error it leaves the
+// default logger alone rather than crash the service. A light size cap (~5 MB) keeps it
+// from growing without bound - on start, an oversized file is truncated.
+func setupServiceLogging() {
+	p := serviceLogPath()
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return
+	}
+	if fi, err := os.Stat(p); err == nil && fi.Size() > 5<<20 {
+		_ = os.Truncate(p, 0)
+	}
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	log.SetOutput(io.Writer(f))
+	log.Printf("agent: --- service start; logging to %s ---", p)
+}
 
 // runningAsService reports whether the process was launched by the SCM (not the console).
 func runningAsService() bool {
