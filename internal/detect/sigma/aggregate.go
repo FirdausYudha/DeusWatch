@@ -154,16 +154,21 @@ func (r *AggRule) CompileSQL() (query string, args []any) {
 	args = append(args, fmt.Sprintf("%d seconds", int(r.Window.Seconds())))
 	winPlaceholder := fmt.Sprintf("$%d", len(args))
 
-	grpSelect, groupBy := "''::text", ""
+	grpSelect, groupBy, notNull := "''::text", "", ""
 	if r.GroupByField != "" {
 		col, _ := columnFor(r.GroupByField)
 		groupBy = "\nGROUP BY " + col.expr
 		grpSelect = col.selectExpr()
+		// A correlation key must exist: rows whose grouping column is NULL (e.g. a
+		// failed logon with no source IP - local/loopback) are not a meaningful group,
+		// and a NULL group also breaks the string scan in QueryAgg. Exclude them so the
+		// rule counts real, attributable events only.
+		notNull = " AND " + col.expr + " IS NOT NULL"
 	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "SELECT %s AS grp, count(*) AS n, max(time) AS last_seen\nFROM events\n", grpSelect)
-	fmt.Fprintf(&b, "WHERE (%s) AND time > now() - %s::interval", r.whereSQL, winPlaceholder)
+	fmt.Fprintf(&b, "WHERE (%s) AND time > now() - %s::interval%s", r.whereSQL, winPlaceholder, notNull)
 	b.WriteString(groupBy)
 	// op & threshold are safe: op from the regex whitelist, threshold an integer.
 	fmt.Fprintf(&b, "\nHAVING count(*) %s %d\nORDER BY n DESC", r.Op, r.Threshold)

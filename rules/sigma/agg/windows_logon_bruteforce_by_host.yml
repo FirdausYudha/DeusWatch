@@ -1,0 +1,24 @@
+title: Windows Logon Brute Force on a host (aggregation)
+id: 9d2f7b31-6c48-4e1a-b0f7-2a9e5c3d8f60
+status: experimental
+description: >
+  Many failed Windows logons (Security event 4625) on the SAME host within a short window,
+  regardless of source IP - catches LOCAL / console / loopback password guessing that has
+  no remote source address (which the by-source-IP rule cannot group). Complements
+  windows_logon_bruteforce (by source.ip) for remote RDP/SMB attacks.
+references:
+  - https://attack.mitre.org/techniques/T1110/
+author: DeusWatch
+level: high
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.action: windows_logon
+    event.outcome: failure
+  timeframe: 1m
+  condition: selection | count() by host.name > 5
+tags:
+  - attack.t1110.001
+  - attack.credential_access
