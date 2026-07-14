@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os/exec"
 	"strings"
 	"time"
@@ -43,8 +44,23 @@ func collectWinEventLog(ctx context.Context, s Source, out chan<- Line) error {
 
 	var lastID int64
 	primed := false
+	failing := false // so a persistent read error is logged once, not every tick
 	for {
 		events, err := queryWinEvents(ctx, channel, 50)
+		if err != nil {
+			// Surface the read error instead of swallowing it: the common cause is the
+			// agent not running as SYSTEM/Administrator (the Security channel needs
+			// elevation), which otherwise fails completely silently.
+			if !failing {
+				log.Printf("agent: wineventlog %q read error (is the agent running as SYSTEM/Admin? the Security log needs elevation): %v", channel, err)
+				failing = true
+			}
+		} else {
+			if failing {
+				log.Printf("agent: wineventlog %q read recovered", channel)
+				failing = false
+			}
+		}
 		if err == nil && len(events) > 0 {
 			maxID := lastID
 			for _, e := range events {
@@ -54,6 +70,7 @@ func collectWinEventLog(ctx context.Context, s Source, out chan<- Line) error {
 			}
 			if !primed {
 				lastID, primed = maxID, true // skip history; only send new ones
+				log.Printf("agent: wineventlog %q ready (watching for new events after RecordId %d)", channel, maxID)
 			} else {
 				for i := len(events) - 1; i >= 0; i-- { // ascending (Get-WinEvent: newest first)
 					if e := events[i]; e.RecordID > lastID {
@@ -92,6 +109,19 @@ func queryWinEvents(ctx context.Context, channel string, max int) ([]winEvent, e
 	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
 	raw, err := cmd.Output()
 	if err != nil {
+		// Surface PowerShell's own message (e.g. "No events were found that match..."
+		// is benign; "Attempted to perform an unauthorized operation" = not elevated).
+		if ee, ok := err.(*exec.ExitError); ok {
+			msg := strings.TrimSpace(string(ee.Stderr))
+			// Benign: an empty/quiet channel makes Get-WinEvent "fail" with this — not
+			// an error, just nothing new to ship.
+			if strings.Contains(msg, "No events were found") {
+				return nil, nil
+			}
+			if msg != "" {
+				return nil, fmt.Errorf("%s", firstLine(msg))
+			}
+		}
 		return nil, err
 	}
 	trimmed := strings.TrimSpace(string(raw))
@@ -110,4 +140,15 @@ func queryWinEvents(ctx context.Context, channel string, max int) ([]winEvent, e
 		return nil, err
 	}
 	return []winEvent{one}, nil
+}
+
+// firstLine returns the first non-empty line (PowerShell errors span several lines;
+// the first carries the useful message).
+func firstLine(s string) string {
+	for _, ln := range strings.Split(s, "\n") {
+		if ln = strings.TrimSpace(ln); ln != "" {
+			return ln
+		}
+	}
+	return s
 }
