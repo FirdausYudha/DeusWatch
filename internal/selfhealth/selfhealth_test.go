@@ -49,6 +49,11 @@ func TestEvaluateTransitions(t *testing.T) {
 	if tr.Event.Host == nil || tr.Event.Host.Name != "web-01" {
 		t.Fatal("disconnect alert must name the agent host")
 	}
+	// agent.id must be the human-readable NAME (cert CN), not the internal UUID, to match
+	// the dashboard's Agent column everywhere else.
+	if tr.Event.Agent == nil || tr.Event.Agent.ID != "web-01" {
+		t.Fatalf("agent.id must be the agent name, got %+v", tr.Event.Agent)
+	}
 
 	// disconnected -> stale: silent (already alerted at disconnect).
 	tr = Evaluate(AgentHealth{Status: StatusDisconnected, LastSeen: at(now.Add(-30 * time.Hour))},

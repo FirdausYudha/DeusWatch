@@ -112,8 +112,10 @@ func agentEvent(a AgentHealth, now time.Time, sev ingest.Severity, action, msg s
 			Dataset:  "deuswatch.selfhealth",
 			Original: msg,
 		},
+		// agent.id on the dashboard is the agent NAME (cert CN) everywhere else, so use
+		// a.Name here too - not the internal DB UUID - for a consistent, readable Agent column.
 		Host:  &ingest.Host{Name: a.Name, OSType: a.OS},
-		Agent: &ingest.Agent{ID: a.ID},
+		Agent: &ingest.Agent{ID: a.Name},
 		Rule:  &ingest.Rule{ID: "deuswatch_agent_health", Name: "Agent Health Monitor"},
 		DeusWatch: ingest.DeusWatch{
 			Label:    "selfhealth",
