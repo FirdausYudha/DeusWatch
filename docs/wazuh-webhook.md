@@ -29,9 +29,21 @@ POST http://<manager>:9080/api/ingest/webhook?token=<TOKEN>&agent=<name>&dataset
 | `dataset` | The dataset your decoders target | `wazuh` |
 | `host` | Optional `host.name` for the event | - |
 
-**Body:** raw log lines - either newline-separated `text/plain`, or a JSON array of strings
-(`Content-Type: application/json`). Up to 2000 lines / 4 MiB per request. Response:
-`{"accepted": N}`.
+**Body — three accepted shapes** (up to 2000 items / 4 MiB; response `{"accepted": N}`):
+
+1. **Wazuh alert JSON** - a single alert object, or a JSON array of them. Wazuh has already
+   decoded the log, so DeusWatch maps its fields straight to the dashboard:
+   `data.srcip` → source IP (+ `GeoLocation` country), `rule.description` → rule name,
+   `rule.level` → severity (0-15 → info…critical), `rule.mitre` → MITRE technique/tactic,
+   `agent.name` → host + the `wazuh-agent/<name>` tag, `data.dstuser` → user, `full_log` →
+   the raw line. The MITRE **tactic becomes the label** (e.g. `credential_access`) so the
+   matching **playbook** applies and the alert can drive response. An `_source` envelope
+   (pasted from the indexer) is unwrapped automatically.
+2. A **JSON array of raw log-line strings** - each is normalized with the query `agent`/`dataset`.
+3. **Newline-separated raw lines** (`text/plain`) - same.
+
+So you can send Wazuh's rich alerts (recommended - the dashboard shows real fields) OR just
+the raw `full_log` line and parse it yourself with a **custom decoder** on the `wazuh` dataset.
 
 Quick test:
 

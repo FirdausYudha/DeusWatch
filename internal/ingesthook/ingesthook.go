@@ -8,10 +8,10 @@
 package ingesthook
 
 import (
-	"bufio"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -79,21 +79,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	host := strings.TrimSpace(q.Get("host"))
 
-	lines, err := readLines(r)
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
+	if err != nil {
+		http.Error(w, "request too large", http.StatusBadRequest)
+		return
+	}
+	events, err := decodeEvents(body, tag, dataset, host)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	accepted := 0
-	for _, line := range lines {
-		line = strings.TrimRight(line, "\r\n")
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		ev, _ := ingest.Normalize(ingest.RawLog{
-			Timestamp: time.Now(), Host: host, AgentID: tag, Dataset: dataset, Message: line,
-		})
+	for _, ev := range events {
 		data, merr := json.Marshal(ev)
 		if merr != nil {
 			continue
@@ -108,37 +106,67 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"accepted": accepted})
 }
 
-// readLines reads the body as either a JSON array of strings or newline-separated text.
-func readLines(r *http.Request) ([]string, error) {
-	r.Body = http.MaxBytesReader(nil, r.Body, maxBody)
-	ct := r.Header.Get("Content-Type")
-	if strings.Contains(ct, "application/json") {
-		var arr []string
-		if err := json.NewDecoder(r.Body).Decode(&arr); err != nil {
+// decodeEvents turns a request body into normalized events. It accepts three shapes:
+//   - a Wazuh alert JSON object, or an array of them (rich fields mapped straight to DCS);
+//   - a JSON array of raw log-line strings;
+//   - newline-separated raw log lines (text/plain).
+// For raw lines, tag/dataset/host from the query are applied; Wazuh alerts carry their own.
+func decodeEvents(body []byte, tag, dataset, host string) ([]*ingest.Event, error) {
+	trimmed := bytesTrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+	if trimmed[0] == '{' || trimmed[0] == '[' {
+		var elems []json.RawMessage
+		if trimmed[0] == '{' {
+			elems = []json.RawMessage{trimmed} // a single JSON object
+		} else if err := json.Unmarshal(trimmed, &elems); err != nil {
 			return nil, errBadJSON
 		}
-		return capLines(arr), nil
+		out := make([]*ingest.Event, 0, len(elems))
+		for _, el := range elems {
+			el = bytesTrimSpace(el)
+			if len(el) == 0 {
+				continue
+			}
+			switch el[0] {
+			case '"': // a JSON string -> a raw log line
+				var s string
+				if json.Unmarshal(el, &s) == nil && strings.TrimSpace(s) != "" {
+					out = append(out, rawLineEvent(s, tag, dataset, host))
+				}
+			case '{': // a JSON object -> a Wazuh alert (fall back to skipping if unrecognized)
+				if ev, ok := ingest.NormalizeWazuh(el); ok {
+					out = append(out, ev)
+				}
+			}
+		}
+		return out, nil
 	}
-	var out []string
-	sc := bufio.NewScanner(r.Body)
-	sc.Buffer(make([]byte, 0, 64*1024), 1<<20) // allow long lines (up to 1 MiB)
-	for sc.Scan() {
-		out = append(out, sc.Text())
-		if len(out) >= maxLines {
+	// Plain text: newline-separated raw lines.
+	var out []*ingest.Event
+	for i, line := range strings.Split(string(body), "\n") {
+		if i >= maxLines {
 			break
 		}
-	}
-	if err := sc.Err(); err != nil {
-		return nil, err
+		line = strings.TrimRight(line, "\r")
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		out = append(out, rawLineEvent(line, tag, dataset, host))
 	}
 	return out, nil
 }
 
-func capLines(in []string) []string {
-	if len(in) > maxLines {
-		return in[:maxLines]
-	}
-	return in
+func rawLineEvent(line, tag, dataset, host string) *ingest.Event {
+	ev, _ := ingest.Normalize(ingest.RawLog{
+		Timestamp: time.Now(), Host: host, AgentID: tag, Dataset: dataset, Message: line,
+	})
+	return ev
+}
+
+func bytesTrimSpace(b []byte) []byte {
+	return []byte(strings.TrimSpace(string(b)))
 }
 
 type ingestError string

@@ -245,6 +245,16 @@ notes) and shown as a draft; publishing happens after the owner confirms.
 - **Suricata with a real sensor** - ingest path is code-complete; needs an eve.json from a
   live sensor to call it verified. (Now the only remaining verification gap.)
 
+**Backlog ideas (captured 2026-07-14):**
+- **Kafka bridge** as an alternative to NATS for enterprise scale (NATS stays the default
+  for modest specs). Note it as an optional ingest/bus transport; design later.
+- **Wazuh webhook in the Integrations UI**: currently the ingest webhook is enabled via
+  `INGEST_WEBHOOK_TOKEN` env + documented; consider surfacing token/URL/regenerate in a UI
+  panel (like the blocklist feed) or as an Integrations entry. Decide dedicated-panel vs
+  Integrations-registry (webhook is INBOUND, unlike the outbound connectors there).
+- Wazuh JSON normalizer DONE (maps rich Wazuh alert fields → DCS; MITRE tactic → label →
+  playbook); could extend the group→category/label maps as more Wazuh rule types are seen.
+
 **Phase 7 (per README roadmap):**
 - Linux **process audit** (auditd/execve) - biggest detection blind spot on Linux (no
   process visibility; Windows already has 4688/4104).

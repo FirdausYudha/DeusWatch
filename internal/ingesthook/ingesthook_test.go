@@ -79,6 +79,39 @@ func TestWebhookMultiLineAndJSON(t *testing.T) {
 	}
 }
 
+func TestWebhookWazuhJSON(t *testing.T) {
+	pub := &capturePub{}
+	h := New(pub, "t")
+
+	// A Wazuh alert JSON object -> mapped to a rich event (source IP, label, MITRE).
+	alert := `{"rule":{"level":5,"id":"5503","description":"PAM: User login failed.","groups":["pam","authentication_failed"],"mitre":{"id":["T1110.001"],"tactic":["Credential Access"]}},"data":{"srcip":"185.150.190.165","dstuser":"root"},"agent":{"name":"DEV-SERVER-DEUS"},"full_log":"pam auth failure","timestamp":"2026-06-28T17:10:06+0000"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/ingest/webhook?token=t", strings.NewReader(alert))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK || len(pub.msgs) != 1 {
+		t.Fatalf("wazuh alert: code=%d msgs=%d, want 200/1", rr.Code, len(pub.msgs))
+	}
+	var ev ingest.Event
+	json.Unmarshal(pub.msgs[0], &ev)
+	if ev.Source == nil || ev.Source.IP != "185.150.190.165" {
+		t.Fatalf("source IP not mapped from Wazuh JSON: %+v", ev.Source)
+	}
+	if ev.DeusWatch.Label != "credential_access" || ev.Agent == nil || ev.Agent.ID != "wazuh-agent/DEV-SERVER-DEUS" {
+		t.Fatalf("label/agent tag wrong: label=%q agent=%+v", ev.DeusWatch.Label, ev.Agent)
+	}
+
+	// An ARRAY of Wazuh alerts.
+	pub.msgs = nil
+	req = httptest.NewRequest(http.MethodPost, "/api/ingest/webhook?token=t", strings.NewReader("["+alert+","+alert+"]"))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK || len(pub.msgs) != 2 {
+		t.Fatalf("wazuh array: code=%d msgs=%d, want 200/2", rr.Code, len(pub.msgs))
+	}
+}
+
 func TestWebhookDisabledWithoutToken(t *testing.T) {
 	h := New(&capturePub{}, "")
 	if h.Enabled() {
