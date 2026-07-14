@@ -23,14 +23,21 @@ if command -v firewall-cmd >/dev/null 2>&1; then
   firewall-cmd --reload >/dev/null 2>&1 || true
 fi
 
+# Stop any already-running agent first, so overwriting its binary can't fail with
+# "text file busy" / curl error 23 (makes re-install idempotent).
+systemctl stop deuswatch-agent 2>/dev/null || true
+
 # Detect arch and download the matching binary from the manager.
 case "$(uname -m)" in
   x86_64)        ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
   *)             ARCH=amd64 ;;
 esac
-curl -fsSL "$API/api/agent/binary/linux/$ARCH" -o /usr/local/bin/deuswatch-agent
-chmod +x /usr/local/bin/deuswatch-agent
+# Download to a temp file then move it into place atomically: never write directly over
+# the running executable (that's what triggers ETXTBSY / curl (23) on re-install).
+curl -fsSL "$API/api/agent/binary/linux/$ARCH" -o /usr/local/bin/deuswatch-agent.new
+chmod +x /usr/local/bin/deuswatch-agent.new
+mv -f /usr/local/bin/deuswatch-agent.new /usr/local/bin/deuswatch-agent
 mkdir -p /etc/deuswatch/certs /var/lib/deuswatch/buffer
 
 # Enroll: exchange the one-time token for a unique client certificate.

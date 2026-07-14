@@ -23,6 +23,18 @@ try {
     -Protocol TCP -RemotePort $apiPort, $gwPort -ErrorAction SilentlyContinue | Out-Null
 } catch {}
 
+# Stop & remove any existing service first, so re-installing can overwrite the running
+# .exe (a locked binary makes the download fail) and '-service install' doesn't error
+# on an already-installed service. Makes re-install idempotent.
+if (Get-Service -Name 'DeusWatchAgent' -ErrorAction SilentlyContinue) {
+  Write-Host "DeusWatch: stopping existing agent service for re-install"
+  Stop-Service -Name 'DeusWatchAgent' -Force -ErrorAction SilentlyContinue
+  if (Test-Path "$dest\deuswatch-agent.exe") {
+    try { & "$dest\deuswatch-agent.exe" -service uninstall | Out-Null } catch {}
+  }
+  Start-Sleep -Seconds 2  # let the SCM release the .exe lock
+}
+
 Invoke-WebRequest "$api/api/agent/binary/windows/amd64" -OutFile "$dest\deuswatch-agent.exe" -UseBasicParsing
 
 # Enroll: exchange the one-time token for a unique client certificate.
