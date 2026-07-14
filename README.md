@@ -7,7 +7,7 @@
 SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis - in one lightweight, modular system.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Phase%201--6%20implemented%20·%20Linux%20verified%20e2e-green.svg)]()
+[![Status](https://img.shields.io/badge/status-Phase%201--6%20·%20Linux%20%26%20Windows%20verified%20e2e-green.svg)]()
 [![Made with Go](https://img.shields.io/badge/Go-backend-00ADD8.svg)]()
 [![Web: React + Vite](https://img.shields.io/badge/Web-React%20%2B%20Vite-61DAFB.svg)]()
 
@@ -20,9 +20,10 @@ SIEM · IDS/IPS · lightweight SOAR · CTI enrichment · LLM-based analysis - in
 > ⚠️ **Status: active development.** Phases 1-6 are implemented (ingest, detection, enrichment,
 > response, FIM + hash reputation, endpoint remediation, AI reports, custom decoders,
 > Suricata ingest, network containment). Detection & response are verified end-to-end on
-> Linux; the Windows agent's live Security-log read is still beta. Suitable for labs and
-> self-hosting; for real networks follow the [production hardening guide](docs/production.md)
-> (TLS, login lockout, port exposure, backups).
+> **both Linux and Windows** (the Windows agent reads the live Security log on real hardware
+> and a remote logon brute force fires a labeled alert with the attacker IP + target host).
+> Suitable for labs and self-hosting; for real networks follow the
+> [production hardening guide](docs/production.md) (TLS, login lockout, port exposure, backups).
 
 ## What is DeusWatch?
 
@@ -56,30 +57,28 @@ experience that no single vendor packages together.
 | **Phase 3** | LLM worker (Claude/heuristic), automated reports, community blocklist | ✅ |
 | **Phase 4** | Admin/UX polish, full i18n, UI-managed detection rules, configurable progressive-ban (auto-ban + IP whitelist + dedup), per-IP response view, dashboard time-range picker + searchable events/alerts | ✅ |
 | **Phase 5** | FIM + file-hash reputation (CIRCL/VirusTotal), endpoint file quarantine/delete on known-bad hash, agent self-uninstall on revoke, open-source/self-hosted LLM (Ollama), AI report summary (on-demand + scheduled), **JSON webhook export, config-profile import/export, UI alert threshold + scheduled report delivery to Telegram/email** | ✅ |
-| **Phase 6** | **Windows detection rules** (process/PowerShell/account/audit), **web-attack + sudo rule sets**, **network containment + trusted-session gate**, **Suricata/ET network-IDS ingestion**, **custom decoders** (data-driven log sources, UI editor + tester), agent name across Events/Response/Report + full-JSON log view | ✅ implemented · 🟡 Windows live-agent read + Suricata sensor verification pending (see [coverage table](#detection-coverage-by-platform)) |
+| **Phase 6** | **Windows detection rules** (process/PowerShell/account/audit), **web-attack + sudo rule sets**, **network containment + trusted-session gate**, **Suricata/ET network-IDS ingestion**, **custom decoders** (data-driven log sources, UI editor + tester), agent name across Events/Response/Report + full-JSON log view | ✅ (Windows verified e2e on real hardware; Suricata still needs a live sensor to verify) |
 | **Phase 6.5** | **Production hardening** (login brute-force lockout, password policy, TLS runbook, backup/restore scripts, loopback-bound internal ports), **self-monitoring** (agent health states + agent-down alert, disk-watermark janitor, worker healthz), **remediation playbooks** (per-label steps on every alert, UI catalog), revoked-agent name re-use + certificate serial pinning | ✅ implemented · playbooks + enrollment verified live; 🟡 agent-down alert live run pending |
 | Phase 7 | Linux process audit (auditd/sysmon), rule/integration marketplace, Helm chart | planned |
 
 ### Detection coverage by platform
 
 The detection pipeline (log parsing → Sigma rules → enrichment → progressive ban) is
-**verified end-to-end on Linux**. Other platforms collect and ship logs, but their event
-parsing + detection rules are still in progress.
+**verified end-to-end on Linux and Windows**. Network-IDS (Suricata) ingestion is
+code-complete but still needs a live sensor to call verified.
 
 | Platform | Log collection | Detection (parse + rules) | End-to-end verified |
 |---|---|---|---|
 | **Linux** (sshd / journald / firewall / web / FIM) | ✅ | ✅ SSH brute force + break-in/scan/root-refused, **sudo/su privesc**, **web attacks** (SQLi, traversal, LFI/RFI, scanner UAs, Shellshock, webshell), FIM + malicious-hash + **webshell-in-uploads → containment**, **port scan** (firewall drops) | ✅ tested |
-| **Windows** (Event Log: Security/System) | ✅ ships events | ✅ 4625 brute force + 4740 lockout; **4688/4104 process & PowerShell (suspicious PowerShell, LOLBin exec)**, account/group changes (4720/4728/4732), **1102 audit-log-cleared** - EventID normalizer + Sigma rules | 🟡 server pipeline verified; real-agent log read pending |
+| **Windows** (Event Log: Security/System) | ✅ reads the live Security/System log on real hardware | ✅ 4625 brute force (by source IP **and** by host) + 4740 lockout; **4688/4104 process & PowerShell (suspicious PowerShell, LOLBin exec)**, account/group changes (4720/4728/4732), **1102 audit-log-cleared** - EventID normalizer + Sigma rules | ✅ tested (real hardware) |
 | **Network** (Suricata / Emerging Threats) | ✅ via a Suricata sensor's `eve.json` | ✅ every ET/Suricata alert ingested as a first-class event (bans/containment apply) | 🟡 needs a Suricata sensor - see [docs/suricata.md](docs/suricata.md) |
 | **Any other source** | via a **[custom decoder](docs/features/11-decoders.md)** (regex → fields, no code) | write rules scoped to the decoder's category | operator-defined |
 
-> Linux detection & response are validated end-to-end. **Windows** maps logon events by
-> numeric EventID (4625 failed, 4624 success, 4740 lockout) - language independent - with a
-> brute-force aggregation rule + a lockout rule. The **server-side detection pipeline is
-> verified end-to-end**: a batch of 4625 events sent over the real mTLS agent protocol is
-> normalized (user/IP/os), and the aggregation produces a *Windows Logon Brute Force*
-> (T1110.001) alert. The one piece not yet verified on real hardware is the **agent reading a
-> live Windows Security log** (the PowerShell/XML collection); treat that as **beta**.
+> **Windows verified end-to-end (real hardware).** The agent reads the live Security log via
+> Windows Event Log, maps logon events by numeric EventID (4625 failed, 4624 success, 4740
+> lockout) - language independent - and a remote SMB/RDP logon brute force fires a *Windows
+> Logon Brute Force* (T1110.001) alert carrying the attacker IP **and** the target agent/host.
+> A companion by-host rule also catches local/console brute force that has no source IP.
 
 > **Port-scan detection** needs a firewall log source. Linux agents tail `/var/log/ufw.log`
 > by default (dataset `firewall`) - enable firewall logging on the host (`ufw logging on`, or

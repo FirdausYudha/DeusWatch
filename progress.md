@@ -1,7 +1,7 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-13.
+> Last updated: 2026-07-14 (v1.3.0).
 
 ## Status summary
 
@@ -16,14 +16,14 @@ AI reports), and the Phase 6 detection-depth layer (custom decoders, Suricata/ET
 English**. Stack: Go (agent/gateway/worker/api), PostgreSQL+TimescaleDB, NATS JetStream,
 React+Vite+Tailwind.
 
-> **Detection validated end-to-end on Linux.** Linux/sshd is fully verified.
-> **Windows:** the agent ships Security/System events with structured EventData (Id,
-> IpAddress, TargetUserName, LogonType); the normalizer maps 4625/4624/4740 by EventID, with
-> Sigma rules for Windows logon brute force (aggregation) + account lockout. The **server-side
-> pipeline is verified end-to-end** (4625 batch over the real mTLS protocol -> normalized ->
-> aggregation -> *Windows Logon Brute Force* T1110.001 alert; SSH detector scoped so it no
-> longer false-fires on Windows). **Beta piece:** agent reading a live Security log (the
-> PowerShell/XML collection) not yet run on real hardware. (macOS and mobile agents dropped.)
+> **Detection verified end-to-end on BOTH Linux and Windows** (2026-07-14, real hardware).
+> Linux/sshd fully verified. **Windows: VERIFIED on real hardware** - the agent reads the
+> live Security log (Windows Event Log; logs to `%ProgramData%\DeusWatch\agent.log`),
+> normalizes 4625/4624/4740/4688/4104 by numeric EventID, and a remote SMB logon brute force
+> (from an Ubuntu box) fired a *Windows Logon Brute Force* (T1110.001) alert carrying the
+> attacker IP + the target agent (windows2) + host (Deus). A companion by-host rule catches
+> local/console brute force with no source IP. The old "beta piece" (live Security-log read)
+> is now proven. (macOS and mobile agents dropped.) **Still pending:** Suricata live sensor.
 
 ```
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI
@@ -239,10 +239,11 @@ notes) and shown as a draft; publishing happens after the owner confirms.
 ## Next-step candidates (updated 2026-07-13)
 
 **Verification gaps (highest value, no new code):**
-- **Windows agent live Security-log read on real hardware** - the one remaining beta piece;
-  server-side pipeline is already verified over real mTLS.
+- ~~Windows agent live Security-log read on real hardware~~ **DONE 2026-07-14** - verified
+  live: agent reads the live Security log, remote SMB brute force fired a labeled alert with
+  attacker IP + agent + host.
 - **Suricata with a real sensor** - ingest path is code-complete; needs an eve.json from a
-  live sensor to call it verified.
+  live sensor to call it verified. (Now the only remaining verification gap.)
 
 **Phase 7 (per README roadmap):**
 - Linux **process audit** (auditd/execve) - biggest detection blind spot on Linux (no
@@ -276,6 +277,8 @@ and [docs/production.md](docs/production.md)).
 ## Commit map (newest → oldest, partial)
 
 ```
+feat(detect): aggregation alerts carry attacked agent/host + Windows by-host rule + NULL-group fix
+feat(agents): in-UI Uninstall helper + Windows service file logging + idempotent installers
 feat(ingest): raw-log webhook (Wazuh -> DeusWatch) + agent logging/install fixes
 feat(playbooks): per-label remediation playbooks - catalog, worker stamping, UI editor
 feat(enroll): revoked-name re-use + gateway cert serial pinning
