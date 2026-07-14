@@ -87,3 +87,27 @@ func TestNormalizeWazuhBareAndReject(t *testing.T) {
 		t.Fatal("a non-Wazuh object must be rejected")
 	}
 }
+
+func TestNormalizeWazuhFIM(t *testing.T) {
+	// A Wazuh syscheck (FIM) alert: modified file with a new SHA-256.
+	fim := `{"rule":{"level":7,"id":"550","description":"Integrity checksum changed","groups":["syscheck","syscheck_entry_modified"]},
+	"syscheck":{"path":"/var/www/html/uploads/shell.php","event":"added","sha256_after":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","mode":"realtime"},
+	"agent":{"name":"WEBSRV"},"full_log":"File added to the system.","timestamp":"2026-07-14T10:00:00+0000"}`
+	e, ok := NormalizeWazuh([]byte(fim))
+	if !ok {
+		t.Fatal("wazuh FIM alert should be recognized")
+	}
+	if e.Event.Category != "file" || e.Event.Action != "file_created" {
+		t.Fatalf("FIM event fields wrong: cat=%q action=%q", e.Event.Category, e.Event.Action)
+	}
+	if e.File == nil || e.File.Path != "/var/www/html/uploads/shell.php" {
+		t.Fatalf("file path not mapped: %+v", e.File)
+	}
+	if e.File.HashSHA256 == "" {
+		t.Fatal("file hash (sha256_after) must be mapped so hash reputation runs")
+	}
+	// Unlabeled so DeusWatch's own FIM rules decide (webshell-in-uploads etc.).
+	if e.DeusWatch.Label != "" {
+		t.Fatalf("FIM event must be unlabeled, got %q", e.DeusWatch.Label)
+	}
+}

@@ -44,6 +44,15 @@ type wazuhAlert struct {
 			Tactic []string `json:"tactic"`
 		} `json:"mitre"`
 	} `json:"rule"`
+	// Syscheck = Wazuh FIM. When present, we treat the alert as a file-integrity event so
+	// DeusWatch's own FIM rules + file-hash reputation evaluate it (not just Wazuh's verdict).
+	Syscheck struct {
+		Path        string `json:"path"`
+		Event       string `json:"event"` // added | modified | deleted
+		SHA256After string `json:"sha256_after"`
+		SHA256Befor string `json:"sha256_before"`
+		Mode        string `json:"mode"`
+	} `json:"syscheck"`
 	GeoLocation struct {
 		CountryName string `json:"country_name"`
 	} `json:"GeoLocation"`
@@ -94,7 +103,10 @@ func NormalizeWazuh(data []byte) (*Event, bool) {
 			Original: a.FullLog,
 		},
 		DeusWatch: DeusWatch{
-			Enrichment: Enrichment{Status: EnrichmentSkipped},
+			// Pending so the worker's enricher processes it - the whole point of routing
+			// Wazuh through DeusWatch is our enrichment (AbuseIPDB/OTX/GeoIP on the source
+			// IP, file-hash reputation on FIM hashes) on top of Wazuh's decode.
+			Enrichment: Enrichment{Status: EnrichmentPending},
 			Severity:   SeverityMeta{Original: wazuhSeverity(a.Rule.Level)},
 		},
 	}
@@ -139,7 +151,40 @@ func NormalizeWazuh(data []byte) (*Event, bool) {
 	} else {
 		e.Agent = &Agent{ID: "wazuh-agent"}
 	}
+
+	// FIM (syscheck): map to a DCS file_event so DeusWatch's own ~150 FIM rules and the
+	// file-hash reputation enricher (CIRCL/VirusTotal) evaluate the change - rather than
+	// only trusting Wazuh's verdict. Left UNLABELED so a DeusWatch FIM rule (sensitive path,
+	// webshell-in-uploads, known-bad hash) is what raises the alert.
+	if a.Syscheck.Path != "" {
+		e.Event.Category = "file"
+		e.Event.Action = "file_" + syscheckAction(a.Syscheck.Event)
+		e.Event.Outcome = "success"
+		e.File = &File{
+			Path:       a.Syscheck.Path,
+			HashSHA256: firstNonEmpty([]string{a.Syscheck.SHA256After, a.Syscheck.SHA256Befor}),
+			Mode:       a.Syscheck.Mode,
+		}
+		e.DeusWatch.Label = ""     // let DeusWatch's FIM rules decide, not Wazuh's level
+		e.Rule = nil               // a plain file event, not a pre-fired alert
+		if e.Event.Severity > SeverityMedium {
+			e.Event.Severity = SeverityMedium
+		}
+	}
 	return e, true
+}
+
+// syscheckAction maps a Wazuh syscheck event verb to the DCS FIM action suffix, matching
+// what the agent-side FIM emits (created/modified/deleted -> file_created/...).
+func syscheckAction(event string) string {
+	switch strings.ToLower(event) {
+	case "added":
+		return "created"
+	case "deleted":
+		return "deleted"
+	default:
+		return "modified"
+	}
 }
 
 // wazuhSeverity maps a Wazuh rule level (0-15) to a DCS severity (0-4).
