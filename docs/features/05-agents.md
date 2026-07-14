@@ -41,6 +41,40 @@ and push config. This is the **only** feature that uses the Gateway (mTLS), not 
 4. The list shows each agent's OS, config version, last-seen, and online dot. **Revoke** to
    decommission (agent self-uninstalls).
 
+## Uninstalling / cleaning up an agent
+
+Preferred: **Revoke** the agent in the UI - on its next heartbeat the gateway replies 410
+Gone and the agent self-uninstalls (removes its binary, service, certs and buffer). You can
+also trigger a clean removal locally:
+
+```bash
+# Linux                                   # Windows (elevated PowerShell)
+sudo deuswatch-agent -uninstall           & "C:\Program Files\DeusWatch\deuswatch-agent.exe" -uninstall
+```
+
+If a service is stuck or the binary is already gone, remove the pieces manually:
+
+```bash
+# Linux
+sudo systemctl disable --now deuswatch-agent
+sudo rm -f /etc/systemd/system/deuswatch-agent.service && sudo systemctl daemon-reload
+sudo rm -f /usr/local/bin/deuswatch-agent
+sudo rm -rf /etc/deuswatch /var/lib/deuswatch     # certs + config + offline buffer
+```
+
+```powershell
+# Windows (elevated)
+Stop-Service DeusWatchAgent -Force -ErrorAction SilentlyContinue
+sc.exe delete DeusWatchAgent
+Remove-Item -Recurse -Force 'C:\Program Files\DeusWatch','C:\ProgramData\DeusWatch'
+Remove-NetFirewallRule -DisplayName 'DeusWatch agent (outbound)' -ErrorAction SilentlyContinue
+```
+
+What each path holds: the **binary** (`/usr/local/bin` · `C:\Program Files\DeusWatch`),
+the **certs + config** and **offline buffer** (`/etc/deuswatch` + `/var/lib/deuswatch` ·
+`C:\ProgramData\DeusWatch`, which also holds the Windows agent log). Removing the certs is
+what fully de-enrolls the host; re-installing later issues a fresh certificate.
+
 ## Endpoints & source
 
 | Endpoint | Purpose | Permission |

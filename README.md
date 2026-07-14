@@ -256,6 +256,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 | [docs/llm-providers.md](docs/llm-providers.md) | AI providers (Ollama / OpenAI / Gemini / Groq / Claude) + triage-vs-report selector |
 | [docs/llm-ollama.md](docs/llm-ollama.md) | Connect a local LLM (Ollama) for AI summaries + troubleshooting |
 | [docs/suricata.md](docs/suricata.md) | Suricata / Emerging Threats (ET Open/Pro) network-IDS integration |
+| [docs/wazuh-webhook.md](docs/wazuh-webhook.md) | Ingest raw logs pushed from a Wazuh manager (HTTP webhook) |
 | [docs/blocklist-feed.md](docs/blocklist-feed.md) | Sync bans to external firewalls (Palo Alto EDL, OPNsense, pfSense, MikroTik) |
 | [decoders/](decoders/README.md) | Custom decoders: data-driven log parsing for new sources |
 | [docs/storage.md](docs/storage.md) | Log storage: retention/lifecycle, remote DB (Server B), replication, near-full alerts |

@@ -88,6 +88,11 @@ services:
       HTTP_ADDR: ":8080"
       POSTGRES_ADDR: "db:5432"
       NATS_ADDR: "nats:4222"
+      # NATS_URL lets the api publish webhook-ingested logs into the pipeline.
+      NATS_URL: "nats://nats:4222"
+      # Raw-log ingest webhook (e.g. a Wazuh manager). Empty = disabled. Generate:
+      # openssl rand -hex 24. POST /api/ingest/webhook?token=...&agent=<name>&dataset=wazuh
+      INGEST_WEBHOOK_TOKEN: "${INGEST_WEBHOOK_TOKEN:-}"
       DATABASE_URL: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
       # The initial admin is seeded when the users table is empty. CHANGE for production.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"

@@ -25,13 +25,16 @@ import (
 
 	"deuswatch/internal/agentinstall"
 	"deuswatch/internal/auth"
+	"deuswatch/internal/bus"
 	"deuswatch/internal/decoders"
 	"deuswatch/internal/enroll"
+	"deuswatch/internal/ingest"
+	"deuswatch/internal/ingesthook"
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
 	"deuswatch/internal/migrate"
-	"deuswatch/internal/playbooks"
 	"deuswatch/internal/mtls"
+	"deuswatch/internal/playbooks"
 	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/rules"
@@ -136,6 +139,14 @@ func main() {
 			log.Printf("api: added %d builtin decoder(s)", n)
 		}
 		dcancel()
+
+		// Activate the enabled decoder set in THIS process too (+ live-reload), so raw lines
+		// ingested via the webhook are normalized with the operator's custom decoders - the
+		// gateway has its own copy for agent traffic; the API needs one for the webhook.
+		if set, derr := decoderStore.EnabledSet(context.Background()); derr == nil {
+			ingest.SetDecoders(set)
+		}
+		go reloadAPIDecoders(context.Background(), decoderStore)
 
 		// Remediation playbooks (design doc section 9): seed/sync the bundled catalog
 		// (rules/playbooks/), then manage from the UI; the worker live-reloads the
@@ -242,6 +253,23 @@ func main() {
 			}
 			cancel()
 		}
+		// Raw-log ingest webhook (e.g. a Wazuh manager pushing alerts). Token-authed like
+		// the blocklist feed; publishes normalized events to NATS so they flow through the
+		// normal pipeline. Disabled unless both NATS is reachable and INGEST_WEBHOOK_TOKEN set.
+		if natsURL := os.Getenv("NATS_URL"); natsURL != "" {
+			if b, berr := bus.Connect(context.Background(), natsURL); berr != nil {
+				log.Printf("api: ingest webhook disabled — NATS unavailable: %v", berr)
+			} else {
+				hook := ingesthook.New(b, os.Getenv("INGEST_WEBHOOK_TOKEN"))
+				mux.Handle("POST /api/ingest/webhook", hook)
+				if hook.Enabled() {
+					log.Printf("api: raw-log ingest webhook active (POST /api/ingest/webhook?token=...)")
+				} else {
+					log.Printf("api: ingest webhook route registered but OFF (set INGEST_WEBHOOK_TOKEN to enable)")
+				}
+			}
+		}
+
 		mux.HandleFunc("GET /api/blocklist", blocklistFeedHandler(respStore, respStore.FeedToken))
 		mux.Handle("GET /api/blocklist-config", protect(auth.PermManageSettings, blocklistConfigHandler(respStore)))
 		mux.Handle("POST /api/blocklist-config/regenerate", protect(auth.PermManageSettings, blocklistRegenerateHandler(respStore)))
@@ -325,6 +353,25 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// reloadAPIDecoders keeps this process's decoder set in sync with UI edits (every 30s),
+// so webhook-ingested raw lines are normalized with the operator's latest custom decoders.
+func reloadAPIDecoders(ctx context.Context, ds *decoders.Store) {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			rc, cancel := context.WithTimeout(ctx, 10*time.Second)
+			if set, err := ds.EnabledSet(rc); err == nil {
+				ingest.SetDecoders(set)
+			}
+			cancel()
+		}
+	}
 }
 
 // connectStoreWithRetry dials the store, retrying with backoff so the API survives
