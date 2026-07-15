@@ -255,6 +255,50 @@ notes) and shown as a draft; publishing happens after the owner confirms.
 - Wazuh JSON normalizer DONE (maps rich Wazuh alert fields → DCS; MITRE tactic → label →
   playbook); could extend the group→category/label maps as more Wazuh rule types are seen.
 
+**Superior FIM roadmap (captured 2026-07-15) - the differentiator vs Wazuh.** DeusWatch's
+FIM is Go, so a lean cross-platform (Linux/Windows/macOS) real-time engine is feasible.
+Current: agent poll + SHA-256 baseline + created/modified/deleted + ~150 Sigma rules +
+hash reputation + who-data (only when fed from Wazuh). Four features to go BEYOND Wazuh:
+  1. **Real-time** via fsnotify (inotify / ReadDirectoryChangesW / kqueue) - instant, not
+     interval polling. (Also the long-standing fsnotify backlog item.)
+  2. **Content diff** - keep the previous content, store a unified diff; show WHICH lines
+     changed in the UI (Wazuh report_changes is basic). Directly answers the earlier
+     "which line changed" request.
+  3. **YARA scan on changed files** - catch UNKNOWN webshells by pattern, not just known
+     hashes (libyara via cgo, or a Go subset). Complements hash reputation.
+  4. **Auto-restore / rollback** - keep a pre-change copy; one-click or automatic restore to
+     undo a defacement instantly. Wazuh does not do this - big anti-deface win.
+  - Native who-data on DeusWatch's OWN agent (Linux fanotify FAN_REPORT_PIDFD / audit / eBPF)
+    is the hard, ambitious differentiator; today who-data comes only via the Wazuh feed.
+
+**MikroTik multi-endpoint sync - CrowdSec-bouncer-like (captured 2026-07-15).** TODAY:
+`resolveResponder` uses ONE MikroTik (`rows[0]`) and pushes Block/Unblock on-ban only - no
+periodic reconcile, no multi-router. Target: (a) loop over ALL enabled MikroTik
+integrations; (b) a periodic **Sync** loop (~10s, configurable) that reconciles
+`ActiveBlocks` → each MikroTik address-list (add missing, remove stale) so adding/removing a
+block in DeusWatch propagates to EVERY connected MikroTik within seconds + self-heals after
+a router reboot (design doc §10 Sync intent). Pull model already exists (`GET /api/blocklist`
++ a MikroTik scheduler script) as the lighter alternative.
+
+**Advanced composite scoring (captured 2026-07-15).** Replace the separate "abuse 100 /
+otx 5" badges with ONE accumulated threat score per event, combining signals DeusWatch
+already has - **fired_times/repeat-offender count, AbuseIPDB confidence, OTX pulses** (and
+LATER, optional: Suricata alert severity, WAF hits). Render in Events & Alerts as a small
+**doughnut** (higher = redder) or a colored **status** (low/medium/high/critical). Needs: a
+scoring function (weighted sum → 0-100 + band), stored on the event, and an SVG doughnut/
+badge in the dashboard (dataviz skill). Suricata/WAF weights optional/off first.
+
+**Native syslog input (captured 2026-07-15).** For the "everything funnels to a collector"
+network model (OPNsense / OpenWAF / ET Pro → Unraid syslog): add a UDP/TCP :514 syslog
+listener (gateway or a small receiver) so devices forward directly, decoders parse. Today
+the same is possible via a DeusWatch agent tailing the syslog file on Unraid. NOTE: ET Pro's
+packet-level completeness comes from ET Pro's paid DPI - DeusWatch consumes those alerts
+(Suricata eve.json already native), it is not a DPI engine itself.
+
+**OpenSearch pull/ingest (captured 2026-07-15).** Optionally pull logs FROM an OpenSearch/
+Wazuh-indexer database (query the index periodically → normalize → pipeline), as an
+alternative to the push webhook. Complements the existing Wazuh push-webhook.
+
 **Phase 7 (per README roadmap):**
 - Linux **process audit** (auditd/execve) - biggest detection blind spot on Linux (no
   process visibility; Windows already has 4688/4104).
