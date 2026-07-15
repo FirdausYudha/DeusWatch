@@ -151,6 +151,10 @@ func main() {
 	log.Printf("worker: containment engine active (auto=%v, edge=%v)", containAuto, responder != nil)
 	go runContainmentSweep(ctx, containEngine)
 
+	// Blocklist sync: reconcile active blocks onto all sync-capable enforcers (MikroTik)
+	// every RESPONSE_SYNC_INTERVAL - propagates bans/unbans to every router + self-heals.
+	go runBlocklistSync(ctx, respStore, responder)
+
 	// Notifications (Phase 2): Telegram/email/webhook + dedup/throttle.
 	dispatcher, notifyOn := notify.DispatcherFromEnv()
 	if notifyOn {
@@ -735,17 +739,56 @@ func resolveHashRep(ctx context.Context, intStore *integrations.Store) (vtKey st
 	return
 }
 
-// resolveResponder builds the block responder from an enabled MikroTik integration if
-// present, otherwise falls back to the RESPONDER env selection.
+// resolveResponder builds the block responder from ALL enabled MikroTik integrations if
+// present (fan-out to every router), otherwise falls back to the RESPONDER env selection.
 func resolveResponder(ctx context.Context, intStore *integrations.Store) respond.Responder {
 	if intStore != nil {
 		if rows, err := intStore.Resolve(ctx, "mikrotik"); err == nil && len(rows) > 0 {
-			c := rows[0].Config
-			log.Printf("worker: responder from Integrations MikroTik %q", rows[0].Name)
-			return respond.MikrotikResponderFromConfig(c["address"], c["username"], c["password"], c["address_list"])
+			cfgs := make([]respond.MikrotikConfig, 0, len(rows))
+			names := make([]string, 0, len(rows))
+			for _, row := range rows {
+				c := row.Config
+				cfgs = append(cfgs, respond.MikrotikConfig{
+					Address: c["address"], User: c["username"], Pass: c["password"], List: c["address_list"],
+				})
+				names = append(names, row.Name)
+			}
+			log.Printf("worker: responder from %d Integrations MikroTik router(s): %s", len(cfgs), strings.Join(names, ", "))
+			return respond.MikrotikMultiFromConfigs(cfgs)
 		}
 	}
 	return respond.ResponderFromEnv()
+}
+
+// runBlocklistSync periodically reconciles DeusWatch's active blocks onto every enforcer
+// that supports full-state sync (MikroTik). This is the CrowdSec-bouncer-like behaviour:
+// a ban/unban in DeusWatch reaches all connected routers within one interval, and a router
+// that rebooted (losing its address-list) is re-populated. No-op when the responder is
+// dry-run or doesn't support sync (nftables/crowdsec use on-demand Block/Unblock instead).
+func runBlocklistSync(ctx context.Context, respStore *respond.Store, responder respond.Responder) {
+	syncer, ok := responder.(respond.Syncer)
+	if !ok {
+		return // dry-run or a non-syncing responder
+	}
+	interval := durEnv("RESPONSE_SYNC_INTERVAL", 10*time.Second)
+	log.Printf("worker: blocklist sync active (reconcile every %s to %s)", interval, responder.Name())
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			sc, cancel := context.WithTimeout(ctx, 30*time.Second)
+			desired, err := respStore.ActiveBlocks(sc)
+			if err != nil {
+				log.Printf("worker: blocklist sync: load active blocks: %v", err)
+			} else if err := syncer.Sync(sc, desired); err != nil {
+				log.Printf("worker: blocklist sync: %v", err)
+			}
+			cancel()
+		}
+	}
 }
 
 func splitCSV(s string) []string {

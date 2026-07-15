@@ -209,6 +209,9 @@ services:
       RESPONDER: "${RESPONDER:-dryrun}"
       RESPONSE_LIVE: "${RESPONSE_LIVE:-0}"
       RESPONSE_AUTO_APPROVE: "${RESPONSE_AUTO_APPROVE:-0}"
+      # MikroTik multi-endpoint sync: how often active blocks are reconciled onto every
+      # connected router's address-list (add missing, remove stale, self-heal on reboot).
+      RESPONSE_SYNC_INTERVAL: "${RESPONSE_SYNC_INTERVAL:-10s}"
       # Trusted-session gate: suppress a plain file-change alert when the host had a successful
       # login from a whitelisted IP within this window (an official deploy/content edit).
       # Webshell/containment rules are never gated. Inert when the IP whitelist is empty.

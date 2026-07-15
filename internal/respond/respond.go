@@ -55,6 +55,16 @@ type Responder interface {
 	Unblock(ctx context.Context, ip string) error
 }
 
+// Syncer is an OPTIONAL capability a Responder may implement: reconcile the enforcer's
+// full state to the desired blocklist (add missing, remove stale). A periodic sync loop
+// calls this so DeusWatch's active blocks propagate to every connected enforcer within
+// seconds and self-heal after the device reboots (design doc §10). Responders that only
+// support on-demand Block/Unblock (nftables/crowdsec/dry-run) simply don't implement it.
+type Syncer interface {
+	// Sync makes the managed blocklist on the device exactly equal to `desired`.
+	Sync(ctx context.Context, desired []string) error
+}
+
 // BanPolicy determines the progressive ban duration based on the offense count.
 type BanPolicy struct {
 	Durations   []time.Duration // durations for the 1st, 2nd, ... offense (escalation ladder)

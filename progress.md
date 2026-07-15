@@ -271,14 +271,14 @@ hash reputation + who-data (only when fed from Wazuh). Four features to go BEYON
   - Native who-data on DeusWatch's OWN agent (Linux fanotify FAN_REPORT_PIDFD / audit / eBPF)
     is the hard, ambitious differentiator; today who-data comes only via the Wazuh feed.
 
-**MikroTik multi-endpoint sync - CrowdSec-bouncer-like (captured 2026-07-15).** TODAY:
-`resolveResponder` uses ONE MikroTik (`rows[0]`) and pushes Block/Unblock on-ban only - no
-periodic reconcile, no multi-router. Target: (a) loop over ALL enabled MikroTik
-integrations; (b) a periodic **Sync** loop (~10s, configurable) that reconciles
-`ActiveBlocks` → each MikroTik address-list (add missing, remove stale) so adding/removing a
-block in DeusWatch propagates to EVERY connected MikroTik within seconds + self-heals after
-a router reboot (design doc §10 Sync intent). Pull model already exists (`GET /api/blocklist`
-+ a MikroTik scheduler script) as the lighter alternative.
+**MikroTik multi-endpoint sync - CrowdSec-bouncer-like - DONE 2026-07-15.** Implemented:
+`Syncer` optional interface; `MikrotikResponder.Sync` reconciles the router's managed
+address-list to `ActiveBlocks` (adds missing, removes stale, only touches comment=`deuswatch`
+entries - manual entries safe); `MultiResponder` fans Block/Unblock/Sync to ALL configured
+MikroTik routers; `resolveResponder` builds from ALL enabled mikrotik integrations (not just
+`rows[0]`); `runBlocklistSync` loop reconciles every `RESPONSE_SYNC_INTERVAL` (default 10s).
+Needs `RESPONSE_LIVE=1`. Verified with an httptest RouterOS mock (reconcile, idempotent,
+manual-entry-safe, multi-router fan-out). Pull model (`GET /api/blocklist`) still available.
 
 **Advanced composite scoring (captured 2026-07-15).** Replace the separate "abuse 100 /
 otx 5" badges with ONE accumulated threat score per event, combining signals DeusWatch

@@ -18,6 +18,13 @@ only their *config* lives in the DB, encrypted at rest.
 - CTI provider **live-reloads** (~1 min) - adding an AbuseIPDB key (or changing its **cache
   window**) in the UI takes effect without restarting the worker. Response/LLM drivers are
   picked up at worker start.
+- **MikroTik multi-endpoint sync (CrowdSec-bouncer style):** add **several** MikroTik
+  connectors and every ban/unban fans out to **all** of them. A periodic reconcile
+  (`RESPONSE_SYNC_INTERVAL`, default **10s**) makes each router's `address_list` exactly
+  equal to DeusWatch's active blocks - so a block added/removed in DeusWatch reaches every
+  router within seconds, and a router that **rebooted** (losing its list) is automatically
+  re-populated. Only entries DeusWatch created (comment `deuswatch`) are ever removed;
+  manually-added address-list entries are left untouched. Requires `RESPONSE_LIVE=1`.
 - Each CTI connector (AbuseIPDB / OTX) carries its own **cache window (hours)** - the dedup TTL
   that serves a recently-looked-up IP from cache instead of re-querying the API (protects your
   quota; default 24, AbuseIPDB's value wins if both are set).

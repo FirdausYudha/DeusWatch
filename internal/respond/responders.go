@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -149,6 +150,81 @@ func (m *MikrotikResponder) Unblock(ctx context.Context, ip string) error {
 	return m.do(ctx, http.MethodPost, "/rest/ip/firewall/address-list/remove", body)
 }
 
+// mtEntry is one RouterOS address-list row.
+type mtEntry struct {
+	ID      string `json:".id"`
+	Address string `json:"address"`
+	Comment string `json:"comment"`
+}
+
+// Sync reconciles the router's DeusWatch-managed address-list to `desired`: it adds any
+// wanted IP not present and removes any managed IP no longer wanted. Only entries this
+// responder created (comment "deuswatch") are ever removed - manually-added entries are
+// left untouched. This is what makes a ban/unban in DeusWatch propagate to the router
+// within one sync interval and self-heal after a reboot.
+func (m *MikrotikResponder) Sync(ctx context.Context, desired []string) error {
+	current, err := m.currentManaged(ctx)
+	if err != nil {
+		return err
+	}
+	want := make(map[string]bool, len(desired))
+	for _, ip := range desired {
+		want[ip] = true
+	}
+	var firstErr error
+	// Add missing.
+	for ip := range want {
+		if _, present := current[ip]; !present {
+			if err := m.Block(ctx, ip, 0); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	// Remove stale (managed but no longer wanted).
+	for ip, e := range current {
+		if !want[ip] {
+			if err := m.removeByID(ctx, e.ID); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
+// currentManaged returns the DeusWatch-managed entries of the address-list, keyed by IP.
+func (m *MikrotikResponder) currentManaged(ctx context.Context) (map[string]mtEntry, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		m.baseURL+"/rest/ip/firewall/address-list?list="+url.QueryEscape(m.list), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(m.user, m.pass)
+	resp, err := m.hc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("mikrotik: list: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("mikrotik: list HTTP %d", resp.StatusCode)
+	}
+	var entries []mtEntry
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		return nil, fmt.Errorf("mikrotik: decode list: %w", err)
+	}
+	out := make(map[string]mtEntry, len(entries))
+	for _, e := range entries {
+		if strings.Contains(e.Comment, "deuswatch") { // only ours
+			out[e.Address] = e
+		}
+	}
+	return out, nil
+}
+
+func (m *MikrotikResponder) removeByID(ctx context.Context, id string) error {
+	body, _ := json.Marshal(map[string]string{".id": id})
+	return m.do(ctx, http.MethodPost, "/rest/ip/firewall/address-list/remove", body)
+}
+
 func (m *MikrotikResponder) do(ctx context.Context, method, path string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, method, m.baseURL+path, bytes.NewReader(body))
 	if err != nil {
@@ -218,6 +294,68 @@ func ResponderFromEnv() Responder {
 // RESPONSE_LIVE=1, like the env path.
 func MikrotikResponderFromConfig(baseURL, user, pass, list string) Responder {
 	return liveOrDry(NewMikrotikResponder(baseURL, user, pass, list))
+}
+
+// MikrotikConfig is one router's connection settings (from an Integrations row).
+type MikrotikConfig struct{ Address, User, Pass, List string }
+
+// MikrotikMultiFromConfigs builds a responder that fans Block/Unblock/Sync out to EVERY
+// configured MikroTik, so one ban/unban in DeusWatch reaches all routers and the periodic
+// sync keeps them all reconciled. Wrapped in dry-run unless RESPONSE_LIVE=1. nil if empty.
+func MikrotikMultiFromConfigs(cfgs []MikrotikConfig) Responder {
+	switch len(cfgs) {
+	case 0:
+		return nil
+	case 1:
+		c := cfgs[0]
+		return liveOrDry(NewMikrotikResponder(c.Address, c.User, c.Pass, c.List))
+	default:
+		rs := make([]Responder, 0, len(cfgs))
+		for _, c := range cfgs {
+			rs = append(rs, NewMikrotikResponder(c.Address, c.User, c.Pass, c.List))
+		}
+		return liveOrDry(NewMultiResponder(rs))
+	}
+}
+
+// MultiResponder fans every action out to several responders (e.g. many MikroTik routers).
+// It is also a Syncer when its members are - Sync reconciles them all.
+type MultiResponder struct{ members []Responder }
+
+func NewMultiResponder(members []Responder) *MultiResponder { return &MultiResponder{members: members} }
+
+func (mr *MultiResponder) Name() string { return fmt.Sprintf("multi(%d)", len(mr.members)) }
+
+func (mr *MultiResponder) Block(ctx context.Context, ip string, d time.Duration) error {
+	var firstErr error
+	for _, r := range mr.members {
+		if err := r.Block(ctx, ip, d); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (mr *MultiResponder) Unblock(ctx context.Context, ip string) error {
+	var firstErr error
+	for _, r := range mr.members {
+		if err := r.Unblock(ctx, ip); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (mr *MultiResponder) Sync(ctx context.Context, desired []string) error {
+	var firstErr error
+	for _, r := range mr.members {
+		if s, ok := r.(Syncer); ok {
+			if err := s.Sync(ctx, desired); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
 }
 
 func liveOrDry(r Responder) Responder {
