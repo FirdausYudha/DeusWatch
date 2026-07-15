@@ -732,6 +732,18 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                             <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{a.dw_remediation_action}</pre>
                           </div>
                         )}
+                        {a.file_diff && (
+                          <div className="mb-3 rounded-lg border border-amber-900/50 bg-amber-500/5 p-3">
+                            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-amber-300">
+                              File change — lines that changed{a.file_path ? ` in ${a.file_path}` : ''}
+                            </div>
+                            <pre className="max-h-80 overflow-auto rounded bg-slate-950 p-2 font-mono text-xs leading-relaxed">
+                              {a.file_diff.split('\n').map((line, k) => (
+                                <div key={k} className={line.startsWith('+') ? 'text-emerald-400' : line.startsWith('-') ? 'text-rose-400' : 'text-slate-500'}>{line}</div>
+                              ))}
+                            </pre>
+                          </div>
+                        )}
                         <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Full log (JSON)</div>
                         <pre className="max-h-96 overflow-auto rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs leading-relaxed text-slate-300">
 {JSON.stringify(cleanEvent(a), null, 2)}

@@ -50,7 +50,8 @@ INSERT INTO events (
 	file_path, file_hash_sha256, file_owner, file_mode,
 	dw_filehash_verdict, dw_filehash_detail,
 	destination_ip, destination_port, network_transport, network_protocol,
-	dw_remediation_action, dw_remediation_source, dw_remediation_status
+	dw_remediation_action, dw_remediation_source, dw_remediation_status,
+	file_diff
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -65,7 +66,8 @@ INSERT INTO events (
 	$32, $33, $34, $35,
 	$36, $37,
 	$38::inet, $39, $40, $41,
-	$42, $43, $44
+	$42, $43, $44,
+	$45
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
@@ -87,6 +89,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		fhVerdict, fhDetail           any = nil, nil
 		dstIP, dstPort                any = nil, nil
 		netTransport, netProtocol     any = nil, nil
+		fileDiff                      any = nil
 	)
 	if e.Destination != nil {
 		dstIP = strOrNil(e.Destination.IP)
@@ -101,6 +104,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		fileHash = strOrNil(e.File.HashSHA256)
 		fileOwner = strOrNil(e.File.Owner)
 		fileMode = strOrNil(e.File.Mode)
+		fileDiff = strOrNil(e.File.Diff)
 	}
 	fhVerdict = strOrNil(e.DeusWatch.FileHash.Verdict)
 	fhDetail = strOrNil(e.DeusWatch.FileHash.Detail)
@@ -166,6 +170,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		strOrNil(e.DeusWatch.Remediation.Action),
 		strOrNil(string(e.DeusWatch.Remediation.Source)),
 		strOrNil(string(e.DeusWatch.Remediation.Status)),
+		fileDiff,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

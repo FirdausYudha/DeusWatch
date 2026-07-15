@@ -261,9 +261,11 @@ Current: agent poll + SHA-256 baseline + created/modified/deleted + ~150 Sigma r
 hash reputation + who-data (only when fed from Wazuh). Four features to go BEYOND Wazuh:
   1. **Real-time** via fsnotify (inotify / ReadDirectoryChangesW / kqueue) - instant, not
      interval polling. (Also the long-standing fsnotify backlog item.)
-  2. **Content diff** - keep the previous content, store a unified diff; show WHICH lines
-     changed in the UI (Wazuh report_changes is basic). Directly answers the earlier
-     "which line changed" request.
+  2. **Content diff** - DONE 2026-07-15. Agent snapshots small text files (≤256 KiB, no
+     NUL bytes) in the FIM baseline; on modify it computes a line LCS diff → `file.diff` →
+     migration 000029 `file_diff` column → shown in the alert detail (amber block, +green/
+     -red lines). Verified live (defacement diff stored + rendered). Binaries/large files:
+     hash only, no diff. This snapshot also feeds feature 4 (restore).
   3. **YARA scan on changed files** - catch UNKNOWN webshells by pattern, not just known
      hashes (libyara via cgo, or a Go subset). Complements hash reputation.
   4. **Auto-restore / rollback** - keep a pre-change copy; one-click or automatic restore to

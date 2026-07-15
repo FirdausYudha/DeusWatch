@@ -37,12 +37,17 @@ type FIMChange struct {
 	SHA256 string `json:"sha256,omitempty"`
 	Size   int64  `json:"size,omitempty"`
 	Mode   string `json:"mode,omitempty"`
+	Diff   string `json:"diff,omitempty"` // unified line diff (small text files only)
 }
 
 type fileState struct {
 	sha256 string
 	size   int64
 	mode   string
+	// content is a snapshot of the file (small text files only) used to compute a diff on
+	// the next change and, later, one-click restore. Empty for binaries/large files.
+	content string
+	isText  bool
 }
 
 // FIMScanner tracks an integrity baseline for a set of roots (files/directories)
@@ -93,7 +98,12 @@ func (s *FIMScanner) Scan() ([]FIMChange, error) {
 		case !ok:
 			changes = append(changes, change(path, "created", cur))
 		case prev.sha256 != cur.sha256 || prev.size != cur.size || prev.mode != cur.mode:
-			changes = append(changes, change(path, "modified", cur))
+			c := change(path, "modified", cur)
+			// Superior FIM: show WHICH lines changed when both versions are snapshotted text.
+			if prev.isText && cur.isText {
+				c.Diff = unifiedDiff(prev.content, cur.content)
+			}
+			changes = append(changes, c)
 		}
 	}
 	for path, prev := range s.baseline {
@@ -152,6 +162,22 @@ func (s *FIMScanner) walk(root string, dst map[string]fileState) error {
 
 func stateOf(path string, info os.FileInfo) (fileState, bool) {
 	st := fileState{size: info.Size(), mode: info.Mode().Perm().String()}
+	// Small files: read once, use the bytes for both the hash and (if text) the content
+	// snapshot - so we can diff/restore later without a second read.
+	if info.Size() <= maxSnapshotBytes {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("agent: fim: read %s failed: %v", path, err)
+			return fileState{}, false
+		}
+		st.sha256 = hashBytes(b)
+		if isProbablyText(b) {
+			st.content = string(b)
+			st.isText = true
+		}
+		return st, true
+	}
+	// Larger files: hash only, no snapshot (skip hashing beyond maxHashBytes).
 	if info.Size() <= maxHashBytes {
 		if h, err := hashFile(path); err == nil {
 			st.sha256 = h
@@ -161,6 +187,11 @@ func stateOf(path string, info os.FileInfo) (fileState, bool) {
 		}
 	}
 	return st, true
+}
+
+func hashBytes(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }
 
 func hashFile(path string) (string, error) {

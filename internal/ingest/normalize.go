@@ -339,6 +339,7 @@ func normalizeFIM(msg string, e *Event) bool {
 		Action string `json:"action"`
 		SHA256 string `json:"sha256"`
 		Mode   string `json:"mode"`
+		Diff   string `json:"diff"`
 	}
 	if err := json.Unmarshal([]byte(msg), &c); err != nil || c.Path == "" || c.Action == "" {
 		return false
@@ -346,7 +347,7 @@ func normalizeFIM(msg string, e *Event) bool {
 	e.Event.Category = "file"
 	e.Event.Action = "file_" + c.Action
 	e.Event.Outcome = "success"
-	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode}
+	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode, Diff: c.Diff}
 	// Changes/deletions are riskier than newly created files.
 	if c.Action == "created" {
 		e.Event.Severity = SeverityLow

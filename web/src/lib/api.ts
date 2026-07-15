@@ -75,6 +75,7 @@ export type EventRow = {
   file_hash_sha256: string
   dw_filehash_verdict: string
   dw_filehash_detail: string
+  file_diff: string
   dw_remediation_action: string
   dw_remediation_source: string
 }

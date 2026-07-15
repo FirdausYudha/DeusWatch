@@ -162,6 +162,7 @@ type File struct {
 	HashSHA256 string `json:"hash.sha256,omitempty"`
 	Owner      string `json:"owner,omitempty"`
 	Mode       string `json:"mode,omitempty"`
+	Diff       string `json:"diff,omitempty"` // unified line diff on a modified text file (superior FIM)
 }
 
 // Process = process.* (endpoint context, Phase 2+).
