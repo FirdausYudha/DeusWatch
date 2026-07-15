@@ -60,6 +60,7 @@ func main() {
 	var blockFunc gateway.BlocklistFunc
 	var quarantineFunc gateway.QuarantineFunc
 	var containFunc gateway.ContainmentFunc
+	var restoreFunc gateway.RestoreFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
@@ -72,6 +73,7 @@ func main() {
 			revoked = es.IsRevoked
 			cfgFunc = es.GetConfigByName
 			seenFunc = es.MarkSeen
+			restoreFunc = st.PendingRestores
 			healthFunc = es.MarkHealth
 			// Agent-side auto-block: only feed the blocklist when the admin has enabled an
 			// nftables_agent integration; the IPs are the active response-engine blocks.
@@ -124,6 +126,7 @@ func main() {
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistHandler(blockFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))
+	mux.HandleFunc("GET /v1/restore", gateway.RestoreHandler(restoreFunc))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))

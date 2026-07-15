@@ -144,6 +144,15 @@ export async function exportReportToWebhook(hours = 24): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+export async function requestFimRestore(agent: string, path: string): Promise<void> {
+  const res = await authFetch('/api/fim/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent, path }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 export async function fetchAlerts(limit = 20): Promise<EventRow[]> {
   const res = await authFetch(`/api/alerts?limit=${limit}`)
   if (!res.ok) throw new Error(`alerts: HTTP ${res.status}`)

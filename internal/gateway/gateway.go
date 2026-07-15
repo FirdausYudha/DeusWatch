@@ -54,6 +54,31 @@ type FileTarget struct {
 // QuarantineFunc returns the known-bad files agents should remediate (empty when disabled).
 type QuarantineFunc func(ctx context.Context) ([]FileTarget, error)
 
+// RestoreFunc returns the file paths a specific agent (by CN) should restore to their
+// known-good snapshot, marking each delivered (one-shot). nil = feed disabled.
+type RestoreFunc func(ctx context.Context, agentName string) ([]string, error)
+
+// RestoreHandler serves the per-agent one-click-restore list over mTLS. Agents that opted
+// in (AGENT_FIM_RESTORE) poll this and write their known-good snapshot back to each path.
+func RestoreHandler(fn RestoreFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		paths := []string{}
+		if fn != nil {
+			var cn string
+			if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+				cn = r.TLS.PeerCertificates[0].Subject.CommonName
+			}
+			if cn != "" {
+				if got, err := fn(r.Context(), cn); err == nil && got != nil {
+					paths = got
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string][]string{"paths": paths})
+	}
+}
+
 // QuarantineHandler serves the known-bad file list over mTLS. Agents that opted in
 // (AGENT_FILE_REMEDIATION) poll this and quarantine/delete files whose current hash matches.
 func QuarantineHandler(fn QuarantineFunc) http.HandlerFunc {

@@ -96,6 +96,18 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		log.Fatalf("agent: buffer: %v", err)
 	}
 
+	// FIM known-good snapshots (enables one-click restore of a defaced/modified text file).
+	// On by default; set FIM_SNAPSHOTS=0 to disable (diff still works, restore doesn't).
+	var snapStore *agent.SnapshotStore
+	if os.Getenv("FIM_SNAPSHOTS") != "0" {
+		if ss, serr := agent.NewSnapshotStore(getenv("FIM_SNAPSHOT_DIR", agent.DefaultSnapshotDir())); serr != nil {
+			log.Printf("agent: fim snapshots disabled: %v", serr)
+		} else {
+			agent.SetFIMSnapshots(ss)
+			snapStore = ss
+		}
+	}
+
 	// Sources: pushed config from the manager if present, otherwise per-OS defaults / LOG_FILE.
 	sources := resolveSources()
 	var configVersion int
@@ -123,6 +135,11 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	// poll the manager's known-bad file list and quarantine/delete matching files.
 	if mode := strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_FILE_REMEDIATION"))); mode == "quarantine" || mode == "delete" {
 		go runFileRemediation(ctx, shipper, mode)
+	}
+	// FIM one-click restore: poll the manager's restore requests and write the known-good
+	// snapshot back to each file. Active whenever snapshots are enabled (the default).
+	if snapStore != nil {
+		go runFimRestore(ctx, shipper, snapStore, host)
 	}
 	// Host network containment (opt-in via AGENT_CONTAINMENT=1): poll the manager's isolation
 	// directive and firewall the host off from the LAN (except the manager) when told to.
@@ -373,6 +390,41 @@ func runFileRemediation(ctx context.Context, shipper *agent.Shipper, mode string
 					log.Printf("agent: remediate %s: %v", ft.Path, err)
 				} else if acted {
 					log.Printf("agent: %sd known-bad file %s (sha256 %s…)", mode, ft.Path, ft.SHA256[:12])
+				}
+			}
+		}
+	}
+}
+
+// runFimRestore polls the manager's restore requests and writes each file's known-good
+// snapshot back (undo a defacement). It emits a FIM 'restored' event so the action is
+// visible in the timeline. Restores run every 15s (faster than the FIM scan) so a one-click
+// restore feels responsive.
+func runFimRestore(ctx context.Context, shipper *agent.Shipper, snaps *agent.SnapshotStore, host string) {
+	log.Printf("agent: FIM one-click restore active")
+	t := time.NewTicker(15 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			paths, err := shipper.FetchRestore(ctx)
+			if err != nil {
+				continue
+			}
+			for _, p := range paths {
+				if rerr := snaps.Restore(p); rerr != nil {
+					log.Printf("agent: fim restore %s: %v", p, rerr)
+					continue
+				}
+				log.Printf("agent: restored %s to its known-good snapshot", p)
+				// Emit a restored event so the dashboard shows the action.
+				c := agent.FIMChange{Path: p, Action: "restored"}
+				if body, merr := json.Marshal(c); merr == nil {
+					_ = shipper.Send(ctx, []ingest.RawLog{{
+						Timestamp: time.Now(), Host: host, Dataset: "fim", Message: string(body),
+					}})
 				}
 			}
 		}

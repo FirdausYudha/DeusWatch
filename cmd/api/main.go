@@ -321,6 +321,7 @@ func main() {
 		mux.Handle("/api/decoders/{id}", protect(auth.PermManageRules, decoderStore.ItemHandler()))
 		mux.Handle("/api/playbooks", protect(auth.PermManageRules, playbookStore.CollectionHandler()))
 		mux.Handle("/api/playbooks/{id}", protect(auth.PermManageRules, playbookStore.ItemHandler()))
+		mux.Handle("POST /api/fim/restore", protect(auth.PermExecuteBlock, fimRestoreHandler(st)))
 
 		// Tier-2 DFIR ticketing (case management).
 		ticketStore := tickets.NewStore(st.Pool())
@@ -614,6 +615,34 @@ func exportReportHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"sent": 1})
+	}
+}
+
+// fimRestoreHandler (POST /api/fim/restore {agent, path}) requests that an agent restore a
+// file to its known-good snapshot (undo a defacement). Needs the execute_block permission.
+func fimRestoreHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if st == nil {
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		var req struct {
+			Agent string `json:"agent"`
+			Path  string `json:"path"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Agent == "" || req.Path == "" {
+			http.Error(w, "agent and path are required", http.StatusBadRequest)
+			return
+		}
+		by := ""
+		if u, ok := auth.UserFrom(r.Context()); ok {
+			by = u.Username
+		}
+		if err := st.RequestRestore(r.Context(), req.Agent, req.Path, by); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "restore requested", "path": req.Path})
 	}
 }
 

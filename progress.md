@@ -268,13 +268,16 @@ hash reputation + who-data (only when fed from Wazuh). Four features to go BEYON
      hash only, no diff. This snapshot also feeds feature 4 (restore).
   3. **YARA scan on changed files** - catch UNKNOWN webshells by pattern, not just known
      hashes (libyara via cgo, or a Go subset). Complements hash reputation.
-  4. **Auto-restore / rollback** - keep a pre-change copy; one-click or automatic restore to
-     undo a defacement instantly. Wazuh does not do this - big anti-deface win.
-     **DECIDED 2026-07-15**: default is **manual / one-click restore only** (agent keeps a
-     baseline copy, UI has a Restore button; NEVER writes a file without an explicit command).
-     Auto-restore-per-directory is a later opt-in. Rationale: writing to endpoint files is
-     sensitive; the safe default must not surprise-overwrite. Content diff (feature 2) and
-     restore share the same baseline-snapshot mechanism on the agent - build snapshot once.
+  4. **Auto-restore / rollback** - DONE 2026-07-15 (manual/one-click). Agent persists each
+     watched text file's original known-good copy to disk (`fim-snapshots/`, written on
+     first sight, never auto-overwritten, survives restart). Manager: `file_restores` table
+     (migration 000031) + gateway `GET /v1/restore` per-agent one-shot feed + API
+     `POST /api/fim/restore` (execute_block perm) + a **Restore file** button on the FIM
+     alert detail. Agent polls every 15s, writes the snapshot back atomically, emits a
+     `file_restored` event. NEVER writes without an explicit request (safe default).
+     `FIM_SNAPSHOTS=0` disables. Auto-restore-per-directory remains a later opt-in.
+     Verified: snapshot ensure/restore, scanner persistence, restore request flow (dedup +
+     per-agent + one-shot) live vs Postgres.
   - Native who-data on DeusWatch's OWN agent (Linux fanotify FAN_REPORT_PIDFD / audit / eBPF)
     is the hard, ambitious differentiator; today who-data comes only via the Wazuh feed.
 

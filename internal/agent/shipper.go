@@ -149,6 +149,30 @@ func (s *Shipper) FetchQuarantine(ctx context.Context) ([]FileTarget, error) {
 	return body.Files, nil
 }
 
+// FetchRestore retrieves the file paths the manager wants this agent to restore to their
+// known-good snapshot (GET /v1/restore). Returns an empty slice when none/disabled.
+func (s *Shipper) FetchRestore(ctx context.Context) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/v1/restore", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("agent: fetch restore (status %d)", resp.StatusCode)
+	}
+	var body struct {
+		Paths []string `json:"paths"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
+		return nil, err
+	}
+	return body.Paths, nil
+}
+
 // ContainmentDirective is the manager's host-isolation instruction for this agent
 // (GET /v1/containment). Isolate=true means firewall the host off from the LAN except AllowIPs.
 type ContainmentDirective struct {

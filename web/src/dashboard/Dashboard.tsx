@@ -1,7 +1,7 @@
 import { useEffect, useState, Fragment, type ReactNode } from 'react'
 import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData, fetchLayout, saveLayout,
-  fetchStorageStatus,
+  fetchStorageStatus, requestFimRestore,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type DashWidget, type WidgetKind, type DashRange, type EventSearch,
   type StorageStatus,
@@ -83,6 +83,30 @@ function ThreatIntel({ a }: { a: EventRow }) {
       <FileHashBadge a={a} />
       {a.dw_severity_escalated_by && <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-xs font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>↑</span>}
     </div>
+  )
+}
+
+// RestoreButton requests that the reporting agent revert a modified/defaced file to its
+// known-good snapshot. Manual, one-click - never fires automatically.
+function RestoreButton({ agent, path }: { agent: string; path: string }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'err'>('idle')
+  const [msg, setMsg] = useState('')
+  const onClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`Restore ${path} on ${agent} to its known-good snapshot? This overwrites the current file on the endpoint.`)) return
+    setState('busy'); setMsg('')
+    try { await requestFimRestore(agent, path); setState('done') }
+    catch (err) { setState('err'); setMsg((err as Error).message) }
+  }
+  if (state === 'done') return <span className="text-xs text-emerald-400">✓ restore requested (applies within ~15s)</span>
+  return (
+    <span className="flex items-center gap-2">
+      {state === 'err' && <span className="text-xs text-rose-400" title={msg}>failed</span>}
+      <button onClick={onClick} disabled={state === 'busy'}
+        className="rounded-md border border-amber-700/60 px-2 py-1 text-xs text-amber-200 hover:bg-amber-500/10 disabled:opacity-50">
+        {state === 'busy' ? 'Requesting…' : 'Restore file'}
+      </button>
+    </span>
   )
 }
 
@@ -756,16 +780,21 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                             <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{a.dw_remediation_action}</pre>
                           </div>
                         )}
-                        {a.file_diff && (
+                        {(a.file_diff || (a.event_category === 'file' && a.file_path)) && (
                           <div className="mb-3 rounded-lg border border-amber-900/50 bg-amber-500/5 p-3">
-                            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-amber-300">
-                              File change — lines that changed{a.file_path ? ` in ${a.file_path}` : ''}
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-xs font-medium uppercase tracking-wider text-amber-300">
+                                File change{a.file_path ? ` — ${a.file_path}` : ''}
+                              </span>
+                              {a.file_path && a.agent_id && <RestoreButton agent={a.agent_id} path={a.file_path} />}
                             </div>
-                            <pre className="max-h-80 overflow-auto rounded bg-slate-950 p-2 font-mono text-xs leading-relaxed">
-                              {a.file_diff.split('\n').map((line, k) => (
-                                <div key={k} className={line.startsWith('+') ? 'text-emerald-400' : line.startsWith('-') ? 'text-rose-400' : 'text-slate-500'}>{line}</div>
-                              ))}
-                            </pre>
+                            {a.file_diff && (
+                              <pre className="max-h-80 overflow-auto rounded bg-slate-950 p-2 font-mono text-xs leading-relaxed">
+                                {a.file_diff.split('\n').map((line, k) => (
+                                  <div key={k} className={line.startsWith('+') ? 'text-emerald-400' : line.startsWith('-') ? 'text-rose-400' : 'text-slate-500'}>{line}</div>
+                                ))}
+                              </pre>
+                            )}
                           </div>
                         )}
                         <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Full log (JSON)</div>

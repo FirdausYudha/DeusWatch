@@ -26,6 +26,13 @@ import (
 // fimScanInterval is the default interval between FIM scans.
 const fimScanInterval = 60 * time.Second
 
+// fimSnapshots is the process-wide known-good snapshot store shared by all FIM sources
+// (for one-click restore). Set once at agent startup via SetFIMSnapshots; nil = disabled.
+var fimSnapshots *SnapshotStore
+
+// SetFIMSnapshots enables restore snapshots for FIM sources. Call once at startup.
+func SetFIMSnapshots(s *SnapshotStore) { fimSnapshots = s }
+
 // maxHashBytes limits the size of a file that gets hashed (huge files skip hashing,
 // only metadata is tracked) so scans don't overload I/O.
 const maxHashBytes = 64 << 20 // 64 MiB
@@ -56,11 +63,19 @@ type FIMScanner struct {
 	roots    []string
 	baseline map[string]fileState
 	primed   bool
+	snaps    *SnapshotStore // known-good copies for one-click restore (nil = disabled)
 }
 
 // NewFIMScanner creates a scanner for the given roots (files or directories).
 func NewFIMScanner(roots ...string) *FIMScanner {
 	return &FIMScanner{roots: roots, baseline: map[string]fileState{}}
+}
+
+// WithSnapshots attaches a snapshot store so each watched text file's original content is
+// persisted for restore. Returns the scanner for chaining.
+func (s *FIMScanner) WithSnapshots(store *SnapshotStore) *FIMScanner {
+	s.snaps = store
+	return s
 }
 
 // splitFIMPaths splits a FIM source's Path into a list of roots (comma-separated).
@@ -82,6 +97,15 @@ func (s *FIMScanner) Scan() ([]FIMChange, error) {
 	for _, root := range s.roots {
 		if err := s.walk(root, current); err != nil {
 			return nil, err
+		}
+	}
+
+	// Persist a known-good snapshot of each text file the first time it's seen (for restore).
+	if s.snaps != nil {
+		for path, st := range current {
+			if st.isText {
+				s.snaps.Ensure(path, st.content)
+			}
 		}
 	}
 
@@ -214,7 +238,7 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	if len(roots) == 0 {
 		return fmt.Errorf("fim source %q: empty Path", s.Dataset)
 	}
-	scanner := NewFIMScanner(roots...)
+	scanner := NewFIMScanner(roots...).WithSnapshots(fimSnapshots)
 	if _, err := scanner.Scan(); err != nil { // build the initial baseline
 		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}

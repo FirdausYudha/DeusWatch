@@ -41,6 +41,19 @@ and push config. This is the **only** feature that uses the Gateway (mTLS), not 
 4. The list shows each agent's OS, config version, last-seen, and online dot. **Revoke** to
    decommission (agent self-uninstalls).
 
+## Superior FIM: content diff + one-click restore
+
+For FIM sources, the agent snapshots each small text file (≤256 KiB) it watches:
+- **Content diff** — when a file is modified, the alert shows a **"File change"** block with
+  the exact lines that changed (`+`green / `-`red), so during a defacement you see the code
+  that was injected, not just "file modified".
+- **One-click restore** — the agent keeps the file's original **known-good** copy (persisted
+  under `%ProgramData%\DeusWatch\fim-snapshots` · `/var/lib/deuswatch/fim-snapshots`, written
+  the first time the file is seen and never auto-overwritten). On a file alert, click
+  **Restore file** (needs the `execute_block` permission) → the agent writes the good copy
+  back atomically within ~15s, undoing the change. Manual only - it never writes to a file
+  without an explicit request. Set `FIM_SNAPSHOTS=0` to disable snapshots (diff needs them too).
+
 ## Uninstalling / cleaning up an agent
 
 Preferred: **Revoke** the agent in the UI - on its next heartbeat the gateway replies 410
