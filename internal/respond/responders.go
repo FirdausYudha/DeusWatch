@@ -132,13 +132,17 @@ func NewMikrotikResponder(baseURL, user, pass, list string, insecure bool) *Mikr
 	if list == "" {
 		list = "deuswatch_ban"
 	}
+	// Tolerate an address entered without a scheme (e.g. "10.10.10.8"): the RouterOS REST
+	// API is HTTPS-only, so default to https:// so a bare IP/host still works.
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL != "" && !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = "https://" + baseURL
+	}
 	hc := &http.Client{Timeout: 8 * time.Second}
 	if insecure {
 		hc.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
-	return &MikrotikResponder{
-		baseURL: strings.TrimRight(baseURL, "/"), user: user, pass: pass, list: list, hc: hc,
-	}
+	return &MikrotikResponder{baseURL: baseURL, user: user, pass: pass, list: list, hc: hc}
 }
 
 func (m *MikrotikResponder) Name() string { return "mikrotik" }

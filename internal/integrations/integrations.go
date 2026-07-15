@@ -45,10 +45,11 @@ var Catalog = []TypeInfo{
 		Type: "mikrotik", Label: "MikroTik (RouterOS API)", Category: "firewall",
 		Desc: "Block source IPs by pushing them to a RouterOS address-list at the network edge.",
 		Fields: []Field{
-			{Key: "address", Label: "Address (host:port)", Help: "e.g. 192.168.88.1:8728"},
+			{Key: "address", Label: "Address (REST API base URL)", Help: "https://192.168.88.1 - REST API over HTTPS (a bare IP is assumed https)"},
 			{Key: "username", Label: "Username"},
 			{Key: "password", Label: "Password", Secret: true},
-			{Key: "address_list", Label: "Address list", Optional: true, Help: "RouterOS address-list name (default: deuswatch)"},
+			{Key: "address_list", Label: "Address list", Optional: true, Help: "RouterOS address-list name (default: deuswatch_ban) - must match your firewall drop rule"},
+			{Key: "insecure_tls", Label: "Skip TLS verify", Optional: true, Options: []string{"false", "true"}, Help: "true for a self-signed RouterOS cert reached over a trusted tunnel (WireGuard/IPsec)"},
 		},
 	},
 	{
