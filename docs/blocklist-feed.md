@@ -60,9 +60,11 @@ A scheduled script fetches the list into an address-list, then a firewall rule d
 /ip firewall filter add chain=forward src-address-list=deuswatch action=drop
 ```
 
-> MikroTik is also supported as a **push** responder (Integrations → MikroTik) - DeusWatch writes
-> bans straight to a RouterOS address-list via the API. Use whichever you prefer; the feed suits
-> fleets and non-API devices.
+> MikroTik is also supported as a **push** responder with **multi-endpoint sync** (Integrations →
+> MikroTik) - DeusWatch writes bans straight to a RouterOS address-list via the REST API and
+> keeps every router reconciled within ~10s. Full setup (REST API, WireGuard for multi-site,
+> self-signed cert / `insecure_tls`, and this pull alternative) is in **[docs/mikrotik.md](mikrotik.md)**.
+> Use whichever you prefer; the feed suits fleets and non-API devices.
 
 **CrowdSec** is integrated separately as a bouncer (Integrations → CrowdSec LAPI).
 

@@ -3,6 +3,7 @@ package respond
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -123,13 +124,20 @@ type MikrotikResponder struct {
 	hc      *http.Client
 }
 
-func NewMikrotikResponder(baseURL, user, pass, list string) *MikrotikResponder {
+// NewMikrotikResponder builds a responder for one router. insecure=true skips TLS
+// certificate verification - RouterOS ships a self-signed cert, so this is the common
+// setting when the router is reached over a trusted tunnel (WireGuard/IPsec). Leave it
+// false when the router presents a CA-trusted certificate.
+func NewMikrotikResponder(baseURL, user, pass, list string, insecure bool) *MikrotikResponder {
 	if list == "" {
 		list = "deuswatch_ban"
 	}
+	hc := &http.Client{Timeout: 8 * time.Second}
+	if insecure {
+		hc.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	}
 	return &MikrotikResponder{
-		baseURL: strings.TrimRight(baseURL, "/"), user: user, pass: pass, list: list,
-		hc: &http.Client{Timeout: 8 * time.Second},
+		baseURL: strings.TrimRight(baseURL, "/"), user: user, pass: pass, list: list, hc: hc,
 	}
 }
 
@@ -280,9 +288,10 @@ func ResponderFromEnv() Responder {
 	case "crowdsec":
 		return liveOrDry(NewCrowdSecResponder())
 	case "mikrotik":
+		insecure, _ := strconv.ParseBool(os.Getenv("MIKROTIK_INSECURE"))
 		return liveOrDry(NewMikrotikResponder(
 			os.Getenv("MIKROTIK_URL"), os.Getenv("MIKROTIK_USER"),
-			os.Getenv("MIKROTIK_PASS"), os.Getenv("MIKROTIK_LIST")))
+			os.Getenv("MIKROTIK_PASS"), os.Getenv("MIKROTIK_LIST"), insecure))
 	default:
 		log.Printf("respond: unknown RESPONDER %q — using dry-run", os.Getenv("RESPONDER"))
 		return NewDryRunResponder("none")
@@ -292,12 +301,15 @@ func ResponderFromEnv() Responder {
 // MikrotikResponderFromConfig builds a MikroTik responder from explicit config (used
 // when the connector comes from the Integrations registry). Wrapped in dry-run unless
 // RESPONSE_LIVE=1, like the env path.
-func MikrotikResponderFromConfig(baseURL, user, pass, list string) Responder {
-	return liveOrDry(NewMikrotikResponder(baseURL, user, pass, list))
+func MikrotikResponderFromConfig(baseURL, user, pass, list string, insecure bool) Responder {
+	return liveOrDry(NewMikrotikResponder(baseURL, user, pass, list, insecure))
 }
 
 // MikrotikConfig is one router's connection settings (from an Integrations row).
-type MikrotikConfig struct{ Address, User, Pass, List string }
+type MikrotikConfig struct {
+	Address, User, Pass, List string
+	Insecure                  bool // skip TLS verify (self-signed RouterOS cert over a tunnel)
+}
 
 // MikrotikMultiFromConfigs builds a responder that fans Block/Unblock/Sync out to EVERY
 // configured MikroTik, so one ban/unban in DeusWatch reaches all routers and the periodic
@@ -308,11 +320,11 @@ func MikrotikMultiFromConfigs(cfgs []MikrotikConfig) Responder {
 		return nil
 	case 1:
 		c := cfgs[0]
-		return liveOrDry(NewMikrotikResponder(c.Address, c.User, c.Pass, c.List))
+		return liveOrDry(NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure))
 	default:
 		rs := make([]Responder, 0, len(cfgs))
 		for _, c := range cfgs {
-			rs = append(rs, NewMikrotikResponder(c.Address, c.User, c.Pass, c.List))
+			rs = append(rs, NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure))
 		}
 		return liveOrDry(NewMultiResponder(rs))
 	}

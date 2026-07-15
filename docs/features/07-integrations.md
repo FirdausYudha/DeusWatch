@@ -24,7 +24,10 @@ only their *config* lives in the DB, encrypted at rest.
   equal to DeusWatch's active blocks - so a block added/removed in DeusWatch reaches every
   router within seconds, and a router that **rebooted** (losing its list) is automatically
   re-populated. Only entries DeusWatch created (comment `deuswatch`) are ever removed;
-  manually-added address-list entries are left untouched. Requires `RESPONSE_LIVE=1`.
+  manually-added address-list entries are left untouched. Requires `RESPONSE_LIVE=1`. Set
+  `insecure_tls: true` on the connector when the router presents a self-signed certificate
+  (safe over a WireGuard/IPsec tunnel). **Full setup (RouterOS REST API, WireGuard for
+  buildings A/B/C, the pull alternative): [docs/mikrotik.md](../mikrotik.md).**
 - Each CTI connector (AbuseIPDB / OTX) carries its own **cache window (hours)** - the dedup TTL
   that serves a recently-looked-up IP from cache instead of re-querying the API (protects your
   quota; default 24, AbuseIPDB's value wins if both are set).

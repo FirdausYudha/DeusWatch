@@ -752,8 +752,10 @@ func resolveResponder(ctx context.Context, intStore *integrations.Store) respond
 			names := make([]string, 0, len(rows))
 			for _, row := range rows {
 				c := row.Config
+				insecure, _ := strconv.ParseBool(c["insecure_tls"])
 				cfgs = append(cfgs, respond.MikrotikConfig{
-					Address: c["address"], User: c["username"], Pass: c["password"], List: c["address_list"],
+					Address: c["address"], User: c["username"], Pass: c["password"],
+					List: c["address_list"], Insecure: insecure,
 				})
 				names = append(names, row.Name)
 			}

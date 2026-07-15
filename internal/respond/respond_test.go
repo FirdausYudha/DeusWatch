@@ -316,7 +316,7 @@ func TestMikrotikResponderHTTP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	r := NewMikrotikResponder(srv.URL, "admin", "pw", "deuswatch_ban")
+	r := NewMikrotikResponder(srv.URL, "admin", "pw", "deuswatch_ban", false)
 	r.hc = srv.Client()
 	if err := r.Block(context.Background(), "5.6.7.8", 24*time.Hour); err != nil {
 		t.Fatalf("Block: %v", err)

@@ -259,6 +259,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 | [docs/suricata.md](docs/suricata.md) | Suricata / Emerging Threats (ET Open/Pro) network-IDS integration |
 | [docs/wazuh-webhook.md](docs/wazuh-webhook.md) | Ingest raw logs pushed from a Wazuh manager (HTTP webhook) |
 | [docs/blocklist-feed.md](docs/blocklist-feed.md) | Sync bans to external firewalls (Palo Alto EDL, OPNsense, pfSense, MikroTik) |
+| [docs/mikrotik.md](docs/mikrotik.md) | Connect MikroTik routers - REST API multi-sync (WireGuard for multi-site) or the pull feed |
 | [decoders/](decoders/README.md) | Custom decoders: data-driven log parsing for new sources |
 | [docs/storage.md](docs/storage.md) | Log storage: retention/lifecycle, remote DB (Server B), replication, near-full alerts |
 | [docs/production.md](docs/production.md) | **Production hardening**: TLS reverse proxy, login lockout & password policy, port exposure, backup/restore runbook |

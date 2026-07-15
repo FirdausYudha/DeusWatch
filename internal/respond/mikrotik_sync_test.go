@@ -79,7 +79,7 @@ func TestMikrotikSyncReconciles(t *testing.T) {
 	srv := httptest.NewServer(f.handler())
 	defer srv.Close()
 
-	m := NewMikrotikResponder(srv.URL, "u", "p", "deuswatch_ban")
+	m := NewMikrotikResponder(srv.URL, "u", "p", "deuswatch_ban", false)
 	// Desired: block two IPs; 1.1.1.1 should be dropped, 10.0.0.1 (manual) untouched.
 	if err := m.Sync(context.Background(), []string{"2.2.2.2", "3.3.3.3"}); err != nil {
 		t.Fatalf("sync: %v", err)
@@ -115,8 +115,8 @@ func TestMultiResponderFansOut(t *testing.T) {
 	defer s2.Close()
 
 	multi := NewMultiResponder([]Responder{
-		NewMikrotikResponder(s1.URL, "u", "p", "l"),
-		NewMikrotikResponder(s2.URL, "u", "p", "l"),
+		NewMikrotikResponder(s1.URL, "u", "p", "l", false),
+		NewMikrotikResponder(s2.URL, "u", "p", "l", false),
 	})
 	if err := multi.Sync(context.Background(), []string{"9.9.9.9"}); err != nil {
 		t.Fatalf("multi sync: %v", err)
