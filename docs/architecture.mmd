@@ -4,7 +4,7 @@ flowchart TB
   subgraph EP["🖥️ ENDPOINTS - monitored hosts"]
     direction TB
     subgraph LA["Linux Agent (Go, systemd service)"]
-      LC["Collectors:<br/>auth/syslog (file tail) · journald<br/>web access log (nginx/apache)<br/>firewall log (ufw/iptables)<br/>FIM + SHA-256 hashing"]
+      LC["Collectors:<br/>auth/syslog (file tail) · journald<br/>web access log (nginx/apache)<br/>firewall log (ufw/iptables)<br/>FIM + SHA-256 + content diff + restore"]
       LB["Offline buffer<br/>(store-and-forward, no log loss)"]
       LR["Responders:<br/>nftables auto-block (polls blocklist)<br/>host self-isolation (containment)<br/>quarantine/delete known-bad files<br/>self-uninstall on revoke"]
     end
@@ -13,6 +13,7 @@ flowchart TB
       WR["Isolation via Windows Firewall"]
     end
     SUR["Suricata / Snort sensor<br/>eve.json alerts (ET Open/Pro rulesets)"]
+    WZ["Wazuh manager (external)<br/>alerts + FIM syscheck + who-data<br/>→ HTTP webhook (token)"]
   end
 
   %% ══════════════ MANAGER ══════════════
@@ -23,7 +24,7 @@ flowchart TB
     BUS["NATS JetStream<br/>durable event bus"]
     subgraph WK["Worker (detection pipeline)"]
       DET["Detection<br/>Sigma single-event engine +<br/>aggregation compiled to SQL<br/>1000+ DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling<br/>remediation playbooks stamped per label"]
-      ENR["CTI Enrichment<br/>abuse score + country + escalation<br/>TTL cache (quota-friendly)<br/>community blocklists"]
+      ENR["CTI Enrichment + Scoring<br/>abuse score + country + escalation<br/>composite threat score per IP (0-100)<br/>fired_times+abuse+otx+severity → doughnut<br/>scenario ban at score threshold"]
       HREP["File-hash reputation<br/>known-bad detection on FIM events"]
       RSP["Response Engine (SOAR)<br/>progressive ban ladder 10m→30m→1h→24h→perm<br/>IP whitelist · dedup · approval or auto-ban<br/>unban · network containment<br/>trusted-session gate"]
       NTF["Notifications<br/>severity threshold (UI) · dedup/throttle<br/>scheduled report delivery"]
@@ -43,7 +44,8 @@ flowchart TB
     LLMP["Anthropic Claude · Ollama (local/free)<br/>any OpenAI-compatible endpoint"]
     CHAN["Telegram · Email (SMTP)<br/>webhook targets (SIEM / n8n / Zapier)"]
     ENF["MikroTik RouterOS (REST)<br/>CrowdSec LAPI (bouncer ecosystem)"]
-    EDL["External firewalls (pull model):<br/>Palo Alto EDL · OPNsense · pfSense<br/>MikroTik address-list"]
+    EDL["External firewalls (pull model):<br/>Palo Alto EDL · OPNsense · pfSense"]
+    MTK["MikroTik routers (push, multi-endpoint):<br/>ban/unban → all routers in ~10s + self-heal"]
     GH["GitHub Releases<br/>(read-only update check)"]
   end
 
@@ -52,6 +54,7 @@ flowchart TB
   LB -- "logs + heartbeat w/ self-reported health<br/>mTLS :9443" --> GW
   WC -- "logs + heartbeat w/ self-reported health<br/>mTLS :9443" --> GW
   SUR -- "eve.json tailed by agent" --> LC
+  WZ -- "POST /api/ingest/webhook?token=" --> API
   CG -.->|issues certs| GW
   GW -- "normalized events" --> BUS
   BUS --> DET
@@ -63,6 +66,8 @@ flowchart TB
   RSP -- "ban / contain decisions" --> DB
   RSP --> NTF
   RSP --> ENF
+  RSP -- "periodic sync (~10s)<br/>reconcile blocklist" --> MTK
+  GW -- "one-click restore feed (mTLS)<br/>revert defaced file" --> LR
   NTF --> CHAN
   SELF -- "selfhealth alerts<br/>(same pipeline as attacks)" --> DB
   SELF --> NTF
@@ -84,7 +89,7 @@ flowchart TB
   classDef manager fill:#fef9e7,stroke:#b7950b,color:#1a1a2e
   classDef storage fill:#e8f8f0,stroke:#1e8449,color:#1a1a2e
   classDef external fill:#fdedec,stroke:#c0392b,color:#1a1a2e
-  class LC,LB,LR,WC,WR,SUR endpoint
+  class LC,LB,LR,WC,WR,SUR,WZ endpoint
   class CG,GW,BUS,DET,ENR,HREP,RSP,NTF,LLMW,SELF,API,WEB manager
   class DB storage
-  class CTI,HASHSVC,LLMP,CHAN,ENF,EDL,GH external
+  class CTI,HASHSVC,LLMP,CHAN,ENF,EDL,MTK,GH external
