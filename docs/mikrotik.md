@@ -36,20 +36,63 @@ only maintains the address-list.
 /ip firewall filter add chain=input   src-address-list=deuswatch_ban action=drop
 ```
 
-### 2. Multiple sites (buildings A / B / C)
+### 2. Multiple sites (buildings A / B / C) - WireGuard
 
 DeusWatch must reach each router's REST API. On one routed LAN, just allow the DeusWatch IP.
-**Across the internet, use a VPN - WireGuard is recommended** (built into RouterOS v7): each
-router gets a stable private IP and the API is never exposed publicly.
+**Across the internet, use a VPN - WireGuard is recommended** (built into RouterOS v7): the
+DeusWatch server is the hub, each router a spoke with a stable private IP; the API is never
+exposed publicly.
 
 ```
-DeusWatch site (WG hub, e.g. 10.10.0.254)
-   ├── tunnel → MikroTik building A  (10.10.0.1)
-   ├── tunnel → MikroTik building B  (10.10.0.2)
-   └── tunnel → MikroTik building C  (10.10.0.3)
+DeusWatch hub 10.10.10.1/24
+   ├── tunnel → MikroTik A  10.10.10.8/24
+   ├── tunnel → MikroTik B  10.10.10.9/24
+   └── tunnel → MikroTik C  10.10.10.10/24
 ```
 
-DeusWatch then targets `https://10.10.0.1`, `https://10.10.0.2`, `https://10.10.0.3`.
+**On the DeusWatch server (Linux hub):**
+
+```bash
+sudo apt install -y wireguard
+wg genkey | sudo tee /etc/wireguard/hub.key | wg pubkey | sudo tee /etc/wireguard/hub.pub
+sudo tee /etc/wireguard/wg0.conf >/dev/null <<'EOF'
+[Interface]
+Address = 10.10.10.1/24
+ListenPort = 51820
+PrivateKey = <HUB_PRIVATE_KEY>          # from /etc/wireguard/hub.key
+[Peer]                                  # MikroTik A (repeat a [Peer] block per router)
+PublicKey = <MIKROTIK_A_PUBLIC_KEY>
+AllowedIPs = 10.10.10.8/32
+EOF
+sudo ufw allow 51820/udp
+sudo systemctl enable --now wg-quick@wg0
+```
+
+**On each MikroTik (RouterOS v7):**
+
+```rsc
+/interface/wireguard/add name=wg-deuswatch listen-port=51820
+/interface/wireguard/print              ;# read this router's public-key -> put in the hub's [Peer]
+/ip/address/add address=10.10.10.8/24 interface=wg-deuswatch
+/interface/wireguard/peers/add interface=wg-deuswatch \
+  public-key="<HUB_PUBLIC_KEY>" \
+  endpoint-address=<DEUSWATCH_PUBLIC_IP> endpoint-port=51820 \
+  allowed-address=10.10.10.0/24 persistent-keepalive=25s
+/ip/firewall/filter/add chain=input in-interface=wg-deuswatch src-address=10.10.10.1 action=accept place-before=0 comment="DeusWatch WG"
+/ip/service/set www-ssl address=10.10.10.1/32   ;# only the hub may reach the REST API
+```
+
+Key exchange: the router's public key (`/interface/wireguard/print`) goes into the hub's
+`[Peer] PublicKey`; the hub's public key (`/etc/wireguard/hub.pub`) goes into the router's
+`peers add public-key=`. Restart the hub after adding peers: `sudo systemctl restart
+wg-quick@wg0`. Verify with `sudo wg show` (a handshake appears) and `ping 10.10.10.8`.
+
+DeusWatch then targets `https://10.10.10.8`, `https://10.10.10.9`, `https://10.10.10.10`
+(with `insecure_tls: true`, since the tunnel already secures the connection).
+
+> **Docker note:** WireGuard runs on the **host**, but the worker runs in a **container**.
+> Add a masquerade so container traffic uses the tunnel's source IP, or it is dropped by the
+> peer's `allowed-address`: `sudo iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE`.
 
 ### 3. Add the router(s) in DeusWatch
 
