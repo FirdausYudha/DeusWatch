@@ -237,6 +237,12 @@ services:
       # Agent self-monitoring: silence thresholds for disconnected (high alert) / stale.
       AGENT_DISCONNECT_AFTER: "${AGENT_DISCONNECT_AFTER:-2m}"
       AGENT_STALE_AFTER: "${AGENT_STALE_AFTER:-24h}"
+      # Composite threat scoring per source IP (fired_times + AbuseIPDB + OTX + severity).
+      # SCORE_WINDOW = accumulation window; SCENARIO_BAN_SCORE > 0 auto-recommends a ban
+      # when an IP crosses that 0-100 score (0 = off; progressive ban + whitelist still apply).
+      SCORE_WINDOW: "${SCORE_WINDOW:-10m}"
+      SCORE_INTERVAL: "${SCORE_INTERVAL:-30s}"
+      SCENARIO_BAN_SCORE: "${SCENARIO_BAN_SCORE:-0}"
     depends_on:
       db:
         condition: service_healthy

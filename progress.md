@@ -287,13 +287,16 @@ MikroTik routers; `resolveResponder` builds from ALL enabled mikrotik integratio
 Needs `RESPONSE_LIVE=1`. Verified with an httptest RouterOS mock (reconcile, idempotent,
 manual-entry-safe, multi-router fan-out). Pull model (`GET /api/blocklist`) still available.
 
-**Advanced composite scoring (captured 2026-07-15).** Replace the separate "abuse 100 /
-otx 5" badges with ONE accumulated threat score per event, combining signals DeusWatch
-already has - **fired_times/repeat-offender count, AbuseIPDB confidence, OTX pulses** (and
-LATER, optional: Suricata alert severity, WAF hits). Render in Events & Alerts as a small
-**doughnut** (higher = redder) or a colored **status** (low/medium/high/critical). Needs: a
-scoring function (weighted sum → 0-100 + band), stored on the event, and an SVG doughnut/
-badge in the dashboard (dataviz skill). Suricata/WAF weights optional/off first.
+**Advanced composite scoring - DONE 2026-07-15.** `internal/score` weighted formula
+(fired_times + AbuseIPDB + OTX + worst severity → 0-100 + band, `DefaultWeights` abuse .40 /
+fired .30 / otx .15 / sev .15, count caps); `ip_scores` table (migration 000030);
+`RefreshIPScores` runs the per-IP windowed aggregate SQL + upserts + prunes; worker
+`runIPScorer` every `SCORE_INTERVAL` (30s) over `SCORE_WINDOW` (10m); API `AttachScores`
+adds threat_score/threat_band per Events/Alerts row; UI shows a small colored **doughnut**
+(higher=redder) replacing the raw abuse/otx badges. **Scenario ban**: `SCENARIO_BAN_SCORE>0`
+auto-recommends a ban when an IP crosses that score (synthesizes an event so whitelist +
+dedup + progressive ban apply); off by default. Suricata/WAF weights fold into MaxSeverity
+later. Verified live vs Postgres (12 fires + abuse 100 + otx 8 → score 75 critical).
 
 **Native syslog input (captured 2026-07-15).** For the "everything funnels to a collector"
 network model (OPNsense / OpenWAF / ET Pro → Unraid syslog): add a UDP/TCP :514 syslog

@@ -45,17 +45,41 @@ function FileHashBadge({ a }: { a: EventRow }) {
     </span>
   )
 }
+// ScoreDoughnut renders the composite threat score (0-100) as a small colored ring -
+// higher = redder. Summarizes fired_times + AbuseIPDB + OTX + severity into one indicator.
+function ScoreDoughnut({ score, band, title }: { score: number; band: string; title?: string }) {
+  const color = band === 'critical' ? '#fb7185' : band === 'high' ? '#fb923c' : band === 'medium' ? '#fbbf24' : '#64748b'
+  const r = 8
+  const circ = 2 * Math.PI * r
+  const off = circ * (1 - Math.max(0, Math.min(100, score)) / 100)
+  return (
+    <span title={title} className="inline-flex items-center">
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r={r} fill="none" stroke="#1e293b" strokeWidth="3.5" />
+        <circle cx="12" cy="12" r={r} fill="none" stroke={color} strokeWidth="3.5"
+          strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" transform="rotate(-90 12 12)" />
+        <text x="12" y="12.5" textAnchor="middle" dominantBaseline="middle" fontSize="8.5" fontWeight="700" fill={color}>{score}</text>
+      </svg>
+    </span>
+  )
+}
+
 function ThreatIntel({ a }: { a: EventRow }) {
   const abuse = a.dw_enrichment_abuse_confidence
   const otx = a.dw_enrichment_otx_pulse_count
   const hasFileVerdict = !!a.dw_filehash_verdict && a.dw_filehash_verdict !== 'unknown'
-  if (a.dw_enrichment_status !== 'enriched' && abuse == null && !hasFileVerdict) return <span className="text-slate-600">—</span>
+  const hasScore = a.threat_score > 0
+  if (!hasScore && a.dw_enrichment_status !== 'enriched' && abuse == null && !hasFileVerdict) return <span className="text-slate-600">—</span>
   const abuseCls = abuse == null ? '' : abuse >= 90 ? 'text-rose-300 bg-rose-500/15' : abuse >= 50 ? 'text-amber-300 bg-amber-500/15' : 'text-slate-400 bg-slate-700/40'
+  const scoreTitle = `Composite threat score ${a.threat_score}/100 (${a.threat_band})` +
+    (abuse != null ? ` · abuse ${abuse}` : '') + (otx ? ` · otx ${otx}` : '')
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {hasScore && <ScoreDoughnut score={a.threat_score} band={a.threat_band} title={scoreTitle} />}
       {a.source_geo_country_iso && <span className="rounded bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300" title={a.source_geo_city || undefined}>{a.source_geo_country_iso}</span>}
-      {abuse != null && <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${abuseCls}`} title="AbuseIPDB confidence">abuse {abuse}</span>}
-      {otx != null && otx > 0 && <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-xs font-medium text-violet-300" title="OTX pulses">otx {otx}</span>}
+      {/* When there is no accumulated score yet, fall back to the raw CTI badges. */}
+      {!hasScore && abuse != null && <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${abuseCls}`} title="AbuseIPDB confidence">abuse {abuse}</span>}
+      {!hasScore && otx != null && otx > 0 && <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-xs font-medium text-violet-300" title="OTX pulses">otx {otx}</span>}
       <FileHashBadge a={a} />
       {a.dw_severity_escalated_by && <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-xs font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>↑</span>}
     </div>

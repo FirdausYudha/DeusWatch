@@ -155,6 +155,10 @@ func main() {
 	// every RESPONSE_SYNC_INTERVAL - propagates bans/unbans to every router + self-heals.
 	go runBlocklistSync(ctx, respStore, responder)
 
+	// Composite threat scoring per source IP (Multi-Source Event Correlation) + optional
+	// scenario ban when an IP's score crosses SCENARIO_BAN_SCORE.
+	go runIPScorer(ctx, st, engine)
+
 	// Notifications (Phase 2): Telegram/email/webhook + dedup/throttle.
 	dispatcher, notifyOn := notify.DispatcherFromEnv()
 	if notifyOn {

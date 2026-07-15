@@ -78,6 +78,8 @@ export type EventRow = {
   file_diff: string
   dw_remediation_action: string
   dw_remediation_source: string
+  threat_score: number
+  threat_band: string
 }
 
 export type IPCount = { ip: string; count: number }

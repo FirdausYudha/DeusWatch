@@ -530,6 +530,7 @@ func searchEventsHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		st.AttachScores(r.Context(), rows)
 		writeJSON(w, http.StatusOK, rows)
 	}
 }
@@ -627,6 +628,7 @@ func alertsHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		st.AttachScores(r.Context(), rows)
 		writeJSON(w, http.StatusOK, rows)
 	}
 }

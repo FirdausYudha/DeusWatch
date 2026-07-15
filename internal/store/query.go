@@ -46,6 +46,36 @@ type EventRow struct {
 	// Remediation recommendation (playbook / LLM).
 	RemediationAction string `json:"dw_remediation_action"`
 	RemediationSource string `json:"dw_remediation_source"`
+	// Composite threat score for source_ip (attached by the API from ip_scores; 0 = none).
+	ThreatScore int    `json:"threat_score"`
+	ThreatBand  string `json:"threat_band"`
+}
+
+// AttachScores fills ThreatScore/ThreatBand on each row from the current ip_scores, so the
+// Events/Alerts table can show a per-row composite risk indicator.
+func (s *Store) AttachScores(ctx context.Context, rows []EventRow) {
+	ipset := map[string]struct{}{}
+	for _, r := range rows {
+		if r.SourceIP != "" {
+			ipset[r.SourceIP] = struct{}{}
+		}
+	}
+	if len(ipset) == 0 {
+		return
+	}
+	ips := make([]string, 0, len(ipset))
+	for ip := range ipset {
+		ips = append(ips, ip)
+	}
+	scores, err := s.IPScoresFor(ctx, ips)
+	if err != nil || len(scores) == 0 {
+		return
+	}
+	for i := range rows {
+		if sc, ok := scores[rows[i].SourceIP]; ok {
+			rows[i].ThreatScore, rows[i].ThreatBand = sc.Score, sc.Band
+		}
+	}
 }
 
 const selectCols = `
