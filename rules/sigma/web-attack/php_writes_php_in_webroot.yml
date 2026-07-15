@@ -1,0 +1,58 @@
+title: PHP interpreter wrote a PHP file into the webroot (behaviour)
+id: a3f6c1e8-7b25-4d90-9e14-2c8b0f6a5d37
+status: experimental
+description: >
+  A PHP interpreter process (php-fpm / php) CREATED or MODIFIED a PHP-executable file
+  (.php/.phtml/.phar/...) inside a web root. Normal PHP applications serve requests - they do
+  not write new PHP SOURCE code into the webroot. This behaviour is the signature of a webshell
+  drop or defacement via a file-upload/RCE flaw: the attacker's request makes php-fpm write a
+  backdoor to disk. Stronger than a path-only rule because it correlates WHO changed the file
+  (the process) with WHAT changed - it catches webshells written ANYWHERE in the webroot, not
+  only in an uploads directory. Requires who-data on the FIM source (DeusWatch agent FIM, or a
+  Wazuh FIM feed with whodata=yes, which carries the writing process).
+references:
+  - https://attack.mitre.org/techniques/T1505/003/
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: critical
+logsource:
+  product: linux
+  category: file_event
+detection:
+  writer:
+    process.name|contains:
+      - 'php-fpm'
+      - 'php7'
+      - 'php8'
+      - '/php'
+  target:
+    file.path|endswith:
+      - '.php'
+      - '.php5'
+      - '.php7'
+      - '.phtml'
+      - '.pht'
+      - '.phar'
+  webroot:
+    file.path|contains:
+      - '/var/www/'
+      - '/usr/share/nginx/'
+      - '/srv/www/'
+      - '/home/'
+      - '/wp-content/'
+      - '/htdocs/'
+  change:
+    event.action:
+      - file_created
+      - file_modified
+  condition: writer and target and webroot and change
+# DeusWatch extension: authorize automated host isolation when this fires (same as the
+# uploads-dir webshell rule) - a PHP interpreter writing new PHP to disk is high-confidence.
+mitigation_action:
+  action_type: network_containment
+  timeout: 1800                 # auto-release the isolation after 30 minutes (0 = manual only)
+  criticality_threshold: high   # auto-isolate only when >= high (this rule is critical)
+tags:
+  - attack.t1505.003
+  - attack.persistence
+  - attack.impact

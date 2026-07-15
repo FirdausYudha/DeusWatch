@@ -18,6 +18,16 @@ type wazuhAlert struct {
 		DstUser string `json:"dstuser"`
 		SrcUser string `json:"srcuser"`
 		SrcPort string `json:"srcport"`
+		// Audit = Wazuh FIM who-data: WHO/WHAT changed the file (Linux Audit / eBPF).
+		Audit struct {
+			Process struct {
+				Name string `json:"name"`
+				PPID string `json:"ppid"`
+			} `json:"process"`
+			EffectiveUser struct {
+				Name string `json:"name"`
+			} `json:"effective_user"`
+		} `json:"audit"`
 	} `json:"data"`
 	Agent struct {
 		Name string `json:"name"`
@@ -164,6 +174,14 @@ func NormalizeWazuh(data []byte) (*Event, bool) {
 			Path:       a.Syscheck.Path,
 			HashSHA256: firstNonEmpty([]string{a.Syscheck.SHA256After, a.Syscheck.SHA256Befor}),
 			Mode:       a.Syscheck.Mode,
+		}
+		// Who-data: the process that changed the file (Wazuh whodata=yes). This is what
+		// lets a behaviour rule fire on "php-fpm wrote a new .php into the webroot".
+		if p := a.Data.Audit.Process.Name; p != "" {
+			e.Process = &Process{Name: p}
+		}
+		if u := a.Data.Audit.EffectiveUser.Name; u != "" && e.User == nil {
+			e.User = &User{Name: u}
 		}
 		e.DeusWatch.Label = ""     // let DeusWatch's FIM rules decide, not Wazuh's level
 		e.Rule = nil               // a plain file event, not a pre-fired alert

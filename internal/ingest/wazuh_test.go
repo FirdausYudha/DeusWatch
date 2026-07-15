@@ -111,3 +111,24 @@ func TestNormalizeWazuhFIM(t *testing.T) {
 		t.Fatalf("FIM event must be unlabeled, got %q", e.DeusWatch.Label)
 	}
 }
+
+func TestNormalizeWazuhFIMWhodata(t *testing.T) {
+	// Wazuh FIM with who-data: php-fpm added a .php into the webroot.
+	fim := `{"rule":{"level":7,"id":"554","description":"File added","groups":["syscheck"]},
+	"syscheck":{"path":"/var/www/html/wp-content/uploads/shell.php","event":"added","sha256_after":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+	"data":{"audit":{"process":{"name":"/usr/sbin/php-fpm"},"effective_user":{"name":"www-data"}}},
+	"agent":{"name":"WEBSRV"},"full_log":"x","timestamp":"2026-07-15T10:00:00+0000"}`
+	e, ok := NormalizeWazuh([]byte(fim))
+	if !ok {
+		t.Fatal("wazuh FIM whodata alert should be recognized")
+	}
+	if e.Process == nil || e.Process.Name != "/usr/sbin/php-fpm" {
+		t.Fatalf("who-data process not mapped: %+v", e.Process)
+	}
+	if e.User == nil || e.User.Name != "www-data" {
+		t.Fatalf("who-data effective user not mapped: %+v", e.User)
+	}
+	if e.File == nil || e.File.Path == "" {
+		t.Fatalf("file path missing: %+v", e.File)
+	}
+}
