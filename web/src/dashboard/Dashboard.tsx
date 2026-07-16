@@ -587,6 +587,10 @@ function cleanEvent(a: EventRow): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(a)) {
     if (v === '' || v === null || v === undefined) continue
+    // Already rendered in their own blocks above the JSON (Recommended playbook /
+    // File change diff) - repeating the multi-line text here becomes one very long
+    // cut-off line that drowns the rest of the log.
+    if (k === 'dw_remediation_action' || k === 'file_diff') continue
     out[k] = v
   }
   return out
@@ -798,7 +802,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                           </div>
                         )}
                         <div className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Full log (JSON)</div>
-                        <pre className="max-h-96 overflow-auto rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs leading-relaxed text-slate-300">
+                        <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-800 bg-slate-900 p-3 text-xs leading-relaxed text-slate-300">
 {JSON.stringify(cleanEvent(a), null, 2)}
                         </pre>
                       </td>
