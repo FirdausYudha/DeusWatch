@@ -303,7 +303,14 @@ this surfaced three silent-failure traps, now fixed on OUR side:
      `www-ssl address=` reset and the empty-list case immediately.
   3. Real-hardware gotchas (`www-ssl address=` must allow the HUB not the router's own IP; list
      name must match the filter rule; Docker needs `MASQUERADE -o wg0`) → full **Troubleshooting**
-     table added to `docs/mikrotik.md` §4 + table. UNRELEASED since v1.5.0.
+     table added to `docs/mikrotik.md` §4 + table.
+
+**v1.6.0 RELEASED 2026-07-16** - FIM one-click restore (part 2) + MikroTik health-check/
+insecure_tls/troubleshooting docs. https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.6.0
+NEXT VERIFICATION STEP (server): `./update.sh` on the manager, update the agent on a
+FIM-monitored host, then the defacement test: modify a monitored file → dashboard shows the
+FIM event + line diff → click **Restore** → file reverts + a `restored` event appears.
+Only after that passes may Superior FIM be marked ✅ verified (currently 🟡 implemented).
 
 **Advanced composite scoring - DONE 2026-07-15.** `internal/score` weighted formula
 (fired_times + AbuseIPDB + OTX + worst severity → 0-100 + band, `DefaultWeights` abuse .40 /
