@@ -1,7 +1,15 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-17 (v1.8.0).
+> Last updated: 2026-07-17 (v1.9.0).
+
+**v1.9.0 RELEASED 2026-07-17** — ModSecurity/OWASP CRS WAF ingestion: `normalizeModSecurity`
+decoder + DCS HTTP field group (http.method/uri/status_code/host, migration 000035) + dashboard
+"HTTP request" block + bundled `waf_block_burst.yml` agg rule (>10 blocks/IP/1m → alert → ban) +
+docs/modsecurity.md. Sniffs any dataset label; requires [client] so noise lines are ignored;
+CRS severity mapped conservatively. https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.9.0
+NEXT: user to verify live with real OPNsense+ModSecurity logs. Core backlog #4 real-time FIM
+(fsnotify) still pending. See memory [[deuswatch-backlog]].
 
 **v1.8.0 RELEASED 2026-07-17** — Rule-pack marketplace on the Rules page (installed packs =
 rule categories with real enable/disable + external catalog: SigmaHQ/ET/OWASP CRS/Sysmon-modular/
