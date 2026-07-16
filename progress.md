@@ -269,7 +269,21 @@ notes) and shown as a draft; publishing happens after the owner confirms.
   (with the honest timestamp-tailing limitation — late/duplicate-ts docs can be missed; webhook is
   lossless). Tests: Wazuh mapping + cursor advance + raw message extraction + resume-from-cursor
   (httptest ES mock). NOTE: integrations resolved at worker startup → adding one needs a worker
-  restart (same as MikroTik). UNRELEASED. **Next backlog item: native who-data.** See [[deuswatch-backlog]].
+  restart (same as MikroTik). UNRELEASED.
+
+- ~~**Native who-data**~~ **DONE 2026-07-16.** The DeusWatch agent now attributes each FIM change
+  to the process/user that made it, via the Linux **audit** subsystem (same mechanism Wazuh uses).
+  Opt-in `AGENT_WHODATA=1` (needs root + auditd; installs `auditctl -w <dir> -p wa -k deuswatch_fim`
+  and tails /var/log/audit/audit.log, `AGENT_AUDIT_LOG` override). Portable audit-record parser
+  (`internal/agent/whodata.go`, unit-tested: who/paths/hex/unset-auid/event-id) + linux watcher
+  (`whodata_linux.go`, path→actor cache, 30s TTL, rotation-safe tail) + non-linux stub. FIMChange
+  gained actor/actor_exe/actor_pid/user/syscall; `WithWhoData` on the scanner; normalizeFIM maps to
+  DCS Process+User. **Persistence fix:** added `process_name`/`process_pid` columns (migration
+  000034) to events + insert + query + EventRow — process who-data was DROPPED on insert before,
+  so this also fixes the Wazuh syscheck who-data path. Dashboard File-change block shows
+  "changed by <proc> (pid) as user <user> · who-data". Docs: docs/whodata.md (Linux-only + best-
+  effort correlation limitations stated). UNRELEASED. **Next backlog item: real-time FIM (fsnotify).**
+  See [[deuswatch-backlog]].
 - Wazuh JSON normalizer DONE (maps rich Wazuh alert fields → DCS; MITRE tactic → label →
   playbook); could extend the group→category/label maps as more Wazuh rule types are seen.
 

@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -145,6 +146,31 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	// directive and firewall the host off from the LAN (except the manager) when told to.
 	if containmentEnabled(os.Getenv("AGENT_CONTAINMENT")) {
 		go runContainment(ctx, shipper, gatewayURL)
+	}
+
+	// FIM who-data (opt-in via AGENT_WHODATA=1, Linux + root + auditd): attribute each file
+	// change to the process/user that made it, via the audit subsystem. Best-effort — if it
+	// can't be enabled, FIM keeps working without the "who". Set before Collect so the FIM
+	// scanner picks it up.
+	if b, _ := strconv.ParseBool(os.Getenv("AGENT_WHODATA")); b {
+		var fimRoots []string
+		for _, s := range sources {
+			if s.Type != "fim" {
+				continue
+			}
+			for _, p := range strings.Split(s.Path, ",") {
+				if p = strings.TrimSpace(p); p != "" {
+					fimRoots = append(fimRoots, p)
+				}
+			}
+		}
+		if len(fimRoots) == 0 {
+			log.Printf("agent: AGENT_WHODATA set but no FIM sources — who-data idle")
+		} else if wd, werr := agent.StartWhoData(ctx, fimRoots, os.Getenv("AGENT_AUDIT_LOG")); werr != nil {
+			log.Printf("agent: who-data disabled: %v", werr)
+		} else {
+			agent.SetFIMWhoData(wd)
+		}
 	}
 
 	lines := make(chan agent.Line, 256)

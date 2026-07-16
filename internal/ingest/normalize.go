@@ -343,11 +343,16 @@ func normalizeWindows(msg string, e *Event) bool {
 // into DCS file.* fields. action: created/modified/deleted.
 func normalizeFIM(msg string, e *Event) bool {
 	var c struct {
-		Path   string `json:"path"`
-		Action string `json:"action"`
-		SHA256 string `json:"sha256"`
-		Mode   string `json:"mode"`
-		Diff   string `json:"diff"`
+		Path     string `json:"path"`
+		Action   string `json:"action"`
+		SHA256   string `json:"sha256"`
+		Mode     string `json:"mode"`
+		Diff     string `json:"diff"`
+		Actor    string `json:"actor"`
+		ActorExe string `json:"actor_exe"`
+		ActorPID int    `json:"actor_pid"`
+		User     string `json:"user"`
+		Syscall  string `json:"syscall"`
 	}
 	if err := json.Unmarshal([]byte(msg), &c); err != nil || c.Path == "" || c.Action == "" {
 		return false
@@ -363,6 +368,14 @@ func normalizeFIM(msg string, e *Event) bool {
 	e.Event.Action = "file_" + c.Action
 	e.Event.Outcome = "success"
 	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode, Diff: c.Diff}
+	// Who-data (Linux/auditd): the process/user that changed the file. This is the
+	// differentiator over hash-only FIM — an alert can name the actor, not just the file.
+	if c.Actor != "" || c.ActorPID != 0 {
+		e.Process = &Process{Name: c.Actor, PID: c.ActorPID, CommandLine: c.ActorExe}
+	}
+	if c.User != "" {
+		e.User = &User{Name: c.User}
+	}
 	// Changes/deletions are riskier than newly created files; a restore is the operator's
 	// own recovery action (audit trail, not a threat).
 	switch c.Action {

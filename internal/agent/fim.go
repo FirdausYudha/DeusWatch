@@ -45,6 +45,13 @@ type FIMChange struct {
 	Size   int64  `json:"size,omitempty"`
 	Mode   string `json:"mode,omitempty"`
 	Diff   string `json:"diff,omitempty"` // unified line diff (small text files only)
+	// Who-data (Linux/auditd only): the process/user that caused the change. Empty when
+	// who-data is disabled or no audit record correlated to this path.
+	Actor    string `json:"actor,omitempty"`     // process name (comm)
+	ActorExe string `json:"actor_exe,omitempty"` // process executable path
+	ActorPID int    `json:"actor_pid,omitempty"`
+	User     string `json:"user,omitempty"`    // login user (auid) or uid
+	Syscall  string `json:"syscall,omitempty"` // the syscall that changed the file
 }
 
 type fileState struct {
@@ -64,6 +71,7 @@ type FIMScanner struct {
 	baseline map[string]fileState
 	primed   bool
 	snaps    *SnapshotStore // known-good copies for one-click restore (nil = disabled)
+	who      WhoDataSource  // who-data attribution (nil = disabled / non-Linux)
 }
 
 // NewFIMScanner creates a scanner for the given roots (files or directories).
@@ -76,6 +84,24 @@ func NewFIMScanner(roots ...string) *FIMScanner {
 func (s *FIMScanner) WithSnapshots(store *SnapshotStore) *FIMScanner {
 	s.snaps = store
 	return s
+}
+
+// WithWhoData attaches a who-data source so each change is attributed to the process/user that
+// made it (Linux/auditd). Returns the scanner for chaining.
+func (s *FIMScanner) WithWhoData(w WhoDataSource) *FIMScanner {
+	s.who = w
+	return s
+}
+
+// attachWho enriches a change with the actor that touched its path, if who-data is available.
+func (s *FIMScanner) attachWho(c *FIMChange) {
+	if s.who == nil {
+		return
+	}
+	if who, ok := s.who.Lookup(c.Path); ok {
+		c.Actor, c.ActorExe, c.ActorPID = who.Actor, who.Exe, who.PID
+		c.User, c.Syscall = who.User, who.Syscall
+	}
 }
 
 // splitFIMPaths splits a FIM source's Path into a list of roots (comma-separated).
@@ -120,19 +146,24 @@ func (s *FIMScanner) Scan() ([]FIMChange, error) {
 		prev, ok := s.baseline[path]
 		switch {
 		case !ok:
-			changes = append(changes, change(path, "created", cur))
+			c := change(path, "created", cur)
+			s.attachWho(&c)
+			changes = append(changes, c)
 		case prev.sha256 != cur.sha256 || prev.size != cur.size || prev.mode != cur.mode:
 			c := change(path, "modified", cur)
 			// Superior FIM: show WHICH lines changed when both versions are snapshotted text.
 			if prev.isText && cur.isText {
 				c.Diff = unifiedDiff(prev.content, cur.content)
 			}
+			s.attachWho(&c)
 			changes = append(changes, c)
 		}
 	}
 	for path, prev := range s.baseline {
 		if _, ok := current[path]; !ok {
-			changes = append(changes, change(path, "deleted", prev))
+			c := change(path, "deleted", prev)
+			s.attachWho(&c)
+			changes = append(changes, c)
 		}
 	}
 	s.baseline = current
@@ -238,7 +269,7 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	if len(roots) == 0 {
 		return fmt.Errorf("fim source %q: empty Path", s.Dataset)
 	}
-	scanner := NewFIMScanner(roots...).WithSnapshots(fimSnapshots)
+	scanner := NewFIMScanner(roots...).WithSnapshots(fimSnapshots).WithWhoData(fimWhoData)
 	if _, err := scanner.Scan(); err != nil { // build the initial baseline
 		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}

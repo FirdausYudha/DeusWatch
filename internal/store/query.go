@@ -43,6 +43,9 @@ type EventRow struct {
 	FileHashVerdict string `json:"dw_filehash_verdict"`
 	FileHashDetail  string `json:"dw_filehash_detail"`
 	FileDiff        string `json:"file_diff"` // line diff of a modified text file (superior FIM)
+	// FIM who-data: the process/user that changed the file (Linux audit / Wazuh syscheck).
+	ProcessName string `json:"process_name"`
+	ProcessPID  int    `json:"process_pid"`
 	// Remediation recommendation (playbook / LLM).
 	RemediationAction string `json:"dw_remediation_action"`
 	RemediationSource string `json:"dw_remediation_source"`
@@ -94,7 +97,8 @@ const selectCols = `
 	COALESCE(dw_filehash_verdict,''), COALESCE(dw_filehash_detail,''),
 	COALESCE(agent_id,''),
 	COALESCE(dw_remediation_action,''), COALESCE(dw_remediation_source,''),
-	COALESCE(file_diff,'')`
+	COALESCE(file_diff,''),
+	COALESCE(process_name,''), COALESCE(process_pid,0)`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -112,6 +116,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.AgentID,
 			&e.RemediationAction, &e.RemediationSource,
 			&e.FileDiff,
+			&e.ProcessName, &e.ProcessPID,
 		); err != nil {
 			return nil, err
 		}

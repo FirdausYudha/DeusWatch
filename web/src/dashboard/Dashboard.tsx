@@ -792,6 +792,20 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                               </span>
                               {a.file_path && a.agent_id && <RestoreButton agent={a.agent_id} path={a.file_path} />}
                             </div>
+                            {(a.process_name || a.user_name) && (
+                              <div className="mb-2 text-xs text-slate-400">
+                                changed by{' '}
+                                {a.process_name && (
+                                  <span className="font-mono text-amber-200">
+                                    {a.process_name}{a.process_pid ? ` (pid ${a.process_pid})` : ''}
+                                  </span>
+                                )}
+                                {a.user_name && (
+                                  <> {a.process_name ? 'as user ' : 'user '}<span className="font-mono text-amber-200">{a.user_name}</span></>
+                                )}
+                                <span className="ml-1 text-slate-600">· who-data</span>
+                              </div>
+                            )}
                             {a.file_diff && (
                               <pre className="max-h-80 overflow-auto rounded bg-slate-950 p-2 font-mono text-xs leading-relaxed">
                                 {a.file_diff.split('\n').map((line, k) => (

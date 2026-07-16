@@ -76,6 +76,8 @@ export type EventRow = {
   dw_filehash_verdict: string
   dw_filehash_detail: string
   file_diff: string
+  process_name: string
+  process_pid: number
   dw_remediation_action: string
   dw_remediation_source: string
   threat_score: number

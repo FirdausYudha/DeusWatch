@@ -1,0 +1,2 @@
+ALTER TABLE events DROP COLUMN IF EXISTS process_pid;
+ALTER TABLE events DROP COLUMN IF EXISTS process_name;
