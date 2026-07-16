@@ -26,6 +26,7 @@ import {
   type ContainmentStatus,
   type Me,
 } from '../lib/api'
+import DocLink from '../components/DocLink'
 
 const STATUS_BADGE: Record<ResponseStatus, string> = {
   recommended: 'text-amber-300 bg-amber-500/15',
@@ -743,7 +744,10 @@ function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
 
   return (
     <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h2 className="text-sm font-semibold text-white">Blocklist feed (external firewalls)</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-white">Blocklist feed (external firewalls)</h2>
+        <DocLink file="blocklist-feed.md" className="shrink-0" />
+      </div>
       <p className="mb-3 mt-1 text-sm text-slate-500">
         A token-gated URL of the currently-banned IPs. Point a firewall's dynamic block list
         at it (Palo Alto EDL, OPNsense URL table, pfSense pfBlockerNG, MikroTik) to mirror your

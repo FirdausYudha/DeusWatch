@@ -7,6 +7,7 @@ import {
   type StorageStatus,
 } from '../lib/api'
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, WIDGET_COLORS } from './widgets'
+import DocLink from '../components/DocLink'
 
 type DotState = 'good' | 'bad' | 'unknown'
 
@@ -804,6 +805,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                                   <> {a.process_name ? 'as user ' : 'user '}<span className="font-mono text-amber-200">{a.user_name}</span></>
                                 )}
                                 <span className="ml-1 text-slate-600">· who-data</span>
+                                <DocLink file="whodata.md" label="docs" className="ml-2" />
                               </div>
                             )}
                             {a.file_diff && (

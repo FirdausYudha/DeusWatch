@@ -12,6 +12,7 @@ import {
   type Integration,
   type IntegrationField,
 } from '../lib/api'
+import DocLink from '../components/DocLink'
 
 const CATEGORY: Record<string, string> = {
   firewall: 'Firewall',
@@ -124,6 +125,7 @@ function IngestWebhookPanel() {
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${enabled ? 'text-emerald-300 bg-emerald-500/15' : 'text-slate-400 bg-slate-700/40'}`}>
           {enabled ? 'Active' : 'Disabled'}
         </span>
+        <DocLink file="wazuh-webhook.md" className="ml-auto shrink-0" />
       </div>
       <p className="mb-3 mt-1 text-sm text-slate-500">
         A token-gated endpoint that external systems POST raw logs or Wazuh alerts to — they flow
@@ -303,7 +305,10 @@ export default function Integrations() {
 
         {picked && (
           <div className="mt-5 rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p className="mb-3 text-sm text-slate-400">{picked.desc}</p>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <p className="text-sm text-slate-400">{picked.desc}</p>
+              {picked.doc && <DocLink file={picked.doc} className="shrink-0" />}
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-400">Name</span>
@@ -413,10 +418,13 @@ export default function Integrations() {
             className="w-full max-w-xl rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-4 text-sm font-semibold text-white">
-              Edit — <span className="text-indigo-300">{editing.name}</span>
-              <span className="ml-2 text-xs font-normal text-slate-500">{editType.label}</span>
-            </h3>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-white">
+                Edit — <span className="text-indigo-300">{editing.name}</span>
+                <span className="ml-2 text-xs font-normal text-slate-500">{editType.label}</span>
+              </h3>
+              {editType.doc && <DocLink file={editType.doc} className="shrink-0" />}
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-400">Name</span>

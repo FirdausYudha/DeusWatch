@@ -37,12 +37,13 @@ type TypeInfo struct {
 	Category string  `json:"category"` // firewall | bouncer | cti
 	Desc     string  `json:"desc"`
 	Fields   []Field `json:"fields"`
+	Doc      string  `json:"doc,omitempty"` // docs/<file>.md — the UI links "See documentation" to it
 }
 
 // Catalog is the supported integration types. Adding a connector = adding an entry.
 var Catalog = []TypeInfo{
 	{
-		Type: "mikrotik", Label: "MikroTik (RouterOS API)", Category: "firewall",
+		Type: "mikrotik", Label: "MikroTik (RouterOS API)", Category: "firewall", Doc: "mikrotik.md",
 		Desc: "Block source IPs by pushing them to a RouterOS address-list at the network edge.",
 		Fields: []Field{
 			{Key: "address", Label: "Address (REST API base URL)", Help: "https://192.168.88.1 - REST API over HTTPS (a bare IP is assumed https)"},
@@ -105,7 +106,7 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
-		Type: "opensearch", Label: "OpenSearch / Elasticsearch (pull)", Category: "ingest",
+		Type: "opensearch", Label: "OpenSearch / Elasticsearch (pull)", Category: "ingest", Doc: "opensearch.md",
 		Desc: "Pull logs from an existing ES/OpenSearch cluster (e.g. the Wazuh indexer's wazuh-alerts-*) into the DeusWatch pipeline. DeusWatch tails the index and resumes from where it left off.",
 		Fields: []Field{
 			{Key: "address", Label: "Cluster URL", Help: "https://opensearch:9200 (the Wazuh indexer works here)"},
@@ -128,7 +129,7 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
-		Type: "llm", Label: "LLM analyzer (AI)", Category: "llm",
+		Type: "llm", Label: "LLM analyzer (AI)", Category: "llm", Doc: "llm-providers.md",
 		Desc: "AI analysis powered by a free self-hosted model (Ollama / any OpenAI-compatible endpoint), a hosted OpenAI-compatible provider (OpenAI, Gemini, Groq, OpenRouter), or Anthropic Claude. Pick whether this model powers per-alert triage, report summaries, or both.",
 		Fields: []Field{
 			{Key: "provider", Label: "Provider", Options: []string{"ollama", "openai-compatible", "anthropic"},
