@@ -78,6 +78,10 @@ export type EventRow = {
   file_diff: string
   process_name: string
   process_pid: number
+  http_method: string
+  http_uri: string
+  http_status: number
+  http_host: string
   dw_remediation_action: string
   dw_remediation_source: string
   threat_score: number

@@ -1,0 +1,24 @@
+title: WAF Block Burst — Web Scanner / Attacker (aggregation)
+id: bd825d8e-54bb-4e54-93b7-556a7c982d67
+status: experimental
+description: >
+  Many WAF blocks (ModSecurity / OWASP CRS "Access denied") from a single source IP within a
+  short window — the signature of a web scanner or attacker probing the site (SQLi/XSS/path
+  traversal attempts, exploit scanning, missing-Host bot traffic). AGGREGATION rule: runs via
+  the SQL path (count() by source.ip) over waf_block events. Requires a ModSecurity/WAF log
+  source (see docs/modsecurity.md); individual blocks also feed the per-IP composite score.
+references:
+  - https://coreruleset.org/
+  - https://attack.mitre.org/techniques/T1595/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  selection:
+    event.action: waf_block
+  timeframe: 1m
+  condition: selection | count() by source.ip > 10
+tags:
+  - attack.t1595
+  - attack.reconnaissance

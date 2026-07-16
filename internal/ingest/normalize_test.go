@@ -2,8 +2,59 @@ package ingest
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
+
+// A real ModSecurity / OWASP CRS Apache error line (the httpd [security2:error] variant).
+const modsecLine = `httpd[57444]: [security2:error] [pid 51764:tid 6419] [client 165.22.76.50:17107] ModSecurity: Access denied with code 403 (phase 1). Pattern match "…" at REQUEST_HEADERS:Host. [file "/usr/local/etc/apache24/modsecurity-crs/rules/REQUEST-920-PROTOCOL-ENFORCEMENT.conf"] [line "774"] [id "920350"] [msg "Host header is a numeric IP address"] [data "103.225.175.109"] [severity "WARNING"] [ver "OWASP_CRS/4.23.0"] [tag "attack-protocol"] [hostname "103.225.175.109"] [uri "/odinhttpcall1784220276"] [unique_id "alkKda"]`
+
+func TestNormalizeModSecurity(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "modsecurity", Message: modsecLine})
+	if !ok {
+		t.Fatal("a ModSecurity block should be recognized")
+	}
+	if e.Event.Action != "waf_block" || e.Event.Outcome != "blocked" || e.Event.Dataset != "modsecurity" {
+		t.Fatalf("wrong WAF event fields: %+v", e.Event)
+	}
+	if e.Source == nil || e.Source.IP != "165.22.76.50" || e.Source.Port != 17107 {
+		t.Fatalf("client not parsed: %+v", e.Source)
+	}
+	if e.Rule == nil || e.Rule.ID != "920350" || e.Rule.Name != "Host header is a numeric IP address" {
+		t.Fatalf("WAF rule not parsed: %+v", e.Rule)
+	}
+	if e.HTTP == nil || e.HTTP.URI != "/odinhttpcall1784220276" || e.HTTP.Host != "103.225.175.109" || e.HTTP.StatusCode != 403 {
+		t.Fatalf("http.* not parsed: %+v", e.HTTP)
+	}
+	if e.Event.Severity != SeverityLow { // WARNING -> low
+		t.Fatalf("WARNING should map to low, got %v", e.Event.Severity)
+	}
+}
+
+func TestNormalizeModSecuritySniffAnyLabelAndSeverity(t *testing.T) {
+	// Arrives under an OPNsense/syslog dataset label, not "modsecurity" — must still parse.
+	crit := strings.Replace(modsecLine, `[severity "WARNING"]`, `[severity "CRITICAL"]`, 1)
+	e, ok := Normalize(RawLog{Dataset: "opnsense", Message: crit})
+	if !ok || e.Event.Action != "waf_block" {
+		t.Fatalf("WAF line under a non-modsecurity label must be sniffed: ok=%v %+v", ok, e.Event)
+	}
+	if e.Event.Severity != SeverityHigh { // CRITICAL -> high (conservative)
+		t.Fatalf("CRITICAL should map to high, got %v", e.Event.Severity)
+	}
+}
+
+func TestNormalizeModSecurityIgnoresNoise(t *testing.T) {
+	// The "Producer:" line and the modsecurity[…] "Apache-Error" copy carry no [client] —
+	// they must NOT be parsed as WAF blocks (that's how cross-line duplicates are avoided).
+	producer := `modsecurity[56631]: Producer: ModSecurity for Apache/2.9.13; OWASP_CRS/4.23.0.`
+	if e, ok := Normalize(RawLog{Dataset: "modsecurity", Message: producer}); ok && e.Event.Action == "waf_block" {
+		t.Fatalf("a Producer line must not become a WAF block: %+v", e.Event)
+	}
+	apacheErr := `modsecurity[56631]: Apache-Error: [file "apache2_util.c"] [line 286] ModSecurity: Access denied with code 403. [id "920350"] [msg "x"] [severity "WARNING"]`
+	if e, ok := Normalize(RawLog{Dataset: "modsecurity", Message: apacheErr}); ok && e.Event.Action == "waf_block" {
+		t.Fatalf("the no-client Apache-Error copy must not become a WAF block: %+v", e.Event)
+	}
+}
 
 func TestNormalizeSSHDFailed(t *testing.T) {
 	e, ok := Normalize(RawLog{

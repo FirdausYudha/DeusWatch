@@ -156,6 +156,15 @@ type Network struct {
 	Transport string `json:"transport,omitempty"`
 }
 
+// HTTP = http.* / url.* — web-request context (e.g. from a WAF like ModSecurity, or an
+// access log): the method, requested URI, response status, and the requested Host/vhost.
+type HTTP struct {
+	Method     string `json:"method,omitempty"`
+	URI        string `json:"uri,omitempty"`
+	StatusCode int    `json:"status_code,omitempty"`
+	Host       string `json:"host,omitempty"`
+}
+
 // File = file.* (File Integrity Monitoring).
 type File struct {
 	Path       string `json:"path,omitempty"`
@@ -267,6 +276,7 @@ type Event struct {
 	Agent       *Agent      `json:"agent,omitempty"`
 	User        *User       `json:"user,omitempty"`
 	Network     *Network    `json:"network,omitempty"`
+	HTTP        *HTTP       `json:"http,omitempty"`
 	File        *File       `json:"file,omitempty"`
 	Process     *Process    `json:"process,omitempty"`
 	Rule        *Rule       `json:"rule,omitempty"`

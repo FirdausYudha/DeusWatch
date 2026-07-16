@@ -52,7 +52,8 @@ INSERT INTO events (
 	destination_ip, destination_port, network_transport, network_protocol,
 	dw_remediation_action, dw_remediation_source, dw_remediation_status,
 	file_diff,
-	process_name, process_pid
+	process_name, process_pid,
+	http_method, http_uri, http_status, http_host
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -69,7 +70,8 @@ INSERT INTO events (
 	$38::inet, $39, $40, $41,
 	$42, $43, $44,
 	$45,
-	$46, $47
+	$46, $47,
+	$48, $49, $50, $51
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
@@ -93,11 +95,21 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		netTransport, netProtocol     any = nil, nil
 		fileDiff                      any = nil
 		procName, procPID             any = nil, nil
+		httpMethod, httpURI           any = nil, nil
+		httpStatus, httpHost          any = nil, nil
 	)
 	if e.Process != nil {
 		procName = strOrNil(e.Process.Name)
 		if e.Process.PID > 0 {
 			procPID = e.Process.PID
+		}
+	}
+	if e.HTTP != nil {
+		httpMethod = strOrNil(e.HTTP.Method)
+		httpURI = strOrNil(e.HTTP.URI)
+		httpHost = strOrNil(e.HTTP.Host)
+		if e.HTTP.StatusCode > 0 {
+			httpStatus = e.HTTP.StatusCode
 		}
 	}
 	if e.Destination != nil {
@@ -181,6 +193,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		strOrNil(string(e.DeusWatch.Remediation.Status)),
 		fileDiff,
 		procName, procPID,
+		httpMethod, httpURI, httpStatus, httpHost,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

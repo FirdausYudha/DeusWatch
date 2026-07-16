@@ -46,6 +46,11 @@ type EventRow struct {
 	// FIM who-data: the process/user that changed the file (Linux audit / Wazuh syscheck).
 	ProcessName string `json:"process_name"`
 	ProcessPID  int    `json:"process_pid"`
+	// HTTP / WAF context (e.g. ModSecurity): the blocked URI, target host and status.
+	HTTPMethod string `json:"http_method"`
+	HTTPURI    string `json:"http_uri"`
+	HTTPStatus int    `json:"http_status"`
+	HTTPHost   string `json:"http_host"`
 	// Remediation recommendation (playbook / LLM).
 	RemediationAction string `json:"dw_remediation_action"`
 	RemediationSource string `json:"dw_remediation_source"`
@@ -98,7 +103,8 @@ const selectCols = `
 	COALESCE(agent_id,''),
 	COALESCE(dw_remediation_action,''), COALESCE(dw_remediation_source,''),
 	COALESCE(file_diff,''),
-	COALESCE(process_name,''), COALESCE(process_pid,0)`
+	COALESCE(process_name,''), COALESCE(process_pid,0),
+	COALESCE(http_method,''), COALESCE(http_uri,''), COALESCE(http_status,0), COALESCE(http_host,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -117,6 +123,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.RemediationAction, &e.RemediationSource,
 			&e.FileDiff,
 			&e.ProcessName, &e.ProcessPID,
+			&e.HTTPMethod, &e.HTTPURI, &e.HTTPStatus, &e.HTTPHost,
 		); err != nil {
 			return nil, err
 		}

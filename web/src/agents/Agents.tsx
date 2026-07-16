@@ -84,6 +84,7 @@ export default function Agents({ me }: { me: Me }) {
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             <DocLink file="new-log-source.md" label="Add a log source" />
             <DocLink file="whodata.md" label="FIM who-data" />
+            <DocLink file="modsecurity.md" label="ModSecurity / WAF" />
           </div>
         </div>
         {isAdmin && (

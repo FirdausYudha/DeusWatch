@@ -36,6 +36,18 @@ var (
 	// Client IP at the start of a web access log line (Combined/Common Log Format):
 	//   1.2.3.4 - - [10/Oct/2026:...] "GET /slot HTTP/1.1" 200 1234 "-" "curl/8"
 	reWebIP = regexp.MustCompile(`(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})`)
+
+	// ModSecurity / OWASP CRS Apache error fields, e.g.:
+	//   [client 165.22.76.50:22637] ModSecurity: Access denied with code 403 (phase 1).
+	//   … [id "920280"] [msg "Request Missing a Host Header"] [severity "CRITICAL"]
+	//   [uri "/solr/admin"] [hostname "target.example"] [unique_id "alkK…"]
+	reMSClient   = regexp.MustCompile(`\[client (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::(\d+))?\]`)
+	reMSCode     = regexp.MustCompile(`Access denied with code (\d{3})`)
+	reMSID       = regexp.MustCompile(`\[id "([^"]*)"\]`)
+	reMSMsg      = regexp.MustCompile(`\[msg "([^"]*)"\]`)
+	reMSSeverity = regexp.MustCompile(`\[severity "([^"]*)"\]`)
+	reMSURI      = regexp.MustCompile(`\[uri "([^"]*)"\]`)
+	reMSHostname = regexp.MustCompile(`\[hostname "([^"]*)"\]`)
 )
 
 // datasetKind reduces a source's (possibly descriptive) dataset label to the base keyword the
@@ -93,6 +105,16 @@ func Normalize(raw RawLog) (*Event, bool) {
 		return e, normalizeWindows(raw.Message, e)
 	}
 	if kind == "firewall" && normalizeFirewall(raw.Message, e) {
+		return e, true
+	}
+	if kind == "modsecurity" || kind == "waf" || kind == "modsec" {
+		return e, normalizeModSecurity(raw.Message, e)
+	}
+	// A WAF line can arrive under any dataset label (OPNsense syslog, "web", …). Sniff the
+	// ModSecurity signature so it is parsed as a rich WAF event whatever the label - only the
+	// [client …] variant (the actual blocked request), not the noise 'Producer:' lines.
+	if strings.Contains(raw.Message, "ModSecurity:") && strings.Contains(raw.Message, "[id \"") &&
+		strings.Contains(raw.Message, "[client ") && normalizeModSecurity(raw.Message, e) {
 		return e, true
 	}
 	if kind == "web" || kind == "nginx" || kind == "apache" {
@@ -222,6 +244,80 @@ func normalizeWeb(msg string, e *Event) bool {
 		}
 	}
 	return true // original carries the full line for keyword matching
+}
+
+// normalizeModSecurity parses a ModSecurity / OWASP CRS Apache error line into DCS: the client
+// IP, the WAF rule id + message (into rule.*), the blocked URI / target host / status (into
+// http.*), and a severity mapped from the CRS level. This turns a WAF block into a first-class
+// event that scoring and the ban engine act on. Returns false if it isn't a recognizable WAF
+// block (no client + id), so the caller can fall back.
+//
+// Dedup note: OPNsense/Apache emit the same block up to 3× (an httpd RFC5424 copy, an httpd
+// syslog copy, and a modsecurity[…] "Apache-Error" copy) plus a noise "Producer:" line. Only
+// the two httpd copies carry [client …]; the caller requires it, so the modsecurity[…] and
+// Producer lines are ignored. To avoid the httpd RFC5424-vs-syslog duplicate, ingest ONE log
+// file (docs/modsecurity.md) - stateless normalization can't dedup by unique_id across lines.
+func normalizeModSecurity(msg string, e *Event) bool {
+	client := reMSClient.FindStringSubmatch(msg)
+	id := reMSID.FindStringSubmatch(msg)
+	if client == nil || id == nil {
+		return false
+	}
+	e.Event.Category = "web"
+	e.Event.Action = "waf_block"
+	e.Event.Outcome = "blocked"
+	e.Event.Dataset = "modsecurity"
+
+	src := &Endpoint{IP: client[1]}
+	if len(client) > 2 && client[2] != "" {
+		if p, err := strconv.Atoi(client[2]); err == nil && p > 0 && p <= 65535 {
+			src.Port = uint16(p)
+		}
+	}
+	e.Source = src
+
+	// WAF rule identity -> rule.* (id + human message).
+	rule := &Rule{ID: id[1]}
+	if m := reMSMsg.FindStringSubmatch(msg); m != nil {
+		rule.Name = m[1]
+	}
+	e.Rule = rule
+
+	// HTTP context -> http.*.
+	h := &HTTP{}
+	if m := reMSURI.FindStringSubmatch(msg); m != nil {
+		h.URI = m[1]
+	}
+	if m := reMSHostname.FindStringSubmatch(msg); m != nil {
+		h.Host = m[1]
+	}
+	if m := reMSCode.FindStringSubmatch(msg); m != nil {
+		if code, err := strconv.Atoi(m[1]); err == nil {
+			h.StatusCode = code
+		}
+	}
+	if h.URI != "" || h.Host != "" || h.StatusCode != 0 {
+		e.HTTP = h
+	}
+
+	// Severity from the CRS level. CRS labels most protocol-enforcement hits CRITICAL even for
+	// routine scanner noise, so we map conservatively (CRITICAL -> high, not critical) to avoid
+	// alert fatigue; the composite score + repeated-block rule surface the IPs that matter.
+	sev := SeverityLow
+	if m := reMSSeverity.FindStringSubmatch(msg); m != nil {
+		switch strings.ToUpper(m[1]) {
+		case "EMERGENCY", "ALERT", "CRITICAL":
+			sev = SeverityHigh
+		case "ERROR":
+			sev = SeverityMedium
+		case "WARNING":
+			sev = SeverityLow
+		default:
+			sev = SeverityInfo
+		}
+	}
+	e.Event.Severity = sev
+	return true
 }
 
 // normalizeFirewall parses a Netfilter/UFW/iptables kernel log line into DCS network.*

@@ -785,6 +785,19 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                             <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{a.dw_remediation_action}</pre>
                           </div>
                         )}
+                        {(a.http_uri || a.http_host || a.http_status > 0) && (
+                          <div className="mb-3 rounded-lg border border-cyan-900/50 bg-cyan-500/5 p-3">
+                            <div className="mb-1 text-xs font-medium uppercase tracking-wider text-cyan-300">
+                              HTTP request{a.event_action === 'waf_block' ? ' · WAF blocked' : ''}
+                            </div>
+                            <div className="space-y-0.5 font-mono text-xs text-slate-300">
+                              {(a.http_method || a.http_uri) && (
+                                <div><span className="text-slate-500">{a.http_method || 'GET'}</span> {a.http_uri || '—'}{a.http_status > 0 && <span className="ml-2 rounded bg-slate-700/40 px-1.5 py-0.5 text-slate-400">{a.http_status}</span>}</div>
+                              )}
+                              {a.http_host && <div><span className="text-slate-500">host:</span> {a.http_host}</div>}
+                            </div>
+                          </div>
+                        )}
                         {(a.file_diff || (a.event_category === 'file' && a.file_path)) && (
                           <div className="mb-3 rounded-lg border border-amber-900/50 bg-amber-500/5 p-3">
                             <div className="mb-1 flex items-center justify-between">
