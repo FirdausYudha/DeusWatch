@@ -20,6 +20,7 @@ const CATEGORY: Record<string, string> = {
   llm: 'LLM / AI',
   fim: 'File Integrity (FIM)',
   export: 'Export / Webhook',
+  ingest: 'Log ingest',
 }
 const CATEGORY_BADGE: Record<string, string> = {
   firewall: 'text-orange-300 bg-orange-500/15',
@@ -28,6 +29,7 @@ const CATEGORY_BADGE: Record<string, string> = {
   llm: 'text-sky-300 bg-sky-500/15',
   fim: 'text-rose-300 bg-rose-500/15',
   export: 'text-cyan-300 bg-cyan-500/15',
+  ingest: 'text-teal-300 bg-teal-500/15',
 }
 
 // FieldInput renders one config field. For secret fields it shows a "configured"

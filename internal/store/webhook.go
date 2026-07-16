@@ -47,3 +47,27 @@ func (s *Store) SeedWebhookTokenFromEnv(ctx context.Context, envToken string) er
 	}
 	return s.SetWebhookToken(ctx, envToken)
 }
+
+// GetCursor returns the persisted resume cursor for a named pull source ("" = none yet).
+func (s *Store) GetCursor(ctx context.Context, name string) (string, error) {
+	var cur string
+	err := s.pool.QueryRow(ctx, `SELECT cursor FROM ingest_cursor WHERE name = $1`, name).Scan(&cur)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("store: get cursor: %w", err)
+	}
+	return cur, nil
+}
+
+// SetCursor upserts the resume cursor for a named pull source.
+func (s *Store) SetCursor(ctx context.Context, name, cursor string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO ingest_cursor (name, cursor, updated_at) VALUES ($1, $2, now())
+		 ON CONFLICT (name) DO UPDATE SET cursor = $2, updated_at = now()`, name, cursor)
+	if err != nil {
+		return fmt.Errorf("store: set cursor: %w", err)
+	}
+	return nil
+}

@@ -105,6 +105,22 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
+		Type: "opensearch", Label: "OpenSearch / Elasticsearch (pull)", Category: "ingest",
+		Desc: "Pull logs from an existing ES/OpenSearch cluster (e.g. the Wazuh indexer's wazuh-alerts-*) into the DeusWatch pipeline. DeusWatch tails the index and resumes from where it left off.",
+		Fields: []Field{
+			{Key: "address", Label: "Cluster URL", Help: "https://opensearch:9200 (the Wazuh indexer works here)"},
+			{Key: "index", Label: "Index / pattern", Help: "e.g. wazuh-alerts-* or filebeat-*"},
+			{Key: "username", Label: "Username", Optional: true},
+			{Key: "password", Label: "Password", Secret: true, Optional: true},
+			{Key: "api_key", Label: "API key", Secret: true, Optional: true, Help: "Alternative to username/password (ES/OpenSearch API key)."},
+			{Key: "mode", Label: "Mapping", Optional: true, Options: []string{"auto", "wazuh", "raw"}, Help: "auto = Wazuh alert if it looks like one, else raw line (default); wazuh = always the Wazuh mapping; raw = always a raw log line (decoders apply)."},
+			{Key: "timestamp_field", Label: "Timestamp field", Optional: true, Help: "Field the tail sorts on. Default @timestamp."},
+			{Key: "query", Label: "Filter (query_string)", Optional: true, Help: "Optional Lucene filter, e.g. rule.level:>=7"},
+			{Key: "poll_interval", Label: "Poll interval", Optional: true, Help: "Go duration, e.g. 30s, 1m. Default 30s."},
+			{Key: "insecure_tls", Label: "Skip TLS verify", Optional: true, Options: []string{"false", "true"}, Help: "true for a self-signed cluster cert reached over a trusted network/tunnel."},
+		},
+	},
+	{
 		Type: "webhook_export", Label: "Webhook export (JSON)", Category: "export",
 		Desc: "Send events/alerts or a report to an external tool (SIEM, Slack, n8n, …) as JSON, on demand from the UI.",
 		Fields: []Field{

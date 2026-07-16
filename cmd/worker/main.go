@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -18,6 +19,7 @@ import (
 	"deuswatch/internal/detect"
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/enrich"
+	"deuswatch/internal/espull"
 	"deuswatch/internal/hashrep"
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/integrations"
@@ -158,6 +160,10 @@ func main() {
 	// Composite threat scoring per source IP (Multi-Source Event Correlation) + optional
 	// scenario ban when an IP's score crosses SCENARIO_BAN_SCORE.
 	go runIPScorer(ctx, st, engine)
+
+	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. the Wazuh
+	// indexer) into the pipeline. No-op when no such integration is enabled.
+	go runESPull(ctx, intStore, b, st)
 
 	// Notifications (Phase 2): Telegram/email/webhook + dedup/throttle.
 	dispatcher, notifyOn := notify.DispatcherFromEnv()
@@ -824,4 +830,96 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+// runESPull tails every enabled OpenSearch/Elasticsearch pull integration into the pipeline,
+// one goroutine per cluster. Each poller resumes from its persisted cursor and publishes
+// normalized events to logs.normalized, exactly like an agent-shipped or webhook line.
+func runESPull(ctx context.Context, intStore *integrations.Store, pub *bus.Bus, st *store.Store) {
+	if intStore == nil {
+		return
+	}
+	rows, err := intStore.Resolve(ctx, "opensearch")
+	if err != nil {
+		log.Printf("worker: es-pull: resolve integrations: %v", err)
+		return
+	}
+	for _, row := range rows {
+		c := row.Config
+		if c["address"] == "" || c["index"] == "" {
+			log.Printf("worker: es-pull %q skipped: address and index are required", row.Name)
+			continue
+		}
+		insecure, _ := strconv.ParseBool(c["insecure_tls"])
+		interval, _ := time.ParseDuration(strings.TrimSpace(c["poll_interval"]))
+		cfg := espull.Config{
+			Address: c["address"], Index: c["index"],
+			Username: c["username"], Password: c["password"], APIKey: c["api_key"],
+			TimestampField: c["timestamp_field"], Query: c["query"], Mode: c["mode"],
+			Insecure: insecure, Interval: interval,
+			AgentTag: "opensearch/" + row.Name,
+		}
+		go runOnePull(ctx, cfg, row.ID, row.Name, pub, st)
+	}
+}
+
+// runOnePull drives one cluster poller on its interval, persisting the cursor after each batch.
+func runOnePull(ctx context.Context, cfg espull.Config, id, name string, pub *bus.Bus, st *store.Store) {
+	var cursor []json.RawMessage
+	if raw, err := st.GetCursor(ctx, id); err == nil && raw != "" {
+		_ = json.Unmarshal([]byte(raw), &cursor)
+	}
+	poller := espull.New(cfg, cursor)
+	interval := cfg.Interval
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	log.Printf("worker: es-pull %q active (%s%s every %s)", name, cfg.Address, indexLabel(cfg.Index), interval)
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			sc, cancel := context.WithTimeout(ctx, 30*time.Second)
+			events, n, err := poller.Poll(sc)
+			if err != nil {
+				log.Printf("worker: es-pull %q: %v", name, err)
+				cancel()
+				continue
+			}
+			published := 0
+			for _, ev := range events {
+				data, merr := json.Marshal(ev)
+				if merr != nil {
+					continue
+				}
+				if perr := pub.Publish(sc, bus.SubjectLogsNormalized, data); perr != nil {
+					log.Printf("worker: es-pull %q: publish: %v", name, perr)
+					break
+				}
+				published++
+			}
+			// Persist the cursor only after a successful batch so a mid-batch failure re-pulls.
+			if n > 0 {
+				if cur := poller.Cursor(); len(cur) > 0 {
+					if b, merr := json.Marshal(cur); merr == nil {
+						if cerr := st.SetCursor(sc, id, string(b)); cerr != nil {
+							log.Printf("worker: es-pull %q: save cursor: %v", name, cerr)
+						}
+					}
+				}
+				log.Printf("worker: es-pull %q: %d hits, %d published", name, n, published)
+			}
+			cancel()
+		}
+	}
+}
+
+func indexLabel(index string) string {
+	if index == "" {
+		return ""
+	}
+	return "/" + index
 }

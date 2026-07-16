@@ -256,8 +256,20 @@ notes) and shown as a draft; publishing happens after the owner confirms.
   enable/regenerate/disable take effect with no restart; `NewStatic` kept for tests. API:
   `GET /api/ingest-config`, `POST /api/ingest-config/regenerate|disable` (PermManageIntegrations),
   fail-closed on lookup error. Store: `WebhookToken/SetWebhookToken/SeedWebhookTokenFromEnv`.
-  Tests: dynamic-token accept/reject/rotate + fail-closed. UNRELEASED. **Next backlog item:
-  OpenSearch/Elasticsearch pull.** See work order in memory [[deuswatch-backlog]].
+  Tests: dynamic-token accept/reject/rotate + fail-closed. UNRELEASED.
+
+- ~~**OpenSearch/Elasticsearch pull**~~ **DONE 2026-07-16.** New `internal/espull` package tails
+  an existing ES/OpenSearch index (headline use: the Wazuh indexer = OpenSearch → read
+  `wazuh-alerts-*` directly, reusing `ingest.NormalizeWazuh`). Sort by timestamp asc + page with
+  `search_after`, cursor persisted in `ingest_cursor` (migration 000033) keyed per integration so
+  a restart resumes without replay/gap; first poll uses a 5m look-back. Modes: auto (Wazuh-or-raw)
+  | wazuh | raw. Integrations catalog gained an `opensearch` type (category `ingest`, new UI badge);
+  worker `runESPull` launches one poller goroutine per enabled integration, publishing to
+  logs.normalized. Auth: basic or API key; insecure_tls for self-signed. Docs: docs/opensearch.md
+  (with the honest timestamp-tailing limitation — late/duplicate-ts docs can be missed; webhook is
+  lossless). Tests: Wazuh mapping + cursor advance + raw message extraction + resume-from-cursor
+  (httptest ES mock). NOTE: integrations resolved at worker startup → adding one needs a worker
+  restart (same as MikroTik). UNRELEASED. **Next backlog item: native who-data.** See [[deuswatch-backlog]].
 - Wazuh JSON normalizer DONE (maps rich Wazuh alert fields → DCS; MITRE tactic → label →
   playbook); could extend the group→category/label maps as more Wazuh rule types are seen.
 
