@@ -760,6 +760,25 @@ func resolveResponder(ctx context.Context, intStore *integrations.Store) respond
 				names = append(names, row.Name)
 			}
 			log.Printf("worker: responder from %d Integrations MikroTik router(s): %s", len(cfgs), strings.Join(names, ", "))
+			// Startup REST health-check per router: surfaces reachability/TLS/auth/list
+			// problems in the log immediately, instead of a silent "bans never arrive".
+			for i, c := range cfgs {
+				list := c.List
+				if list == "" {
+					list = "deuswatch_ban"
+				}
+				probe := respond.NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure)
+				if err := probe.Verify(ctx); err != nil {
+					log.Printf("worker: MikroTik %q REST check FAILED: %v", names[i], err)
+				} else {
+					log.Printf("worker: MikroTik %q REST check OK (list=%s reachable)", names[i], list)
+				}
+			}
+			// A configured MikroTik that will never receive bans (dry-run) is the single most
+			// confusing failure mode - call it out explicitly with the fix.
+			if live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE")); !live {
+				log.Printf("worker: NOTE - MikroTik is configured but RESPONSE_LIVE!=1: bans will NOT be pushed (dry-run). Set RESPONSE_LIVE=1 in deploy/.env and restart to go live.")
+			}
 			return respond.MikrotikMultiFromConfigs(cfgs)
 		}
 	}

@@ -124,6 +124,56 @@ TLS verification. Two options:
 
 ---
 
+### 4. Verify it works (startup self-check)
+
+On start, the worker probes every configured MikroTik and prints the result - **read these
+lines first** (`docker compose -f deploy/docker-compose.yml logs worker`):
+
+```
+worker: responder from 1 Integrations MikroTik router(s): MikroTik Test
+worker: MikroTik "MikroTik Test" REST check OK (list=deuswatch_ban reachable)   ← REST/TLS/auth all good
+respond: LIVE responder active: mikrotik                                        ← RESPONSE_LIVE=1 is set
+worker: blocklist sync active (reconcile every 10s to mikrotik)                 ← the sync loop is running
+```
+
+If the check **fails**, the log names the exact cause, e.g.:
+
+```
+worker: MikroTik "MikroTik Test" REST check FAILED: cannot reach https://10.10.10.8 (...) -
+  check the tunnel/route and that /ip service www-ssl 'address=' allows the DeusWatch hub IP
+worker: MikroTik "MikroTik Test" REST check FAILED: HTTP 401 ... - wrong username/password
+```
+
+Then ban an IP in **Response** and confirm it lands on the router within ~10s:
+
+```bash
+curl -k -i -u deuswatch:PASS https://10.10.10.8/rest/ip/firewall/address-list
+# expect HTTP/1.1 200 and an entry {"address":"…","list":"deuswatch_ban","comment":"deuswatch"}
+```
+
+---
+
+## Troubleshooting
+
+Symptoms are ordered by how often they bite. The worker's startup REST check (above) will
+usually point straight at the row here.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| **Bans never appear on the router, no errors** | `RESPONSE_LIVE` is not set → the responder is wrapped in **dry-run**, so the sync loop never runs. The log says `responder … wrapped in dry-run` and `NOTE - MikroTik is configured but RESPONSE_LIVE!=1`. | Set `RESPONSE_LIVE=1` in `deploy/.env`, then **`docker compose -f deploy/docker-compose.yml up -d --force-recreate worker`** (a plain restart does not re-read `.env`). |
+| `curl: (35) Recv failure: Connection reset by peer` / REST check "cannot reach" | `/ip service www-ssl` has `address=` set to a value that **excludes the DeusWatch hub** (a common mistake is setting it to the router's own tunnel IP, e.g. `10.10.10.8/32`). RouterOS resets connections from disallowed sources during the TLS handshake. | On the router: `/ip service set www-ssl address=10.10.10.0/24` (allow the whole tunnel subnet, which includes the hub `10.10.10.1`). Re-run the `curl`. |
+| REST check `HTTP 401` | Wrong username/password, or the user lacks API rights. | `/user print` on the router; the DeusWatch user needs `group=write`. Re-enter the password in **Integrations → MikroTik**. |
+| REST reachable (`200 []`) but **bans still don't drop traffic** | The `address_list` in the integration does **not** match the address-list in your `/ip firewall filter` drop rule (e.g. form says `deuswatch`, rule uses `deuswatch_ban`). DeusWatch writes to a list nothing is dropping. | Make both identical. Set **Integrations → MikroTik → `address_list` = `deuswatch_ban`** and confirm `/ip firewall filter print` has a rule with `src-address-list=deuswatch_ban action=drop`. |
+| REST works from the **host** but the worker's check fails (container only) | WireGuard runs on the host; the worker runs in a container. Its traffic leaves with a container source IP that the peer's `allowed-address` drops. | Add the masquerade so container traffic uses the tunnel IP: `sudo iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE` (persist it via `iptables-persistent`). |
+| REST check TLS error mentioning certificate | The router presents its **self-signed** cert and `insecure_tls` is off. | Set **Integrations → MikroTik → `insecure_tls` = `true`** (safe over a WireGuard/IPsec tunnel), or install a CA-trusted cert on the router. |
+| `docker compose … logs` → *no such file or directory* | Run from the wrong directory - the compose file is at `deploy/docker-compose.yml` **relative to the repo root**. | `cd` into the repo root first (the folder that contains `deploy/`), then run the compose command. |
+| A rebooted router loses its bans | Expected only briefly - the reconcile loop re-populates the address-list within `RESPONSE_SYNC_INTERVAL` (default 10s). | Nothing; if it persists, the router isn't reachable - check the startup REST line. |
+
+> DeusWatch only manages entries it created (comment `deuswatch`). Your manually-added
+> address-list entries are never touched or removed by the sync.
+
+---
+
 ## Model B - Pull (blocklist feed, no REST API)
 
 The router fetches DeusWatch's active blocklist on a timer and applies it locally - no REST

@@ -237,6 +237,37 @@ func (m *MikrotikResponder) removeByID(ctx context.Context, id string) error {
 	return m.do(ctx, http.MethodPost, "/rest/ip/firewall/address-list/remove", body)
 }
 
+// Verify probes the router's REST API by GETting the managed address-list. It returns a
+// human-readable error that distinguishes the common failure modes - unreachable/TLS,
+// bad credentials, wrong list - so the worker startup log tells the operator exactly what
+// to fix instead of a silent "nothing happens". A nil error means DeusWatch can push bans.
+// It is a read-only GET, safe to run even in dry-run mode.
+func (m *MikrotikResponder) Verify(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		m.baseURL+"/rest/ip/firewall/address-list?list="+url.QueryEscape(m.list), nil)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(m.user, m.pass)
+	resp, err := m.hc.Do(req)
+	if err != nil {
+		// Reset/timeout/TLS - almost always reachability or the www-ssl 'address=' allow-list.
+		return fmt.Errorf("cannot reach %s (%v) - check the tunnel/route and that "+
+			"/ip service www-ssl 'address=' allows the DeusWatch hub IP", m.baseURL, err)
+	}
+	defer resp.Body.Close()
+	switch {
+	case resp.StatusCode == http.StatusUnauthorized:
+		return fmt.Errorf("HTTP 401 from %s - wrong username/password "+
+			"(create a RouterOS /user with group=write)", m.baseURL)
+	case resp.StatusCode >= 300:
+		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, m.baseURL)
+	}
+	return nil // REST reachable + authenticated; list may legitimately be empty
+}
+
 func (m *MikrotikResponder) do(ctx context.Context, method, path string, body []byte) error {
 	req, err := http.NewRequestWithContext(ctx, method, m.baseURL+path, bytes.NewReader(body))
 	if err != nil {

@@ -290,6 +290,21 @@ MikroTik routers; `resolveResponder` builds from ALL enabled mikrotik integratio
 Needs `RESPONSE_LIVE=1`. Verified with an httptest RouterOS mock (reconcile, idempotent,
 manual-entry-safe, multi-router fan-out). Pull model (`GET /api/blocklist`) still available.
 
+**MikroTik push VERIFIED LIVE on real hardware (2026-07-16)** ✅ - over a WireGuard tunnel
+(hub `10.10.10.1` → RouterOS `10.10.10.8`), REST `200`, bans reach `deuswatch_ban`. Debugging
+this surfaced three silent-failure traps, now fixed on OUR side:
+  1. `RESPONSE_LIVE` unset → responder wrapped in dry-run → `runBlocklistSync` returns silently,
+     nothing pushed, no clear reason. Fix: worker now logs an explicit `NOTE - MikroTik is
+     configured but RESPONSE_LIVE!=1` warning; `RESPONSE_LIVE`/`RESPONSE_AUTO_APPROVE`/
+     `RESPONSE_SYNC_INTERVAL` are now documented in `.env.example` (were missing entirely).
+  2. No connectivity feedback → added `MikrotikResponder.Verify(ctx)` (read-only GET) run per
+     router at worker startup: logs `REST check OK (list=… reachable)` or `REST check FAILED: …`
+     with the distinguishing cause (unreachable/TLS vs `HTTP 401` vs list). Would have caught the
+     `www-ssl address=` reset and the empty-list case immediately.
+  3. Real-hardware gotchas (`www-ssl address=` must allow the HUB not the router's own IP; list
+     name must match the filter rule; Docker needs `MASQUERADE -o wg0`) → full **Troubleshooting**
+     table added to `docs/mikrotik.md` §4 + table. UNRELEASED since v1.5.0.
+
 **Advanced composite scoring - DONE 2026-07-15.** `internal/score` weighted formula
 (fired_times + AbuseIPDB + OTX + worst severity → 0-100 + band, `DefaultWeights` abuse .40 /
 fired .30 / otx .15 / sev .15, count caps); `ip_scores` table (migration 000030);
