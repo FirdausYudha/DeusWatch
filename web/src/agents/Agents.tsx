@@ -11,6 +11,7 @@ import {
   type AgentSource,
   type Me,
 } from '../lib/api'
+import DocLink from '../components/DocLink'
 
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim']
 const POLL_TYPES = new Set(['fim', 'wineventlog']) // types where the interval applies
@@ -80,6 +81,10 @@ export default function Agents({ me }: { me: Me }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">Agents</h1>
           <p className="mt-1 text-sm text-slate-500">Registered agents, heartbeat status &amp; centrally-pushed config</p>
+          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+            <DocLink file="new-log-source.md" label="Add a log source" />
+            <DocLink file="whodata.md" label="FIM who-data" />
+          </div>
         </div>
         {isAdmin && (
           <button

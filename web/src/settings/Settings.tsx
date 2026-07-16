@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, type NotifyConfig, type StorageStatus, type UpdateInfo } from '../lib/api'
+import DocLink from '../components/DocLink'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -186,9 +187,12 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-8">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Account security</p>
+      <header className="mb-8 flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Settings</h1>
+          <p className="mt-1 text-sm text-slate-500">Account security</p>
+        </div>
+        <DocLink file="production.md" label="Production hardening" className="shrink-0" />
       </header>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
@@ -271,7 +275,10 @@ export default function Settings() {
       </section>
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="text-sm font-medium text-slate-200">Alert notifications</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium text-slate-200">Alert notifications</h2>
+          <DocLink file="notifications.md" className="shrink-0" />
+        </div>
         <p className="mb-4 mt-1 text-sm text-slate-500">
           Send an alert to your channels (Telegram / email) when an event's severity is at or above
           this level. Channels are configured via the server's environment variables.
@@ -296,7 +303,10 @@ export default function Settings() {
       </section>
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="text-sm font-medium text-slate-200">Log storage lifecycle</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium text-slate-200">Log storage lifecycle</h2>
+          <DocLink file="storage.md" className="shrink-0" />
+        </div>
         <p className="mb-4 mt-1 text-sm text-slate-500">
           How long logs are kept (TimescaleDB retention) and when they get compressed - the
           relational equivalent of an ILM policy. Data older than the retention window is
