@@ -1,7 +1,15 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-16 (v1.7.0).
+> Last updated: 2026-07-17 (v1.8.0).
+
+**v1.8.0 RELEASED 2026-07-17** — Rule-pack marketplace on the Rules page (installed packs =
+rule categories with real enable/disable + external catalog: SigmaHQ/ET/OWASP CRS/Sysmon-modular/
+YARA/MITRE as link-outs) + more in-app "See documentation" links (Settings/Agents).
+https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.8.0
+Marketplace decision: lives in Rules (not Integrations). NEXT (WAF series): ModSecurity decoder +
+HTTP field group (user has real OPNsense+ModSecurity logs to verify). Core backlog #4 real-time
+FIM still pending. See memory [[deuswatch-backlog]].
 
 **v1.7.0 + v1.7.1 RELEASED 2026-07-16** — Wazuh ingest webhook UI + OpenSearch/Elasticsearch pull +
 native FIM who-data (Linux/auditd) + "See documentation" links + fixes. Applies migrations
