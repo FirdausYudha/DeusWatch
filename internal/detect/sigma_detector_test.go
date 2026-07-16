@@ -85,3 +85,36 @@ func TestSigmaAlertCarriesEnrichment(t *testing.T) {
 		t.Fatalf("source geo not carried to alert: %+v", alert.Source)
 	}
 }
+
+// TestSigmaAlertCarriesWhoData guards that a labeled alert carries FIM who-data (process +
+// user) and the line diff from the source event, so the actor shows on the alert the operator
+// actually looks at — not only on the raw file_modified event.
+func TestSigmaAlertCarriesWhoData(t *testing.T) {
+	rs, err := sigma.LoadDir("../../rules/sigma")
+	if err != nil {
+		t.Fatalf("LoadDir: %v", err)
+	}
+	d := NewSigmaDetector(rs)
+
+	// Reuse the reliable root-login rule; attach who-data + a file diff to the source event.
+	src := &ingest.Event{
+		Event:   ingest.EventFields{Dataset: "sshd", Action: "ssh_login", Outcome: "success"},
+		User:    &ingest.User{Name: "root"},
+		Source:  &ingest.Endpoint{IP: "203.0.113.10"},
+		Process: &ingest.Process{Name: "tee", PID: 4321, CommandLine: "/usr/bin/tee"},
+		File:    &ingest.File{Path: "/var/www/html/index.php", Diff: "@@ -1 +1,2 @@"},
+	}
+	alert := d.Inspect(src)
+	if alert == nil {
+		t.Fatal("expected an alert")
+	}
+	if alert.Process == nil || alert.Process.Name != "tee" || alert.Process.PID != 4321 {
+		t.Fatalf("who-data process not carried to alert: %+v", alert.Process)
+	}
+	if alert.User == nil || alert.User.Name != "root" {
+		t.Fatalf("who-data user not carried to alert: %+v", alert.User)
+	}
+	if alert.File == nil || alert.File.Diff != "@@ -1 +1,2 @@" {
+		t.Fatalf("file diff not carried to alert: %+v", alert.File)
+	}
+}

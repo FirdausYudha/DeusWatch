@@ -59,6 +59,13 @@ func StartWhoData(ctx context.Context, dirs []string, logPath string) (WhoDataSo
 		// -w <dir> -p wa -k deuswatch_fim : watch writes+attribute changes, tagged with our key.
 		cmd := exec.CommandContext(ctx, "auditctl", "-w", d, "-p", "wa", "-k", auditKey)
 		if out, err := cmd.CombinedOutput(); err != nil {
+			// A persistent kernel audit rule survives an agent restart, so on any restart
+			// auditctl reports "Rule exists" - that means the path IS being watched, which is
+			// exactly what we want. Treat it as installed (not a failure).
+			if strings.Contains(string(out), "Rule exists") {
+				installed++
+				continue
+			}
 			log.Printf("agent: who-data: add audit rule for %s failed: %v (%s)", d, err, strings.TrimSpace(string(out)))
 			continue
 		}

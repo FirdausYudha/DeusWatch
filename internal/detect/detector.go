@@ -115,8 +115,13 @@ func buildSigmaAlert(r *sigma.Rule, src *ingest.Event) *ingest.Event {
 	if src.File != nil {
 		alert.File = &ingest.File{
 			Path: src.File.Path, HashSHA256: src.File.HashSHA256,
-			Owner: src.File.Owner, Mode: src.File.Mode,
+			Owner: src.File.Owner, Mode: src.File.Mode, Diff: src.File.Diff,
 		}
+	}
+	// Carry FIM who-data over so the labeled alert also shows who changed the file
+	// (process + user), not just the raw file_modified event.
+	if src.Process != nil {
+		alert.Process = &ingest.Process{Name: src.Process.Name, PID: src.Process.PID, CommandLine: src.Process.CommandLine}
 	}
 	// A rule with a mitigation_action block authorizes automated containment. Carry the
 	// directive onto the alert so the response engine can act without re-parsing the rule.
