@@ -84,6 +84,36 @@ func TestNormalizeFIMCreatedLowSeverity(t *testing.T) {
 	}
 }
 
+// A type=fim source may carry ANY dataset label - a FIM JSON payload under dataset "web"
+// (an operator's natural label for a webroot watch) must still be parsed as a file event,
+// not fed to the access-log parser and dropped as raw. Regression for a real deployment.
+func TestNormalizeFIMAnyDatasetLabel(t *testing.T) {
+	for _, ds := range []string{"web", "wordpress", "uploads (webroot)"} {
+		e, ok := Normalize(RawLog{
+			Dataset: ds,
+			Message: `{"path":"/var/www/html/index.php","action":"modified","sha256":"abc","diff":"@@ -1 +1,2 @@"}`,
+		})
+		if !ok || e.Event.Category != "file" || e.Event.Action != "file_modified" {
+			t.Fatalf("dataset %q: FIM payload must parse as file event: ok=%v %+v", ds, ok, e.Event)
+		}
+		if e.File == nil || e.File.Path != "/var/www/html/index.php" || e.File.Diff == "" {
+			t.Fatalf("dataset %q: file fields lost: %+v", ds, e.File)
+		}
+	}
+	// ...but a real access-log line under "web" still goes to the web parser, and a JSON
+	// line that merely HAS path/action fields with a non-FIM action is not swallowed.
+	if e, ok := Normalize(RawLog{Dataset: "web", Message: `{"path":"/x","action":"GET"}`}); ok && e.Event.Category == "file" {
+		t.Fatalf("non-FIM action must not be sniffed as FIM: %+v", e.Event)
+	}
+}
+
+func TestNormalizeFIMRestoredInfoSeverity(t *testing.T) {
+	e, ok := Normalize(RawLog{Dataset: "fim", Message: `{"path":"/var/www/html/index.php","action":"restored"}`})
+	if !ok || e.Event.Action != "file_restored" || e.Event.Severity != SeverityInfo {
+		t.Fatalf("restored should parse as info: ok=%v %+v", ok, e.Event)
+	}
+}
+
 // A descriptively-named source ("fim (download)", "firewall (ufw)", "nginx prod") must still
 // route to the right parser - the label is free-form in the UI, so matching must be on the
 // base keyword, not the exact string.

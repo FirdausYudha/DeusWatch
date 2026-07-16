@@ -81,6 +81,14 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if kind == "fim" && normalizeFIM(raw.Message, e) {
 		return e, true
 	}
+	// A type=fim source may carry ANY dataset label ("web", "wordpress", ...) - operators
+	// name sources freely and the source *type* is not part of RawLog. Sniff the agent's
+	// FIM JSON payload ({path,action,...}) whatever the label, so FIM events are never
+	// mis-routed to a text parser (e.g. dataset "web" would feed FIM JSON to the access-log
+	// parser and surface as an unparsed raw line - no file.path, no diff, no Restore).
+	if strings.HasPrefix(strings.TrimSpace(raw.Message), "{") && normalizeFIM(raw.Message, e) {
+		return e, true
+	}
 	if strings.HasPrefix(kind, "windows") {
 		return e, normalizeWindows(raw.Message, e)
 	}
@@ -344,14 +352,25 @@ func normalizeFIM(msg string, e *Event) bool {
 	if err := json.Unmarshal([]byte(msg), &c); err != nil || c.Path == "" || c.Action == "" {
 		return false
 	}
+	// Only the agent's FIM actions - keeps the label-agnostic JSON sniff in Normalize from
+	// swallowing other JSON logs that happen to have path/action fields.
+	switch c.Action {
+	case "created", "modified", "deleted", "restored":
+	default:
+		return false
+	}
 	e.Event.Category = "file"
 	e.Event.Action = "file_" + c.Action
 	e.Event.Outcome = "success"
 	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode, Diff: c.Diff}
-	// Changes/deletions are riskier than newly created files.
-	if c.Action == "created" {
+	// Changes/deletions are riskier than newly created files; a restore is the operator's
+	// own recovery action (audit trail, not a threat).
+	switch c.Action {
+	case "created":
 		e.Event.Severity = SeverityLow
-	} else {
+	case "restored":
+		e.Event.Severity = SeverityInfo
+	default:
 		e.Event.Severity = SeverityMedium
 	}
 	return true
