@@ -1,7 +1,13 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-14 (v1.3.0).
+> Last updated: 2026-07-16 (v1.7.0).
+
+**v1.7.0 RELEASED 2026-07-16** — Wazuh ingest webhook UI + OpenSearch/Elasticsearch pull +
+native FIM who-data (Linux/auditd) + "See documentation" links + FIM dataset-label & UI-overflow
+fixes. https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.7.0 — applies migrations
+000032–000034. Backlog work order (memory): #1 webhook UI ✅, #2 OpenSearch pull ✅, #3 who-data ✅,
+**#4 real-time FIM (fsnotify) = NEXT.** Live-verify still pending for webhook/pull/who-data.
 
 ## Status summary
 
