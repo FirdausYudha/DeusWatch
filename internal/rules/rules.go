@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -106,6 +107,118 @@ func (s *Store) Update(ctx context.Context, id, name, yamlText string, enabled b
 		return nil, fmt.Errorf("rules: not found")
 	}
 	return r, err
+}
+
+// ── Rule packs (a lightweight marketplace over the bundled rules) ───────────
+//
+// A "pack" is a curated group of detection rules. Installed packs map 1:1 to the rule
+// CATEGORY already stored per rule, so enabling/disabling a pack toggles the real rules that
+// ship with DeusWatch - no fake buttons. The catalog also lists real-world third-party
+// rulesets you can bring in (SigmaHQ, ET Open, OWASP CRS, …) as link-outs.
+
+// Pack is one entry in the marketplace.
+type Pack struct {
+	ID          string `json:"id"` // category key (installed) or catalog id (external)
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Source      string `json:"source"` // "DeusWatch core" | vendor
+	RuleCount   int    `json:"rule_count"`
+	Enabled     int    `json:"enabled"`       // enabled rules within the pack
+	Installed   bool   `json:"installed"`     // true = present in the DB and toggleable
+	URL         string `json:"url,omitempty"` // upstream link for external packs
+}
+
+// packMeta gives each rule category a human name, description and source for the UI.
+var packMeta = map[string]struct{ Name, Desc, Source string }{
+	"web-attack": {"Web Attacks", "SQLi, XSS, path traversal, scanners and webshell activity in web / proxy logs.", "DeusWatch core"},
+	"deface":     {"Web Defacement", "Defacement markers and unauthorized content changes on web roots.", "DeusWatch core"},
+	"fim":        {"File Integrity (FIM)", "Changes to sensitive files and web roots (integrity monitoring).", "DeusWatch core"},
+	"endpoint":   {"Linux Endpoint (ATT&CK)", "Persistence, privilege-escalation and living-off-the-land on Linux hosts.", "DeusWatch core"},
+	"windows":    {"Windows Security", "Logon abuse, account lockout and suspicious Windows authentication.", "DeusWatch core"},
+	"auth":       {"Authentication & Brute-force", "SSH / login brute-force, invalid users and root logins.", "DeusWatch core"},
+	"judi":       {"Illegal Gambling (ID)", "Indonesian illegal online-gambling ('judi online') indicators in web traffic.", "DeusWatch core"},
+	"agg":        {"Correlation", "Multi-event correlation: port scans, brute-force bursts, password spraying.", "DeusWatch core"},
+	"general":    {"General", "Miscellaneous baseline detections.", "DeusWatch core"},
+	"custom":     {"Custom (yours)", "Rules you created or imported.", "You"},
+}
+
+// packOrder controls how installed packs are listed (known ones first, in this order).
+var packOrder = []string{"web-attack", "deface", "fim", "endpoint", "windows", "auth", "judi", "agg", "general", "custom"}
+
+// externalPacks is the catalog of real-world third-party rulesets. These are informational
+// link-outs (bring-your-own via rule import / the matching sensor input) - honestly not
+// one-click installs yet - so the marketplace shows the wider ecosystem without faking it.
+var externalPacks = []Pack{
+	{ID: "sigmahq", Name: "SigmaHQ Community Rules", Description: "Thousands of community detections in Sigma format — import the ones you need as YAML in New rule.", Source: "SigmaHQ", URL: "https://github.com/SigmaHQ/sigma"},
+	{ID: "sysmon-modular", Name: "Sysmon-modular (Windows)", Description: "Olaf Hartong's Sysmon config + mapped Windows telemetry detections.", Source: "olafhartong", URL: "https://github.com/olafhartong/sysmon-modular"},
+	{ID: "et-open", Name: "Emerging Threats Open (IDS)", Description: "Suricata / Snort IDS ruleset — pair it with the Suricata sensor input.", Source: "Proofpoint ET", URL: "https://rules.emergingthreats.net/"},
+	{ID: "owasp-crs", Name: "OWASP Core Rule Set (WAF)", Description: "ModSecurity WAF ruleset. Run it inline; DeusWatch ingests its alerts and bans the source IP.", Source: "OWASP", URL: "https://coreruleset.org/"},
+	{ID: "yara-forge", Name: "YARA Forge", Description: "Aggregated YARA rules for malware file scanning (roadmap: YARA on FIM-changed files).", Source: "YARA-HQ", URL: "https://yarahq.github.io/"},
+	{ID: "mitre-attack", Name: "MITRE ATT&CK", Description: "The technique knowledge base DeusWatch rules map to (threat.technique.*).", Source: "MITRE", URL: "https://attack.mitre.org/"},
+}
+
+// Packs returns the installed packs (from rule categories, with counts) followed by the
+// external catalog.
+func (s *Store) Packs(ctx context.Context) ([]Pack, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT COALESCE(NULLIF(category,''),'general') AS cat,
+		        count(*),
+		        count(*) FILTER (WHERE enabled)
+		 FROM rules GROUP BY cat`)
+	if err != nil {
+		return nil, fmt.Errorf("rules: packs: %w", err)
+	}
+	defer rows.Close()
+	byCat := map[string]Pack{}
+	for rows.Next() {
+		var cat string
+		var total, enabled int
+		if err := rows.Scan(&cat, &total, &enabled); err != nil {
+			return nil, err
+		}
+		m, ok := packMeta[cat]
+		name, desc, source := m.Name, m.Desc, m.Source
+		if !ok {
+			name = cat
+			source = "DeusWatch core"
+		}
+		byCat[cat] = Pack{ID: cat, Name: name, Description: desc, Source: source, RuleCount: total, Enabled: enabled, Installed: true}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Known categories first (in packOrder), then any extras alphabetically.
+	out := make([]Pack, 0, len(byCat)+len(externalPacks))
+	seen := map[string]bool{}
+	for _, cat := range packOrder {
+		if p, ok := byCat[cat]; ok {
+			out = append(out, p)
+			seen[cat] = true
+		}
+	}
+	extras := make([]string, 0)
+	for cat := range byCat {
+		if !seen[cat] {
+			extras = append(extras, cat)
+		}
+	}
+	sort.Strings(extras)
+	for _, cat := range extras {
+		out = append(out, byCat[cat])
+	}
+	return append(out, externalPacks...), nil
+}
+
+// SetEnabledByCategory toggles every rule in a pack (category) on/off at once. Returns how
+// many rules changed; 0 means the id was not an installed pack.
+func (s *Store) SetEnabledByCategory(ctx context.Context, category string, enabled bool) (int64, error) {
+	ct, err := s.pool.Exec(ctx,
+		`UPDATE rules SET enabled=$1, updated_at=now()
+		 WHERE COALESCE(NULLIF(category,''),'general')=$2`, enabled, category)
+	if err != nil {
+		return 0, fmt.Errorf("rules: set pack enabled: %w", err)
+	}
+	return ct.RowsAffected(), nil
 }
 
 // SetEnabled toggles a rule on/off.

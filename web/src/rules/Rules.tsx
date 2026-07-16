@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchRules, createRule, updateRule, deleteRule, type Rule } from '../lib/api'
+import { fetchRules, createRule, updateRule, deleteRule, fetchRulePacks, toggleRulePack, type Rule, type RulePack } from '../lib/api'
 
 const KIND_BADGE: Record<string, string> = {
   single: 'text-sky-300 bg-sky-500/15',
@@ -136,6 +136,8 @@ export default function Rules() {
       </header>
 
       {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
+
+      <RulePacks onChanged={load} />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
@@ -283,6 +285,111 @@ export default function Rules() {
         />
       )}
     </div>
+  )
+}
+
+// RulePacks is the marketplace: enable/disable whole detection domains (installed packs =
+// rule categories) in one click, and browse real-world third-party rulesets to bring in.
+function RulePacks({ onChanged }: { onChanged: () => void }) {
+  const [packs, setPacks] = useState<RulePack[]>([])
+  const [open, setOpen] = useState(true)
+  const [busy, setBusy] = useState('')
+  const [err, setErr] = useState('')
+
+  const load = () => { fetchRulePacks().then(setPacks).catch((e) => setErr((e as Error).message)) }
+  useEffect(load, [])
+
+  const installed = packs.filter((p) => p.installed)
+  const external = packs.filter((p) => !p.installed)
+
+  const toggle = async (p: RulePack, enable: boolean) => {
+    setBusy(p.id); setErr('')
+    try {
+      await toggleRulePack(p.id, enable)
+      load()          // refresh pack counts
+      onChanged()     // refresh the rules table
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <section className="mb-6 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
+        <div>
+          <h2 className="text-sm font-semibold text-white">Rule packs</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Enable a whole detection domain in one click, or browse third-party rulesets to add.
+          </p>
+        </div>
+        <span className="text-slate-500">{open ? '▾' : '▸'}</span>
+      </button>
+
+      {open && (
+        <div className="mt-4 space-y-5">
+          {err && <p className="text-sm text-rose-400">{err}</p>}
+
+          {/* Installed packs — toggle the real bundled rules */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {installed.map((p) => {
+              const allOn = p.rule_count > 0 && p.enabled === p.rule_count
+              const someOn = p.enabled > 0 && !allOn
+              return (
+                <div key={p.id} className="flex flex-col rounded-lg border border-slate-800 bg-slate-900 p-3">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="font-medium text-slate-200">{p.name}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${allOn ? 'text-emerald-300 bg-emerald-500/15' : someOn ? 'text-amber-300 bg-amber-500/15' : 'text-slate-400 bg-slate-700/40'}`}>
+                      {p.enabled}/{p.rule_count}
+                    </span>
+                  </div>
+                  <p className="mb-3 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-600">{p.source}</span>
+                    <button
+                      onClick={() => toggle(p, !allOn)}
+                      disabled={busy === p.id}
+                      className={`rounded-md border px-2.5 py-1 text-xs disabled:opacity-50 ${allOn ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-indigo-600/60 text-indigo-300 hover:bg-indigo-500/10'}`}
+                    >
+                      {busy === p.id ? '…' : allOn ? 'Disable all' : someOn ? 'Enable rest' : 'Enable all'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* External catalog — real-world rulesets you bring in (link-out) */}
+          {external.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">From the community & vendors</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {external.map((p) => (
+                  <a
+                    key={p.id}
+                    href={p.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex flex-col rounded-lg border border-slate-800 bg-slate-900/60 p-3 transition-colors hover:border-slate-700"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="font-medium text-slate-200 group-hover:text-white">{p.name}</span>
+                      <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">External</span>
+                    </div>
+                    <p className="mb-2 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
+                    <span className="text-[11px] text-indigo-300 group-hover:text-indigo-200">{p.source} · Open ↗</span>
+                  </a>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-600">
+                External rulesets are brought in via <span className="text-slate-400">New rule</span> (paste Sigma YAML) or the matching sensor input — not one-click yet.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   )
 }
 

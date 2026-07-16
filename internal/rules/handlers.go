@@ -46,6 +46,56 @@ func (s *Store) CollectionHandler() http.HandlerFunc {
 	}
 }
 
+// PacksHandler: GET /api/rules/packs — the rule-pack marketplace (installed + catalog).
+func (s *Store) PacksHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		packs, err := s.Packs(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, packs)
+	}
+}
+
+// PackToggleHandler: POST /api/rules/packs/{id}/toggle {enabled} — enable/disable a whole
+// installed pack (rule category) at once.
+func (s *Store) PackToggleHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		id := r.PathValue("id")
+		if id == "" {
+			http.Error(w, "id is required", http.StatusBadRequest)
+			return
+		}
+		var req struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		n, err := s.SetEnabledByCategory(r.Context(), id, req.Enabled)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if n == 0 {
+			// No rules changed: either an external/catalog pack, or an unknown id.
+			http.Error(w, "not an installed pack (external rulesets are imported manually — see the pack's link)", http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"updated": n, "enabled": req.Enabled})
+	}
+}
+
 // ItemHandler: PUT (update) / DELETE on /api/rules/{id}.
 func (s *Store) ItemHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

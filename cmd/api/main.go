@@ -326,6 +326,8 @@ func main() {
 
 		// Detection rules CRUD (Wazuh-style management).
 		mux.Handle("/api/rules", protect(auth.PermManageRules, ruleStore.CollectionHandler()))
+		mux.Handle("GET /api/rules/packs", protect(auth.PermManageRules, ruleStore.PacksHandler()))
+		mux.Handle("POST /api/rules/packs/{id}/toggle", protect(auth.PermManageRules, ruleStore.PackToggleHandler()))
 		mux.Handle("/api/rules/{id}", protect(auth.PermManageRules, ruleStore.ItemHandler()))
 		mux.Handle("/api/decoders", protect(auth.PermManageRules, decoderStore.CollectionHandler()))
 		mux.Handle("GET /api/decoders/samples", protect(auth.PermManageRules, decoderStore.SamplesHandler()))

@@ -819,6 +819,33 @@ export async function deleteRule(id: string): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+// Rule packs (marketplace): installed packs map to rule categories (toggle enables/disables the
+// real bundled rules); external packs are real-world third-party rulesets you bring in (link-out).
+export type RulePack = {
+  id: string
+  name: string
+  description: string
+  source: string
+  rule_count: number
+  enabled: number
+  installed: boolean
+  url?: string
+}
+export async function fetchRulePacks(): Promise<RulePack[]> {
+  const res = await authFetch('/api/rules/packs')
+  if (!res.ok) throw new Error(`rule packs: HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+export async function toggleRulePack(id: string, enabled: boolean): Promise<{ updated: number }> {
+  const res = await authFetch(`/api/rules/packs/${id}/toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // ── Custom decoders (data-driven log-source support) ──────
 export type DecoderSpec = {
   name: string
