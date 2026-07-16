@@ -5,6 +5,9 @@ import {
   createIntegration,
   updateIntegration,
   deleteIntegration,
+  fetchIngestConfig,
+  regenerateIngestToken,
+  disableIngestWebhook,
   type IntegrationType,
   type Integration,
   type IntegrationField,
@@ -74,6 +77,86 @@ function FieldInput({
         <span className="mt-1 block text-[11px] text-slate-600">{field.help}</span>
       )}
     </label>
+  )
+}
+
+// IngestWebhookPanel manages the INBOUND raw-log ingest webhook token (POST /api/ingest/webhook).
+// Unlike the outbound connectors above (which store encrypted credentials), this is an inbound
+// endpoint a Wazuh manager / any external system pushes logs to, so it gets its own panel with a
+// token that is generated, copied, regenerated, or disabled here. The page already requires
+// manage_integrations, and the endpoints are protected the same way.
+function IngestWebhookPanel() {
+  const [token, setToken] = useState('')
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    fetchIngestConfig().then((c) => { setToken(c.token); setEnabled(c.enabled) }).catch(() => {})
+  }, [])
+
+  const url = enabled ? `${window.location.origin}/api/ingest/webhook?token=${token}&agent=<name>&dataset=wazuh` : ''
+  const regenerate = async () => {
+    setBusy(true); setErr('')
+    try { const c = await regenerateIngestToken(); setToken(c.token); setEnabled(true) }
+    catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+  const disable = async () => {
+    if (!confirm('Disable the ingest webhook? External systems pushing logs will get 404 until you re-enable it.')) return
+    setBusy(true); setErr('')
+    try { const c = await disableIngestWebhook(); setToken(c.token); setEnabled(c.enabled) }
+    catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { /* ignore */ }
+  }
+
+  return (
+    <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-white">Log ingest webhook (Wazuh & others)</h2>
+        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-cyan-300 bg-cyan-500/15">Inbound</span>
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${enabled ? 'text-emerald-300 bg-emerald-500/15' : 'text-slate-400 bg-slate-700/40'}`}>
+          {enabled ? 'Active' : 'Disabled'}
+        </span>
+      </div>
+      <p className="mb-3 mt-1 text-sm text-slate-500">
+        A token-gated endpoint that external systems POST raw logs or Wazuh alerts to — they flow
+        through the normal pipeline (normalize → detect → playbooks → response). Point a Wazuh
+        manager's integrator at this URL, or <span className="font-mono text-[11px]">curl</span> lines to it.
+      </p>
+      {enabled ? (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
+              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-300 outline-none" />
+            <button onClick={copy} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">{copied ? 'Copied ✓' : 'Copy'}</button>
+            <button onClick={regenerate} disabled={busy}
+              className="rounded-lg border border-amber-700/60 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
+              {busy ? 'Regenerating…' : 'Regenerate'}
+            </button>
+            <button onClick={disable} disabled={busy}
+              className="rounded-lg border border-rose-900/60 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10 disabled:opacity-50">
+              Disable
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-600">
+            Replace <span className="font-mono">&lt;name&gt;</span> with the source agent name (shown in the Agent column) and
+            <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, …).
+            The token is in the URL — serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
+          </p>
+        </>
+      ) : (
+        <button onClick={regenerate} disabled={busy}
+          className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
+          {busy ? 'Generating…' : 'Enable webhook (generate token)'}
+        </button>
+      )}
+      {err && <p className="mt-2 text-sm text-rose-400">{err}</p>}
+    </section>
   )
 }
 
@@ -258,6 +341,9 @@ export default function Integrations() {
         )}
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
       </section>
+
+      {/* Inbound ingest webhook (Wazuh & others) */}
+      <IngestWebhookPanel />
 
       {/* Existing integrations */}
       <section>

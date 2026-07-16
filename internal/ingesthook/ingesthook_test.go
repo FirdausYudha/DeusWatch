@@ -23,7 +23,7 @@ func (c *capturePub) Publish(_ context.Context, subject string, data []byte) err
 
 func TestWebhookAuthAndTag(t *testing.T) {
 	pub := &capturePub{}
-	h := New(pub, "s3cret")
+	h := NewStatic(pub, "s3cret")
 
 	// Wrong token -> 401.
 	req := httptest.NewRequest(http.MethodPost, "/api/ingest/webhook?token=wrong", strings.NewReader("hello"))
@@ -58,7 +58,7 @@ func TestWebhookAuthAndTag(t *testing.T) {
 
 func TestWebhookMultiLineAndJSON(t *testing.T) {
 	pub := &capturePub{}
-	h := New(pub, "t")
+	h := NewStatic(pub, "t")
 
 	// Newline-separated text: 3 lines, one blank (skipped) -> 2 events.
 	req := httptest.NewRequest(http.MethodPost, "/api/ingest/webhook?token=t", strings.NewReader("line one\n\nline two\n"))
@@ -81,7 +81,7 @@ func TestWebhookMultiLineAndJSON(t *testing.T) {
 
 func TestWebhookWazuhJSON(t *testing.T) {
 	pub := &capturePub{}
-	h := New(pub, "t")
+	h := NewStatic(pub, "t")
 
 	// A Wazuh alert JSON object -> mapped to a rich event (source IP, label, MITRE).
 	alert := `{"rule":{"level":5,"id":"5503","description":"PAM: User login failed.","groups":["pam","authentication_failed"],"mitre":{"id":["T1110.001"],"tactic":["Credential Access"]}},"data":{"srcip":"185.150.190.165","dstuser":"root"},"agent":{"name":"DEV-SERVER-DEUS"},"full_log":"pam auth failure","timestamp":"2026-06-28T17:10:06+0000"}`
@@ -113,7 +113,7 @@ func TestWebhookWazuhJSON(t *testing.T) {
 }
 
 func TestWebhookDisabledWithoutToken(t *testing.T) {
-	h := New(&capturePub{}, "")
+	h := NewStatic(&capturePub{}, "")
 	if h.Enabled() {
 		t.Fatal("empty token must leave the webhook disabled")
 	}
@@ -122,5 +122,42 @@ func TestWebhookDisabledWithoutToken(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("disabled webhook: got %d, want 404", rr.Code)
+	}
+}
+
+// The token is read per request (from the DB in production), so a UI enable/regenerate/disable
+// takes effect immediately without a restart. Verify the handler honors the live value.
+func TestWebhookDynamicToken(t *testing.T) {
+	current := "" // starts disabled, as after a fresh install with no INGEST_WEBHOOK_TOKEN
+	h := New(&capturePub{}, func(context.Context) (string, error) { return current, nil })
+
+	post := func(token string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/ingest/webhook?token="+token, strings.NewReader("x"))
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	// Disabled -> 404 regardless of the presented token.
+	if code := post("anything"); code != http.StatusNotFound {
+		t.Fatalf("disabled: got %d, want 404", code)
+	}
+	// UI generates a token -> the same handler now accepts it, no restart.
+	current = "fresh-token"
+	if code := post("fresh-token"); code != http.StatusOK {
+		t.Fatalf("after enable: got %d, want 200", code)
+	}
+	// Regenerate -> the old token is instantly rejected.
+	current = "rotated-token"
+	if code := post("fresh-token"); code != http.StatusUnauthorized {
+		t.Fatalf("old token after regenerate: got %d, want 401", code)
+	}
+	if code := post("rotated-token"); code != http.StatusOK {
+		t.Fatalf("new token: got %d, want 200", code)
+	}
+	// A lookup error must fail closed (disabled), never open.
+	h2 := New(&capturePub{}, func(context.Context) (string, error) { return "x", errBadJSON })
+	if h2.Enabled() {
+		t.Fatal("token lookup error must fail closed (disabled)")
 	}
 }

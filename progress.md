@@ -248,10 +248,16 @@ notes) and shown as a draft; publishing happens after the owner confirms.
 **Backlog ideas (captured 2026-07-14):**
 - **Kafka bridge** as an alternative to NATS for enterprise scale (NATS stays the default
   for modest specs). Note it as an optional ingest/bus transport; design later.
-- **Wazuh webhook in the Integrations UI**: currently the ingest webhook is enabled via
-  `INGEST_WEBHOOK_TOKEN` env + documented; consider surfacing token/URL/regenerate in a UI
-  panel (like the blocklist feed) or as an Integrations entry. Decide dedicated-panel vs
-  Integrations-registry (webhook is INBOUND, unlike the outbound connectors there).
+- ~~**Wazuh webhook in the Integrations UI**~~ **DONE 2026-07-16.** Dedicated **inbound** panel
+  on the Integrations page ("Log ingest webhook (Wazuh & others)") - NOT an Integrations-registry
+  entry (those are outbound encrypted connectors). Token now stored in DB (migration 000032
+  `ingest_webhook`, single-row like `blocklist_feed`), seeded once from `INGEST_WEBHOOK_TOKEN`
+  env then UI-managed. `ingesthook.Handler` reads the token PER REQUEST (`TokenFunc`) so
+  enable/regenerate/disable take effect with no restart; `NewStatic` kept for tests. API:
+  `GET /api/ingest-config`, `POST /api/ingest-config/regenerate|disable` (PermManageIntegrations),
+  fail-closed on lookup error. Store: `WebhookToken/SetWebhookToken/SeedWebhookTokenFromEnv`.
+  Tests: dynamic-token accept/reject/rotate + fail-closed. UNRELEASED. **Next backlog item:
+  OpenSearch/Elasticsearch pull.** See work order in memory [[deuswatch-backlog]].
 - Wazuh JSON normalizer DONE (maps rich Wazuh alert fields → DCS; MITRE tactic → label →
   playbook); could extend the group→category/label maps as more Wazuh rule types are seen.
 

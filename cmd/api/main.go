@@ -253,19 +253,31 @@ func main() {
 			}
 			cancel()
 		}
-		// Raw-log ingest webhook (e.g. a Wazuh manager pushing alerts). Token-authed like
-		// the blocklist feed; publishes normalized events to NATS so they flow through the
-		// normal pipeline. Disabled unless both NATS is reachable and INGEST_WEBHOOK_TOKEN set.
+		// Raw-log ingest webhook (e.g. a Wazuh manager pushing alerts). Token-authed like the
+		// blocklist feed; publishes normalized events to NATS so they flow through the normal
+		// pipeline. The token is UI-managed (Integrations page) and read per request, so
+		// enable/regenerate/disable take effect immediately; an existing INGEST_WEBHOOK_TOKEN
+		// env is seeded into the DB once so it keeps working. Route needs a reachable NATS.
+		if sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second); true {
+			if err := st.SeedWebhookTokenFromEnv(sctx, os.Getenv("INGEST_WEBHOOK_TOKEN")); err != nil {
+				log.Printf("api: seed webhook token: %v", err)
+			}
+			cancel()
+		}
 		if natsURL := os.Getenv("NATS_URL"); natsURL != "" {
 			if b, berr := bus.Connect(context.Background(), natsURL); berr != nil {
 				log.Printf("api: ingest webhook disabled — NATS unavailable: %v", berr)
 			} else {
-				hook := ingesthook.New(b, os.Getenv("INGEST_WEBHOOK_TOKEN"))
+				hook := ingesthook.New(b, st.WebhookToken)
 				mux.Handle("POST /api/ingest/webhook", hook)
+				// Config endpoints for the Integrations-page panel (admin-managed inbound secret).
+				mux.Handle("GET /api/ingest-config", protect(auth.PermManageIntegrations, ingestConfigHandler(st)))
+				mux.Handle("POST /api/ingest-config/regenerate", protect(auth.PermManageIntegrations, ingestRegenerateHandler(st)))
+				mux.Handle("POST /api/ingest-config/disable", protect(auth.PermManageIntegrations, ingestDisableHandler(st)))
 				if hook.Enabled() {
 					log.Printf("api: raw-log ingest webhook active (POST /api/ingest/webhook?token=...)")
 				} else {
-					log.Printf("api: ingest webhook route registered but OFF (set INGEST_WEBHOOK_TOKEN to enable)")
+					log.Printf("api: ingest webhook route registered but OFF (enable it on the Integrations page)")
 				}
 			}
 		}
@@ -1357,6 +1369,55 @@ func blocklistRegenerateHandler(s blocklistFeedConfig) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": true})
+	}
+}
+
+// ingestWebhookConfig is the store subset the webhook config handlers need.
+type ingestWebhookConfig interface {
+	WebhookToken(ctx context.Context) (string, error)
+	SetWebhookToken(ctx context.Context, token string) error
+}
+
+// ingestConfigHandler (GET /api/ingest-config) returns the current inbound-webhook token and
+// whether it is enabled, for the Integrations-page panel (manage_integrations only).
+func ingestConfigHandler(s ingestWebhookConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tok, err := s.WebhookToken(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": tok != ""})
+	}
+}
+
+// ingestRegenerateHandler (POST /api/ingest-config/regenerate) mints a new random webhook token
+// (rotating it, which invalidates the old one) and returns it.
+func ingestRegenerateHandler(s ingestWebhookConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 24)
+		if _, err := rand.Read(buf); err != nil {
+			http.Error(w, "token generation failed", http.StatusInternalServerError)
+			return
+		}
+		tok := hex.EncodeToString(buf)
+		if err := s.SetWebhookToken(r.Context(), tok); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": true})
+	}
+}
+
+// ingestDisableHandler (POST /api/ingest-config/disable) clears the token, turning the webhook
+// off (subsequent POSTs 404). Reversible by regenerating.
+func ingestDisableHandler(s ingestWebhookConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := s.SetWebhookToken(r.Context(), ""); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"token": "", "enabled": false})
 	}
 }
 

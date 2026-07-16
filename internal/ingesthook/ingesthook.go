@@ -25,20 +25,45 @@ type Publisher interface {
 	Publish(ctx context.Context, subject string, data []byte) error
 }
 
+// TokenFunc returns the currently-configured webhook token ("" = disabled). It is called
+// per request so a UI regenerate/disable takes effect immediately, without a restart.
+type TokenFunc func(ctx context.Context) (string, error)
+
 // Handler serves the raw-log ingest webhook.
 type Handler struct {
-	pub   Publisher
-	token string
+	pub     Publisher
+	tokenFn TokenFunc
 }
 
-// New builds the handler. An empty token DISABLES the endpoint (returns 404) - the
-// operator must set INGEST_WEBHOOK_TOKEN to turn it on, so it is never open by default.
-func New(pub Publisher, token string) *Handler {
-	return &Handler{pub: pub, token: strings.TrimSpace(token)}
+// New builds the handler. tokenFn supplies the token dynamically (from the DB); an empty token
+// DISABLES the endpoint (returns 404), so it is never open by default. A static token can be
+// passed with NewStatic.
+func New(pub Publisher, tokenFn TokenFunc) *Handler {
+	return &Handler{pub: pub, tokenFn: tokenFn}
 }
 
-// Enabled reports whether a token (and publisher) is configured.
-func (h *Handler) Enabled() bool { return h != nil && h.pub != nil && h.token != "" }
+// NewStatic builds a handler with a fixed token (used in tests). An empty token disables it.
+func NewStatic(pub Publisher, token string) *Handler {
+	token = strings.TrimSpace(token)
+	return &Handler{pub: pub, tokenFn: func(context.Context) (string, error) { return token, nil }}
+}
+
+// token resolves the current token, treating any lookup error as "disabled" (fail closed).
+func (h *Handler) token(ctx context.Context) string {
+	if h == nil || h.tokenFn == nil {
+		return ""
+	}
+	tok, err := h.tokenFn(ctx)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(tok)
+}
+
+// Enabled reports whether the webhook is usable right now (publisher present + a token set).
+func (h *Handler) Enabled() bool {
+	return h != nil && h.pub != nil && h.token(context.Background()) != ""
+}
 
 const (
 	maxBody     = 4 << 20 // 4 MiB per request
@@ -50,8 +75,13 @@ const (
 // ServeHTTP handles POST /api/ingest/webhook?token=&agent=&dataset=&host=.
 // Body: newline-separated raw log lines (text/plain), OR a JSON array of strings.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !h.Enabled() {
-		http.Error(w, "ingest webhook disabled (set INGEST_WEBHOOK_TOKEN)", http.StatusNotFound)
+	if h == nil || h.pub == nil {
+		http.Error(w, "ingest webhook unavailable", http.StatusNotFound)
+		return
+	}
+	want := h.token(r.Context())
+	if want == "" {
+		http.Error(w, "ingest webhook disabled (enable it on the Integrations page)", http.StatusNotFound)
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -63,7 +93,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if got == "" {
 		got = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	}
-	if subtle.ConstantTimeCompare([]byte(got), []byte(h.token)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -110,6 +140,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //   - a Wazuh alert JSON object, or an array of them (rich fields mapped straight to DCS);
 //   - a JSON array of raw log-line strings;
 //   - newline-separated raw log lines (text/plain).
+//
 // For raw lines, tag/dataset/host from the query are applied; Wazuh alerts carry their own.
 func decodeEvents(body []byte, tag, dataset, host string) ([]*ingest.Event, error) {
 	trimmed := bytesTrimSpace(body)

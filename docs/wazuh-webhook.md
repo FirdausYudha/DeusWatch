@@ -5,9 +5,14 @@ integrator - and run them through the normal pipeline (normalize -> custom decod
 detection -> playbooks -> response). Each source is tagged so you can tell it apart on the
 dashboard.
 
-## 1. Enable the webhook (manager side)
+## 1. Enable the webhook
 
-Set a token in `deploy/.env` (empty = the endpoint is disabled and returns 404):
+**Easiest — the UI (recommended).** Open **Integrations → Log ingest webhook (Wazuh & others)**
+and click **Enable webhook (generate token)**. The panel shows the full URL (with token) to copy;
+**Regenerate** rotates the token (the old one stops working immediately) and **Disable** turns the
+endpoint off (404). No restart needed — the token is stored in the database and read per request.
+
+**Or via env** (still supported; seeded into the DB on first start so it becomes UI-manageable):
 
 ```dotenv
 # Generate: openssl rand -hex 24
@@ -15,6 +20,9 @@ INGEST_WEBHOOK_TOKEN=paste-a-long-random-token
 ```
 
 Apply: `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d api`.
+
+> Once a token exists in the DB, the env var is ignored (the UI value wins). To rotate, use the
+> **Regenerate** button rather than editing `.env`.
 
 The endpoint:
 
