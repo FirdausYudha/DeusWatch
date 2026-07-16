@@ -3,11 +3,21 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-16 (v1.7.0).
 
-**v1.7.0 RELEASED 2026-07-16** — Wazuh ingest webhook UI + OpenSearch/Elasticsearch pull +
-native FIM who-data (Linux/auditd) + "See documentation" links + FIM dataset-label & UI-overflow
-fixes. https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.7.0 — applies migrations
-000032–000034. Backlog work order (memory): #1 webhook UI ✅, #2 OpenSearch pull ✅, #3 who-data ✅,
-**#4 real-time FIM (fsnotify) = NEXT.** Live-verify still pending for webhook/pull/who-data.
+**v1.7.0 + v1.7.1 RELEASED 2026-07-16** — Wazuh ingest webhook UI + OpenSearch/Elasticsearch pull +
+native FIM who-data (Linux/auditd) + "See documentation" links + fixes. Applies migrations
+000032–000034. v1.7.1 patch: who-data "Rule exists" survives restarts + alert carries process/diff.
+Backlog work order (memory): #1 webhook UI ✅, #2 OpenSearch pull ✅, #3 who-data ✅, **#4 real-time
+FIM (fsnotify) = NEXT.**
+
+**LIVE-VERIFIED 2026-07-16 on the user's server:**
+- ✅ **Ingest webhook** — POST returned `{"accepted":1}`, event appeared under `wazuh-agent/*`.
+- ✅ **who-data** — a `sudo tee` defacement of /var/www/html/index.php was attributed to
+  `user_name: deus(1001)` (auid = the LOGIN user behind sudo, not effective root). Proved
+  audit→agent-correlation→normalize→store→display end-to-end. NOTE the "Rule exists" bug (v1.7.0)
+  disabled who-data after a restart — the live test surfaced it → fixed in v1.7.1; quick recovery
+  is `auditctl -W <dir> -p wa -k deuswatch_fim` then restart. process_name on the ALERT needs the
+  v1.7.1 worker (raw file_modified event had it from v1.7.0).
+- 🟡 **OpenSearch pull** — still needs a real ES/OpenSearch cluster to verify.
 
 ## Status summary
 
