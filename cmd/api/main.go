@@ -791,18 +791,27 @@ func reportAIConfigGetHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		// Return the built-in default too so the UI can show it / offer "reset to default".
+		// server_time tells the UI which clock at_hour refers to (the server's, not the
+		// browser's) — without it "run at 08:00" is ambiguous on a UTC container.
+		now := time.Now()
+		zone, _ := now.Zone()
 		writeJSON(w, http.StatusOK, map[string]any{
 			"interval_hours": c.IntervalHours,
 			"period_hours":   c.PeriodHours,
 			"summary_prompt": c.SummaryPrompt,
+			"at_hour":        c.AtHour,
 			"default_prompt": llm.DefaultReportSystemPrompt,
+			"server_time":    now.Format("15:04"),
+			"server_tz":      zone,
 		})
 	}
 }
 
 func reportAIConfigSetHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var c store.ReportAIConfig
+		// Default AtHour to -1 BEFORE decoding: an omitted at_hour must mean "no fixed hour",
+		// not midnight (the zero value would silently pin the summary to 00:00).
+		c := store.ReportAIConfig{AtHour: -1}
 		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
 			http.Error(w, "invalid body", http.StatusBadRequest)
 			return

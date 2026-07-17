@@ -1164,6 +1164,9 @@ export async function importConfig(json: string): Promise<Record<string, number>
 export type ReportAIConfig = {
   interval_hours: number
   period_hours: number
+  at_hour?: number // 0..23 = run at that hour (server time); -1 = drifting interval
+  server_time?: string // read-only: the server's current HH:MM, so at_hour is unambiguous
+  server_tz?: string
   summary_prompt?: string // custom system prompt ("" = use the built-in default)
   default_prompt?: string // the built-in default (returned by GET, for display/reset)
 }

@@ -107,14 +107,18 @@ type ReportAIConfig struct {
 	IntervalHours int    `json:"interval_hours"` // 0 = disabled
 	PeriodHours   int    `json:"period_hours"`   // window each summary covers
 	SummaryPrompt string `json:"summary_prompt"` // custom system prompt ("" = built-in default)
+	// AtHour pins the run to an hour of the day (0..23, server local time). -1 = run on the
+	// drifting interval instead (fire IntervalHours after the previous run, whenever that was).
+	AtHour int `json:"at_hour"`
 }
 
-// LoadReportAIConfig reads the schedule (defaults: disabled, 24h window).
+// LoadReportAIConfig reads the schedule (defaults: disabled, 24h window, drifting interval).
 func (s *Store) LoadReportAIConfig(ctx context.Context) (ReportAIConfig, error) {
-	c := ReportAIConfig{IntervalHours: 0, PeriodHours: 24}
+	c := ReportAIConfig{IntervalHours: 0, PeriodHours: 24, AtHour: -1}
 	err := s.pool.QueryRow(ctx,
-		`SELECT interval_hours, period_hours, COALESCE(summary_prompt,'') FROM report_ai_config WHERE id = 1`).
-		Scan(&c.IntervalHours, &c.PeriodHours, &c.SummaryPrompt)
+		`SELECT interval_hours, period_hours, COALESCE(summary_prompt,''), COALESCE(at_hour,-1)
+		 FROM report_ai_config WHERE id = 1`).
+		Scan(&c.IntervalHours, &c.PeriodHours, &c.SummaryPrompt, &c.AtHour)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, nil
 	}
@@ -135,10 +139,13 @@ func (s *Store) SaveReportAIConfig(ctx context.Context, c ReportAIConfig) error 
 	if len(c.SummaryPrompt) > 8000 {
 		c.SummaryPrompt = c.SummaryPrompt[:8000]
 	}
+	if c.AtHour < 0 || c.AtHour > 23 {
+		c.AtHour = -1 // anything outside 0..23 means "no fixed hour"
+	}
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO report_ai_config (id, interval_hours, period_hours, summary_prompt) VALUES (1,$1,$2,$3)
-		 ON CONFLICT (id) DO UPDATE SET interval_hours=$1, period_hours=$2, summary_prompt=$3, updated_at=now()`,
-		c.IntervalHours, c.PeriodHours, c.SummaryPrompt)
+		`INSERT INTO report_ai_config (id, interval_hours, period_hours, summary_prompt, at_hour) VALUES (1,$1,$2,$3,$4)
+		 ON CONFLICT (id) DO UPDATE SET interval_hours=$1, period_hours=$2, summary_prompt=$3, at_hour=$4, updated_at=now()`,
+		c.IntervalHours, c.PeriodHours, c.SummaryPrompt, c.AtHour)
 	if err != nil {
 		return fmt.Errorf("store: save report ai config: %w", err)
 	}

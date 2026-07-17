@@ -96,7 +96,8 @@ export default function Report() {
   const savePrompt = async (text: string) => {
     setPromptMsg(''); setPromptBusy(true)
     try {
-      const c = await saveReportAIConfig({ interval_hours: cfg.interval_hours, period_hours: cfg.period_hours || 24, summary_prompt: text })
+      // at_hour must always be sent: the API treats an omitted value as "no fixed hour".
+      const c = await saveReportAIConfig({ interval_hours: cfg.interval_hours, period_hours: cfg.period_hours || 24, summary_prompt: text, at_hour: cfg.at_hour ?? -1 })
       setCfg((prev) => ({ ...c, default_prompt: prev.default_prompt }))
       setPromptText(text)
       setPromptMsg(text ? 'Custom prompt saved.' : 'Reset to the default prompt.')
@@ -140,9 +141,14 @@ export default function Report() {
   }
 
   const isCustom = cfg.interval_hours > 0 && !SCHEDULE_PRESETS.some((p) => p.hours === cfg.interval_hours)
-  const saveSchedule = async (hours: number) => {
+  const saveSchedule = async (hours: number, atHour?: number) => {
     try {
-      setCfg(await saveReportAIConfig({ interval_hours: Math.max(0, hours), period_hours: cfg.period_hours || 24, summary_prompt: cfg.summary_prompt ?? '' }))
+      setCfg(await saveReportAIConfig({
+        interval_hours: Math.max(0, hours),
+        period_hours: cfg.period_hours || 24,
+        summary_prompt: cfg.summary_prompt ?? '',
+        at_hour: atHour ?? cfg.at_hour ?? -1,
+      }))
       setGenError('')
     } catch (e) {
       setGenError((e as Error).message)
@@ -260,6 +266,27 @@ export default function Report() {
                   className="w-14 rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500"
                 />
                 days
+              </span>
+            )}
+            {/* At a fixed hour — only meaningful for a daily-or-longer cadence. Without it the
+                interval drifts: it fires N hours after the last run, whenever that happened. */}
+            {cfg.interval_hours >= 24 && (
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                at
+                <select
+                  value={String(cfg.at_hour ?? -1)}
+                  onChange={(e) => saveSchedule(cfg.interval_hours, Number(e.target.value))}
+                  title={cfg.server_time ? `Server clock — now ${cfg.server_time} ${cfg.server_tz ?? ''}` : 'Server local time'}
+                  className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300 outline-none focus:border-indigo-500"
+                >
+                  <option value="-1">any time</option>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                  ))}
+                </select>
+                {(cfg.at_hour ?? -1) >= 0 && cfg.server_time && (
+                  <span className="text-slate-600">server now {cfg.server_time}{cfg.server_tz ? ` ${cfg.server_tz}` : ''}</span>
+                )}
               </span>
             )}
             <button

@@ -551,6 +551,36 @@ func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify
 	}
 }
 
+// reportDue decides whether the scheduled AI summary should run now.
+//
+// atHour < 0 keeps the classic drifting interval: fire once intervalHours have passed since the
+// last summary. atHour 0..23 pins it to that hour of the day (server local time) — the run
+// happens on the first tick inside that hour, and only if the previous summary is old enough
+// that we're not repeating within the same window. Pure so the timing rules are testable.
+func reportDue(now, lastAt time.Time, hasLast bool, intervalHours, atHour int) bool {
+	if intervalHours <= 0 {
+		return false // disabled
+	}
+	interval := time.Duration(intervalHours) * time.Hour
+	if atHour < 0 || atHour > 23 {
+		return !hasLast || now.Sub(lastAt) >= interval
+	}
+	if now.Hour() != atHour {
+		return false // not the appointed hour
+	}
+	if !hasLast {
+		return true
+	}
+	// Inside the right hour: don't fire twice in the same hour, and respect a multi-day
+	// interval. The slack keeps a daily schedule from being skipped when the previous run
+	// landed a few minutes late (e.g. 08:05 yesterday vs 08:00 today).
+	minGap := interval - time.Hour
+	if minGap < time.Hour {
+		minGap = time.Hour
+	}
+	return now.Sub(lastAt) >= minGap
+}
+
 // runReportScheduler generates an AI report summary on the configured cadence
 // (report_ai_config.interval_hours; 0 = disabled). It checks every 10 min and only
 // generates when enough time has passed since the last stored summary, so it is cheap
@@ -567,9 +597,13 @@ func runReportScheduler(ctx context.Context, st *store.Store, analyzer llm.Analy
 			if err != nil || cfg.IntervalHours <= 0 {
 				continue // disabled
 			}
-			if last, ok, _ := st.LatestReportSummary(ctx); ok &&
-				time.Since(last.GeneratedAt) < time.Duration(cfg.IntervalHours)*time.Hour {
-				continue // not due yet
+			last, hasLast, _ := st.LatestReportSummary(ctx)
+			var lastAt time.Time
+			if hasLast {
+				lastAt = last.GeneratedAt
+			}
+			if !reportDue(time.Now(), lastAt, hasLast, cfg.IntervalHours, cfg.AtHour) {
+				continue
 			}
 			rc, cancel := context.WithTimeout(ctx, 2*time.Minute)
 			rep, err := st.BuildReport(rc, cfg.PeriodHours)
