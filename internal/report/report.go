@@ -18,8 +18,11 @@ type Count struct {
 
 // Report is a summary over one time window.
 type Report struct {
-	Generated     time.Time `json:"generated"`
-	Since         time.Time `json:"since"`
+	Generated time.Time `json:"generated"`
+	Since     time.Time `json:"since"`
+	// Until bounds the window's end. Zero means "up to now" (the rolling last-N-hours report);
+	// a set value means an explicit from–to range was requested (e.g. for a PDF of one month).
+	Until         time.Time `json:"until,omitempty"`
 	WindowHours   int       `json:"window_hours"`
 	TotalEvents   int64     `json:"total_events"`
 	TotalAlerts   int64     `json:"total_alerts"`
@@ -34,9 +37,16 @@ type Report struct {
 // RenderMarkdown renders the report as compact Markdown.
 func RenderMarkdown(r Report) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# DeusWatch Report — last %d hours\n\n", r.WindowHours)
-	fmt.Fprintf(&b, "_Generated %s · since %s_\n\n",
-		r.Generated.UTC().Format(time.RFC3339), r.Since.UTC().Format(time.RFC3339))
+	if !r.Until.IsZero() {
+		// Explicit range: name the actual dates rather than a misleading "last N hours".
+		fmt.Fprintf(&b, "# DeusWatch Report — %s to %s\n\n",
+			r.Since.UTC().Format("2006-01-02 15:04"), r.Until.UTC().Format("2006-01-02 15:04"))
+		fmt.Fprintf(&b, "_Generated %s (UTC)_\n\n", r.Generated.UTC().Format(time.RFC3339))
+	} else {
+		fmt.Fprintf(&b, "# DeusWatch Report — last %d hours\n\n", r.WindowHours)
+		fmt.Fprintf(&b, "_Generated %s · since %s_\n\n",
+			r.Generated.UTC().Format(time.RFC3339), r.Since.UTC().Format(time.RFC3339))
+	}
 	fmt.Fprintf(&b, "- **Total events:** %d\n- **Total alerts:** %d\n\n", r.TotalEvents, r.TotalAlerts)
 
 	section(&b, "Severity", r.BySeverity)

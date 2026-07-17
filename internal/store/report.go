@@ -152,65 +152,89 @@ func (s *Store) SaveReportAIConfig(ctx context.Context, c ReportAIConfig) error 
 	return nil
 }
 
-// BuildReport assembles the summary for the last `hours` hours.
+// BuildReport assembles the summary for the last `hours` hours (a rolling window ending now).
 func (s *Store) BuildReport(ctx context.Context, hours int) (report.Report, error) {
 	if hours <= 0 || hours > 24*30 {
 		hours = 24
 	}
-	since := time.Now().Add(-time.Duration(hours) * time.Hour)
-	r := report.Report{Generated: time.Now(), Since: since, WindowHours: hours}
+	now := time.Now()
+	r, err := s.buildReportRange(ctx, now.Add(-time.Duration(hours)*time.Hour), now)
+	if err != nil {
+		return r, err
+	}
+	r.Until = time.Time{} // rolling window: "last N hours", no explicit end
+	r.WindowHours = hours
+	return r, nil
+}
+
+// BuildReportRange assembles the summary for an explicit from–to window — what the PDF/Markdown
+// export uses when you pick a date range (e.g. all of last month) rather than "the last N hours".
+func (s *Store) BuildReportRange(ctx context.Context, from, to time.Time) (report.Report, error) {
+	if to.IsZero() || to.Before(from) {
+		to = time.Now()
+	}
+	return s.buildReportRange(ctx, from, to)
+}
+
+func (s *Store) buildReportRange(ctx context.Context, since, until time.Time) (report.Report, error) {
+	r := report.Report{
+		Generated:   time.Now(),
+		Since:       since,
+		Until:       until,
+		WindowHours: int(until.Sub(since).Hours() + 0.5),
+	}
 
 	if err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM events WHERE time >= $1`, since).Scan(&r.TotalEvents); err != nil {
+		`SELECT count(*) FROM events WHERE time >= $1 AND time < $2`, since, until).Scan(&r.TotalEvents); err != nil {
 		return r, fmt.Errorf("store: report total: %w", err)
 	}
 	if err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM events WHERE time >= $1 AND dw_label IS NOT NULL`, since).Scan(&r.TotalAlerts); err != nil {
+		`SELECT count(*) FROM events WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL`, since, until).Scan(&r.TotalAlerts); err != nil {
 		return r, fmt.Errorf("store: report alerts: %w", err)
 	}
 
 	var err error
-	if r.BySeverity, err = s.severityCounts(ctx, since); err != nil {
+	if r.BySeverity, err = s.severityCounts(ctx, since, until); err != nil {
 		return r, err
 	}
 	if r.TopSourceIPs, err = s.topCounts(ctx,
 		`SELECT host(source_ip), count(*) FROM events
-		 WHERE time >= $1 AND source_ip IS NOT NULL AND dw_label IS NOT NULL
-		 GROUP BY source_ip ORDER BY count(*) DESC LIMIT 10`, since); err != nil {
+		 WHERE time >= $1 AND time < $2 AND source_ip IS NOT NULL AND dw_label IS NOT NULL
+		 GROUP BY source_ip ORDER BY count(*) DESC LIMIT 10`, since, until); err != nil {
 		return r, err
 	}
 	if r.TopRules, err = s.topCounts(ctx,
 		`SELECT COALESCE(rule_name, rule_id), count(*) FROM events
-		 WHERE time >= $1 AND dw_label IS NOT NULL AND rule_id IS NOT NULL
-		 GROUP BY COALESCE(rule_name, rule_id) ORDER BY count(*) DESC LIMIT 10`, since); err != nil {
+		 WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL AND rule_id IS NOT NULL
+		 GROUP BY COALESCE(rule_name, rule_id) ORDER BY count(*) DESC LIMIT 10`, since, until); err != nil {
 		return r, err
 	}
 	if r.TopTechniques, err = s.topCounts(ctx,
 		`SELECT COALESCE(threat_technique_id,'')||' '||COALESCE(threat_tactic_name,''), count(*) FROM events
-		 WHERE time >= $1 AND threat_technique_id IS NOT NULL
-		 GROUP BY threat_technique_id, threat_tactic_name ORDER BY count(*) DESC LIMIT 10`, since); err != nil {
+		 WHERE time >= $1 AND time < $2 AND threat_technique_id IS NOT NULL
+		 GROUP BY threat_technique_id, threat_tactic_name ORDER BY count(*) DESC LIMIT 10`, since, until); err != nil {
 		return r, err
 	}
 	if r.TopAgents, err = s.topCounts(ctx,
 		`SELECT agent_id, count(*) FROM events
-		 WHERE time >= $1 AND dw_label IS NOT NULL AND agent_id IS NOT NULL AND agent_id <> ''
-		 GROUP BY agent_id ORDER BY count(*) DESC LIMIT 10`, since); err != nil {
+		 WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL AND agent_id IS NOT NULL AND agent_id <> ''
+		 GROUP BY agent_id ORDER BY count(*) DESC LIMIT 10`, since, until); err != nil {
 		return r, err
 	}
 	if r.ByVerdict, err = s.topCounts(ctx,
 		`SELECT dw_llm_verdict, count(*) FROM events
-		 WHERE time >= $1 AND dw_llm_verdict IS NOT NULL
-		 GROUP BY dw_llm_verdict ORDER BY count(*) DESC`, since); err != nil {
+		 WHERE time >= $1 AND time < $2 AND dw_llm_verdict IS NOT NULL
+		 GROUP BY dw_llm_verdict ORDER BY count(*) DESC`, since, until); err != nil {
 		return r, err
 	}
 	return r, nil
 }
 
-func (s *Store) severityCounts(ctx context.Context, since time.Time) ([]report.Count, error) {
+func (s *Store) severityCounts(ctx context.Context, since, until time.Time) ([]report.Count, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT event_severity, count(*) FROM events
-		 WHERE time >= $1 AND dw_label IS NOT NULL AND event_severity IS NOT NULL
-		 GROUP BY event_severity ORDER BY event_severity DESC`, since)
+		 WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL AND event_severity IS NOT NULL
+		 GROUP BY event_severity ORDER BY event_severity DESC`, since, until)
 	if err != nil {
 		return nil, fmt.Errorf("store: report severity: %w", err)
 	}
@@ -227,8 +251,8 @@ func (s *Store) severityCounts(ctx context.Context, since time.Time) ([]report.C
 	return out, rows.Err()
 }
 
-func (s *Store) topCounts(ctx context.Context, query string, since time.Time) ([]report.Count, error) {
-	rows, err := s.pool.Query(ctx, query, since)
+func (s *Store) topCounts(ctx context.Context, query string, since, until time.Time) ([]report.Count, error) {
+	rows, err := s.pool.Query(ctx, query, since, until)
 	if err != nil {
 		return nil, fmt.Errorf("store: report agg: %w", err)
 	}

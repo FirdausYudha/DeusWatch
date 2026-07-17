@@ -696,11 +696,21 @@ func statsHandler(st *store.Store) http.HandlerFunc {
 
 func reportHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
-		if err != nil || hours <= 0 {
-			hours = 24
+		var (
+			rep report.Report
+			err error
+		)
+		// An explicit from–to range (used by the PDF/Markdown export) wins over ?hours=, which
+		// is the rolling "last N hours" the page shows by default.
+		if from, to, ok := parseReportRange(r); ok {
+			rep, err = st.BuildReportRange(r.Context(), from, to)
+		} else {
+			hours, herr := strconv.Atoi(r.URL.Query().Get("hours"))
+			if herr != nil || hours <= 0 {
+				hours = 24
+			}
+			rep, err = st.BuildReport(r.Context(), hours)
 		}
-		rep, err := st.BuildReport(r.Context(), hours)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -712,6 +722,40 @@ func reportHandler(st *store.Store) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, rep)
 	}
+}
+
+// parseReportRange reads an explicit ?from=&to= window. Both are accepted as an RFC3339
+// timestamp or a plain YYYY-MM-DD date; a bare date means the whole day, so `to=2026-07-17`
+// includes that day rather than stopping at midnight. ok=false means no range was requested.
+func parseReportRange(r *http.Request) (from, to time.Time, ok bool) {
+	parse := func(v string, endOfDay bool) (time.Time, bool) {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return time.Time{}, false
+		}
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return t, true
+		}
+		if d, err := time.ParseInLocation("2006-01-02", v, time.Local); err == nil {
+			if endOfDay {
+				return d.AddDate(0, 0, 1), true // exclusive end = start of the next day
+			}
+			return d, true
+		}
+		return time.Time{}, false
+	}
+	f, fok := parse(r.URL.Query().Get("from"), false)
+	if !fok {
+		return time.Time{}, time.Time{}, false
+	}
+	t, tok := parse(r.URL.Query().Get("to"), true)
+	if !tok {
+		t = time.Now() // from given without to: run up to now
+	}
+	if t.Before(f) {
+		f, t = t, f // tolerate a swapped range rather than returning an empty report
+	}
+	return f, t, true
 }
 
 // apiResolveAnalyzer builds an LLM analyzer for on-demand report summaries, preferring an

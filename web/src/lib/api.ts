@@ -1057,6 +1057,7 @@ export type ReportCount = { label: string; count: number }
 export type SecurityReport = {
   generated: string
   since: string
+  until?: string // set only when an explicit from–to range was requested
   window_hours: number
   total_events: number
   total_alerts: number
@@ -1068,14 +1069,27 @@ export type SecurityReport = {
   by_verdict: ReportCount[] | null
 }
 
-export async function fetchReport(hours = 24): Promise<SecurityReport> {
-  const res = await authFetch(`/api/report?hours=${hours}`)
+// A report window: either the rolling last-N-hours, or an explicit from–to date range
+// (YYYY-MM-DD). A bare `to` date includes that whole day.
+export type ReportRange = { from?: string; to?: string }
+
+function reportQuery(hours: number, range?: ReportRange): string {
+  if (range?.from) {
+    const p = new URLSearchParams({ from: range.from })
+    if (range.to) p.set('to', range.to)
+    return p.toString()
+  }
+  return `hours=${hours}`
+}
+
+export async function fetchReport(hours = 24, range?: ReportRange): Promise<SecurityReport> {
+  const res = await authFetch(`/api/report?${reportQuery(hours, range)}`)
   if (!res.ok) throw new Error(`report: HTTP ${res.status}`)
   return res.json()
 }
 
-export async function fetchReportMarkdown(hours = 24): Promise<string> {
-  const res = await authFetch(`/api/report?hours=${hours}&format=md`)
+export async function fetchReportMarkdown(hours = 24, range?: ReportRange): Promise<string> {
+  const res = await authFetch(`/api/report?${reportQuery(hours, range)}&format=md`)
   if (!res.ok) throw new Error(`report: HTTP ${res.status}`)
   return res.text()
 }

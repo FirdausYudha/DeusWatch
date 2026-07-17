@@ -5,6 +5,7 @@ import {
   fetchNotifyConfig, saveNotifyConfig,
   type SecurityReport, type ReportCount, type ReportSummary, type ReportAIConfig, type NotifyConfig,
 } from '../lib/api'
+import { usePersistedState } from '../lib/usePersistedState'
 
 const SCHEDULE_PRESETS: { label: string; hours: number }[] = [
   { label: 'Auto: off', hours: 0 },
@@ -63,6 +64,12 @@ function BarList({ title, rows }: { title: string; rows: ReportCount[] | null })
 
 export default function Report() {
   const [hours, setHours] = useState(24)
+  // Optional explicit date range (YYYY-MM-DD). When `from` is set it replaces the rolling
+  // last-N-hours window, so the page — and therefore the PDF/Markdown export — covers exactly
+  // the dates you picked. Persisted so it survives leaving the page.
+  const [rangeFrom, setRangeFrom] = usePersistedState('report.from', '')
+  const [rangeTo, setRangeTo] = usePersistedState('report.to', '')
+  const range = rangeFrom ? { from: rangeFrom, to: rangeTo || undefined } : undefined
   const [report, setReport] = useState<SecurityReport | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -76,11 +83,11 @@ export default function Report() {
   useEffect(() => {
     setLoading(true)
     setError('')
-    fetchReport(hours)
+    fetchReport(hours, rangeFrom ? { from: rangeFrom, to: rangeTo || undefined } : undefined)
       .then(setReport)
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
-  }, [hours])
+  }, [hours, rangeFrom, rangeTo])
 
   // Scheduled report delivery to channels (Telegram/email) — separate from the AI schedule.
   const [delivery, setDelivery] = useState<NotifyConfig | null>(null)
@@ -189,11 +196,12 @@ export default function Report() {
 
   const download = async () => {
     try {
-      const md = await fetchReportMarkdown(hours)
+      const md = await fetchReportMarkdown(hours, range)
       const url = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }))
       const a = document.createElement('a')
       a.href = url
-      a.download = `deuswatch-report-${hours}h.md`
+      // Name the file after what it actually covers.
+      a.download = range ? `deuswatch-report-${rangeFrom}_to_${rangeTo || 'now'}.md` : `deuswatch-report-${hours}h.md`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
@@ -211,6 +219,41 @@ export default function Report() {
             Security summary
             {report && <span className="ml-1 text-slate-600">· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
           </p>
+          {/* Explicit date range — what the PDF / Markdown export covers. Empty = the rolling
+              window from the period picker below. */}
+          <div className="no-print mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span>Date range</span>
+            <input
+              type="date"
+              value={rangeFrom}
+              max={rangeTo || undefined}
+              onChange={(e) => setRangeFrom(e.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]"
+            />
+            <span className="text-slate-600">→</span>
+            <input
+              type="date"
+              value={rangeTo}
+              min={rangeFrom || undefined}
+              onChange={(e) => setRangeTo(e.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500 [color-scheme:dark]"
+            />
+            {rangeFrom ? (
+              <button
+                onClick={() => { setRangeFrom(''); setRangeTo('') }}
+                className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:bg-slate-800"
+              >
+                Clear
+              </button>
+            ) : (
+              <span className="text-slate-600">empty = rolling window</span>
+            )}
+          </div>
+          {report?.until && (
+            <p className="mt-1 text-xs text-slate-600">
+              Covering {new Date(report.since).toLocaleDateString('en-US')} → {new Date(report.until).toLocaleDateString('en-US')}
+            </p>
+          )}
         </div>
         <div className="no-print flex items-center gap-2">
           {whMsg && <span className="text-xs text-slate-500">{whMsg}</span>}
