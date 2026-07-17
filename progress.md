@@ -1,7 +1,30 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-17 (v1.10.0).
+> Last updated: 2026-07-17 (v1.12.0).
+
+**v1.12.0 RELEASED 2026-07-17** — Report over an explicit from–to DATE RANGE (page + PDF +
+Markdown). `store.BuildReportRange(from,to)` (all aggregates `time >= from AND time < to`);
+`BuildReport(hours)` kept as the rolling wrapper so the scheduler/on-demand summaries are
+unchanged. `report.Report.Until` (zero = rolling). `GET /api/report?from=&to=` (RFC3339 or
+YYYY-MM-DD) wins over `?hours=`; a bare `to` date covers the WHOLE day (exclusive end = next
+midnight). Tested: day boundary, RFC3339, from-without-to, swapped range.
+https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.12.0
+
+**v1.11.0 RELEASED 2026-07-17** — (1) **online rule-pack feed** (`packs/catalog.json` +
+`internal/rules/remote.go`; `PACKS_FEED_URL`, "off" = no egress; InstallPack dispatches
+bundled→feed; re-install = Update). (2) **"Dangerous IP"**: the Ban List no longer badges
+"blocked" when nothing enforces it — new `GET /api/response/enforcement` (live push responder OR
+pull blocklist feed). (3) **AI summary at a fixed hour**: migration 000036 `at_hour` (-1 = old
+drifting interval, the default), pure+tested `reportDue()`, UI shows the SERVER's clock since
+"08:00" is ambiguous on a UTC container. https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.11.0
+
+**Answered without code (2026-07-17):** MikroTik multisync ALREADY pushes the FULL active
+blocklist — `ActiveBlocks` returns every active block and `Sync` reconciles (add missing/remove
+stale) every 10s, so pre-existing bans and rebooted routers are covered. An agent stuck at
+"never connected" = never heartbeated (the Agents page already auto-refreshes every 15s); prime
+suspect is `MANAGER_IP` unset before first start → gateway mTLS cert SAN lacks the IP → remote
+agents fail TLS.
 
 **v1.10.0 RELEASED 2026-07-17** — real-time FIM (fsnotify) + one-click Install for BUNDLED
 curated rule packs (new `packs` package, first pack "WAF / Web attack essentials" pairing with
