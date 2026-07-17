@@ -262,8 +262,10 @@ func hashFile(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// collectFIM runs periodic FIM scans for one source, emitting a Line with the source's
-// dataset for each change until ctx is cancelled.
+// collectFIM runs FIM scans for one source, emitting a Line with the source's dataset for each
+// change until ctx is cancelled. Detection is real-time via fsnotify (a filesystem event fires
+// an immediate rescan), with interval polling kept as a safety net; set FIM_REALTIME=0 to poll
+// only. The Scan() is the source of truth either way, so a missed watch only adds latency.
 func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	roots := splitFIMPaths(s.Path)
 	if len(roots) == 0 {
@@ -274,29 +276,53 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}
 
-	t := time.NewTicker(s.scanInterval(fimScanInterval))
+	scanAndEmit := func() {
+		changes, err := scanner.Scan()
+		if err != nil {
+			log.Printf("agent: fim %q: scan: %v", s.Dataset, err)
+			return
+		}
+		for _, c := range changes {
+			body, err := json.Marshal(c)
+			if err != nil {
+				continue
+			}
+			select {
+			case out <- Line{Dataset: s.Dataset, Message: string(body)}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+
+	// Real-time triggering via fsnotify (unless disabled); polling remains as a safety net.
+	trigger := make(chan struct{}, 1)
+	realtime := false
+	if os.Getenv("FIM_REALTIME") != "0" {
+		if closeWatcher, err := startFIMWatcher(ctx, roots, 500*time.Millisecond, trigger); err != nil {
+			log.Printf("agent: fim %q: real-time watch unavailable, polling only: %v", s.Dataset, err)
+		} else {
+			defer closeWatcher()
+			realtime = true
+			log.Printf("agent: fim %q: real-time watch active (fsnotify) + safety poll", s.Dataset)
+		}
+	}
+	// When the watcher is active it catches changes instantly, so the poll is only a backstop
+	// (never faster than 1m); without it, honor the configured scan interval.
+	poll := s.scanInterval(fimScanInterval)
+	if realtime && poll < time.Minute {
+		poll = time.Minute
+	}
+	t := time.NewTicker(poll)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-t.C:
-			changes, err := scanner.Scan()
-			if err != nil {
-				log.Printf("agent: fim %q: scan: %v", s.Dataset, err)
-				continue
-			}
-			for _, c := range changes {
-				body, err := json.Marshal(c)
-				if err != nil {
-					continue
-				}
-				select {
-				case out <- Line{Dataset: s.Dataset, Message: string(body)}:
-				case <-ctx.Done():
-					return nil
-				}
-			}
+			scanAndEmit()
+		case <-trigger:
+			scanAndEmit()
 		}
 	}
 }

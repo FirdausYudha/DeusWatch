@@ -323,8 +323,13 @@ notes) and shown as a draft; publishing happens after the owner confirms.
 FIM is Go, so a lean cross-platform (Linux/Windows/macOS) real-time engine is feasible.
 Current: agent poll + SHA-256 baseline + created/modified/deleted + ~150 Sigma rules +
 hash reputation + who-data (only when fed from Wazuh). Four features to go BEYOND Wazuh:
-  1. **Real-time** via fsnotify (inotify / ReadDirectoryChangesW / kqueue) - instant, not
-     interval polling. (Also the long-standing fsnotify backlog item.)
+  1. **Real-time** via fsnotify - DONE 2026-07-17. `internal/agent/fimwatch.go` watches the FIM
+     roots (recursive dirs + on-the-fly new subdirs) and fires a debounced (500ms) trigger →
+     immediate `Scan()`; interval polling stays as a safety net (min 1m when real-time is on).
+     Cross-platform (inotify / ReadDirectoryChangesW / kqueue via fsnotify v1.10.1). Graceful
+     fallback to poll-only on watcher error or `FIM_REALTIME=0`. Scan() is still the source of
+     truth, so a missed/duplicate event only affects latency. Tests: fires on file create+modify
+     and on files in a newly-created subdir. UNRELEASED.
   2. **Content diff** - DONE 2026-07-15. Agent snapshots small text files (≤256 KiB, no
      NUL bytes) in the FIM baseline; on modify it computes a line LCS diff → `file.diff` →
      migration 000029 `file_diff` column → shown in the alert detail (amber block, +green/
