@@ -555,6 +555,21 @@ export async function fetchResponses(status = '', search = ''): Promise<Response
   return (await res.json()) ?? []
 }
 
+// Enforcement status: whether a ban actually reaches a firewall (a live push responder, or the
+// pull blocklist feed). When false, the UI must not claim an IP is "blocked" — it is only flagged.
+export type Enforcement = {
+  enforcing: boolean
+  push_live: boolean
+  response_live: boolean
+  backends: string[]
+  blocklist_feed: boolean
+}
+export async function fetchEnforcement(): Promise<Enforcement> {
+  const res = await authFetch('/api/response/enforcement')
+  if (!res.ok) throw new Error(`enforcement: HTTP ${res.status}`)
+  return res.json()
+}
+
 // Blocklist feed: the UI-managed token for GET /api/blocklist (external-firewall feed).
 export type BlocklistConfig = { token: string; enabled: boolean }
 export async function fetchBlocklistConfig(): Promise<BlocklistConfig> {

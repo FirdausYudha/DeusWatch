@@ -13,6 +13,8 @@ import {
   deleteWhitelist,
   fetchBlocklistConfig,
   regenerateBlocklistToken,
+  fetchEnforcement,
+  type Enforcement,
   fetchContainments,
   approveContainment,
   dismissContainment,
@@ -64,6 +66,8 @@ export default function Response({ me }: { me: Me }) {
   const [view, setView] = useState<View>('ip')
   const [actions, setActions] = useState<ResponseAction[]>([])
   const [offenders, setOffenders] = useState<Offender[]>([])
+  // Whether a ban can actually reach a firewall — drives the "blocked" vs "Dangerous IP" label.
+  const [enforcement, setEnforcement] = useState<Enforcement | null>(null)
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -87,6 +91,11 @@ export default function Response({ me }: { me: Me }) {
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, filter, search])
+
+  // Enforcement rarely changes; fetch it once (a failure leaves the labels as-is).
+  useEffect(() => {
+    fetchEnforcement().then(setEnforcement).catch(() => {})
+  }, [])
 
   // act approves/dismisses a single recommended action (by id), then refreshes.
   const act = async (id: string, ip: string, banSecs: number, kind: 'approve' | 'dismiss') => {
@@ -243,9 +252,26 @@ export default function Response({ me }: { me: Me }) {
 
       {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
 
+      {/* Honesty guard: if nothing is wired up to enforce a ban, say so rather than badging
+          IPs "blocked" — DeusWatch would be claiming an action it never performed. */}
+      {enforcement && !enforcement.enforcing && (
+        <div className="mt-4 rounded-lg border border-amber-900/50 bg-amber-500/5 p-3">
+          <p className="text-sm text-amber-200">
+            No enforcement configured — these IPs are <span className="font-medium">flagged, not blocked</span>.
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            DeusWatch is recording the decisions, but nothing pushes them to a firewall yet.
+            {!enforcement.response_live && <> Set <span className="font-mono">RESPONSE_LIVE=1</span> and</>}
+            {' '}connect a responder (MikroTik / CrowdSec / agent nftables) in Integrations, or enable the
+            Blocklist feed below so your firewall pulls the list.{' '}
+            <DocLink file="mikrotik.md" label="How to connect a firewall" />
+          </p>
+        </div>
+      )}
+
       {view === 'ip' ? (
         <div className="mt-6">
-          <OffendersTable offenders={offenders} canApprove={canApprove} busy={busy} act={act} dismissAll={dismissAll} />
+          <OffendersTable offenders={offenders} canApprove={canApprove} busy={busy} act={act} dismissAll={dismissAll} enforcing={enforcement?.enforcing ?? true} />
         </div>
       ) : (
         <EventsTable actions={actions} canApprove={canApprove} busy={busy} act={act} unban={unban} selected={selected} toggleSel={toggleSel} toggleAll={toggleAll} />
@@ -266,12 +292,14 @@ function OffendersTable({
   busy,
   act,
   dismissAll,
+  enforcing,
 }: {
   offenders: Offender[]
   canApprove: boolean
   busy: string
   act: ActFn
   dismissAll: (ip: string, count: number) => void
+  enforcing: boolean
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-800">
@@ -308,12 +336,22 @@ function OffendersTable({
               <td className="px-4 py-2 text-slate-400">{banLabel(o.last_ban_secs)}</td>
               <td className="px-4 py-2">
                 {o.blocked ? (
-                  <span
-                    className="rounded bg-rose-500/15 px-1.5 py-0.5 text-xs font-medium text-rose-300"
-                    title={o.blocked_until ? `until ${new Date(o.blocked_until).toLocaleString('en-US')}` : 'permanent'}
-                  >
-                    blocked{o.blocked_until ? '' : ' · permanent'}
-                  </span>
+                  enforcing ? (
+                    <span
+                      className="rounded bg-rose-500/15 px-1.5 py-0.5 text-xs font-medium text-rose-300"
+                      title={o.blocked_until ? `until ${new Date(o.blocked_until).toLocaleString('en-US')}` : 'permanent'}
+                    >
+                      blocked{o.blocked_until ? '' : ' · permanent'}
+                    </span>
+                  ) : (
+                    // Nothing enforces the ban — the decision is recorded, the IP is not blocked.
+                    <span
+                      className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-300"
+                      title="Flagged for blocking, but no firewall/responder is connected — the IP is NOT actually blocked. Connect a responder or enable the blocklist feed."
+                    >
+                      Dangerous IP
+                    </span>
+                  )
                 ) : (
                   <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[o.last_status] ?? 'text-slate-400 bg-slate-700/40'}`}>
                     {o.last_status}

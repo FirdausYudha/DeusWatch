@@ -285,6 +285,7 @@ func main() {
 		mux.HandleFunc("GET /api/blocklist", blocklistFeedHandler(respStore, respStore.FeedToken))
 		mux.Handle("GET /api/blocklist-config", protect(auth.PermManageSettings, blocklistConfigHandler(respStore)))
 		mux.Handle("POST /api/blocklist-config/regenerate", protect(auth.PermManageSettings, blocklistRegenerateHandler(respStore)))
+		mux.Handle("GET /api/response/enforcement", protect(auth.PermViewDashboard, enforcementHandler(st, respStore.FeedToken)))
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("GET /api/responses/offenders", protect(auth.PermViewDashboard, offendersHandler(respStore)))
 		mux.Handle("POST /api/responses/dismiss-ip", protect(auth.PermApproveRemediation, dismissIPHandler(respStore)))
@@ -1373,6 +1374,43 @@ func blocklistRegenerateHandler(s blocklistFeedConfig) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": true})
+	}
+}
+
+// enforcementHandler (GET /api/response/enforcement) reports whether a ban can ACTUALLY reach a
+// firewall. Without it the Response page would badge an IP "blocked" even when nothing is wired
+// up to enforce it — DeusWatch would be claiming an action it never performed. The UI uses this
+// to relabel such rows as "Dangerous IP" instead.
+//
+// A ban reaches a firewall when either:
+//   - a push responder is live: RESPONSE_LIVE=1 AND a MikroTik/CrowdSec/nftables connector is
+//     enabled (Integrations) or selected via the RESPONDER env; or
+//   - the pull blocklist feed is enabled: an external firewall fetches the list itself.
+func enforcementHandler(st *store.Store, feedToken func(context.Context) (string, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE"))
+		backends := []string{}
+		for _, t := range []string{"mikrotik", "crowdsec", "nftables_agent"} {
+			if ok, err := integrations.HasEnabled(r.Context(), st.Pool(), t); err == nil && ok {
+				backends = append(backends, t)
+			}
+		}
+		switch strings.ToLower(strings.TrimSpace(os.Getenv("RESPONDER"))) {
+		case "nftables", "crowdsec", "mikrotik":
+			backends = append(backends, os.Getenv("RESPONDER")+" (env)")
+		}
+		feed := false
+		if tok, err := feedToken(r.Context()); err == nil && tok != "" {
+			feed = true
+		}
+		pushLive := live && len(backends) > 0
+		writeJSON(w, http.StatusOK, map[string]any{
+			"enforcing":      pushLive || feed, // a ban actually reaches something
+			"push_live":      pushLive,
+			"response_live":  live,
+			"backends":       backends,
+			"blocklist_feed": feed,
+		})
 	}
 }
 
