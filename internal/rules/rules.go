@@ -129,8 +129,11 @@ type Pack struct {
 	// Installable = a bundled curated pack that Install imports with one click (no network).
 	// Set on catalog entries that are not installed yet, and on installed ones so the UI can
 	// offer Uninstall (a core category is never uninstallable).
-	Installable bool   `json:"installable,omitempty"`
-	URL         string `json:"url,omitempty"` // upstream link for external packs
+	Installable bool `json:"installable,omitempty"`
+	// Remote = the pack comes from the online feed, so re-installing it pulls any rules added
+	// upstream (the UI offers "Update"). Bundled packs never need this.
+	Remote bool   `json:"remote,omitempty"`
+	URL    string `json:"url,omitempty"` // upstream link for external packs
 }
 
 // packMeta gives each rule category a human name, description and source for the UI.
@@ -231,6 +234,29 @@ func (s *Store) Packs(ctx context.Context) ([]Pack, error) {
 			RuleCount: n, Installable: true,
 		})
 	}
+	// Online feed packs. A feed outage must never break the page, so errors are ignored and
+	// the marketplace simply shows the offline (bundled) set.
+	if remote, rerr := RemoteCatalog(ctx); rerr == nil {
+		for _, rp := range remote {
+			if _, bundled := packs.Find(rp.ID); bundled {
+				continue // shipped in the binary: installs offline, no need to fetch
+			}
+			if p, installed := byCat[rp.ID]; installed {
+				// Already installed from the feed -> offer Update (re-fetch adds new rules).
+				p.Remote, p.Installable, p.Source = true, true, "DeusWatch feed"
+				for i := range out {
+					if out[i].ID == rp.ID {
+						out[i] = p
+					}
+				}
+				continue
+			}
+			out = append(out, Pack{
+				ID: rp.ID, Name: rp.Name, Description: rp.Desc, Source: "DeusWatch feed",
+				RuleCount: len(rp.Files), Installable: true, Remote: true,
+			})
+		}
+	}
 	return append(out, externalPacks...), nil
 }
 
@@ -240,7 +266,8 @@ func (s *Store) Packs(ctx context.Context) ([]Pack, error) {
 func (s *Store) InstallPack(ctx context.Context, id string) (int, error) {
 	p, ok := packs.Find(id)
 	if !ok {
-		return 0, fmt.Errorf("rules: unknown pack %q", id)
+		// Not shipped in the binary — try the online feed (same validated import path).
+		return s.InstallRemotePack(ctx, id)
 	}
 	files, err := packs.Rules(p.ID)
 	if err != nil {
@@ -274,8 +301,12 @@ func (s *Store) InstallPack(ctx context.Context, id string) (int, error) {
 // UninstallPack removes an installed curated pack's rules. Only packs from the bundled catalog
 // can be uninstalled this way, so a core category (fim/auth/…) can never be wiped by mistake.
 func (s *Store) UninstallPack(ctx context.Context, id string) (int64, error) {
-	if _, ok := packs.Find(id); !ok {
-		return 0, fmt.Errorf("rules: %q is not an installable pack", id)
+	// Guard the core categories (fim/auth/web-attack/…): those ship as part of DeusWatch and
+	// must never be removable by a pack action. Anything else — bundled or feed — may go.
+	if _, core := packMeta[id]; core {
+		if _, curated := packs.Find(id); !curated {
+			return 0, fmt.Errorf("rules: %q is a core category, not an uninstallable pack", id)
+		}
 	}
 	ct, err := s.pool.Exec(ctx, `DELETE FROM rules WHERE category=$1`, id)
 	if err != nil {

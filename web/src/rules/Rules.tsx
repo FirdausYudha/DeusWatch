@@ -370,6 +370,16 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase tracking-wider text-slate-600">{p.source}</span>
                     <div className="flex gap-2">
+                      {p.remote && (
+                        <button
+                          onClick={() => install(p)}
+                          disabled={busy === p.id}
+                          title="Re-fetch from the feed — adds any rules published since you installed"
+                          className="rounded-md border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          {busy === p.id ? '…' : 'Update'}
+                        </button>
+                      )}
                       {p.installable && (
                         <button
                           onClick={() => uninstall(p)}
@@ -402,7 +412,10 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                   <div key={p.id} className="flex flex-col rounded-lg border border-indigo-900/50 bg-indigo-500/5 p-3">
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="font-medium text-slate-200">{p.name}</span>
-                      <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">{p.rule_count} rules</span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {p.remote && <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">online</span>}
+                        <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">{p.rule_count} rules</span>
+                      </div>
                     </div>
                     <p className="mb-3 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
                     <div className="flex items-center justify-between">
@@ -419,7 +432,8 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-slate-600">
-                Bundled with DeusWatch — Install imports the rules and enables them instantly, no internet needed.
+                Packs without an <span className="text-slate-400">online</span> tag are bundled with DeusWatch — Install works with no internet.
+                Online packs are fetched from the DeusWatch feed so they can be added or refreshed without upgrading (set <span className="font-mono">PACKS_FEED_URL=off</span> to disable).
               </p>
             </div>
           )}

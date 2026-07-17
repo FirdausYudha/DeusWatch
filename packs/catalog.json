@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "note": "Remote rule-pack feed. DeusWatch fetches this file (and the rule files it lists) from PACKS_FEED_URL so packs can be added or refreshed without upgrading the whole app. Keep every pack here curated: only rules matching fields DeusWatch populates (see sigma.FlattenEvent) - an inert rule is worse than no rule.",
+  "packs": [
+    {
+      "id": "waf-essentials",
+      "name": "WAF / Web attack essentials",
+      "desc": "Turns ModSecurity / OWASP CRS blocks into labeled attack alerts: SQLi, XSS, path traversal, RCE, and scanners probing known exploit paths. Needs a WAF log source (docs/modsecurity.md).",
+      "files": [
+        "waf_sqli.yml",
+        "waf_xss.yml",
+        "waf_path_traversal.yml",
+        "waf_rce.yml",
+        "waf_exploit_path_scan.yml"
+      ]
+    }
+  ]
+}

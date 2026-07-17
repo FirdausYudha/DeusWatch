@@ -833,7 +833,8 @@ export type RulePack = {
   rule_count: number
   enabled: number
   installed: boolean
-  installable?: boolean // bundled curated pack: one-click Install / Uninstall (no network)
+  installable?: boolean // curated pack: one-click Install / Uninstall
+  remote?: boolean // came from the online feed — re-installing pulls newly-added rules (Update)
   url?: string
 }
 export async function fetchRulePacks(): Promise<RulePack[]> {
