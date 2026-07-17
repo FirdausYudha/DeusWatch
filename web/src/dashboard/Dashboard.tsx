@@ -8,6 +8,7 @@ import {
 } from '../lib/api'
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, WIDGET_COLORS } from './widgets'
 import DocLink from '../components/DocLink'
+import { usePersistedState } from '../lib/usePersistedState'
 
 type DotState = 'good' | 'bad' | 'unknown'
 
@@ -278,9 +279,10 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
   // Time range: a preset number of hours, or 'custom' with from/to (datetime-local strings).
-  const [preset, setPreset] = useState<number | 'custom'>(24)
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  // Persisted so leaving the page and coming back keeps the range you picked.
+  const [preset, setPreset] = usePersistedState<number | 'custom'>('dash.preset', 24)
+  const [from, setFrom] = usePersistedState('dash.from', '')
+  const [to, setTo] = usePersistedState('dash.to', '')
   const [widgets, setWidgets] = useState<DashWidget[]>(defaultWidgets())
   const [edit, setEdit] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -605,11 +607,13 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   const [agent, setAgent] = useState('')
   const [rule, setRule] = useState('')
   const [technique, setTechnique] = useState('')
-  const [severity, setSeverity] = useState(-1)
+  // Preference-like filters are persisted so they survive leaving the page (the free-text
+  // search above stays transient — a hidden search that came back would confuse more than help).
+  const [severity, setSeverity] = usePersistedState('events.severity', -1)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [alertsOnly, setAlertsOnly] = useState(true) // default to alerts to keep the table clean; uncheck to see all events
-  const [limit, setLimit] = useState(20)
+  const [alertsOnly, setAlertsOnly] = usePersistedState('events.alertsOnly', true) // uncheck to see all events
+  const [limit, setLimit] = usePersistedState('events.limit', 20)
   const [updated, setUpdated] = useState<Date | null>(null)
   const [open, setOpen] = useState(false)
 

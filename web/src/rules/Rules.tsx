@@ -4,6 +4,7 @@ import {
   fetchRulePacks, toggleRulePack, installRulePack, uninstallRulePack,
   type Rule, type RulePack,
 } from '../lib/api'
+import { usePersistedState } from '../lib/usePersistedState'
 
 const KIND_BADGE: Record<string, string> = {
   single: 'text-sky-300 bg-sky-500/15',
@@ -50,9 +51,10 @@ export default function Rules() {
   const [editing, setEditing] = useState<Rule | null>(null)
   const [creating, setCreating] = useState(false)
   const [query, setQuery] = useState('')
-  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
+  // Persisted so the filters survive leaving the page (the search box stays transient).
+  const [kindFilter, setKindFilter] = usePersistedState<KindFilter>('rules.kind', 'all')
+  const [statusFilter, setStatusFilter] = usePersistedState<StatusFilter>('rules.status', 'all')
+  const [categoryFilter, setCategoryFilter] = usePersistedState('rules.category', 'all')
 
   const load = () => {
     fetchRules()
@@ -296,7 +298,8 @@ export default function Rules() {
 // rule categories) in one click, and browse real-world third-party rulesets to bring in.
 function RulePacks({ onChanged }: { onChanged: () => void }) {
   const [packs, setPacks] = useState<RulePack[]>([])
-  const [open, setOpen] = useState(true)
+  // Collapsed by default to keep the page minimal; the choice is remembered once you open it.
+  const [open, setOpen] = usePersistedState('rules.packsOpen', false)
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
 
@@ -331,7 +334,14 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
     <section className="mb-6 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
       <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
         <div>
-          <h2 className="text-sm font-semibold text-white">Rule packs</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-white">Rule packs</h2>
+            {available.length > 0 && (
+              <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
+                {available.length} available to install
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 text-xs text-slate-500">
             Enable a whole detection domain in one click, or browse third-party rulesets to add.
           </p>
