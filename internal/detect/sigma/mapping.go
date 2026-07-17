@@ -23,6 +23,12 @@ var fieldAliases = map[string]string{
 	"image":         "process.name",
 	"computer":      "host.name",
 	"hostname":      "host.name",
+	"uri":           "http.uri",
+	"url":           "http.uri",
+	"request_uri":   "http.uri",
+	"c-uri":         "http.uri",
+	"cs-method":     "http.method",
+	"sc-status":     "http.status_code",
 }
 
 // resolveField returns the DCS key for a rule field name. Alias matching is
@@ -89,6 +95,22 @@ func FlattenEvent(e *ingest.Event) map[string]any {
 	if e.Network != nil {
 		put("network.protocol", e.Network.Protocol)
 		put("network.transport", e.Network.Transport)
+	}
+	// HTTP / WAF request context, so rules can match the blocked URI, method, host or status
+	// (e.g. a ModSecurity block on /solr/admin).
+	if e.HTTP != nil {
+		put("http.method", e.HTTP.Method)
+		put("http.uri", e.HTTP.URI)
+		put("http.host", e.HTTP.Host)
+		if e.HTTP.StatusCode != 0 {
+			m["http.status_code"] = e.HTTP.StatusCode
+		}
+	}
+	// The rule identity carried BY the event (e.g. the OWASP CRS rule id a WAF blocked on),
+	// so rules can key off the upstream detector's verdict.
+	if e.Rule != nil {
+		put("rule.id", e.Rule.ID)
+		put("rule.name", e.Rule.Name)
 	}
 	return m
 }

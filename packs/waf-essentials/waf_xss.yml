@@ -1,0 +1,21 @@
+title: Cross-Site Scripting (XSS) Blocked by WAF
+id: 9d223f8b-40b8-4bf3-956b-0f38a4c4c06a
+status: experimental
+description: >
+  ModSecurity / OWASP CRS blocked a cross-site-scripting attempt (CRS rule family 941xxx) —
+  script injection into a request parameter, header or body.
+references:
+  - https://coreruleset.org/docs/rules/
+  - https://attack.mitre.org/techniques/T1059/007/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  selection:
+    event.action: waf_block
+    rule.id|startswith: '941'
+  condition: selection
+tags:
+  - attack.t1059.007
+  - attack.initial_access

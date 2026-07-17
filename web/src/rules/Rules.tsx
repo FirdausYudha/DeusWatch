@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchRules, createRule, updateRule, deleteRule, fetchRulePacks, toggleRulePack, type Rule, type RulePack } from '../lib/api'
+import {
+  fetchRules, createRule, updateRule, deleteRule,
+  fetchRulePacks, toggleRulePack, installRulePack, uninstallRulePack,
+  type Rule, type RulePack,
+} from '../lib/api'
 
 const KIND_BADGE: Record<string, string> = {
   single: 'text-sky-300 bg-sky-500/15',
@@ -300,19 +304,27 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
   useEffect(load, [])
 
   const installed = packs.filter((p) => p.installed)
-  const external = packs.filter((p) => !p.installed)
+  const available = packs.filter((p) => !p.installed && p.installable)
+  const external = packs.filter((p) => !p.installed && !p.installable)
 
-  const toggle = async (p: RulePack, enable: boolean) => {
-    setBusy(p.id); setErr('')
+  // run wraps a pack action: refresh the pack counts and the rules table afterwards.
+  const run = async (id: string, fn: () => Promise<unknown>) => {
+    setBusy(id); setErr('')
     try {
-      await toggleRulePack(p.id, enable)
-      load()          // refresh pack counts
-      onChanged()     // refresh the rules table
+      await fn()
+      load()      // refresh pack counts
+      onChanged() // refresh the rules table
     } catch (e) {
       setErr((e as Error).message)
     } finally {
       setBusy('')
     }
+  }
+  const toggle = (p: RulePack, enable: boolean) => run(p.id, () => toggleRulePack(p.id, enable))
+  const install = (p: RulePack) => run(p.id, () => installRulePack(p.id))
+  const uninstall = (p: RulePack) => {
+    if (!confirm(`Uninstall "${p.name}"? Its ${p.rule_count} rule(s) will be removed. You can re-install it any time.`)) return
+    run(p.id, () => uninstallRulePack(p.id))
   }
 
   return (
@@ -347,18 +359,60 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                   <p className="mb-3 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase tracking-wider text-slate-600">{p.source}</span>
-                    <button
-                      onClick={() => toggle(p, !allOn)}
-                      disabled={busy === p.id}
-                      className={`rounded-md border px-2.5 py-1 text-xs disabled:opacity-50 ${allOn ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-indigo-600/60 text-indigo-300 hover:bg-indigo-500/10'}`}
-                    >
-                      {busy === p.id ? '…' : allOn ? 'Disable all' : someOn ? 'Enable rest' : 'Enable all'}
-                    </button>
+                    <div className="flex gap-2">
+                      {p.installable && (
+                        <button
+                          onClick={() => uninstall(p)}
+                          disabled={busy === p.id}
+                          className="rounded-md border border-rose-900/60 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+                        >
+                          Uninstall
+                        </button>
+                      )}
+                      <button
+                        onClick={() => toggle(p, !allOn)}
+                        disabled={busy === p.id}
+                        className={`rounded-md border px-2.5 py-1 text-xs disabled:opacity-50 ${allOn ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-indigo-600/60 text-indigo-300 hover:bg-indigo-500/10'}`}
+                      >
+                        {busy === p.id ? '…' : allOn ? 'Disable all' : someOn ? 'Enable rest' : 'Enable all'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
             })}
           </div>
+
+          {/* Bundled curated packs not installed yet — real one-click Install, no network */}
+          {available.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Available to install</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {available.map((p) => (
+                  <div key={p.id} className="flex flex-col rounded-lg border border-indigo-900/50 bg-indigo-500/5 p-3">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="font-medium text-slate-200">{p.name}</span>
+                      <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">{p.rule_count} rules</span>
+                    </div>
+                    <p className="mb-3 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-600">{p.source}</span>
+                      <button
+                        onClick={() => install(p)}
+                        disabled={busy === p.id}
+                        className="rounded-md bg-indigo-500 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+                      >
+                        {busy === p.id ? 'Installing…' : 'Install'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-600">
+                Bundled with DeusWatch — Install imports the rules and enables them instantly, no internet needed.
+              </p>
+            </div>
+          )}
 
           {/* External catalog — real-world rulesets you bring in (link-out) */}
           {external.length > 0 && (

@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"deuswatch/internal/detect/sigma"
+	"deuswatch/packs"
 )
 
 // Rule is a stored detection rule.
@@ -123,8 +124,12 @@ type Pack struct {
 	Description string `json:"description"`
 	Source      string `json:"source"` // "DeusWatch core" | vendor
 	RuleCount   int    `json:"rule_count"`
-	Enabled     int    `json:"enabled"`       // enabled rules within the pack
-	Installed   bool   `json:"installed"`     // true = present in the DB and toggleable
+	Enabled     int    `json:"enabled"`   // enabled rules within the pack
+	Installed   bool   `json:"installed"` // true = present in the DB and toggleable
+	// Installable = a bundled curated pack that Install imports with one click (no network).
+	// Set on catalog entries that are not installed yet, and on installed ones so the UI can
+	// offer Uninstall (a core category is never uninstallable).
+	Installable bool   `json:"installable,omitempty"`
 	URL         string `json:"url,omitempty"` // upstream link for external packs
 }
 
@@ -182,13 +187,19 @@ func (s *Store) Packs(ctx context.Context) ([]Pack, error) {
 			name = cat
 			source = "DeusWatch core"
 		}
-		byCat[cat] = Pack{ID: cat, Name: name, Description: desc, Source: source, RuleCount: total, Enabled: enabled, Installed: true}
+		p := Pack{ID: cat, Name: name, Description: desc, Source: source, RuleCount: total, Enabled: enabled, Installed: true}
+		// A category that came from the bundled catalog stays uninstallable-safe: mark it so the
+		// UI can offer Uninstall (core categories never get that button).
+		if cp, isCurated := packs.Find(cat); isCurated {
+			p.Name, p.Description, p.Source, p.Installable = cp.Name, cp.Desc, "DeusWatch pack", true
+		}
+		byCat[cat] = p
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	// Known categories first (in packOrder), then any extras alphabetically.
-	out := make([]Pack, 0, len(byCat)+len(externalPacks))
+	out := make([]Pack, 0, len(byCat)+len(packs.Catalog)+len(externalPacks))
 	seen := map[string]bool{}
 	for _, cat := range packOrder {
 		if p, ok := byCat[cat]; ok {
@@ -206,7 +217,71 @@ func (s *Store) Packs(ctx context.Context) ([]Pack, error) {
 	for _, cat := range extras {
 		out = append(out, byCat[cat])
 	}
+	// Bundled curated packs that are NOT installed yet -> one-click installable entries.
+	for _, cp := range packs.Catalog {
+		if _, already := byCat[cp.ID]; already {
+			continue
+		}
+		n := 0
+		if files, ferr := packs.Rules(cp.ID); ferr == nil {
+			n = len(files)
+		}
+		out = append(out, Pack{
+			ID: cp.ID, Name: cp.Name, Description: cp.Desc, Source: "DeusWatch pack",
+			RuleCount: n, Installable: true,
+		})
+	}
 	return append(out, externalPacks...), nil
+}
+
+// InstallPack imports a bundled curated pack's rules into the DB (category = pack id) and
+// enables them — the one-click "Install". Rules already present (matched by name) are skipped,
+// so re-installing is safe and never duplicates. Returns how many were added.
+func (s *Store) InstallPack(ctx context.Context, id string) (int, error) {
+	p, ok := packs.Find(id)
+	if !ok {
+		return 0, fmt.Errorf("rules: unknown pack %q", id)
+	}
+	files, err := packs.Rules(p.ID)
+	if err != nil {
+		return 0, err
+	}
+	added := 0
+	for fname, data := range files {
+		kind, cerr := sigma.Classify(data)
+		if cerr != nil {
+			// A pack rule that doesn't parse is a packaging bug — skip it rather than fail the
+			// whole install, but say so.
+			return added, fmt.Errorf("rules: pack %q: %s: %w", id, fname, cerr)
+		}
+		name := titleOf(string(data), fname)
+		var exists bool
+		if qerr := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM rules WHERE name=$1)`, name).Scan(&exists); qerr != nil {
+			return added, qerr
+		}
+		if exists {
+			continue
+		}
+		if _, ierr := s.pool.Exec(ctx,
+			`INSERT INTO rules (name, kind, category, yaml, enabled, builtin) VALUES ($1,$2,$3,$4,true,true)`,
+			name, kind, p.ID, string(data)); ierr == nil {
+			added++
+		}
+	}
+	return added, nil
+}
+
+// UninstallPack removes an installed curated pack's rules. Only packs from the bundled catalog
+// can be uninstalled this way, so a core category (fim/auth/…) can never be wiped by mistake.
+func (s *Store) UninstallPack(ctx context.Context, id string) (int64, error) {
+	if _, ok := packs.Find(id); !ok {
+		return 0, fmt.Errorf("rules: %q is not an installable pack", id)
+	}
+	ct, err := s.pool.Exec(ctx, `DELETE FROM rules WHERE category=$1`, id)
+	if err != nil {
+		return 0, fmt.Errorf("rules: uninstall pack: %w", err)
+	}
+	return ct.RowsAffected(), nil
 }
 
 // SetEnabledByCategory toggles every rule in a pack (category) on/off at once. Returns how

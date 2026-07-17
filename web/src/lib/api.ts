@@ -833,6 +833,7 @@ export type RulePack = {
   rule_count: number
   enabled: number
   installed: boolean
+  installable?: boolean // bundled curated pack: one-click Install / Uninstall (no network)
   url?: string
 }
 export async function fetchRulePacks(): Promise<RulePack[]> {
@@ -846,6 +847,16 @@ export async function toggleRulePack(id: string, enabled: boolean): Promise<{ up
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled }),
   })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function installRulePack(id: string): Promise<{ installed: number }> {
+  const res = await authFetch(`/api/rules/packs/${id}/install`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function uninstallRulePack(id: string): Promise<{ removed: number }> {
+  const res = await authFetch(`/api/rules/packs/${id}/uninstall`, { method: 'POST' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
 }

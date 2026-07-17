@@ -1,0 +1,22 @@
+title: SQL Injection Blocked by WAF
+id: bf5e6b6d-2174-42af-99c9-d7bfbf518a2b
+status: experimental
+description: >
+  ModSecurity / OWASP CRS blocked a SQL-injection attempt (CRS rule family 942xxx). The request
+  was stopped at the WAF, but a source hitting this repeatedly is actively attacking the app and
+  is worth banning at the edge.
+references:
+  - https://coreruleset.org/docs/rules/
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  selection:
+    event.action: waf_block
+    rule.id|startswith: '942'
+  condition: selection
+tags:
+  - attack.t1190
+  - attack.initial_access

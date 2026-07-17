@@ -1,0 +1,25 @@
+title: Remote Code Execution Attempt Blocked by WAF
+id: 1696db8d-b570-4799-a1c6-6b2d4485d00f
+status: experimental
+description: >
+  ModSecurity / OWASP CRS blocked a command-injection / RCE attempt (CRS rule families 932xxx
+  and 933xxx) — shell or interpreter commands smuggled into a request. One of the highest-signal
+  WAF hits: treat the source as hostile.
+references:
+  - https://coreruleset.org/docs/rules/
+  - https://attack.mitre.org/techniques/T1190/
+author: DeusWatch
+level: critical
+logsource:
+  category: web
+detection:
+  selection_shell:
+    event.action: waf_block
+    rule.id|startswith: '932'
+  selection_php:
+    event.action: waf_block
+    rule.id|startswith: '933'
+  condition: selection_shell or selection_php
+tags:
+  - attack.t1190
+  - attack.execution

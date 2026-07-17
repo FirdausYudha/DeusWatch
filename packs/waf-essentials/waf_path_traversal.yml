@@ -1,0 +1,21 @@
+title: Path Traversal / LFI Blocked by WAF
+id: e4779365-bb4b-4420-9ba0-5e09945703b3
+status: experimental
+description: >
+  ModSecurity / OWASP CRS blocked a path-traversal or local-file-inclusion attempt (CRS rule
+  family 930xxx) — an attempt to escape the web root and read files such as /etc/passwd.
+references:
+  - https://coreruleset.org/docs/rules/
+  - https://attack.mitre.org/techniques/T1083/
+author: DeusWatch
+level: high
+logsource:
+  category: web
+detection:
+  selection:
+    event.action: waf_block
+    rule.id|startswith: '930'
+  condition: selection
+tags:
+  - attack.t1083
+  - attack.discovery

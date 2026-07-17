@@ -96,6 +96,41 @@ func (s *Store) PackToggleHandler() http.HandlerFunc {
 	}
 }
 
+// PackInstallHandler: POST /api/rules/packs/{id}/install — one-click import of a bundled
+// curated pack (no network; the rules ship inside DeusWatch).
+func (s *Store) PackInstallHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		id := r.PathValue("id")
+		n, err := s.InstallPack(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"installed": n, "pack": id})
+	}
+}
+
+// PackUninstallHandler: POST /api/rules/packs/{id}/uninstall — remove a curated pack's rules.
+func (s *Store) PackUninstallHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		id := r.PathValue("id")
+		n, err := s.UninstallPack(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"removed": n, "pack": id})
+	}
+}
+
 // ItemHandler: PUT (update) / DELETE on /api/rules/{id}.
 func (s *Store) ItemHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
