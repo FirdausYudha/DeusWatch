@@ -1,7 +1,19 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-17 (v1.9.0).
+> Last updated: 2026-07-17 (v1.10.0).
+
+**v1.10.0 RELEASED 2026-07-17** — real-time FIM (fsnotify) + one-click Install for BUNDLED
+curated rule packs (new `packs` package, first pack "WAF / Web attack essentials" pairing with
+v1.9.0 WAF ingest) + UX fixes. https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.10.0
+- **Field-taxonomy fix**: sigma `FlattenEvent` did not expose `http.*` / `rule.*` — WAF-keyed
+  rules would install and never fire. Fixed; now you can write rules over v1.9.0 WAF events.
+- **UX fix (user complaint)**: page filters reset on navigation → new `usePersistedState` hook
+  (localStorage). Applied to dashboard range, Events severity/alertsOnly/limit, Rules filters.
+  Free-text search deliberately stays transient. Rule packs section collapsed by default.
+- **NEXT: rule-pack half "A"** = remote/auto-updating packs (fetch over HTTPS, same import path
+  as InstallPack; needs manager egress). Honest constraint: only Sigma-format packs are
+  installable — CRS/ET/YARA are other engines (run the sensor + ingest). See [[deuswatch-backlog]].
 
 **v1.9.0 RELEASED 2026-07-17** — ModSecurity/OWASP CRS WAF ingestion: `normalizeModSecurity`
 decoder + DCS HTTP field group (http.method/uri/status_code/host, migration 000035) + dashboard
