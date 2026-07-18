@@ -15,6 +15,8 @@ import {
   regenerateBlocklistToken,
   fetchEnforcement,
   type Enforcement,
+  fetchDecisionTable,
+  type Decision,
   fetchContainments,
   approveContainment,
   dismissContainment,
@@ -208,6 +210,7 @@ export default function Response({ me }: { me: Me }) {
       </header>
 
       <ContainmentPanel canApprove={canApprove} />
+      <DecisionTablePanel />
       <BanPolicyEditor canManage={can(me, 'manage_settings')} />
       <WhitelistEditor canManage={can(me, 'manage_settings')} />
       <BlocklistFeedPanel canManage={can(me, 'manage_settings')} />
@@ -989,6 +992,76 @@ function expiryLabel(c: Containment): string {
 
 // ContainmentPanel lists isolated/recommended hosts and lets an analyst isolate (approve),
 // dismiss a recommendation, or release an active containment. Self-contained (own polling).
+// DecisionTablePanel shows the explicit entity_type → response policy (read-only). It is the
+// same table the worker routes alerts by, so an operator can see exactly what DeusWatch does
+// with each kind of entity and which actions are automatically enforced vs. alert-only.
+function DecisionTablePanel() {
+  const [rows, setRows] = useState<Decision[]>([])
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetchDecisionTable()
+      .then(setRows)
+      .catch((e) => setError((e as Error).message))
+  }, [])
+
+  return (
+    <section className="mb-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-800/30"
+      >
+        <div>
+          <h2 className="text-sm font-semibold text-white">Decision table</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            What DeusWatch does with each entity type — the policy alerts are routed by.
+          </p>
+        </div>
+        <span className="text-slate-500">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="border-t border-slate-800">
+          {error && <p className="px-4 py-2 text-sm text-rose-400">{error}</p>}
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">Entity</th>
+                <th className="px-4 py-2 font-medium">Action</th>
+                <th className="px-4 py-2 font-medium">Enforcement</th>
+                <th className="px-4 py-2 font-medium">What happens</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {rows.map((d) => (
+                <tr key={d.entity_type} className="hover:bg-slate-800/40">
+                  <td className="px-4 py-2 font-mono text-xs text-slate-300">{d.entity_type}</td>
+                  <td className="px-4 py-2 text-slate-200">{d.action}</td>
+                  <td className="px-4 py-2">
+                    {d.enforced ? (
+                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs font-medium text-emerald-300">
+                        auto · {d.engine}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-xs font-medium text-slate-400">
+                        alert-only
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-xs text-slate-400">{d.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-4 py-2">
+            <DocLink file="decision-table.md" label="About the decision table" />
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
   const [items, setItems] = useState<Containment[]>([])
   const [error, setError] = useState('')

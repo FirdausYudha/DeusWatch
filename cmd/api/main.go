@@ -297,6 +297,7 @@ func main() {
 		mux.Handle("GET /api/blocklist-config", protect(auth.PermManageSettings, blocklistConfigHandler(respStore)))
 		mux.Handle("POST /api/blocklist-config/regenerate", protect(auth.PermManageSettings, blocklistRegenerateHandler(respStore)))
 		mux.Handle("GET /api/response/enforcement", protect(auth.PermViewDashboard, enforcementHandler(st, respStore.FeedToken)))
+		mux.Handle("GET /api/response/decision-table", protect(auth.PermViewDashboard, decisionTableHandler()))
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("GET /api/responses/offenders", protect(auth.PermViewDashboard, offendersHandler(respStore)))
 		mux.Handle("POST /api/responses/dismiss-ip", protect(auth.PermApproveRemediation, dismissIPHandler(respStore)))
@@ -1601,6 +1602,17 @@ func enforcementHandler(st *store.Store, feedToken func(context.Context) (string
 			"backends":       backends,
 			"blocklist_feed": feed,
 		})
+	}
+}
+
+// decisionTableHandler (GET /api/response/decision-table) returns the explicit entity_type →
+// response policy mapping (external_ip → block, host → network_containment, user/hash →
+// alert-only). It is the same table the worker routes alerts by, so the UI and an LLM analyst
+// can read exactly what DeusWatch does with each kind of entity — and see which actions are
+// automatically enforced today versus surfaced for review.
+func decisionTableHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"decisions": respond.DefaultDecisionTable()})
 	}
 }
 

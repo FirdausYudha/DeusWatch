@@ -570,6 +570,22 @@ export async function fetchEnforcement(): Promise<Enforcement> {
   return res.json()
 }
 
+// Decision-table: the explicit entity_type → response policy the worker routes alerts by
+// (external_ip → block, host → containment, user/hash → alert-only).
+export type Decision = {
+  entity_type: string
+  action: string
+  enforced: boolean
+  engine: string
+  description: string
+}
+export async function fetchDecisionTable(): Promise<Decision[]> {
+  const res = await authFetch('/api/response/decision-table')
+  if (!res.ok) throw new Error(`decision-table: HTTP ${res.status}`)
+  const body = await res.json()
+  return body.decisions ?? []
+}
+
 // Blocklist feed: the UI-managed token for GET /api/blocklist (external-firewall feed).
 export type BlocklistConfig = { token: string; enabled: boolean }
 export async function fetchBlocklistConfig(): Promise<BlocklistConfig> {

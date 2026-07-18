@@ -297,17 +297,30 @@ func main() {
 // mitigation_action), so the hook is never nil.
 func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, dispatcher *notify.Dispatcher) worker.AlertHook {
 	return func(ctx context.Context, alert *ingest.Event) {
-		if engine != nil {
-			if _, err := engine.Recommend(ctx, alert); err != nil {
-				log.Printf("worker: response recommendation failed: %v", err)
+		// Route by the entity_type decision-table (internal/respond/decision.go): each entity the
+		// alert concerns is dispatched to the engine that owns its action. This is behaviour-
+		// preserving — the engines self-gate on exactly what respond.Entities classifies — but it
+		// makes the routing explicit and keeps it aligned with the policy the API/UI expose.
+		//   external_ip → ban engine   host → containment engine   user/hash → alert-only (below)
+		for _, ent := range respond.Entities(alert) {
+			switch ent {
+			case respond.EntityExternalIP:
+				if engine != nil {
+					if _, err := engine.Recommend(ctx, alert); err != nil {
+						log.Printf("worker: response recommendation failed: %v", err)
+					}
+				}
+			case respond.EntityHost:
+				// Isolate the compromised host when a rule authorized it. Cheap for the common
+				// case — Evaluate returns immediately unless the alert carries a containment directive.
+				if contain != nil {
+					if _, err := contain.Evaluate(ctx, alert); err != nil {
+						log.Printf("worker: containment evaluation failed: %v", err)
+					}
+				}
 			}
-		}
-		// Host containment: isolate the compromised host when a rule authorized it. Cheap for
-		// the common case — returns immediately unless the alert carries a containment directive.
-		if contain != nil {
-			if _, err := contain.Evaluate(ctx, alert); err != nil {
-				log.Printf("worker: containment evaluation failed: %v", err)
-			}
+			// EntityUser / EntityHash are alert-only today — the notification dispatch below
+			// carries their context; no automated enforcement action is taken.
 		}
 		if dispatcher.Enabled() {
 			if err := dispatcher.Dispatch(ctx, notify.FromEvent(alert)); err != nil {
