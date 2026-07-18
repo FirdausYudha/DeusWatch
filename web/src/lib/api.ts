@@ -586,6 +586,49 @@ export async function fetchDecisionTable(): Promise<Decision[]> {
   return body.decisions ?? []
 }
 
+// Subscription API (sellable rich-log product): per-subscriber API keys that PULL enriched
+// events / indicators. Management is admin-only (manage_integrations).
+export type Subscription = {
+  id: string
+  name: string
+  scopes: string[]
+  min_severity: number
+  enabled: boolean
+  created_at: string
+  last_used_at?: string
+  request_count: number
+}
+export async function fetchSubscriptions(): Promise<Subscription[]> {
+  const res = await authFetch('/api/subscriptions')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).subscriptions ?? []
+}
+export async function createSubscription(
+  name: string,
+  scopes: string[],
+  minSeverity: number,
+): Promise<{ subscription: Subscription; api_key: string }> {
+  const res = await authFetch('/api/subscriptions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, scopes, min_severity: minSeverity }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function toggleSubscription(id: string, enabled: boolean): Promise<void> {
+  const res = await authFetch(`/api/subscriptions/${id}/toggle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+export async function deleteSubscription(id: string): Promise<void> {
+  const res = await authFetch(`/api/subscriptions/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // Blocklist feed: the UI-managed token for GET /api/blocklist (external-firewall feed).
 export type BlocklistConfig = { token: string; enabled: boolean }
 export async function fetchBlocklistConfig(): Promise<BlocklistConfig> {

@@ -227,6 +227,16 @@ func main() {
 		mux.HandleFunc("GET /api/ml/ip-features", mlFeaturesHandler(st))
 		mux.HandleFunc("POST /api/ml/anomaly", mlAnomalyHandler(st))
 
+		// Subscription API (the sellable rich-log product): external subscribers PULL enriched
+		// events / threat indicators with a per-subscriber API key (no UI session). Admins manage
+		// the keys under manage_integrations. See internal/store/subscriptions.go + docs.
+		mux.HandleFunc("GET /api/subscribe/events", subscribeEventsHandler(st))
+		mux.HandleFunc("GET /api/subscribe/indicators", subscribeIndicatorsHandler(st))
+		mux.Handle("GET /api/subscriptions", protect(auth.PermManageIntegrations, subscriptionsListHandler(st)))
+		mux.Handle("POST /api/subscriptions", protect(auth.PermManageIntegrations, subscriptionCreateHandler(st)))
+		mux.Handle("POST /api/subscriptions/{id}/toggle", protect(auth.PermManageIntegrations, subscriptionToggleHandler(st)))
+		mux.Handle("DELETE /api/subscriptions/{id}", protect(auth.PermManageIntegrations, subscriptionDeleteHandler(st)))
+
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
@@ -1614,6 +1624,167 @@ func decisionTableHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"decisions": respond.DefaultDecisionTable()})
 	}
+}
+
+// ── Subscription API (sellable rich-log product) ─────────────────────────────
+// External subscribers PULL enriched events / indicators with a per-subscriber API key. The
+// subscriber endpoints authenticate by key (no UI session); the /api/subscriptions endpoints are
+// admin-only (manage_integrations) key management. See internal/store/subscriptions.go.
+
+// subscriptionKeyFromRequest pulls the presented API key from Authorization: Bearer, the
+// X-API-Key header, or the ?key= query param (in that order).
+func subscriptionKeyFromRequest(r *http.Request) string {
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
+	}
+	if h := strings.TrimSpace(r.Header.Get("X-API-Key")); h != "" {
+		return h
+	}
+	return strings.TrimSpace(r.URL.Query().Get("key"))
+}
+
+// authSubscriber resolves the subscriber from its API key and checks the required scope, writing
+// the 401/403 response and returning nil on failure. A successful call bumps the usage counters.
+func authSubscriber(w http.ResponseWriter, r *http.Request, st *store.Store, scope string) *store.Subscription {
+	sub, err := st.AuthenticateSubscription(r.Context(), subscriptionKeyFromRequest(r))
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return nil
+	}
+	if !sub.HasScope(scope) {
+		http.Error(w, "forbidden: subscription lacks scope "+scope, http.StatusForbidden)
+		return nil
+	}
+	return sub
+}
+
+// subscribeSettleLag is how long an event must age before it is served to subscribers, so CTI and
+// score enrichment have settled first (SUBSCRIPTION_SETTLE_LAG, default 30s).
+func subscribeSettleLag() time.Duration {
+	if d, err := time.ParseDuration(os.Getenv("SUBSCRIPTION_SETTLE_LAG")); err == nil && d >= 0 {
+		return d
+	}
+	return 30 * time.Second
+}
+
+// subscribeEventsHandler (GET /api/subscribe/events?cursor=&limit=&from=&min_severity=) serves a
+// forward-only, cursor-paginated page of enriched events for a subscriber.
+func subscribeEventsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sub := authSubscriber(w, r, st, "events")
+		if sub == nil {
+			return
+		}
+		q := r.URL.Query()
+		limit, _ := strconv.Atoi(q.Get("limit"))
+		// The subscription's own min_severity is the floor; a caller may raise it, never lower it.
+		minSev := sub.MinSeverity
+		if v, err := strconv.Atoi(q.Get("min_severity")); err == nil && v > minSev {
+			minSev = v
+		}
+		var from time.Time
+		if v := q.Get("from"); v != "" {
+			if t, err := time.Parse(time.RFC3339, v); err == nil {
+				from = t
+			}
+		}
+		page, err := st.SubscriptionEvents(r.Context(), q.Get("cursor"), minSev, subscribeSettleLag(), from, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, page)
+	}
+}
+
+// subscribeIndicatorsHandler (GET /api/subscribe/indicators?min_score=&limit=) serves curated
+// scored source IPs, highest score first.
+func subscribeIndicatorsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sub := authSubscriber(w, r, st, "indicators")
+		if sub == nil {
+			return
+		}
+		q := r.URL.Query()
+		minScore, _ := strconv.Atoi(q.Get("min_score"))
+		limit, _ := strconv.Atoi(q.Get("limit"))
+		inds, err := st.SubscriptionIndicators(r.Context(), minScore, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"indicators": inds})
+	}
+}
+
+// subscriptionsListHandler (GET /api/subscriptions) lists subscribers (no secrets).
+func subscriptionsListHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		subs, err := st.ListSubscriptions(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"subscriptions": subs})
+	}
+}
+
+// subscriptionCreateHandler (POST /api/subscriptions) creates a subscriber and returns the ONE-
+// TIME plaintext API key (never retrievable again).
+func subscriptionCreateHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Name        string   `json:"name"`
+			Scopes      []string `json:"scopes"`
+			MinSeverity int      `json:"min_severity"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		sub, key, err := st.CreateSubscription(r.Context(), req.Name, req.Scopes, req.MinSeverity)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"subscription": sub, "api_key": key})
+	}
+}
+
+// subscriptionToggleHandler (POST /api/subscriptions/{id}/toggle) enables/disables a subscriber.
+func subscriptionToggleHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := st.SetSubscriptionEnabled(r.Context(), r.PathValue("id"), req.Enabled); err != nil {
+			http.Error(w, err.Error(), notFoundOr500(err))
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// subscriptionDeleteHandler (DELETE /api/subscriptions/{id}) removes a subscriber permanently.
+func subscriptionDeleteHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := st.DeleteSubscription(r.Context(), r.PathValue("id")); err != nil {
+			http.Error(w, err.Error(), notFoundOr500(err))
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func notFoundOr500(err error) int {
+	if errors.Is(err, store.ErrNotFound) {
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
 }
 
 // ingestWebhookConfig is the store subset the webhook config handlers need.

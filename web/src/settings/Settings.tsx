@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, can, fetchSubscriptions, createSubscription, toggleSubscription, deleteSubscription, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig, type Subscription } from '../lib/api'
 import DocLink from '../components/DocLink'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
@@ -114,6 +114,157 @@ function ScoringWeightsPanel() {
             (e.g. how many fired-times saturate to 100) keep their built-in values. See docs/suspicious-ips.md.
           </p>
         </div>
+      )}
+    </section>
+  )
+}
+
+// SubscriptionsPanel manages API keys for the sellable rich-log subscription product. Admin-only
+// (manage_integrations); hidden for everyone else. A new key's plaintext is shown ONCE.
+function SubscriptionsPanel() {
+  const [me, setMe] = useState<Me | null>(null)
+  const [subs, setSubs] = useState<Subscription[]>([])
+  const [name, setName] = useState('')
+  const [wantEvents, setWantEvents] = useState(true)
+  const [wantIndicators, setWantIndicators] = useState(false)
+  const [minSev, setMinSev] = useState(0)
+  const [newKey, setNewKey] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  const load = () => fetchSubscriptions().then(setSubs).catch((e) => setErr((e as Error).message))
+  useEffect(() => {
+    fetchMe().then(setMe).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (can(me, 'manage_integrations')) load()
+  }, [me])
+
+  if (!can(me, 'manage_integrations')) return null
+
+  const create = async () => {
+    setErr(''); setNewKey(''); setBusy(true)
+    try {
+      const scopes = [wantEvents && 'events', wantIndicators && 'indicators'].filter(Boolean) as string[]
+      const res = await createSubscription(name.trim(), scopes.length ? scopes : ['events'], minSev)
+      setNewKey(res.api_key)
+      setName('')
+      load()
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const toggle = async (s: Subscription) => {
+    setErr('')
+    try { await toggleSubscription(s.id, !s.enabled); load() } catch (e) { setErr((e as Error).message) }
+  }
+  const remove = async (s: Subscription) => {
+    if (!confirm(`Revoke subscription "${s.name}"? Its API key stops working immediately.`)) return
+    setErr('')
+    try { await deleteSubscription(s.id); load() } catch (e) { setErr((e as Error).message) }
+  }
+
+  return (
+    <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 text-left">
+        <h2 className="text-sm font-medium text-slate-200">Log subscriptions (API)</h2>
+        <div className="flex items-center gap-3">
+          <DocLink file="subscription-api.md" className="shrink-0" />
+          <span className="text-slate-500">{open ? '▾' : '▸'}</span>
+        </div>
+      </button>
+      <p className="mb-4 mt-1 text-sm text-slate-500">
+        Issue per-subscriber API keys so external customers can PULL enriched events / threat
+        indicators — the sellable rich-log product. Each key is shown once; usage is tracked.
+      </p>
+
+      {open && (
+        <>
+          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+            <label className="text-sm text-slate-300">
+              <span className="mb-1 block text-xs text-slate-400">Subscriber name</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme SOC"
+                className="w-48 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+            </label>
+            <label className="text-sm text-slate-300">
+              <span className="mb-1 block text-xs text-slate-400">Min severity</span>
+              <select value={minSev} onChange={(e) => setMinSev(Number(e.target.value))}
+                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                {SEVERITY_LABELS.map((l, i) => <option key={i} value={i}>{i} · {l}</option>)}
+              </select>
+            </label>
+            <div className="text-sm text-slate-300">
+              <span className="mb-1 block text-xs text-slate-400">Scopes</span>
+              <div className="flex gap-3 py-2">
+                <label className="flex items-center gap-1.5 text-xs">
+                  <input type="checkbox" checked={wantEvents} onChange={(e) => setWantEvents(e.target.checked)} /> events
+                </label>
+                <label className="flex items-center gap-1.5 text-xs">
+                  <input type="checkbox" checked={wantIndicators} onChange={(e) => setWantIndicators(e.target.checked)} /> indicators
+                </label>
+              </div>
+            </div>
+            <button onClick={create} disabled={busy || !name.trim()}
+              className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50">
+              {busy ? 'Creating…' : 'Create key'}
+            </button>
+          </div>
+
+          {newKey && (
+            <div className="mb-4 rounded-lg border border-emerald-900/50 bg-emerald-500/5 p-3">
+              <p className="text-xs text-emerald-200">New API key — copy it now, it is shown only once:</p>
+              <code className="mt-1 block break-all rounded bg-slate-950/60 px-2 py-1 font-mono text-xs text-emerald-300">{newKey}</code>
+            </div>
+          )}
+
+          {subs.length > 0 ? (
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="py-2 font-medium">Name</th>
+                  <th className="py-2 font-medium">Scopes</th>
+                  <th className="py-2 font-medium">Min sev</th>
+                  <th className="py-2 font-medium">Requests</th>
+                  <th className="py-2 font-medium">Last used</th>
+                  <th className="py-2 font-medium">Status</th>
+                  <th className="py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {subs.map((s) => (
+                  <tr key={s.id}>
+                    <td className="py-2 text-slate-200">{s.name}</td>
+                    <td className="py-2 text-xs text-slate-400">{s.scopes.join(', ')}</td>
+                    <td className="py-2 text-slate-400">{s.min_severity}</td>
+                    <td className="py-2 text-slate-400">{s.request_count}</td>
+                    <td className="py-2 text-xs text-slate-500">{s.last_used_at ? new Date(s.last_used_at).toLocaleString() : '—'}</td>
+                    <td className="py-2">
+                      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${s.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700/40 text-slate-400'}`}>
+                        {s.enabled ? 'enabled' : 'disabled'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => toggle(s)} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">
+                          {s.enabled ? 'Disable' : 'Enable'}
+                        </button>
+                        <button onClick={() => remove(s)} className="rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">
+                          Revoke
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-slate-600">No subscribers yet.</p>
+          )}
+          {err && <p className="mt-3 text-sm text-rose-400">{err}</p>}
+        </>
       )}
     </section>
   )
@@ -417,6 +568,8 @@ export default function Settings() {
       </section>
 
       <ScoringWeightsPanel />
+
+      <SubscriptionsPanel />
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
         <div className="flex items-center justify-between gap-3">
