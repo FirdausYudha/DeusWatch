@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// IPFeature is the per-IP feature vector the external ML batch (Isolation Forest, LST Tameng
-// Lapis 5) consumes to detect low-and-slow scanners. These are RAW behavioral features over the
-// window — the same signals the built-in heuristic watchlist uses, exposed for a real model.
+// IPFeature is the per-IP feature vector an external ML batch (e.g. an Isolation Forest) consumes
+// to detect low-and-slow scanners. These are RAW behavioral features over the window — the same
+// signals the built-in heuristic watchlist uses, exposed for a real model.
 type IPFeature struct {
 	IP            string    `json:"ip"`
 	Contacts      int       `json:"contacts"`        // total events

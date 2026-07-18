@@ -219,8 +219,8 @@ func main() {
 	}
 	defer stop()
 
-	// Raw daily archive (LST Tameng Lapis 2): a second consumer appends every event's original
-	// line to <ARCHIVE_DIR>/<source>/<dataset>/<date>.log.zst. Off unless ARCHIVE_DIR is set.
+	// Raw daily archive: a second consumer appends every event's original line to
+	// <ARCHIVE_DIR>/<source>/<dataset>/<date>.log.zst. Off unless ARCHIVE_DIR is set.
 	if dir := strings.TrimSpace(os.Getenv("ARCHIVE_DIR")); dir != "" {
 		retDays, _ := strconv.Atoi(os.Getenv("ARCHIVE_RETENTION_DAYS"))
 		if arc, aerr := archive.New(dir, durEnv("ARCHIVE_FLUSH", 10*time.Second), retDays); aerr != nil {

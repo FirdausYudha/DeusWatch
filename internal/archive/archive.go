@@ -1,6 +1,6 @@
-// Package archive writes a raw, per-source daily log archive (zstd), the LST Tameng "Lapis 2"
-// raw archive. Every event that reaches the pipeline is appended (its original line, or the
-// normalized JSON when there is no original) to a file laid out as:
+// Package archive writes a raw, per-source daily log archive (zstd). Every event that reaches
+// the pipeline is appended (its original line, or the normalized JSON when there is no original)
+// to a file laid out as:
 //
 //	<dir>/<source>/<dataset>/<YYYY-MM-DD>.log.zst
 //

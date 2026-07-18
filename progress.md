@@ -3,16 +3,16 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.15.1).
 
-**v1.15.1 RELEASED 2026-07-18** — **ML anomaly bridge** (LST Tameng Lapis 5↔3; see memory
-[[lst-tameng-architecture]], Phase A). `GET /api/ml/ip-features` (per-IP feature vectors:
+**v1.15.1 RELEASED 2026-07-18** — **ML anomaly bridge** (external anomaly detection ↔ the scoring
+core; Phase A of the target-architecture roadmap). `GET /api/ml/ip-features` (per-IP feature vectors:
 contacts/distinct_uris/distinct_ports/distinct_hours/failures/span/avg_gap+stddev) + `POST
 /api/ml/anomaly` (writeback 0-100 → `ip_anomaly` table, migration 000039). Composite scorer folds
 `anomaly` via new `score.Weights.Anomaly` (DEFAULT 0 = opt-in, no silent change; raise in Settings
 → Threat-scoring weights → Anomaly (ML)). Token-authed `ML_API_TOKEN`. docs/ml-anomaly.md w/
 Isolation Forest example. NOTE: user asked to release this feat as a PATCH (v1.15.1) not 1.16.0.
 https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.15.1
-LST Tameng phases remaining: B raw-zstd-archive, C ClickHouse sink, D subscription API, small:
-MalwareBazaar + entity_type decision table.
+Target-architecture phases remaining: B raw-zstd-archive, C ClickHouse sink, D subscription API,
+small: MalwareBazaar + entity_type decision table.
 
 **v1.15.0 RELEASED 2026-07-18** — (1) **BUG FIX**: the AI Executive Summary ignored the Report
 date-range picker (always summarized last 24h). `reportSummaryGenerateHandler` now honors

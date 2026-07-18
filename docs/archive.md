@@ -1,8 +1,7 @@
 # Raw daily log archive (zstd)
 
-DeusWatch can keep a **compressed raw archive** of everything it ingests — the LST Tameng
-"Lapis 2" raw archive. Every event that reaches the pipeline is appended to a file laid out by
-source and log type, one file per day:
+DeusWatch can keep a **compressed raw archive** of everything it ingests. Every event that
+reaches the pipeline is appended to a file laid out by source and log type, one file per day:
 
 ```
 <ARCHIVE_DIR>/<source>/<dataset>/<YYYY-MM-DD>.log.zst
@@ -15,8 +14,8 @@ source and log type, one file per day:
 - Each file holds the **raw original lines** (or the normalized JSON for structured events that
   have no original text, e.g. FIM / Windows).
 
-This is the "log super kaya siap jual" (rich sellable log) source: a faithful, cheap-to-store
-copy of the raw telemetry, separate from the queryable enriched events in the database.
+This gives you a faithful, cheap-to-store copy of the raw telemetry — a source for rich,
+exportable logs — separate from the queryable enriched events in the database.
 
 ## Enable
 

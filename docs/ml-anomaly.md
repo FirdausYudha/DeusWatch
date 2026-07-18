@@ -2,9 +2,9 @@
 
 DeusWatch ships a built-in **heuristic** watchlist for low-and-slow reconnaissance
 ([suspicious IPs](suspicious-ips.md)). If you want a real **machine-learning** model instead — an
-hourly Python batch (e.g. an Isolation Forest, as in the LST Tameng architecture) — DeusWatch
-exposes a two-endpoint bridge: your model **pulls per-IP features**, and **writes an anomaly_score
-back**, which DeusWatch folds into the composite threat score.
+hourly batch such as an Isolation Forest — DeusWatch exposes a two-endpoint bridge: your model
+**pulls per-IP features**, and **writes an anomaly_score back**, which DeusWatch folds into the
+composite threat score.
 
 DeusWatch stays the scoring/decision core; the ML lives outside it and plugs in here.
 
@@ -74,7 +74,8 @@ if feats:
     requests.post(f"{BASE}/api/ml/anomaly", params={"token": TOKEN}, json=body)
 ```
 
-Run it from cron every hour. This is **Lapis 5 ↔ Lapis 3** of the LST Tameng architecture.
+Run it from cron every hour: the model does the anomaly detection, DeusWatch does the scoring
+and response.
 
 ## Note
 

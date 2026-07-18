@@ -220,8 +220,8 @@ func main() {
 		mux.Handle("GET /api/score-config", protect(auth.PermViewDashboard, scoreConfigGetHandler(st)))
 		mux.Handle("PUT /api/score-config", protect(auth.PermManageSettings, scoreConfigSetHandler(st)))
 
-		// ML bridge (LST Tameng Lapis 5): a token-authed API for the external Isolation Forest
-		// batch to pull per-IP features and write anomaly_score back. Token-based (like the
+		// ML bridge: a token-authed API for an external anomaly-detection batch (e.g. an Isolation
+		// Forest) to pull per-IP features and write anomaly_score back. Token-based (like the
 		// ingest webhook) so a cron/Python job can call it without a UI session. Off (404) unless
 		// ML_API_TOKEN is set.
 		mux.HandleFunc("GET /api/ml/ip-features", mlFeaturesHandler(st))
