@@ -1,4 +1,4 @@
-import type { SeriesPoint, TimelinePoint } from '../lib/api'
+import type { SeriesPoint, TimelinePoint, RiskyIP } from '../lib/api'
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
 // Categorical palette for donut segments, starting from the widget's chosen color.
@@ -106,6 +106,39 @@ export function TableWidget({ data }: { data: SeriesPoint[] }) {
         ))}
       </tbody>
     </table>
+  )
+}
+
+// Band colours for the composite score (matches the doughnut on the events table).
+const BAND_STYLE: Record<string, string> = {
+  critical: 'text-rose-300 bg-rose-500/15',
+  high: 'text-orange-300 bg-orange-500/15',
+  medium: 'text-amber-300 bg-amber-500/15',
+  low: 'text-slate-400 bg-slate-700/40',
+}
+function bandColor(band: string): string {
+  return band === 'critical' ? '#f43f5e' : band === 'high' ? '#fb923c' : band === 'medium' ? '#f59e0b' : '#64748b'
+}
+
+// RiskyIPsWidget ranks source IPs by their 0–100 composite score (fired times + AbuseIPDB +
+// OTX + worst severity) — the "who to ban first" list, not just who was noisiest.
+export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
+  if (!data?.length) return <Empty />
+  return (
+    <ul className="space-y-1.5">
+      {data.map((r) => (
+        <li key={r.ip} className="flex items-center gap-2 text-sm">
+          <span className="w-32 shrink-0 truncate font-mono text-xs text-slate-300" title={r.ip}>{r.ip}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+            <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
+          </div>
+          <span className="w-7 text-right text-xs font-medium text-slate-300">{r.score}</span>
+          <span className={`w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${BAND_STYLE[r.band] ?? BAND_STYLE.low}`}>
+            {r.band}
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }
 

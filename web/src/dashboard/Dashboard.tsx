@@ -6,7 +6,7 @@ import {
   type DashboardData, type DashWidget, type WidgetKind, type DashRange, type EventSearch,
   type StorageStatus,
 } from '../lib/api'
-import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, WIDGET_COLORS } from './widgets'
+import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, WIDGET_COLORS } from './widgets'
 import DocLink from '../components/DocLink'
 import { usePersistedState } from '../lib/usePersistedState'
 
@@ -145,12 +145,14 @@ const SOURCES: { source: string; label: string; kind: WidgetKind }[] = [
   { source: 'techniques', label: 'Top MITRE techniques', kind: 'bar' },
   { source: 'verdicts', label: 'LLM verdicts', kind: 'donut' },
   { source: 'countries', label: 'Attack origins (map)', kind: 'map' },
+  { source: 'risky_ips', label: 'Top risky IPs (score)', kind: 'risk' },
 ]
 
 function kindsFor(source: string): WidgetKind[] {
   if (STAT_SOURCES.includes(source)) return ['stat']
   if (source === 'timeline') return ['line']
   if (source === 'countries') return ['map', 'bar', 'donut', 'table']
+  if (source === 'risky_ips') return ['risk'] // score + band, not a plain count series
   return ['bar', 'donut', 'table']
 }
 
@@ -163,6 +165,7 @@ function defaultWidgets(): DashWidget[] {
     mk({ kind: 'line', source: 'timeline', title: 'Events over time', color: '#6366f1', wide: true }),
     mk({ kind: 'bar', source: 'severity', title: 'Severity breakdown', color: '#6366f1', wide: false }),
     mk({ kind: 'bar', source: 'source_ips', title: 'Top source IPs', color: '#38bdf8', wide: false }),
+    mk({ kind: 'risk', source: 'risky_ips', title: 'Top risky IPs', color: '#f43f5e', wide: false }),
     mk({ kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', wide: false }),
     mk({ kind: 'map', source: 'countries', title: 'Attack origins', color: '#f43f5e', wide: true }),
   ]
@@ -183,6 +186,8 @@ function WidgetBody({ w, data }: { w: DashWidget; data: DashboardData | null }) 
       return <TableWidget data={data.series[w.source] ?? []} />
     case 'map':
       return <AttackMap data={data.series['countries'] ?? []} color={w.color} />
+    case 'risk':
+      return <RiskyIPsWidget data={data.risky_ips ?? []} />
     default:
       return <BarChart data={data.series[w.source] ?? []} color={w.color} />
   }

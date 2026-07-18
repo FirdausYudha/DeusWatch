@@ -748,12 +748,25 @@ export async function releaseContainment(id: string): Promise<void> {
 export type SeriesPoint = { label: string; count: number }
 export type TimelinePoint = { time: string; count: number }
 
+// RiskyIP is one row of the composite-score leaderboard (higher score = more dangerous).
+export type RiskyIP = {
+  ip: string
+  score: number
+  band: string // low | medium | high | critical
+  fired_times: number
+  abuse: number
+  otx: number
+  max_sev: number
+  updated_at: string
+}
+
 export type DashboardData = {
   total_events: number
   total_alerts: number
   alerts_24h: number
   series: Record<string, SeriesPoint[]>
   timeline: TimelinePoint[]
+  risky_ips: RiskyIP[] | null
 }
 
 // DashRange selects the dashboard window: either a relative number of hours, or an
@@ -774,7 +787,7 @@ export async function fetchDashboardData(range: number | DashRange = 24): Promis
   return res.json()
 }
 
-export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map'
+export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk'
 export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide: boolean }
 export type DashLayout = { widgets: DashWidget[] }
 

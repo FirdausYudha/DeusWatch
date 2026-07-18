@@ -32,6 +32,9 @@ type DashboardData struct {
 	Alerts24h   int64              `json:"alerts_24h"`
 	Series      map[string][]Count `json:"series"`
 	Timeline    []TimePoint        `json:"timeline"`
+	// RiskyIPs is the composite-score leaderboard (score + band, not just a count), for the
+	// "Top risky IPs" widget. Empty until the worker's IP scorer has run at least once.
+	RiskyIPs []IPScore `json:"risky_ips"`
 }
 
 // Dashboard assembles all dashboard series for the window [since, until].
@@ -89,6 +92,11 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (Dashboar
 
 	if d.Timeline, err = s.dashTimeline(ctx, since, until); err != nil {
 		return d, err
+	}
+	// Composite-score leaderboard (already maintained by the worker's IP scorer). A failure
+	// here shouldn't blank the whole dashboard, so log-and-continue with an empty list.
+	if risky, rerr := s.TopIPScores(ctx, 10); rerr == nil {
+		d.RiskyIPs = risky
 	}
 	return d, nil
 }
