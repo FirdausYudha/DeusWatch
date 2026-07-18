@@ -3,6 +3,16 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**LIVE-VERIFIED 2026-07-18 (Phase D + decision table)** — brought up a real stack (Docker
+Postgres+NATS, `api` via `go run`), applied migration 000040, and exercised the endpoints
+end-to-end. ALL PASS: subscription create → one-time key (only hash stored); events feed honors
+min_severity floor + the 30s settle lag (a MOVING window — a fresh event serves once it ages);
+cursor pagination (limit=1) + has_more; auth 401 on bad/absent key; scope enforcement (events-only
+key → indicators 403, events 200); indicators feed with min_score; usage counters (request_count +
+last_used_at) increment; disable → 401, revoke → 401; `GET /api/response/decision-table` returns
+the exact policy. NOT yet verified (need infra/keys): ClickHouse sink (needs a ClickHouse instance),
+MalwareBazaar (needs a free abuse.ch Auth-Key). See [[honesty-principle]].
+
 **v1.16.0 RELEASED 2026-07-18** — **Phase D: subscription API** (the LAST target-
 architecture layer — A/B/C/D now all done). The sellable "rich-log" product: external subscribers
 PULL enriched events + curated indicators over a token-authed HTTP API, each with a revocable
