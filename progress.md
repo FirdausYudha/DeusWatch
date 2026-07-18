@@ -1,10 +1,11 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-18 (v1.15.1 + unreleased work below).
+> Last updated: 2026-07-18 (v1.15.2).
 
-**UNRELEASED (on `main`, since v1.15.1)** — five items accumulated, awaiting the user's version
-call (items 1–4 already pushed; item 5 Phase C committed locally):
+**v1.15.2 RELEASED 2026-07-18** — bundles five items (user asked to ship as a PATCH v1.15.2, not
+1.16.0, to see the changes on their server). Target-architecture roadmap after this: **only
+Phase D subscription API remains** (A/B/C done). https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.15.2
 1. **Raw daily log archive (Phase B)** — `internal/archive`: every normalized event is also
    appended as a zstd frame to `<ARCHIVE_DIR>/<source>/<dataset>/<YYYY-MM-DD>.log.zst`, with
    retention sweep and path-traversal-safe segment names. docs/archive.md. (commit e1da72f)
@@ -29,7 +30,8 @@ call (items 1–4 already pushed; item 5 Phase C committed locally):
    blocks ingestion. Off unless `CLICKHOUSE_URL` set. Env: CLICKHOUSE_URL/DATABASE/TABLE/USER/
    PASSWORD/BATCH/FLUSH/RETENTION_DAYS. docs/clickhouse.md. Tests: config, DDL, row flatten,
    httptest JSONEachRow insert + requeue-on-failure.
-Target-architecture phases remaining after this: **D subscription API** (last one).
+Also: "See documentation" links wired for MalwareBazaar (catalog Doc → features/07-integrations.md)
+and ClickHouse (Agents page), per the standing see-docs rule.
 
 **v1.15.1 RELEASED 2026-07-18** — **ML anomaly bridge** (external anomaly detection ↔ the scoring
 core; Phase A of the target-architecture roadmap). `GET /api/ml/ip-features` (per-IP feature vectors:
