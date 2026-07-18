@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"deuswatch/internal/archive"
 	"deuswatch/internal/bus"
 	"deuswatch/internal/detect"
 	"deuswatch/internal/detect/sigma"
@@ -217,6 +218,24 @@ func main() {
 		log.Fatalf("worker: consume: %v", err)
 	}
 	defer stop()
+
+	// Raw daily archive (LST Tameng Lapis 2): a second consumer appends every event's original
+	// line to <ARCHIVE_DIR>/<source>/<dataset>/<date>.log.zst. Off unless ARCHIVE_DIR is set.
+	if dir := strings.TrimSpace(os.Getenv("ARCHIVE_DIR")); dir != "" {
+		retDays, _ := strconv.Atoi(os.Getenv("ARCHIVE_RETENTION_DAYS"))
+		if arc, aerr := archive.New(dir, durEnv("ARCHIVE_FLUSH", 10*time.Second), retDays); aerr != nil {
+			log.Printf("worker: raw archive disabled: %v", aerr)
+		} else {
+			go arc.Run(ctx)
+			aStop, cerr := b.Consume(ctx, bus.StreamLogs, "archive", bus.SubjectLogsNormalized, archiveHandler(arc))
+			if cerr != nil {
+				log.Printf("worker: raw archive consumer: %v", cerr)
+			} else {
+				defer aStop()
+				log.Printf("worker: raw archive active (%s, retention=%dd)", dir, retDays)
+			}
+		}
+	}
 
 	if aggRunner.RuleCount() > 0 {
 		go runAggregation(ctx, aggRunner, st, onAlert, pbLive.Annotate)
@@ -869,6 +888,35 @@ func runBlocklistSync(ctx context.Context, respStore *respond.Store, responder r
 			}
 			cancel()
 		}
+	}
+}
+
+// archiveHandler appends each normalized event's RAW original (or the whole event JSON when
+// there is no original — structured FIM/Windows events) to the per-source daily zstd archive.
+// The source key is the agent/sender; the dataset groups by log type.
+func archiveHandler(arc *archive.Archiver) bus.Handler {
+	return func(_ string, data []byte) error {
+		var ev ingest.Event
+		if err := json.Unmarshal(data, &ev); err != nil {
+			return nil // skip an unparseable message; never Nak (would redeliver forever)
+		}
+		source := "unknown"
+		if ev.Agent != nil && ev.Agent.ID != "" {
+			source = ev.Agent.ID
+		} else if ev.Host != nil && ev.Host.Name != "" {
+			source = ev.Host.Name
+		}
+		dataset := ev.Event.Dataset
+		line := ev.Event.Original
+		if line == "" {
+			line = string(data) // no raw text (structured event) — archive the normalized JSON
+		}
+		ts := ev.Timestamp
+		if ts.IsZero() {
+			ts = time.Now()
+		}
+		arc.Add(source, dataset, line, ts)
+		return nil
 	}
 }
 
