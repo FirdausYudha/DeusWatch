@@ -99,7 +99,7 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
-		Type: "malwarebazaar", Label: "MalwareBazaar (file-hash reputation)", Category: "fim",
+		Type: "malwarebazaar", Label: "MalwareBazaar (file-hash reputation)", Category: "fim", Doc: "features/07-integrations.md",
 		Desc: "Match FIM file hashes against abuse.ch's database of known malware samples. A hit is known-bad. Needs a free abuse.ch Auth-Key.",
 		Fields: []Field{
 			{Key: "api_key", Label: "Auth-Key", Secret: true, Help: "Free from a bazaar.abuse.ch account (Account → Auth-Key)."},

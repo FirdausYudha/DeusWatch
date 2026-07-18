@@ -88,6 +88,7 @@ export default function Agents({ me }: { me: Me }) {
             <DocLink file="syslog.md" label="Syslog (agentless)" />
             <DocLink file="suspicious-ips.md" label="Suspicious IPs" />
             <DocLink file="archive.md" label="Raw log archive" />
+            <DocLink file="clickhouse.md" label="ClickHouse analytics" />
           </div>
         </div>
         {isAdmin && (
