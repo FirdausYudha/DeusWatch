@@ -1,7 +1,16 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-17 (v1.12.0).
+> Last updated: 2026-07-18 (v1.13.0).
+
+**v1.13.0 RELEASED 2026-07-18** — (1) **Native syslog input**: `internal/syslogin` (UDP+TCP
+listener in the worker behind `SYSLOG_LISTEN=:5514`, off by default; RFC3164/5424 parser; program
+TAG → dataset so the right decoder runs; TCP handles newline + octet-counting; sender shows as
+`syslog/<host>`). docs/syslog.md. (2) **"Top risky IPs" widget**: new `risk` widget kind reading
+the existing `TopIPScores` leaderboard (score + band), in the default dashboard layout.
+https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.13.0
+Also: gitignore now ignores stray root build binaries (/agent /worker /api /gateway) from
+`go build ./cmd/...` without -o.
 
 **v1.12.0 RELEASED 2026-07-17** — Report over an explicit from–to DATE RANGE (page + PDF +
 Markdown). `store.BuildReportRange(from,to)` (all aggregates `time >= from AND time < to`);
