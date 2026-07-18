@@ -86,6 +86,7 @@ export default function Agents({ me }: { me: Me }) {
             <DocLink file="whodata.md" label="FIM who-data" />
             <DocLink file="modsecurity.md" label="ModSecurity / WAF" />
             <DocLink file="syslog.md" label="Syslog (agentless)" />
+            <DocLink file="suspicious-ips.md" label="Suspicious IPs" />
           </div>
         </div>
         {isAdmin && (

@@ -88,3 +88,63 @@ func clamp100(f float64) float64 {
 	}
 	return f
 }
+
+// ── Suspicious-IP (low-and-slow) behavioral scoring ─────────────────────────
+//
+// Separate from the composite score above: this catches reconnaissance that stays UNDER the
+// radar of CTI feeds, WAF signatures and short-window rules — an IP that touches you a handful
+// of times over hours or days. It is deliberately CTI-INDEPENDENT (that's the point) and keys
+// off behaviour: how many DISTINCT things it probed (fan-out = the scanner tell), how much of
+// its traffic failed / was blocked, how spread out in time it was, and raw volume.
+
+// SuspicionSignals are the behavioral inputs for one source IP over a long window (e.g. 24h).
+type SuspicionSignals struct {
+	Contacts      int // total events from this IP
+	FanOut        int // distinct targets probed (URIs or ports)
+	Failures      int // blocked / denied / 4xx / auth-failure events
+	DistinctHours int // distinct clock-hours the IP was seen in (spread = deliberate slowness)
+}
+
+// SuspicionWeights weight the behavioral signals + the caps that saturate the unbounded counts.
+type SuspicionWeights struct {
+	FanOut, FailRatio, Spread, Volume float64
+	FanOutCap, SpreadCap, VolumeCap   int
+}
+
+// DefaultSuspicionWeights emphasizes fan-out and failure ratio (the (a)+(c) approach): a low
+// volume that probes many distinct targets and mostly fails is the recon signature.
+func DefaultSuspicionWeights() SuspicionWeights {
+	return SuspicionWeights{
+		FanOut: 0.40, FailRatio: 0.30, Spread: 0.20, Volume: 0.10,
+		FanOutCap: 20, SpreadCap: 12, VolumeCap: 50,
+	}
+}
+
+// ComputeSuspicion folds the behavioral signals into a 0-100 suspicion score + band.
+func ComputeSuspicion(s SuspicionSignals, w SuspicionWeights) Result {
+	cap := func(v, c int) float64 {
+		if c <= 0 || v <= 0 {
+			return 0
+		}
+		return clamp100(float64(v) / float64(c) * 100)
+	}
+	fanout := cap(s.FanOut, w.FanOutCap)
+	spread := cap(s.DistinctHours, w.SpreadCap)
+	volume := cap(s.Contacts, w.VolumeCap)
+	failRatio := 0.0
+	if s.Contacts > 0 {
+		failRatio = clamp100(float64(s.Failures) / float64(s.Contacts) * 100)
+	}
+	total := fanout*w.FanOut + failRatio*w.FailRatio + spread*w.Spread + volume*w.Volume
+	if sum := w.FanOut + w.FailRatio + w.Spread + w.Volume; sum > 0 {
+		total /= sum
+	}
+	sc := int(total + 0.5)
+	if sc > 100 {
+		sc = 100
+	}
+	if sc < 0 {
+		sc = 0
+	}
+	return Result{Score: sc, Band: Band(sc)}
+}

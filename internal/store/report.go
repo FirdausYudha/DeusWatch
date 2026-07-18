@@ -227,6 +227,17 @@ func (s *Store) buildReportRange(ctx context.Context, since, until time.Time) (r
 		 GROUP BY dw_llm_verdict ORDER BY count(*) DESC`, since, until); err != nil {
 		return r, err
 	}
+	// The suspicious-IP watchlist (maintained by the worker) — the label carries the behavioral
+	// detail so the AI summary can reason about the recon pattern.
+	if susp, serr := s.TopSuspiciousIPs(ctx, 8); serr == nil {
+		for _, sp := range susp {
+			r.SuspiciousIPs = append(r.SuspiciousIPs, report.Count{
+				Label: fmt.Sprintf("%s (%d contacts, %d distinct targets, %d failures, over %dh)",
+					sp.IP, sp.Contacts, sp.FanOut, sp.Failures, sp.DistinctHours),
+				Count: int64(sp.Score),
+			})
+		}
+	}
 	return r, nil
 }
 

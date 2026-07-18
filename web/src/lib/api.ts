@@ -760,6 +760,19 @@ export type RiskyIP = {
   updated_at: string
 }
 
+// SuspiciousIP is one low-and-slow reconnaissance watchlist row (behavioral, CTI-independent).
+export type SuspiciousIP = {
+  ip: string
+  contacts: number
+  fanout: number
+  distinct_hours: number
+  failures: number
+  score: number
+  band: string
+  first_seen: string
+  last_seen: string
+}
+
 export type DashboardData = {
   total_events: number
   total_alerts: number
@@ -767,6 +780,7 @@ export type DashboardData = {
   series: Record<string, SeriesPoint[]>
   timeline: TimelinePoint[]
   risky_ips: RiskyIP[] | null
+  suspicious_ips: SuspiciousIP[] | null
 }
 
 // DashRange selects the dashboard window: either a relative number of hours, or an
@@ -787,7 +801,7 @@ export async function fetchDashboardData(range: number | DashRange = 24): Promis
   return res.json()
 }
 
-export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk'
+export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch'
 export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide: boolean }
 export type DashLayout = { widgets: DashWidget[] }
 

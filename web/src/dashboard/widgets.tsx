@@ -1,4 +1,4 @@
-import type { SeriesPoint, TimelinePoint, RiskyIP } from '../lib/api'
+import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP } from '../lib/api'
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
 // Categorical palette for donut segments, starting from the widget's chosen color.
@@ -135,6 +135,32 @@ export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
           <span className="w-7 text-right text-xs font-medium text-slate-300">{r.score}</span>
           <span className={`w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${BAND_STYLE[r.band] ?? BAND_STYLE.low}`}>
             {r.band}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// SuspiciousIPsWidget lists low-and-slow reconnaissance: external IPs whose behaviour looks like
+// scanning (many distinct targets, failures, spread over time) even without any CTI/WAF hit.
+export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
+  if (!data?.length) return <Empty />
+  return (
+    <ul className="space-y-1.5">
+      {data.map((r) => (
+        <li
+          key={r.ip}
+          className="flex items-center gap-2 text-sm"
+          title={`${r.contacts} contacts · ${r.fanout} distinct targets · ${r.failures} failed · seen across ${r.distinct_hours}h`}
+        >
+          <span className="w-32 shrink-0 truncate font-mono text-xs text-slate-300">{r.ip}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+            <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
+          </div>
+          <span className="w-7 text-right text-xs font-medium text-slate-300">{r.score}</span>
+          <span className="w-24 shrink-0 text-right text-[10px] text-slate-500">
+            {r.fanout}✦ · {r.contacts}×
           </span>
         </li>
       ))}

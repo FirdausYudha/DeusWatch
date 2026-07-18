@@ -32,6 +32,9 @@ type Report struct {
 	TopTechniques []Count   `json:"top_techniques"`
 	TopAgents     []Count   `json:"top_agents"` // most active agents/hosts (by alert count)
 	ByVerdict     []Count   `json:"by_verdict"`
+	// SuspiciousIPs are the low-and-slow reconnaissance watchlist entries (label carries the
+	// behavioral detail), so the AI summary can call out recon patterns CTI/WAF missed.
+	SuspiciousIPs []Count `json:"suspicious_ips"`
 }
 
 // RenderMarkdown renders the report as compact Markdown.
@@ -54,6 +57,7 @@ func RenderMarkdown(r Report) string {
 	section(&b, "Top agent (affected host)", r.TopAgents)
 	section(&b, "Top rule", r.TopRules)
 	section(&b, "Top MITRE technique", r.TopTechniques)
+	section(&b, "Suspicious IPs (low-and-slow recon)", r.SuspiciousIPs)
 	section(&b, "LLM verdict", r.ByVerdict)
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }
@@ -68,6 +72,7 @@ func SummaryPrompt(r Report) string {
 	promptLine(&b, "Top agents (affected hosts)", r.TopAgents)
 	promptLine(&b, "Top rules", r.TopRules)
 	promptLine(&b, "Top MITRE techniques", r.TopTechniques)
+	promptLine(&b, "Suspicious IPs — low-and-slow recon, scanner-like behavior not flagged by CTI/WAF", r.SuspiciousIPs)
 	promptLine(&b, "Verdicts", r.ByVerdict)
 	return b.String()
 }

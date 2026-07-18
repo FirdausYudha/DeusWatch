@@ -82,3 +82,35 @@ func scenarioBanLabel(banAt int) string {
 	}
 	return "; scenario-ban at score >= " + strconv.Itoa(banAt)
 }
+
+// runSuspiciousScorer periodically recomputes the Suspicious-IP watchlist over a LONG window
+// (SUSPICIOUS_WINDOW, default 24h): external IPs whose low-and-slow behaviour looks like
+// reconnaissance even without any CTI/WAF hit. Cheaper than the composite scorer, so it runs
+// less often (SUSPICIOUS_INTERVAL, default 5m).
+func runSuspiciousScorer(ctx context.Context, st *store.Store) {
+	window := durEnv("SUSPICIOUS_WINDOW", 24*time.Hour)
+	interval := durEnv("SUSPICIOUS_INTERVAL", 5*time.Minute)
+	log.Printf("worker: suspicious-IP watchlist active (window %s, every %s)", window, interval)
+
+	run := func() {
+		sc, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		if _, err := st.RefreshSuspiciousIPs(sc, window); err != nil {
+			log.Printf("worker: suspicious-IP scan: %v", err)
+		}
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	first := time.NewTimer(15 * time.Second)
+	defer first.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-first.C:
+			run()
+		case <-t.C:
+			run()
+		}
+	}
+}

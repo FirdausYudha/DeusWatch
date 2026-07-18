@@ -35,6 +35,8 @@ type DashboardData struct {
 	// RiskyIPs is the composite-score leaderboard (score + band, not just a count), for the
 	// "Top risky IPs" widget. Empty until the worker's IP scorer has run at least once.
 	RiskyIPs []IPScore `json:"risky_ips"`
+	// SuspiciousIPs is the low-and-slow reconnaissance watchlist, for the "Suspicious IPs" widget.
+	SuspiciousIPs []SuspiciousIP `json:"suspicious_ips"`
 }
 
 // Dashboard assembles all dashboard series for the window [since, until].
@@ -97,6 +99,9 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (Dashboar
 	// here shouldn't blank the whole dashboard, so log-and-continue with an empty list.
 	if risky, rerr := s.TopIPScores(ctx, 10); rerr == nil {
 		d.RiskyIPs = risky
+	}
+	if susp, serr := s.TopSuspiciousIPs(ctx, 10); serr == nil {
+		d.SuspiciousIPs = susp
 	}
 	return d, nil
 }

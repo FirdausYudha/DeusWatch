@@ -162,6 +162,10 @@ func main() {
 	// scenario ban when an IP's score crosses SCENARIO_BAN_SCORE.
 	go runIPScorer(ctx, st, engine)
 
+	// Suspicious-IP watchlist: long-window behavioral detection of low-and-slow reconnaissance
+	// (independent of CTI/WAF), for the dashboard + the AI report.
+	go runSuspiciousScorer(ctx, st)
+
 	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. the Wazuh
 	// indexer) into the pipeline. No-op when no such integration is enabled.
 	go runESPull(ctx, intStore, b, st)
