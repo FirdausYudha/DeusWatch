@@ -1,7 +1,16 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-18 (v1.13.0).
+> Last updated: 2026-07-18 (v1.14.0).
+
+**v1.14.0 RELEASED 2026-07-18** — (1) **Suspicious-IP watchlist** (low-and-slow recon):
+`internal/score.ComputeSuspicion` (CTI-independent: fan-out 0.40 + failure-ratio 0.30 + spread
+0.20 + volume 0.10), `suspicious_ips` table (migration 000037), worker `runSuspiciousScorer`
+(24h window / 5m), dashboard "watch" widget, fed to the AI report. Only external IPs
+(RFC1918/loopback excluded). docs/suspicious-ips.md. (2) **UI-tunable scoring weights** for BOTH
+scorers: migration 000038 `score_config` (single-row JSONB, overlaid on defaults), worker
+re-reads weights each tick (live), API GET/PUT `/api/score-config`, Settings "Threat-scoring
+weights" panel (normalized-share inputs + reset). https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.14.0
 
 **v1.13.0 RELEASED 2026-07-18** — (1) **Native syslog input**: `internal/syslogin` (UDP+TCP
 listener in the worker behind `SYSLOG_LISTEN=:5514`, off by default; RFC3164/5424 parser; program
