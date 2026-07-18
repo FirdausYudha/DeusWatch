@@ -1,9 +1,9 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-18 (v1.15.2 released; Phase D on main, unreleased).
+> Last updated: 2026-07-18 (v1.16.0).
 
-**UNRELEASED (on `main`, since v1.15.2)** — **Phase D: subscription API** (the LAST target-
+**v1.16.0 RELEASED 2026-07-18** — **Phase D: subscription API** (the LAST target-
 architecture layer — A/B/C/D now all done). The sellable "rich-log" product: external subscribers
 PULL enriched events + curated indicators over a token-authed HTTP API, each with a revocable
 per-subscriber API key and usage accounting. migration 000040 `subscriptions` (stores only the
@@ -16,7 +16,8 @@ admin CRUD `GET/POST /api/subscriptions`, `POST /{id}/toggle`, `DELETE /{id}` (m
 UI: Settings → "Log subscriptions (API)" admin panel + See-documentation. docs/subscription-api.md.
 Tests: key hashing, cursor round-trip/empty/malformed, scope sanitize. **Target-architecture
 roadmap COMPLETE.** Remaining big-picture: verification gaps (Windows live-log, Suricata sensor),
-Phase 7 (auditd/marketplace/Helm) per [[deuswatch-project-state]].
+Phase 7 (auditd/marketplace/Helm) per deuswatch-project-state.
+https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.16.0
 
 **v1.15.2 RELEASED 2026-07-18** — bundles five items (user asked to ship as a PATCH v1.15.2, not
 1.16.0, to see the changes on their server). Target-architecture roadmap after this: **only
