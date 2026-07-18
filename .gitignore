@@ -67,3 +67,9 @@ decoders/wazuh-imported/
 
 # ── Database backups (scripts/backup.sh) ──────────────────
 /backups/
+
+# ── Stray build binaries from `go build ./cmd/...` without -o (cross-builds) ──
+/agent
+/worker
+/api
+/gateway
