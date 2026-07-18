@@ -1,7 +1,17 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-18 (v1.14.0).
+> Last updated: 2026-07-18 (v1.15.0).
+
+**v1.15.0 RELEASED 2026-07-18** — (1) **BUG FIX**: the AI Executive Summary ignored the Report
+date-range picker (always summarized last 24h). `reportSummaryGenerateHandler` now honors
+`?from=&to=` (BuildReportRange) and the LLM prompt names the real dates. (2) **Scoring windows
+UI-tunable**: `score_config` gained composite_window_secs / suspicious_window_secs (default from
+SCORE_WINDOW/SUSPICIOUS_WINDOW env), worker reads them live each tick, Settings panel has the
+inputs. This is the answer to "the score doughnut disappears on older alerts" (composite score is
+a rolling window; raise it to keep the doughnut longer). https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.15.0
+Open idea (not built): store the composite score ON the event at insert time so the doughnut is
+PERMANENT per-alert (option 2 from that discussion) — user chose option 1 (bigger window) for now.
 
 **v1.14.0 RELEASED 2026-07-18** — (1) **Suspicious-IP watchlist** (low-and-slow recon):
 `internal/score.ComputeSuspicion` (CTI-independent: fan-out 0.40 + failure-ratio 0.30 + spread
