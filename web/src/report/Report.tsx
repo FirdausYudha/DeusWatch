@@ -175,7 +175,8 @@ export default function Report() {
     setGenBusy(true)
     setGenError('')
     try {
-      setSummary(await generateReportSummary(hours))
+      // Summarize the same window the page shows — the date range if one is set.
+      setSummary(await generateReportSummary(hours, range))
     } catch (e) {
       setGenError((e as Error).message)
     } finally {

@@ -802,16 +802,28 @@ func reportSummaryGetHandler(st *store.Store) http.HandlerFunc {
 // reportSummaryGenerateHandler generates a fresh AI summary on demand (one LLM call).
 func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
-		if err != nil || hours <= 0 {
-			hours = 24
-		}
 		analyzer, ok := apiResolveAnalyzer(r.Context(), st)
 		if !ok {
 			http.Error(w, "no LLM configured — add an LLM integration (Ollama/Claude) or set LLM_BASE_URL / ANTHROPIC_API_KEY", http.StatusBadRequest)
 			return
 		}
-		rep, err := st.BuildReport(r.Context(), hours)
+		// Summarize the SAME window the page shows: an explicit from–to range wins over ?hours=,
+		// so a summary generated with the date range picker actually covers those dates.
+		var (
+			rep   report.Report
+			err   error
+			hours int
+		)
+		if from, to, hasRange := parseReportRange(r); hasRange {
+			rep, err = st.BuildReportRange(r.Context(), from, to)
+			hours = int(to.Sub(from).Hours() + 0.5)
+		} else {
+			hours, _ = strconv.Atoi(r.URL.Query().Get("hours"))
+			if hours <= 0 {
+				hours = 24
+			}
+			rep, err = st.BuildReport(r.Context(), hours)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

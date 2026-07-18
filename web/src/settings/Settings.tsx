@@ -71,9 +71,29 @@ function ScoringWeightsPanel() {
         <div className="mt-4">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Composite threat score</h3>
           <WeightRow group="composite" label="Signals" keys={[['abuse', 'AbuseIPDB'], ['fired_times', 'Fired times'], ['otx', 'OTX pulses'], ['severity', 'Worst severity']]} />
+          <label className="mb-3 flex items-center gap-2 text-xs text-slate-400">
+            Lookback window
+            <input
+              type="number" min={1} step={1} value={Math.round(cfg.composite_window_secs / 60)}
+              onChange={(e) => setCfg({ ...cfg, composite_window_secs: Math.max(60, Number(e.target.value) * 60) })}
+              className="w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-right text-slate-200 outline-none focus:border-indigo-500"
+            />
+            minutes
+            <span className="text-slate-600">— how long an event keeps its score doughnut (longer = stays visible on older alerts)</span>
+          </label>
 
           <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Suspicious-IP watchlist</h3>
           <WeightRow group="suspicion" label="Signals" keys={[['fanout', 'Fan-out (distinct targets)'], ['fail_ratio', 'Failure ratio'], ['spread', 'Time spread'], ['volume', 'Volume']]} />
+          <label className="mb-1 flex items-center gap-2 text-xs text-slate-400">
+            Lookback window
+            <input
+              type="number" min={1} step={1} value={Math.round(cfg.suspicious_window_secs / 3600)}
+              onChange={(e) => setCfg({ ...cfg, suspicious_window_secs: Math.max(3600, Number(e.target.value) * 3600) })}
+              className="w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-right text-slate-200 outline-none focus:border-indigo-500"
+            />
+            hours
+            <span className="text-slate-600">— how far back low-and-slow behaviour is measured</span>
+          </label>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button onClick={() => save(cfg)} disabled={busy}

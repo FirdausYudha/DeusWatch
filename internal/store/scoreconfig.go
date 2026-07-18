@@ -5,23 +5,53 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"deuswatch/internal/score"
 )
 
-// ScoreConfig is the UI-managed weighting for both IP scorers. Composite = the current-threat
+// ScoreConfig is the UI-managed configuration for both IP scorers. Composite = the current-threat
 // score (fired times + AbuseIPDB + OTX + severity); Suspicion = the low-and-slow watchlist
-// (fan-out + failure ratio + time spread + volume).
+// (fan-out + failure ratio + time spread + volume). The windows control how far back each scorer
+// looks — a longer composite window keeps the dashboard doughnut on an event for longer.
 type ScoreConfig struct {
 	Composite score.Weights          `json:"composite"`
 	Suspicion score.SuspicionWeights `json:"suspicion"`
+	// Lookback windows in SECONDS. Default to the SCORE_WINDOW / SUSPICIOUS_WINDOW env values
+	// (so an existing deployment is unchanged); the UI overrides them.
+	CompositeWindowSecs  int `json:"composite_window_secs"`
+	SuspiciousWindowSecs int `json:"suspicious_window_secs"`
 }
 
-// DefaultScoreConfig is the built-in weighting.
+// DefaultScoreConfig is the built-in configuration. Windows seed from env so SCORE_WINDOW /
+// SUSPICIOUS_WINDOW keep working as the default until an operator tunes them in the UI.
 func DefaultScoreConfig() ScoreConfig {
-	return ScoreConfig{Composite: score.DefaultWeights(), Suspicion: score.DefaultSuspicionWeights()}
+	return ScoreConfig{
+		Composite:            score.DefaultWeights(),
+		Suspicion:            score.DefaultSuspicionWeights(),
+		CompositeWindowSecs:  envSecs("SCORE_WINDOW", 10*time.Minute),
+		SuspiciousWindowSecs: envSecs("SUSPICIOUS_WINDOW", 24*time.Hour),
+	}
+}
+
+// CompositeWindow / SuspiciousWindow return the configured lookback as a duration.
+func (c ScoreConfig) CompositeWindow() time.Duration {
+	return time.Duration(c.CompositeWindowSecs) * time.Second
+}
+func (c ScoreConfig) SuspiciousWindow() time.Duration {
+	return time.Duration(c.SuspiciousWindowSecs) * time.Second
+}
+
+func envSecs(key string, def time.Duration) int {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return int(d.Seconds())
+		}
+	}
+	return int(def.Seconds())
 }
 
 // LoadScoreConfig reads the stored weights, OVERLAID on the defaults so a partial/empty row
@@ -95,5 +125,26 @@ func (c ScoreConfig) sanitized() ScoreConfig {
 	if c.Suspicion.VolumeCap <= 0 {
 		c.Suspicion.VolumeCap = d.Suspicion.VolumeCap
 	}
+
+	// Windows: fall back to the default when unset, and clamp to a sane range (1 min .. 30 days).
+	const minW, maxW = 60, 30 * 24 * 60 * 60
+	if c.CompositeWindowSecs <= 0 {
+		c.CompositeWindowSecs = d.CompositeWindowSecs
+	}
+	if c.SuspiciousWindowSecs <= 0 {
+		c.SuspiciousWindowSecs = d.SuspiciousWindowSecs
+	}
+	c.CompositeWindowSecs = clampInt(c.CompositeWindowSecs, minW, maxW)
+	c.SuspiciousWindowSecs = clampInt(c.SuspiciousWindowSecs, minW, maxW)
 	return c
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }

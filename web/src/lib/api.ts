@@ -1130,8 +1130,8 @@ export async function fetchReportSummary(): Promise<ReportSummary> {
   return res.json()
 }
 
-export async function generateReportSummary(hours = 24): Promise<ReportSummary> {
-  const res = await authFetch(`/api/report/summary?hours=${hours}`, { method: 'POST' })
+export async function generateReportSummary(hours = 24, range?: ReportRange): Promise<ReportSummary> {
+  const res = await authFetch(`/api/report/summary?${reportQuery(hours, range)}`, { method: 'POST' })
   if (!res.ok) {
     const body = (await res.text()).trim()
     // A reverse-proxy timeout (e.g. 504) returns an HTML page, not our JSON/plain error —
@@ -1192,7 +1192,12 @@ export type SuspicionWeights = {
   fanout: number; fail_ratio: number; spread: number; volume: number
   fanout_cap: number; spread_cap: number; volume_cap: number
 }
-export type ScoreConfig = { composite: CompositeWeights; suspicion: SuspicionWeights }
+export type ScoreConfig = {
+  composite: CompositeWeights
+  suspicion: SuspicionWeights
+  composite_window_secs: number
+  suspicious_window_secs: number
+}
 
 export async function fetchScoreConfig(): Promise<{ config: ScoreConfig; defaults: ScoreConfig }> {
   const res = await authFetch('/api/score-config')

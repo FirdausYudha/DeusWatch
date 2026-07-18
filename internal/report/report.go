@@ -65,7 +65,13 @@ func RenderMarkdown(r Report) string {
 // SummaryPrompt renders the report data as a compact prompt for an LLM to summarize.
 func SummaryPrompt(r Report) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Security data for the last %d hours.\n", r.WindowHours)
+	if !r.Until.IsZero() {
+		// Explicit range: tell the model the real dates so it doesn't say "the last N hours".
+		fmt.Fprintf(&b, "Security data for %s to %s (UTC).\n",
+			r.Since.UTC().Format("2006-01-02 15:04"), r.Until.UTC().Format("2006-01-02 15:04"))
+	} else {
+		fmt.Fprintf(&b, "Security data for the last %d hours.\n", r.WindowHours)
+	}
 	fmt.Fprintf(&b, "Total events: %d. Total alerts: %d.\n", r.TotalEvents, r.TotalAlerts)
 	promptLine(&b, "Severity breakdown", r.BySeverity)
 	promptLine(&b, "Top source IPs", r.TopSourceIPs)

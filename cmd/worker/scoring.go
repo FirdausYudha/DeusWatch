@@ -18,11 +18,10 @@ import (
 // SCENARIO_BAN_SCORE > 0, any IP crossing that score is handed to the response engine as
 // a ban recommendation (progressive ban + whitelist + dedup all still apply).
 func runIPScorer(ctx context.Context, st *store.Store, engine *respond.Engine) {
-	window := durEnv("SCORE_WINDOW", 10*time.Minute)
 	interval := durEnv("SCORE_INTERVAL", 30*time.Second)
 	banAt, _ := strconv.Atoi(os.Getenv("SCENARIO_BAN_SCORE")) // 0 = scenario ban disabled
 
-	log.Printf("worker: IP scorer active (window %s, every %s%s)", window, interval,
+	log.Printf("worker: IP scorer active (every %s%s; window is UI-configurable)", interval,
 		scenarioBanLabel(banAt))
 
 	t := time.NewTicker(interval)
@@ -35,19 +34,19 @@ func runIPScorer(ctx context.Context, st *store.Store, engine *respond.Engine) {
 		case <-ctx.Done():
 			return
 		case <-first.C:
-			scoreOnce(ctx, st, engine, window, banAt)
+			scoreOnce(ctx, st, engine, banAt)
 		case <-t.C:
-			scoreOnce(ctx, st, engine, window, banAt)
+			scoreOnce(ctx, st, engine, banAt)
 		}
 	}
 }
 
-func scoreOnce(ctx context.Context, st *store.Store, engine *respond.Engine, window time.Duration, banAt int) {
+func scoreOnce(ctx context.Context, st *store.Store, engine *respond.Engine, banAt int) {
 	sc, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	// Weights are re-read each tick so a change in Settings applies live.
+	// Weights AND the window are re-read each tick so a change in Settings applies live.
 	cfg, _ := st.LoadScoreConfig(sc)
-	scored, err := st.RefreshIPScores(sc, window, cfg.Composite)
+	scored, err := st.RefreshIPScores(sc, cfg.CompositeWindow(), cfg.Composite)
 	if err != nil {
 		log.Printf("worker: IP scoring: %v", err)
 		return
@@ -88,15 +87,14 @@ func scenarioBanLabel(banAt int) string {
 // reconnaissance even without any CTI/WAF hit. Cheaper than the composite scorer, so it runs
 // less often (SUSPICIOUS_INTERVAL, default 5m).
 func runSuspiciousScorer(ctx context.Context, st *store.Store) {
-	window := durEnv("SUSPICIOUS_WINDOW", 24*time.Hour)
 	interval := durEnv("SUSPICIOUS_INTERVAL", 5*time.Minute)
-	log.Printf("worker: suspicious-IP watchlist active (window %s, every %s)", window, interval)
+	log.Printf("worker: suspicious-IP watchlist active (every %s; window is UI-configurable)", interval)
 
 	run := func() {
 		sc, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
-		cfg, _ := st.LoadScoreConfig(sc) // live-reloadable weights
-		if _, err := st.RefreshSuspiciousIPs(sc, window, cfg.Suspicion); err != nil {
+		cfg, _ := st.LoadScoreConfig(sc) // live-reloadable weights + window
+		if _, err := st.RefreshSuspiciousIPs(sc, cfg.SuspiciousWindow(), cfg.Suspicion); err != nil {
 			log.Printf("worker: suspicious-IP scan: %v", err)
 		}
 	}
