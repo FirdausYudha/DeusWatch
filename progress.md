@@ -10,8 +10,10 @@ min_severity floor + the 30s settle lag (a MOVING window — a fresh event serve
 cursor pagination (limit=1) + has_more; auth 401 on bad/absent key; scope enforcement (events-only
 key → indicators 403, events 200); indicators feed with min_score; usage counters (request_count +
 last_used_at) increment; disable → 401, revoke → 401; `GET /api/response/decision-table` returns
-the exact policy. NOT yet verified (need infra/keys): ClickHouse sink (needs a ClickHouse instance),
-MalwareBazaar (needs a free abuse.ch Auth-Key). See [[honesty-principle]].
+the exact policy. **MalwareBazaar also LIVE-VERIFIED** (2026-07-18) against the real abuse.ch API
+with the user's Auth-Key: a catalogued sample hash → known_bad ("MalwareBazaar sample (exe)"), a
+bogus 64-zero hash → unknown. NOT yet verified: ClickHouse sink (needs a ClickHouse instance).
+See [[honesty-principle]].
 
 **v1.16.0 RELEASED 2026-07-18** — **Phase D: subscription API** (the LAST target-
 architecture layer — A/B/C/D now all done). The sellable "rich-log" product: external subscribers
