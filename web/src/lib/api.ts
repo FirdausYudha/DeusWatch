@@ -1185,7 +1185,7 @@ export async function saveNotifyConfig(c: NotifyConfig): Promise<NotifyConfig> {
 
 // ── Threat-scoring weights (composite score + suspicious-IP watchlist) ─
 export type CompositeWeights = {
-  abuse: number; fired_times: number; otx: number; severity: number
+  abuse: number; fired_times: number; otx: number; severity: number; anomaly: number
   otx_cap: number; fired_cap: number
 }
 export type SuspicionWeights = {

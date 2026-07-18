@@ -70,7 +70,7 @@ function ScoringWeightsPanel() {
       {open && (
         <div className="mt-4">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Composite threat score</h3>
-          <WeightRow group="composite" label="Signals" keys={[['abuse', 'AbuseIPDB'], ['fired_times', 'Fired times'], ['otx', 'OTX pulses'], ['severity', 'Worst severity']]} />
+          <WeightRow group="composite" label="Signals" keys={[['abuse', 'AbuseIPDB'], ['fired_times', 'Fired times'], ['otx', 'OTX pulses'], ['severity', 'Worst severity'], ['anomaly', 'Anomaly (ML)']]} />
           <label className="mb-3 flex items-center gap-2 text-xs text-slate-400">
             Lookback window
             <input

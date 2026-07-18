@@ -220,6 +220,13 @@ func main() {
 		mux.Handle("GET /api/score-config", protect(auth.PermViewDashboard, scoreConfigGetHandler(st)))
 		mux.Handle("PUT /api/score-config", protect(auth.PermManageSettings, scoreConfigSetHandler(st)))
 
+		// ML bridge (LST Tameng Lapis 5): a token-authed API for the external Isolation Forest
+		// batch to pull per-IP features and write anomaly_score back. Token-based (like the
+		// ingest webhook) so a cron/Python job can call it without a UI session. Off (404) unless
+		// ML_API_TOKEN is set.
+		mux.HandleFunc("GET /api/ml/ip-features", mlFeaturesHandler(st))
+		mux.HandleFunc("POST /api/ml/anomaly", mlAnomalyHandler(st))
+
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
@@ -841,6 +848,91 @@ func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, store.ReportSummary{Summary: summary, Model: analyzer.Name(), PeriodHours: hours, GeneratedAt: time.Now()})
 	}
+}
+
+// mlAuthorized checks the ML_API_TOKEN (query ?token= or Authorization: Bearer) in constant time.
+// Returns false — and writes the response — when the token is unset (feature off) or wrong.
+func mlAuthorized(w http.ResponseWriter, r *http.Request) bool {
+	want := strings.TrimSpace(os.Getenv("ML_API_TOKEN"))
+	if want == "" {
+		http.Error(w, "ML API disabled (set ML_API_TOKEN)", http.StatusNotFound)
+		return false
+	}
+	got := r.URL.Query().Get("token")
+	if got == "" {
+		got = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	}
+	if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	return true
+}
+
+// mlFeaturesHandler (GET /api/ml/ip-features?token=&window=24h&limit=1000) serves the per-IP
+// feature vectors for the external ML batch (Isolation Forest low-and-slow detection).
+func mlFeaturesHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !mlAuthorized(w, r) {
+			return
+		}
+		window := 24 * time.Hour
+		if v := r.URL.Query().Get("window"); v != "" {
+			if d, err := time.ParseDuration(v); err == nil && d > 0 {
+				window = d
+			}
+		}
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		feats, err := st.IPFeatures(r.Context(), window, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, feats)
+	}
+}
+
+// mlAnomalyHandler (POST /api/ml/anomaly?token=) accepts the anomaly_score writeback. Body: a
+// JSON array [{"ip":"1.2.3.4","anomaly":85}, …] (or a single object). The composite scorer folds
+// the score in on its next run, subject to the UI-tunable anomaly weight.
+func mlAnomalyHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !mlAuthorized(w, r) {
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4<<20))
+		if err != nil {
+			http.Error(w, "request too large", http.StatusBadRequest)
+			return
+		}
+		trimmed := bytesTrimLeadingSpace(body)
+		var entries []store.IPAnomaly
+		if len(trimmed) > 0 && trimmed[0] == '{' {
+			var one store.IPAnomaly
+			if err := json.Unmarshal(body, &one); err != nil {
+				http.Error(w, "invalid body", http.StatusBadRequest)
+				return
+			}
+			entries = []store.IPAnomaly{one}
+		} else if err := json.Unmarshal(body, &entries); err != nil {
+			http.Error(w, "invalid body (expected a JSON array of {ip, anomaly})", http.StatusBadRequest)
+			return
+		}
+		n, err := st.SetIPAnomalies(r.Context(), entries)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]int{"updated": n})
+	}
+}
+
+func bytesTrimLeadingSpace(b []byte) []byte {
+	i := 0
+	for i < len(b) && (b[i] == ' ' || b[i] == '\n' || b[i] == '\r' || b[i] == '\t') {
+		i++
+	}
+	return b[i:]
 }
 
 func scoreConfigGetHandler(st *store.Store) http.HandlerFunc {

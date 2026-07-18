@@ -12,6 +12,7 @@ type Signals struct {
 	Abuse       int // AbuseIPDB confidence 0-100
 	OTX         int // AlienVault OTX pulse count
 	MaxSeverity int // worst DCS severity seen 0-4 (info..critical)
+	Anomaly     int // 0-100 ML anomaly score written back by the external Isolation Forest batch
 }
 
 // Weights control the relative contribution of each signal and the caps that saturate the
@@ -22,14 +23,18 @@ type Weights struct {
 	FiredTimes float64 `json:"fired_times"`
 	OTX        float64 `json:"otx"`
 	Severity   float64 `json:"severity"`
-	OTXCap     int     `json:"otx_cap"`
-	FiredCap   int     `json:"fired_cap"`
+	// Anomaly weight for the ML anomaly_score. Default 0 so folding in the ML signal is opt-in
+	// (raise it in Settings once the external Isolation Forest batch is writing scores back) —
+	// this keeps existing deployments' scores unchanged.
+	Anomaly  float64 `json:"anomaly"`
+	OTXCap   int     `json:"otx_cap"`
+	FiredCap int     `json:"fired_cap"`
 }
 
-// DefaultWeights: reputation-forward but repeat-offense still matters. Suricata/WAF
-// severity can be folded into MaxSeverity later without changing this shape.
+// DefaultWeights: reputation-forward but repeat-offense still matters. Anomaly defaults to 0
+// (opt-in). Suricata/WAF severity can be folded into MaxSeverity later without changing this shape.
 func DefaultWeights() Weights {
-	return Weights{Abuse: 0.40, FiredTimes: 0.30, OTX: 0.15, Severity: 0.15, OTXCap: 20, FiredCap: 20}
+	return Weights{Abuse: 0.40, FiredTimes: 0.30, OTX: 0.15, Severity: 0.15, Anomaly: 0, OTXCap: 20, FiredCap: 20}
 }
 
 // Result is the computed score + its band.
@@ -54,9 +59,10 @@ func Compute(s Signals, w Weights) Result {
 	fired := cap100(s.FiredTimes, w.FiredCap)
 	otx := cap100(s.OTX, w.OTXCap)
 	sev := clamp100(float64(s.MaxSeverity) * 25) // 0..4 -> 0..100
+	anomaly := clamp100(float64(s.Anomaly))      // ML anomaly_score, already 0..100
 
-	total := abuse*w.Abuse + fired*w.FiredTimes + otx*w.OTX + sev*w.Severity
-	if sum := w.Abuse + w.FiredTimes + w.OTX + w.Severity; sum > 0 {
+	total := abuse*w.Abuse + fired*w.FiredTimes + otx*w.OTX + sev*w.Severity + anomaly*w.Anomaly
+	if sum := w.Abuse + w.FiredTimes + w.OTX + w.Severity + w.Anomaly; sum > 0 {
 		total /= sum
 	}
 	score := int(total + 0.5)

@@ -2,6 +2,26 @@ package score
 
 import "testing"
 
+func TestComposeAnomalyOptIn(t *testing.T) {
+	sig := Signals{FiredTimes: 5, Abuse: 10, OTX: 0, MaxSeverity: 2, Anomaly: 100}
+
+	// Default weights (anomaly weight 0) → the ML anomaly must NOT change the score, so existing
+	// deployments are unchanged until the operator opts in.
+	base := Compute(sig, DefaultWeights())
+	noAnom := Compute(Signals{FiredTimes: 5, Abuse: 10, OTX: 0, MaxSeverity: 2, Anomaly: 0}, DefaultWeights())
+	if base.Score != noAnom.Score {
+		t.Fatalf("anomaly must not affect the score at weight 0: %d vs %d", base.Score, noAnom.Score)
+	}
+
+	// With an anomaly weight, a high anomaly_score pulls the composite score UP.
+	w := DefaultWeights()
+	w.Anomaly = 0.5
+	withAnom := Compute(sig, w)
+	if withAnom.Score <= base.Score {
+		t.Fatalf("a high anomaly with weight should raise the score: %d (was %d)", withAnom.Score, base.Score)
+	}
+}
+
 func TestComputeSuspicion(t *testing.T) {
 	w := DefaultSuspicionWeights()
 

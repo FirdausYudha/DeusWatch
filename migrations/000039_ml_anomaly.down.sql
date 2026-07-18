@@ -1,0 +1,2 @@
+ALTER TABLE ip_scores DROP COLUMN IF EXISTS anomaly;
+DROP TABLE IF EXISTS ip_anomaly;
