@@ -7,8 +7,8 @@ only their *config* lives in the DB, encrypted at rest.
 
 - The **Catalog** lists connector types by category: **CTI** (AbuseIPDB, AlienVault OTX),
   **Firewall** (nftables agent-side, MikroTik), **Bouncer** (CrowdSec LAPI), **LLM**
-  (Claude/Ollama/OpenAI-compatible), **FIM reputation** (VirusTotal, CIRCL), **Export**
-  (webhook JSON).
+  (Claude/Ollama/OpenAI-compatible), **FIM reputation** (VirusTotal, MalwareBazaar, CIRCL),
+  **Export** (webhook JSON).
 - You save config (API key, URL, creds) per connector. **Secrets are AES-GCM encrypted** with
   `SECRETS_KEY` and are **write-only** (masked in the UI).
 - Consumers resolve them at startup: the worker's **enrichment** uses CTI/FIM, the **response
@@ -43,6 +43,18 @@ only their *config* lives in the DB, encrypted at rest.
   report / both). All providers (OpenAI, Gemini, Groq, Claude) + the triage-vs-report selector
   are in [docs/llm-providers.md](../llm-providers.md); Ollama connect + troubleshooting (DNS,
   nginx 504, slow model) is in [docs/llm-ollama.md](../llm-ollama.md).
+- **FIM reputation** (classifies FIM file hashes as known-good / known-bad / unknown; a
+  known-bad file raises the event to High). Enable any combination:
+  - **VirusTotal** — `api_key`. 70+ AV engines; a malicious count > 0 is known-bad, 0 is
+    known-good. Free tier ≈4 req/min, 500/day.
+  - **MalwareBazaar** — `Auth-Key` (free from a [bazaar.abuse.ch](https://bazaar.abuse.ch)
+    account → Account → Auth-Key). A hit is a catalogued malware sample, so it is **always
+    known-bad**; a miss is "unknown" (MalwareBazaar never asserts known-good).
+  - **CIRCL hashlookup** — no key, no rate limit. Adds free NSRL known-good plus known-bad sets.
+
+  Verdicts merge with **known-bad outranking known-good outranking unknown**, and lookups are
+  cached in Postgres (dedup TTL) to protect quotas. Env-var equivalents:
+  `VIRUSTOTAL_API_KEY`, `MALWAREBAZAAR_API_KEY`, `CIRCL_HASHLOOKUP_ENABLED` (Integrations win).
 
 ## Endpoints & source
 

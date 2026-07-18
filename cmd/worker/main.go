@@ -112,10 +112,10 @@ func main() {
 	// FIM file-hash reputation (optional): CIRCL hashlookup (free) + VirusTotal, from the
 	// Integrations registry first, then env. Enables known-good/known-bad classification of
 	// hashed files (a known-bad file raises the event to High severity).
-	vtKey, circlOn := resolveHashRep(ctx, intStore)
-	if hp, hok := hashrep.BuildProvider(vtKey, circlOn); hok {
+	vtKey, mbKey, circlOn := resolveHashRep(ctx, intStore)
+	if hp, hok := hashrep.BuildProvider(vtKey, mbKey, circlOn); hok {
 		enricher.SetHashReputation(hp, hashrep.NewCache(st.Pool()), ctiTTL)
-		log.Printf("worker: FIM hash reputation active (virustotal=%v, circl=%v)", vtKey != "", circlOn)
+		log.Printf("worker: FIM hash reputation active (virustotal=%v, malwarebazaar=%v, circl=%v)", vtKey != "", mbKey != "", circlOn)
 	}
 
 	// Response engine (Phase 2): block recommendations + approval + progressive ban.
@@ -801,8 +801,9 @@ func resolveAnalyzer(ctx context.Context, intStore *integrations.Store, purpose 
 // resolveHashRep returns the VirusTotal key & whether CIRCL hashlookup is on for FIM
 // file-hash reputation, preferring enabled Integrations entries over env vars
 // (VIRUSTOTAL_API_KEY, CIRCL_HASHLOOKUP_ENABLED).
-func resolveHashRep(ctx context.Context, intStore *integrations.Store) (vtKey string, circlOn bool) {
+func resolveHashRep(ctx context.Context, intStore *integrations.Store) (vtKey, mbKey string, circlOn bool) {
 	vtKey = os.Getenv("VIRUSTOTAL_API_KEY")
+	mbKey = os.Getenv("MALWAREBAZAAR_API_KEY")
 	circlOn, _ = strconv.ParseBool(os.Getenv("CIRCL_HASHLOOKUP_ENABLED"))
 	if intStore == nil {
 		return
@@ -810,6 +811,11 @@ func resolveHashRep(ctx context.Context, intStore *integrations.Store) (vtKey st
 	if rows, err := intStore.Resolve(ctx, "virustotal"); err == nil && len(rows) > 0 {
 		if k := rows[0].Config["api_key"]; k != "" {
 			vtKey = k
+		}
+	}
+	if rows, err := intStore.Resolve(ctx, "malwarebazaar"); err == nil && len(rows) > 0 {
+		if k := rows[0].Config["api_key"]; k != "" {
+			mbKey = k
 		}
 	}
 	if rows, err := intStore.Resolve(ctx, "circl_hashlookup"); err == nil && len(rows) > 0 {

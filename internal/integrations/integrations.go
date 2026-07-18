@@ -99,6 +99,13 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
+		Type: "malwarebazaar", Label: "MalwareBazaar (file-hash reputation)", Category: "fim",
+		Desc: "Match FIM file hashes against abuse.ch's database of known malware samples. A hit is known-bad. Needs a free abuse.ch Auth-Key.",
+		Fields: []Field{
+			{Key: "api_key", Label: "Auth-Key", Secret: true, Help: "Free from a bazaar.abuse.ch account (Account → Auth-Key)."},
+		},
+	},
+	{
 		Type: "file_quarantine", Label: "Endpoint file quarantine (FIM remediation)", Category: "fim",
 		Desc: "When a FIM file's hash is known-bad, instruct agents to quarantine or delete it. The agent must also opt in on the host (AGENT_FILE_REMEDIATION=quarantine|delete), and it re-verifies the hash before acting.",
 		Fields: []Field{

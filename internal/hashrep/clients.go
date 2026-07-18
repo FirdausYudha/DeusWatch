@@ -121,3 +121,65 @@ func (c *VirusTotalClient) Lookup(ctx context.Context, sha256 string) (Verdict, 
 	}
 	return VerdictKnownGood, fmt.Sprintf("0/%d detections", total), nil
 }
+
+// ── MalwareBazaar (abuse.ch; a database of KNOWN malware samples) ──
+// https://bazaar.abuse.ch — a hit means the exact file is a catalogued malware sample, so it is
+// always known-bad; a miss is "unknown" (MB never asserts known-good). The API needs a free
+// Auth-Key (abuse.ch account); without one it is left disabled.
+const defaultMBBase = "https://mb-api.abuse.ch"
+
+type MalwareBazaarClient struct {
+	key  string
+	base string
+	hc   *http.Client
+}
+
+func NewMalwareBazaarClient(key string) *MalwareBazaarClient {
+	return &MalwareBazaarClient{key: key, base: defaultMBBase, hc: newHTTPClient()}
+}
+
+func (c *MalwareBazaarClient) Lookup(ctx context.Context, sha256 string) (Verdict, string, error) {
+	form := url.Values{"query": {"get_info"}, "hash": {sha256}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/api/v1/", strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if c.key != "" {
+		req.Header.Set("Auth-Key", c.key)
+	}
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("malwarebazaar: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("malwarebazaar: HTTP %d", resp.StatusCode)
+	}
+	var out struct {
+		QueryStatus string `json:"query_status"`
+		Data        []struct {
+			Signature string `json:"signature"`
+			FileType  string `json:"file_type"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", "", fmt.Errorf("malwarebazaar: decode: %w", err)
+	}
+	switch out.QueryStatus {
+	case "ok":
+		detail := "known malware sample"
+		if len(out.Data) > 0 {
+			if sig := out.Data[0].Signature; sig != "" {
+				detail = "MalwareBazaar: " + sig
+			} else if ft := out.Data[0].FileType; ft != "" {
+				detail = "MalwareBazaar sample (" + ft + ")"
+			}
+		}
+		return VerdictKnownBad, detail, nil
+	case "hash_not_found", "no_results":
+		return VerdictUnknown, "", nil
+	default:
+		return "", "", fmt.Errorf("malwarebazaar: %s", out.QueryStatus)
+	}
+}

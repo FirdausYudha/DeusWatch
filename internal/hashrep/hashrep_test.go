@@ -105,10 +105,13 @@ func TestCompositeKnownBadOutranks(t *testing.T) {
 }
 
 func TestBuildProviderDisabled(t *testing.T) {
-	if _, ok := BuildProvider("", false); ok {
+	if _, ok := BuildProvider("", "", false); ok {
 		t.Fatal("no config should disable the provider")
 	}
-	if p, ok := BuildProvider("", true); !ok || p == nil {
+	if p, ok := BuildProvider("", "", true); !ok || p == nil {
 		t.Fatal("circlOn should enable the provider")
+	}
+	if p, ok := BuildProvider("", "mbkey", false); !ok || p == nil {
+		t.Fatal("mbKey should enable the provider")
 	}
 }

@@ -45,6 +45,7 @@ func IsSHA256(s string) bool { return reSHA256.MatchString(s) }
 // source failing is tolerated as long as another succeeds.
 type CompositeProvider struct {
 	VT    *VirusTotalClient
+	MB    *MalwareBazaarClient
 	CIRCL *CIRCLClient
 }
 
@@ -79,7 +80,15 @@ func (p *CompositeProvider) LookupHash(ctx context.Context, sha256 string) (Indi
 			apply(v, detail, "virustotal")
 		}
 	}
-	// Skip CIRCL once VT already flagged it bad — nothing it can add.
+	// MalwareBazaar (known-bad only) — skip once something already flagged it bad.
+	if p.MB != nil && ind.Verdict != VerdictKnownBad {
+		if v, detail, err := p.MB.Lookup(ctx, h); err != nil {
+			errs = append(errs, err.Error())
+		} else {
+			apply(v, detail, "malwarebazaar")
+		}
+	}
+	// Skip CIRCL once something already flagged it bad — nothing it can add.
 	if p.CIRCL != nil && ind.Verdict != VerdictKnownBad {
 		if v, detail, err := p.CIRCL.Lookup(ctx, h); err != nil {
 			errs = append(errs, err.Error())
@@ -95,15 +104,19 @@ func (p *CompositeProvider) LookupHash(ctx context.Context, sha256 string) (Indi
 	return ind, nil
 }
 
-// BuildProvider assembles a reputation provider. vtKey enables VirusTotal; circlOn enables
-// the free CIRCL hashlookup. Returns (nil, false) when nothing is configured.
-func BuildProvider(vtKey string, circlOn bool) (Provider, bool) {
-	if vtKey == "" && !circlOn {
+// BuildProvider assembles a reputation provider. vtKey enables VirusTotal; mbKey enables
+// MalwareBazaar; circlOn enables the free CIRCL hashlookup. Returns (nil, false) when nothing
+// is configured.
+func BuildProvider(vtKey, mbKey string, circlOn bool) (Provider, bool) {
+	if vtKey == "" && mbKey == "" && !circlOn {
 		return nil, false
 	}
 	cp := &CompositeProvider{}
 	if vtKey != "" {
 		cp.VT = NewVirusTotalClient(vtKey)
+	}
+	if mbKey != "" {
+		cp.MB = NewMalwareBazaarClient(mbKey)
 	}
 	if circlOn {
 		cp.CIRCL = NewCIRCLClient()
