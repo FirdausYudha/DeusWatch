@@ -1183,6 +1183,32 @@ export async function saveNotifyConfig(c: NotifyConfig): Promise<NotifyConfig> {
   return res.json()
 }
 
+// ── Threat-scoring weights (composite score + suspicious-IP watchlist) ─
+export type CompositeWeights = {
+  abuse: number; fired_times: number; otx: number; severity: number
+  otx_cap: number; fired_cap: number
+}
+export type SuspicionWeights = {
+  fanout: number; fail_ratio: number; spread: number; volume: number
+  fanout_cap: number; spread_cap: number; volume_cap: number
+}
+export type ScoreConfig = { composite: CompositeWeights; suspicion: SuspicionWeights }
+
+export async function fetchScoreConfig(): Promise<{ config: ScoreConfig; defaults: ScoreConfig }> {
+  const res = await authFetch('/api/score-config')
+  if (!res.ok) throw new Error(`score config: HTTP ${res.status}`)
+  return res.json()
+}
+export async function saveScoreConfig(c: ScoreConfig): Promise<ScoreConfig> {
+  const res = await authFetch('/api/score-config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(c),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // ── Config profile (export/import to clone a server's settings) ─
 export async function exportConfig(): Promise<Blob> {
   const res = await authFetch('/api/config/export')

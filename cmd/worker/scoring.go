@@ -9,7 +9,6 @@ import (
 
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/respond"
-	"deuswatch/internal/score"
 	"deuswatch/internal/store"
 )
 
@@ -22,7 +21,6 @@ func runIPScorer(ctx context.Context, st *store.Store, engine *respond.Engine) {
 	window := durEnv("SCORE_WINDOW", 10*time.Minute)
 	interval := durEnv("SCORE_INTERVAL", 30*time.Second)
 	banAt, _ := strconv.Atoi(os.Getenv("SCENARIO_BAN_SCORE")) // 0 = scenario ban disabled
-	weights := score.DefaultWeights()
 
 	log.Printf("worker: IP scorer active (window %s, every %s%s)", window, interval,
 		scenarioBanLabel(banAt))
@@ -37,17 +35,19 @@ func runIPScorer(ctx context.Context, st *store.Store, engine *respond.Engine) {
 		case <-ctx.Done():
 			return
 		case <-first.C:
-			scoreOnce(ctx, st, engine, window, weights, banAt)
+			scoreOnce(ctx, st, engine, window, banAt)
 		case <-t.C:
-			scoreOnce(ctx, st, engine, window, weights, banAt)
+			scoreOnce(ctx, st, engine, window, banAt)
 		}
 	}
 }
 
-func scoreOnce(ctx context.Context, st *store.Store, engine *respond.Engine, window time.Duration, w score.Weights, banAt int) {
+func scoreOnce(ctx context.Context, st *store.Store, engine *respond.Engine, window time.Duration, banAt int) {
 	sc, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	scored, err := st.RefreshIPScores(sc, window, w)
+	// Weights are re-read each tick so a change in Settings applies live.
+	cfg, _ := st.LoadScoreConfig(sc)
+	scored, err := st.RefreshIPScores(sc, window, cfg.Composite)
 	if err != nil {
 		log.Printf("worker: IP scoring: %v", err)
 		return
@@ -95,7 +95,8 @@ func runSuspiciousScorer(ctx context.Context, st *store.Store) {
 	run := func() {
 		sc, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
-		if _, err := st.RefreshSuspiciousIPs(sc, window); err != nil {
+		cfg, _ := st.LoadScoreConfig(sc) // live-reloadable weights
+		if _, err := st.RefreshSuspiciousIPs(sc, window, cfg.Suspicion); err != nil {
 			log.Printf("worker: suspicious-IP scan: %v", err)
 		}
 	}

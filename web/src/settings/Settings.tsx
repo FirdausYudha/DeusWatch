@@ -1,9 +1,103 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, type NotifyConfig, type StorageStatus, type UpdateInfo } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig } from '../lib/api'
 import DocLink from '../components/DocLink'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
+
+// ScoringWeightsPanel tunes the two IP scorers. Each group's four weights are shown as their
+// NORMALIZED share (they're divided by their sum on the server), so the operator reasons in
+// percentages. Changes apply live — the worker re-reads the weights on its next scoring tick.
+function ScoringWeightsPanel() {
+  const [cfg, setCfg] = useState<ScoreConfig | null>(null)
+  const [defaults, setDefaults] = useState<ScoreConfig | null>(null)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    fetchScoreConfig().then((r) => { setCfg(r.config); setDefaults(r.defaults) }).catch((e) => setErr((e as Error).message))
+  }, [])
+
+  const save = async (next: ScoreConfig) => {
+    setBusy(true); setErr(''); setMsg('')
+    try { setCfg(await saveScoreConfig(next)); setMsg('Saved — applies on the next scoring run.') }
+    catch (e) { setErr((e as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  if (!cfg) return null
+
+  // A row of weights that renders each as its share of the group's total.
+  const WeightRow = ({ label, keys, group }: { label: string; keys: [string, string][]; group: 'composite' | 'suspicion' }) => {
+    const vals = cfg[group] as unknown as Record<string, number>
+    const sum = keys.reduce((n, [k]) => n + (vals[k] || 0), 0) || 1
+    return (
+      <div className="mb-3">
+        <div className="mb-1 text-xs font-medium text-slate-400">{label}</div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {keys.map(([k, name]) => (
+            <label key={k} className="flex items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-900 px-2 py-1.5 text-xs">
+              <span className="text-slate-400">{name}</span>
+              <span className="flex items-center gap-2">
+                <input
+                  type="number" min={0} step={0.05} value={vals[k]}
+                  onChange={(e) => setCfg({ ...cfg, [group]: { ...vals, [k]: Math.max(0, Number(e.target.value)) } } as ScoreConfig)}
+                  className="w-16 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-right text-slate-200 outline-none focus:border-indigo-500"
+                />
+                <span className="w-9 text-right text-slate-500">{Math.round(((vals[k] || 0) / sum) * 100)}%</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
+        <div>
+          <h2 className="text-sm font-medium text-slate-200">Threat-scoring weights</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Tune how the composite IP score and the suspicious-IP watchlist weigh their signals. Applies live.
+          </p>
+        </div>
+        <span className="text-slate-500">{open ? '▾' : '▸'}</span>
+      </button>
+
+      {open && (
+        <div className="mt-4">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Composite threat score</h3>
+          <WeightRow group="composite" label="Signals" keys={[['abuse', 'AbuseIPDB'], ['fired_times', 'Fired times'], ['otx', 'OTX pulses'], ['severity', 'Worst severity']]} />
+
+          <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Suspicious-IP watchlist</h3>
+          <WeightRow group="suspicion" label="Signals" keys={[['fanout', 'Fan-out (distinct targets)'], ['fail_ratio', 'Failure ratio'], ['spread', 'Time spread'], ['volume', 'Volume']]} />
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button onClick={() => save(cfg)} disabled={busy}
+              className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
+              {busy ? 'Saving…' : 'Save weights'}
+            </button>
+            {defaults && (
+              <button onClick={() => { setCfg(defaults); save(defaults) }} disabled={busy}
+                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50">
+                Reset to defaults
+              </button>
+            )}
+            {msg && <span className="text-xs text-emerald-400">{msg}</span>}
+            {err && <span className="text-xs text-rose-400">{err}</span>}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-600">
+            Weights are relative — each is divided by its group's total, so only the ratios matter. The caps
+            (e.g. how many fired-times saturate to 100) keep their built-in values. See docs/suspicious-ips.md.
+          </p>
+        </div>
+      )}
+    </section>
+  )
+}
 
 export default function Settings() {
   const [enabled, setEnabled] = useState<boolean | null>(null)
@@ -301,6 +395,8 @@ export default function Settings() {
         {notifyErr && <p className="mt-3 text-sm text-rose-400">{notifyErr}</p>}
         {notifyMsg && <p className="mt-3 text-sm text-emerald-400">{notifyMsg}</p>}
       </section>
+
+      <ScoringWeightsPanel />
 
       <section className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
         <div className="flex items-center justify-between gap-3">

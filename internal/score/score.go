@@ -18,8 +18,12 @@ type Signals struct {
 // unbounded counts (fired_times, OTX pulses) to 100. Weights need not sum to 1 - the result
 // is normalized by their sum.
 type Weights struct {
-	Abuse, FiredTimes, OTX, Severity float64
-	OTXCap, FiredCap                 int
+	Abuse      float64 `json:"abuse"`
+	FiredTimes float64 `json:"fired_times"`
+	OTX        float64 `json:"otx"`
+	Severity   float64 `json:"severity"`
+	OTXCap     int     `json:"otx_cap"`
+	FiredCap   int     `json:"fired_cap"`
 }
 
 // DefaultWeights: reputation-forward but repeat-offense still matters. Suricata/WAF
@@ -107,8 +111,13 @@ type SuspicionSignals struct {
 
 // SuspicionWeights weight the behavioral signals + the caps that saturate the unbounded counts.
 type SuspicionWeights struct {
-	FanOut, FailRatio, Spread, Volume float64
-	FanOutCap, SpreadCap, VolumeCap   int
+	FanOut    float64 `json:"fanout"`
+	FailRatio float64 `json:"fail_ratio"`
+	Spread    float64 `json:"spread"`
+	Volume    float64 `json:"volume"`
+	FanOutCap int     `json:"fanout_cap"`
+	SpreadCap int     `json:"spread_cap"`
+	VolumeCap int     `json:"volume_cap"`
 }
 
 // DefaultSuspicionWeights emphasizes fan-out and failure ratio (the (a)+(c) approach): a low

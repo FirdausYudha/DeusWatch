@@ -58,14 +58,13 @@ HAVING count(*) >= 3`
 // RefreshSuspiciousIPs recomputes the watchlist over `window` and replaces the table. Rows are
 // pruned by the full replace, so an IP that goes quiet drops off. Returns the rows (highest
 // score first is not guaranteed here; the caller/query orders).
-func (s *Store) RefreshSuspiciousIPs(ctx context.Context, window time.Duration) ([]SuspiciousIP, error) {
+func (s *Store) RefreshSuspiciousIPs(ctx context.Context, window time.Duration, w score.SuspicionWeights) ([]SuspiciousIP, error) {
 	rows, err := s.pool.Query(ctx, suspiciousAggSQL, fmt.Sprintf("%d seconds", int(window.Seconds())))
 	if err != nil {
 		return nil, fmt.Errorf("store: suspicious query: %w", err)
 	}
 	defer rows.Close()
 
-	w := score.DefaultSuspicionWeights()
 	var out []SuspiciousIP
 	for rows.Next() {
 		var r SuspiciousIP

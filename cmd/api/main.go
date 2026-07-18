@@ -216,6 +216,10 @@ func main() {
 		mux.Handle("GET /api/report/ai-config", protect(auth.PermViewDashboard, reportAIConfigGetHandler(st)))
 		mux.Handle("PUT /api/report/ai-config", protect(auth.PermManageSettings, reportAIConfigSetHandler(st)))
 
+		// Threat-scoring weights (composite score + suspicious-IP watchlist), UI-tunable.
+		mux.Handle("GET /api/score-config", protect(auth.PermViewDashboard, scoreConfigGetHandler(st)))
+		mux.Handle("PUT /api/score-config", protect(auth.PermManageSettings, scoreConfigSetHandler(st)))
+
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
@@ -824,6 +828,35 @@ func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
 			log.Printf("api: save report summary: %v", err)
 		}
 		writeJSON(w, http.StatusOK, store.ReportSummary{Summary: summary, Model: analyzer.Name(), PeriodHours: hours, GeneratedAt: time.Now()})
+	}
+}
+
+func scoreConfigGetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := st.LoadScoreConfig(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Include the built-in defaults so the UI can offer "reset to defaults".
+		writeJSON(w, http.StatusOK, map[string]any{"config": c, "defaults": store.DefaultScoreConfig()})
+	}
+}
+
+func scoreConfigSetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var c store.ScoreConfig
+		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if err := st.SaveScoreConfig(r.Context(), c); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Return the sanitized/stored value so the UI reflects any clamping.
+		saved, _ := st.LoadScoreConfig(r.Context())
+		writeJSON(w, http.StatusOK, saved)
 	}
 }
 
