@@ -1,7 +1,26 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-18 (v1.15.1).
+> Last updated: 2026-07-18 (v1.15.1 + unreleased work below).
+
+**UNRELEASED (on `main`, since v1.15.1)** — four items accumulated, awaiting the user's version
+call:
+1. **Raw daily log archive (Phase B)** — `internal/archive`: every normalized event is also
+   appended as a zstd frame to `<ARCHIVE_DIR>/<source>/<dataset>/<YYYY-MM-DD>.log.zst`, with
+   retention sweep and path-traversal-safe segment names. docs/archive.md. (commit e1da72f)
+2. **Naming cleanup** — removed the internal external-architecture project name and all
+   non-English terms from public docs/code/migrations/progress.md; DeusWatch reads as its own
+   full-English product. Standing rule saved. (commit 03dd756)
+3. **MalwareBazaar hash reputation** — abuse.ch known-malware DB as a third FIM reputation
+   source (after VirusTotal, CIRCL). A hit = always known-bad (raises the FIM event to High); a
+   miss = unknown (never known-good). Free abuse.ch Auth-Key. Integrations catalog entry
+   (`malwarebazaar`) + `MALWAREBAZAAR_API_KEY` env. (commit e1e6bac)
+4. **Entity_type decision table** — `internal/respond/decision.go`: explicit single-source-of-
+   truth policy the worker routes alerts by. `external_ip`→block (auto·ban engine), `host`→
+   network_containment (auto·containment engine), `user`/`hash`→alert-only (surfaced, not auto-
+   enforced). Behaviour-preserving refactor of `makeAlertHook`. `GET /api/response/decision-table`,
+   read-only Response-page panel, docs/decision-table.md. (this commit)
+Target-architecture phases remaining after this: **C ClickHouse sink, D subscription API**.
 
 **v1.15.1 RELEASED 2026-07-18** — **ML anomaly bridge** (external anomaly detection ↔ the scoring
 core; Phase A of the target-architecture roadmap). `GET /api/ml/ip-features` (per-IP feature vectors:
