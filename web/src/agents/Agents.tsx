@@ -85,6 +85,7 @@ export default function Agents({ me }: { me: Me }) {
             <DocLink file="new-log-source.md" label="Add a log source" />
             <DocLink file="whodata.md" label="FIM who-data" />
             <DocLink file="modsecurity.md" label="ModSecurity / WAF" />
+            <DocLink file="syslog.md" label="Syslog (agentless)" />
           </div>
         </div>
         {isAdmin && (

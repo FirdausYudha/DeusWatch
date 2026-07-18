@@ -31,6 +31,7 @@ import (
 	"deuswatch/internal/rules"
 	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
+	"deuswatch/internal/syslogin"
 	"deuswatch/internal/worker"
 )
 
@@ -164,6 +165,17 @@ func main() {
 	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. the Wazuh
 	// indexer) into the pipeline. No-op when no such integration is enabled.
 	go runESPull(ctx, intStore, b, st)
+
+	// Native syslog listener (UDP+TCP): ingest logs from agentless devices (routers, firewalls,
+	// appliances). Off unless SYSLOG_LISTEN is set (e.g. ":5514").
+	if addr := strings.TrimSpace(os.Getenv("SYSLOG_LISTEN")); addr != "" {
+		srv := syslogin.New(addr, b, os.Getenv("SYSLOG_DATASET"))
+		go func() {
+			if err := srv.Run(ctx); err != nil {
+				log.Printf("worker: syslog listener disabled: %v", err)
+			}
+		}()
+	}
 
 	// Notifications (Phase 2): Telegram/email/webhook + dedup/throttle.
 	dispatcher, notifyOn := notify.DispatcherFromEnv()
