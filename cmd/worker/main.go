@@ -17,6 +17,7 @@ import (
 
 	"deuswatch/internal/archive"
 	"deuswatch/internal/bus"
+	"deuswatch/internal/clickhouse"
 	"deuswatch/internal/detect"
 	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/enrich"
@@ -233,6 +234,25 @@ func main() {
 			} else {
 				defer aStop()
 				log.Printf("worker: raw archive active (%s, retention=%dd)", dir, retDays)
+			}
+		}
+	}
+
+	// ClickHouse analytics sink: a consumer streams every event into a ClickHouse table for
+	// large-scale columnar analytics (TimescaleDB stays the operational store). Off unless
+	// CLICKHOUSE_URL is set.
+	if chCfg, chOn := clickhouse.ConfigFromEnv(os.Getenv); chOn {
+		sink := clickhouse.New(chCfg)
+		if serr := sink.EnsureSchema(ctx); serr != nil {
+			log.Printf("worker: clickhouse sink disabled (schema init failed): %v", serr)
+		} else {
+			go sink.Run(ctx)
+			chStop, cerr := b.Consume(ctx, bus.StreamLogs, "clickhouse", bus.SubjectLogsNormalized, clickhouseHandler(sink))
+			if cerr != nil {
+				log.Printf("worker: clickhouse consumer: %v", cerr)
+			} else {
+				defer chStop()
+				log.Printf("worker: clickhouse analytics sink active (%s db=%s table=%s)", chCfg.URL, chCfg.Database, chCfg.Table)
 			}
 		}
 	}
@@ -935,6 +955,19 @@ func archiveHandler(arc *archive.Archiver) bus.Handler {
 			ts = time.Now()
 		}
 		arc.Add(source, dataset, line, ts)
+		return nil
+	}
+}
+
+// clickhouseHandler flattens each normalized event into a row and buffers it for the batched
+// ClickHouse insert. Parse failures are skipped (never Nak — that would redeliver forever).
+func clickhouseHandler(sink *clickhouse.Sink) bus.Handler {
+	return func(_ string, data []byte) error {
+		var ev ingest.Event
+		if err := json.Unmarshal(data, &ev); err != nil {
+			return nil
+		}
+		sink.Add(context.Background(), &ev)
 		return nil
 	}
 }

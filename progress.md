@@ -3,8 +3,8 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.15.1 + unreleased work below).
 
-**UNRELEASED (on `main`, since v1.15.1)** — four items accumulated, awaiting the user's version
-call:
+**UNRELEASED (on `main`, since v1.15.1)** — five items accumulated, awaiting the user's version
+call (items 1–4 already pushed; item 5 Phase C committed locally):
 1. **Raw daily log archive (Phase B)** — `internal/archive`: every normalized event is also
    appended as a zstd frame to `<ARCHIVE_DIR>/<source>/<dataset>/<YYYY-MM-DD>.log.zst`, with
    retention sweep and path-traversal-safe segment names. docs/archive.md. (commit e1da72f)
@@ -19,8 +19,17 @@ call:
    truth policy the worker routes alerts by. `external_ip`→block (auto·ban engine), `host`→
    network_containment (auto·containment engine), `user`/`hash`→alert-only (surfaced, not auto-
    enforced). Behaviour-preserving refactor of `makeAlertHook`. `GET /api/response/decision-table`,
-   read-only Response-page panel, docs/decision-table.md. (this commit)
-Target-architecture phases remaining after this: **C ClickHouse sink, D subscription API**.
+   read-only Response-page panel, docs/decision-table.md. (commit 02be81c)
+5. **ClickHouse analytics sink (Phase C)** — `internal/clickhouse`: an optional secondary store
+   for large-scale columnar analytics (TimescaleDB stays the operational source of truth). A
+   consumer on `logs.normalized` flattens each event into a wide row and batch-inserts over the
+   ClickHouse HTTP interface (`INSERT … FORMAT JSONEachRow`) — **no third-party driver**, works
+   against any ClickHouse. Idempotent schema create (MergeTree, partition by month, ordered by
+   (timestamp, source_ip), optional TTL). Failed batches requeue; ClickHouse being down never
+   blocks ingestion. Off unless `CLICKHOUSE_URL` set. Env: CLICKHOUSE_URL/DATABASE/TABLE/USER/
+   PASSWORD/BATCH/FLUSH/RETENTION_DAYS. docs/clickhouse.md. Tests: config, DDL, row flatten,
+   httptest JSONEachRow insert + requeue-on-failure.
+Target-architecture phases remaining after this: **D subscription API** (last one).
 
 **v1.15.1 RELEASED 2026-07-18** — **ML anomaly bridge** (external anomaly detection ↔ the scoring
 core; Phase A of the target-architecture roadmap). `GET /api/ml/ip-features` (per-IP feature vectors:
