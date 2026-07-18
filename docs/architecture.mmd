@@ -1,95 +1,130 @@
 flowchart TB
 
-  %% ══════════════ ENDPOINTS ══════════════
-  subgraph EP["🖥️ ENDPOINTS - monitored hosts"]
+  %% ══════════════ INGESTION SOURCES ══════════════
+  subgraph SRC["🖥️ INGESTION SOURCES"]
     direction TB
-    subgraph LA["Linux Agent (Go, systemd service)"]
-      LC["Collectors:<br/>auth/syslog (file tail) · journald<br/>web access log (nginx/apache)<br/>firewall log (ufw/iptables)<br/>FIM + SHA-256 + content diff + restore"]
+    subgraph LA["Linux Agent (Go, systemd)"]
+      LC["Collectors:<br/>auth/syslog tail · journald<br/>web access (nginx/apache) · firewall (ufw/iptables)<br/>FIM: SHA-256 + content diff + restore<br/>real-time (fsnotify) + poll safety-net"]
       LB["Offline buffer<br/>(store-and-forward, no log loss)"]
       LR["Responders:<br/>nftables auto-block (polls blocklist)<br/>host self-isolation (containment)<br/>quarantine/delete known-bad files<br/>self-uninstall on revoke"]
     end
-    subgraph WA["Windows Agent (Go, native Windows service)"]
-      WC["Collectors:<br/>Event Log Security/System<br/>(4625/4624/4740 logon · 4688/4104 process/PS<br/>4720/4728/4732 accounts · 1102 audit cleared)<br/>FIM + hashing"]
+    subgraph WA["Windows Agent (Go, native service)"]
+      WC["Event Log Security/System<br/>(4625/4624/4740 · 4688/4104 · 4720/4728/4732 · 1102)<br/>FIM + hashing"]
       WR["Isolation via Windows Firewall"]
     end
-    SUR["Suricata / Snort sensor<br/>eve.json alerts (ET Open/Pro rulesets)"]
-    WZ["Wazuh manager (external)<br/>alerts + FIM syscheck + who-data<br/>→ HTTP webhook (token)"]
+    SUR["Suricata / Snort sensor<br/>eve.json (ET Open/Pro)"]
+    WZ["Wazuh manager (external)<br/>alerts + FIM syscheck + who-data"]
+    SYS["Network devices / appliances<br/>native syslog (RFC 3164/5424)"]
+    ESRC["Elasticsearch / OpenSearch<br/>(existing cluster — pull)"]
   end
 
   %% ══════════════ MANAGER ══════════════
-  subgraph MGR["🏰 MANAGER - one docker compose host"]
+  subgraph MGR["🏰 MANAGER — one docker compose host"]
     direction TB
     CG["certgen (init container)<br/>private CA + mTLS certificates"]
-    GW["Ingest Gateway :9443 (mTLS only)<br/>enrollment: one-time token → client cert<br/>(revoked names re-usable, cert takeover)<br/>config push · heartbeat · revocation<br/>(CN + certificate serial pinning)<br/>custom decoders (regex→fields, live-reload)<br/>normalization → DCS event schema"]
-    BUS["NATS JetStream<br/>durable event bus"]
-    subgraph WK["Worker (detection pipeline)"]
-      DET["Detection<br/>Sigma single-event engine +<br/>aggregation compiled to SQL<br/>1000+ DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling<br/>remediation playbooks stamped per label"]
-      ENR["CTI Enrichment + Scoring<br/>abuse score + country + escalation<br/>composite threat score per IP (0-100)<br/>fired_times+abuse+otx+severity → doughnut<br/>scenario ban at score threshold"]
-      HREP["File-hash reputation<br/>known-bad detection on FIM events"]
-      RSP["Response Engine (SOAR)<br/>progressive ban ladder 10m→30m→1h→24h→perm<br/>IP whitelist · dedup · approval or auto-ban<br/>unban · network containment<br/>trusted-session gate"]
-      NTF["Notifications<br/>severity threshold (UI) · dedup/throttle<br/>scheduled report delivery"]
-      LLMW["LLM Worker<br/>alert triage (opt-in) +<br/>AI report summaries (on-demand + scheduled)"]
-      SELF["Self-Monitoring<br/>agent health: online→degraded→disconnected→stale<br/>agent-down HIGH alert (MITRE T1562.001)<br/>disk-watermark janitor (drops oldest chunks<br/>at 90% of budget + HIGH alert)<br/>worker /healthz + /readyz"]
+    GW["Ingest Gateway :9443 (mTLS only)<br/>enrollment: token → client cert (CN+serial pinning)<br/>config push · heartbeat · revocation<br/>custom decoders (regex→fields, live-reload)<br/>normalization → DCS event schema"]
+    BUS["NATS JetStream<br/>durable event bus (logs.normalized)"]
+
+    subgraph WK["Worker — detection & response pipeline"]
+      DET["Detection:<br/>Sigma single-event + aggregation → SQL<br/>DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling<br/>remediation playbooks per label"]
+      ENR["CTI Enrichment + Composite Scoring<br/>abuse+otx+severity+fired+anomaly → 0-100<br/>GeoIP · escalation · scenario ban"]
+      SUS["Suspicious-IP watchlist<br/>low-and-slow recon<br/>(fan-out · failure-ratio · spread)"]
+      HREP["File-hash reputation<br/>VirusTotal · MalwareBazaar · CIRCL"]
+      RSP["Response Engine (SOAR)<br/>entity_type decision table<br/>progressive ban 10m→30m→1h→24h→perm<br/>whitelist · approval/auto · containment<br/>trusted-session gate"]
+      NTF["Notifications<br/>severity threshold · dedup/throttle · reports"]
+      LLMW["LLM Worker<br/>alert triage (opt-in) + AI report summaries"]
+      SELF["Self-Monitoring<br/>agent health · disk-watermark janitor<br/>/healthz + /readyz"]
+      ARCW["Archive writer<br/>raw daily zstd per source/dataset"]
+      CHW["ClickHouse sink writer<br/>batched INSERT … JSONEachRow"]
     end
-    DB[("PostgreSQL 16 + TimescaleDB<br/>events hypertable: per-day chunks,<br/>columnar compression, retention policy<br/>alerts · rules · decoders · bans · tickets<br/>users/RBAC/audit log (append-only)<br/>integrations: secrets AES-256-GCM at rest")]
-    API["API Server :9080<br/>Argon2id auth · TOTP 2FA · granular RBAC<br/>login brute-force lockout · password policy<br/>auto-migrations · reports (JSON/MD/PDF)<br/>webhook export · config profiles<br/>agent one-line installer · update check"]
-    WEB["Web UI :9173 (React+Vite via nginx)<br/>drag-and-drop Dashboard · Events · Response<br/>Rules · Decoders · Playbooks · Agents<br/>Integrations · Tickets · Report · Users · Settings"]
+
+    DB[("PostgreSQL 16 + TimescaleDB<br/>events hypertable (chunks · compression · retention)<br/>alerts · rules · decoders · bans · tickets · scores<br/>users/RBAC/audit (append-only) · subscriptions<br/>integrations: secrets AES-256-GCM at rest")]
+    API["API Server :9080<br/>Argon2id · TOTP 2FA · granular RBAC · lockout<br/>auto-migrations · reports (JSON/MD/PDF)<br/>SUBSCRIPTION API · ML bridge · blocklist feed<br/>webhook export · one-line installer · update check"]
+    WEB["Web UI :9173 (React+Vite via nginx)<br/>Dashboard · Events · Response · Rules · Decoders<br/>Playbooks · Agents · Integrations · Tickets · Report · Users · Settings"]
   end
 
-  %% ══════════════ EXTERNAL ══════════════
+  %% ══════════════ ANALYTICS & ARCHIVE (optional) ══════════════
+  subgraph AN["📊 ANALYTICS & ARCHIVE (optional)"]
+    direction TB
+    CH[("ClickHouse<br/>columnar enriched events<br/>large-scale analytics")]
+    ARC["Raw daily zstd archive<br/>faithful raw-telemetry copy"]
+    MLB["ML batch (Python, hourly)<br/>Isolation Forest low-and-slow<br/>→ anomaly_score writeback"]
+  end
+
+  %% ══════════════ SUBSCRIBERS (rich-log product) ══════════════
+  subgraph SUBS["🛰️ SUBSCRIBERS"]
+    SUBC["External subscribers<br/>PULL enriched events + indicators<br/>per-key scopes · cursor paging · settle lag"]
+  end
+
+  %% ══════════════ EXTERNAL SERVICES & DEVICES ══════════════
   subgraph EXT["🌐 EXTERNAL SERVICES & DEVICES"]
     direction TB
-    CTI["AbuseIPDB · AlienVault OTX<br/>ip-api GeoIP"]
-    HASHSVC["CIRCL hashlookup · VirusTotal"]
-    LLMP["Anthropic Claude · Ollama (local/free)<br/>any OpenAI-compatible endpoint"]
-    CHAN["Telegram · Email (SMTP)<br/>webhook targets (SIEM / n8n / Zapier)"]
-    ENF["MikroTik RouterOS (REST)<br/>CrowdSec LAPI (bouncer ecosystem)"]
-    EDL["External firewalls (pull model):<br/>Palo Alto EDL · OPNsense · pfSense"]
-    MTK["MikroTik routers (push, multi-endpoint):<br/>ban/unban → all routers in ~10s + self-heal"]
-    GH["GitHub Releases<br/>(read-only update check)"]
+    CTI["AbuseIPDB · AlienVault OTX · ip-api GeoIP"]
+    HASHSVC["VirusTotal · MalwareBazaar (abuse.ch) · CIRCL hashlookup"]
+    LLMP["Anthropic Claude · Ollama (local/free) · OpenAI-compatible"]
+    CHAN["Telegram · Email (SMTP) · webhook (SIEM / n8n / Zapier)"]
+    MTK["MikroTik routers (push, multi-endpoint, ~10s + self-heal)"]
+    BOUNCE["CrowdSec LAPI (bouncer ecosystem)"]
+    EDL["External firewalls (pull): Palo Alto EDL · OPNsense · pfSense"]
+    GH["GitHub Releases (read-only update check)"]
   end
 
   %% ══════════════ FLOWS ══════════════
   LC --> LB
-  LB -- "logs + heartbeat w/ self-reported health<br/>mTLS :9443" --> GW
-  WC -- "logs + heartbeat w/ self-reported health<br/>mTLS :9443" --> GW
+  LB -- "logs + heartbeat · mTLS :9443" --> GW
+  WC -- "logs + heartbeat · mTLS :9443" --> GW
   SUR -- "eve.json tailed by agent" --> LC
   WZ -- "POST /api/ingest/webhook?token=" --> API
+  SYS -- "syslog listener → normalized" --> BUS
+  ESRC -- "poll (resumable cursor) → normalized" --> BUS
   CG -.->|issues certs| GW
   GW -- "normalized events" --> BUS
+  API -- "webhook-ingested events" --> BUS
   BUS --> DET
   DET -- "alerts" --> DB
   DET --> ENR
   ENR <--> CTI
+  ENR --> SUS
   HREP <--> HASHSVC
   ENR --> RSP
+  SUS --> DB
   RSP -- "ban / contain decisions" --> DB
   RSP --> NTF
-  RSP --> ENF
-  RSP -- "periodic sync (~10s)<br/>reconcile blocklist" --> MTK
-  GW -- "one-click restore feed (mTLS)<br/>revert defaced file" --> LR
+  RSP -- "reconcile blocklist (~10s)" --> MTK
+  RSP --> BOUNCE
   NTF --> CHAN
-  SELF -- "selfhealth alerts<br/>(same pipeline as attacks)" --> DB
+  SELF -- "selfhealth alerts (same pipeline)" --> DB
   SELF --> NTF
   LLMW <--> LLMP
   LLMW <--> DB
+  BUS --> ARCW
+  BUS --> CHW
+  ARCW --> ARC
+  CHW --> CH
   WK <--> DB
   API <--> DB
+  MLB -- "GET /api/ml/ip-features (token)" --> API
+  MLB -- "POST /api/ml/anomaly (token)" --> API
   WEB -- "/api reverse proxy" --> API
   API -- "enroll · config · installer :9080" --> LA
   API -- "enroll · config · installer :9080" --> WA
   LR -- "poll active blocklist (mTLS)" --> GW
   GW -- "block + isolate orders" --> LR
   GW -- "isolate orders" --> WR
-  EDL -- "GET /api/blocklist?token=..." --> API
+  SUBC -- "GET /api/subscribe/* (API key)" --> API
+  EDL -- "GET /api/blocklist?token=" --> API
   API -.-> GH
 
   %% ══════════════ STYLES ══════════════
   classDef endpoint fill:#e8f4fd,stroke:#2980b9,color:#1a1a2e
   classDef manager fill:#fef9e7,stroke:#b7950b,color:#1a1a2e
   classDef storage fill:#e8f8f0,stroke:#1e8449,color:#1a1a2e
+  classDef analytics fill:#f4ecf7,stroke:#8e44ad,color:#1a1a2e
   classDef external fill:#fdedec,stroke:#c0392b,color:#1a1a2e
-  class LC,LB,LR,WC,WR,SUR,WZ endpoint
-  class CG,GW,BUS,DET,ENR,HREP,RSP,NTF,LLMW,SELF,API,WEB manager
+  classDef subscriber fill:#eafaf1,stroke:#148f77,color:#1a1a2e
+  class LC,LB,LR,WC,WR,SUR,WZ,SYS,ESRC endpoint
+  class CG,GW,BUS,DET,ENR,SUS,HREP,RSP,NTF,LLMW,SELF,ARCW,CHW,API,WEB manager
   class DB storage
-  class CTI,HASHSVC,LLMP,CHAN,ENF,EDL,MTK,GH external
+  class CH,ARC,MLB analytics
+  class CTI,HASHSVC,LLMP,CHAN,MTK,BOUNCE,EDL,GH external
+  class SUBC subscriber
