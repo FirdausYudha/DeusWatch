@@ -456,7 +456,7 @@ func normalizeFIM(msg string, e *Event) bool {
 	// Only the agent's FIM actions - keeps the label-agnostic JSON sniff in Normalize from
 	// swallowing other JSON logs that happen to have path/action fields.
 	switch c.Action {
-	case "created", "modified", "deleted", "restored":
+	case "created", "modified", "deleted", "restored", "encrypted":
 	default:
 		return false
 	}
@@ -479,6 +479,8 @@ func normalizeFIM(msg string, e *Event) bool {
 		e.Event.Severity = SeverityLow
 	case "restored":
 		e.Event.Severity = SeverityInfo
+	case "encrypted":
+		e.Event.Severity = SeverityHigh // a file turned into encrypted/random data — ransomware signal
 	default:
 		e.Event.Severity = SeverityMedium
 	}

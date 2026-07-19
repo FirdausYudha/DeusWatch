@@ -128,6 +128,22 @@ func TestNormalizeFIM(t *testing.T) {
 	}
 }
 
+func TestNormalizeFIMEncrypted(t *testing.T) {
+	e, ok := Normalize(RawLog{
+		Dataset: "fim", Host: "web01",
+		Message: `{"path":"/var/www/index.php","action":"encrypted","sha256":"deadbeef","entropy":7.98}`,
+	})
+	if !ok {
+		t.Fatal("encrypted FIM payload should be recognized (not dropped)")
+	}
+	if e.Event.Action != "file_encrypted" || e.Event.Category != "file" {
+		t.Fatalf("wrong encrypted event: %+v", e.Event)
+	}
+	if e.Event.Severity != SeverityHigh {
+		t.Fatalf("encrypted severity should be high, got %v", e.Event.Severity)
+	}
+}
+
 func TestNormalizeFIMCreatedLowSeverity(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "fim", Message: `{"path":"/tmp/new","action":"created","sha256":"x"}`})
 	if !ok || e.Event.Severity != SeverityLow {

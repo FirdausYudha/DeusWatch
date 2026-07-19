@@ -1,0 +1,21 @@
+title: File Encrypted In Place (ransomware signal)
+id: 3a1f8c92-6b47-4e05-9a1d-8c72e0f4b6a1
+status: experimental
+description: >
+  A watched text file (config/source) turned into high-entropy random data - the hallmark of
+  ransomware encrypting it in place, detected on the agent by a Shannon-entropy jump. A single
+  hit is worth surfacing; a burst authorizes automatic containment (see the aggregation rule).
+references:
+  - https://attack.mitre.org/techniques/T1486/
+author: DeusWatch
+level: high
+logsource:
+  category: file_event
+detection:
+  selection:
+    event.category: file
+    event.action: file_encrypted
+  condition: selection
+tags:
+  - attack.t1486
+  - attack.impact

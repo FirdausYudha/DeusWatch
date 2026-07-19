@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -48,6 +49,45 @@ func parseSizeEnv(key string, def int64) int64 {
 		return def
 	}
 	return n * mult
+}
+
+// entropyThreshold: content at/above this Shannon entropy (bits/byte, max 8.0) is treated as
+// encrypted/random — the ransomware signal. Encrypted (and compressed) data sits near 7.9-8.0;
+// source/config text is ~4-5. Override with FIM_ENTROPY_THRESHOLD (default 7.2). Set to 0 or a
+// value > 8 to disable entropy-based encryption detection.
+var entropyThreshold = parseFloatEnv("FIM_ENTROPY_THRESHOLD", 7.2)
+
+// minEntropyBytes: files smaller than this are too small for entropy to be a meaningful signal.
+const minEntropyBytes = 64
+
+// shannonEntropy returns the byte-level Shannon entropy of b in bits/byte (0..8).
+func shannonEntropy(b []byte) float64 {
+	if len(b) == 0 {
+		return 0
+	}
+	var counts [256]int
+	for _, c := range b {
+		counts[c]++
+	}
+	n := float64(len(b))
+	e := 0.0
+	for _, c := range counts {
+		if c == 0 {
+			continue
+		}
+		p := float64(c) / n
+		e -= p * math.Log2(p)
+	}
+	return e
+}
+
+func parseFloatEnv(key string, def float64) float64 {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			return f
+		}
+	}
+	return def
 }
 
 // isProbablyText reports whether b looks like text (no NUL byte in the sampled prefix).

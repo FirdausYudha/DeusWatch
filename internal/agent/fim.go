@@ -94,10 +94,11 @@ const maxHashBytes = 64 << 20 // 64 MiB
 type FIMChange struct {
 	Path   string `json:"path"`
 	Action string `json:"action"` // created | modified | deleted
-	SHA256 string `json:"sha256,omitempty"`
-	Size   int64  `json:"size,omitempty"`
-	Mode   string `json:"mode,omitempty"`
-	Diff   string `json:"diff,omitempty"` // unified line diff (small text files only)
+	SHA256  string  `json:"sha256,omitempty"`
+	Size    int64   `json:"size,omitempty"`
+	Mode    string  `json:"mode,omitempty"`
+	Diff    string  `json:"diff,omitempty"`    // unified line diff (small text files only)
+	Entropy float64 `json:"entropy,omitempty"` // byte-level Shannon entropy (bits/byte; ~8 = encrypted)
 	// Who-data (Linux/auditd only): the process/user that caused the change. Empty when
 	// who-data is disabled or no audit record correlated to this path.
 	Actor    string `json:"actor,omitempty"`     // process name (comm)
@@ -115,6 +116,15 @@ type fileState struct {
 	// the next change and, later, one-click restore. Empty for binaries/large files.
 	content string
 	isText  bool
+	// entropy is the byte-level Shannon entropy (bits/byte) of the file's content sample — high
+	// values (near 8) mean encrypted/random data, the ransomware signal.
+	entropy float64
+}
+
+// looksEncrypted reports whether the file's content looks encrypted/random (the ransomware
+// signal): non-text, above the entropy threshold, and large enough for entropy to be meaningful.
+func (st fileState) looksEncrypted() bool {
+	return entropyThreshold <= 8 && st.size >= minEntropyBytes && !st.isText && st.entropy >= entropyThreshold
 }
 
 // FIMScanner tracks an integrity baseline for a set of roots (files/directories)
@@ -199,11 +209,22 @@ func (s *FIMScanner) Scan() ([]FIMChange, error) {
 		prev, ok := s.baseline[path]
 		switch {
 		case !ok:
-			c := change(path, "created", cur)
+			// A brand-new file that already looks encrypted (e.g. a ransomware ".locked" drop).
+			action := "created"
+			if cur.looksEncrypted() {
+				action = "encrypted"
+			}
+			c := change(path, action, cur)
 			s.attachWho(&c)
 			changes = append(changes, c)
 		case prev.sha256 != cur.sha256 || prev.size != cur.size || prev.mode != cur.mode:
-			c := change(path, "modified", cur)
+			// A text file that turned into high-entropy random data was almost certainly
+			// ENCRYPTED (ransomware), not just edited — flag it distinctly for precise detection.
+			action := "modified"
+			if prev.isText && cur.looksEncrypted() {
+				action = "encrypted"
+			}
+			c := change(path, action, cur)
 			// Superior FIM: show WHICH lines changed when both versions are snapshotted text.
 			if prev.isText && cur.isText {
 				c.Diff = unifiedDiff(prev.content, cur.content)
@@ -227,6 +248,7 @@ func change(path, action string, st fileState) FIMChange {
 	c := FIMChange{Path: path, Action: action, Size: st.size, Mode: st.mode}
 	if action != "deleted" {
 		c.SHA256 = st.sha256
+		c.Entropy = st.entropy
 	}
 	return c
 }
@@ -279,13 +301,15 @@ func stateOf(path string, info os.FileInfo) (fileState, bool) {
 			return fileState{}, false
 		}
 		st.sha256 = hashBytes(b)
+		st.entropy = shannonEntropy(b)
 		if isProbablyText(b) {
 			st.content = string(b)
 			st.isText = true
 		}
 		return st, true
 	}
-	// Larger files: hash only, no snapshot (skip hashing beyond maxHashBytes).
+	// Larger files: hash only, no snapshot (skip hashing beyond maxHashBytes). Entropy is still
+	// computed from a prefix so encryption of a large file is detectable without loading it whole.
 	if info.Size() <= maxHashBytes {
 		if h, err := hashFile(path); err == nil {
 			st.sha256 = h
@@ -293,8 +317,28 @@ func stateOf(path string, info os.FileInfo) (fileState, bool) {
 			log.Printf("agent: fim: hash %s failed: %v", path, err)
 			return fileState{}, false
 		}
+		st.entropy = filePrefixEntropy(path)
 	}
 	return st, true
+}
+
+// entropySampleBytes is how much of a large file is read to estimate its entropy (encrypted data
+// is uniformly high-entropy, so a prefix is representative and cheap).
+const entropySampleBytes = 64 << 10
+
+// filePrefixEntropy returns the Shannon entropy of a file's leading bytes (0 on read error).
+func filePrefixEntropy(path string) float64 {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	buf := make([]byte, entropySampleBytes)
+	n, _ := io.ReadFull(f, buf)
+	if n <= 0 {
+		return 0
+	}
+	return shannonEntropy(buf[:n])
 }
 
 func hashBytes(b []byte) string {

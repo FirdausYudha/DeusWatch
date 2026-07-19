@@ -1,0 +1,29 @@
+title: Ransomware - Mass File Encryption Burst (auto-containment)
+id: c4e9b6d2-71a3-4f88-b0e5-3d92a7c1f5e8
+status: experimental
+description: >
+  Multiple files on one host turned into high-entropy encrypted data in a short window - a precise
+  ransomware signal (the agent detects the text -> random entropy jump per file). Far fewer false
+  positives than a raw mass-CHANGE burst, because a normal deploy produces readable text, not
+  encrypted content. This rule authorizes automated network containment to stop the ransomware
+  spreading to file servers, storage and other users, and to protect off-host (manager-stored)
+  snapshots so a clean point-in-time revert is still possible. Containment stays recommend-only
+  unless CONTAINMENT_AUTO=1.
+references:
+  - https://attack.mitre.org/techniques/T1486/
+author: DeusWatch
+level: critical
+logsource:
+  category: file_event
+detection:
+  selection:
+    event.action: file_encrypted
+  timeframe: 2m
+  condition: selection | count() by host.name > 15
+mitigation_action:
+  action_type: network_containment
+  timeout: 1800
+  criticality_threshold: critical
+tags:
+  - attack.t1486
+  - attack.impact

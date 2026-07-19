@@ -17,10 +17,17 @@ off-host backups for full recovery (see *Honest limits*).
 
 ## 1. Detect
 
-- **Mass file encryption by host** — a burst of file changes on one host in a short window is a
-  hallmark of ransomware. `rules/sigma/agg/ransomware_mass_change_containment.yml` fires at
-  `> 200 changes / 2 min per host` (level **critical**) and **authorizes containment**. A lower-
-  severity `fim_change_burst.yml` (`> 100 / 5 min`) alerts without containment.
+- **Encryption signal (entropy)** — the agent computes each changed file's byte **Shannon
+  entropy**; a watched **text** file that turns into **high-entropy random data** (`>= 7.2`
+  bits/byte, tunable via `FIM_ENTROPY_THRESHOLD`) is flagged `event.action: file_encrypted` — a
+  *precise* ransomware signal, since a normal deploy produces readable text, not encrypted bytes.
+  `ransomware_file_encrypted.yml` surfaces a single hit (high);
+  `ransomware_encryption_burst_containment.yml` fires on `> 15 encrypted files / 2 min per host`
+  (critical) and **authorizes containment** — far fewer false positives than a raw mass-change burst.
+- **Mass file change by host** — a broader burst of *any* file changes (encryption, defacement, or
+  a runaway process). `ransomware_mass_change_containment.yml` fires at `> 200 changes / 2 min per
+  host` (critical, authorizes containment); the lower-severity `fim_change_burst.yml`
+  (`> 100 / 5 min`) alerts only. Prefer the entropy rule for precision; keep this as a backstop.
 - **Shadow-copy deletion** (`ransomware_shadowcopy_containment.yml`) — deleting VSS copies
   (`vssadmin delete shadows`, `wmic shadowcopy delete`) is a precursor ransomware step; fires
   **critical** and authorizes containment.
@@ -32,8 +39,8 @@ off-host backups for full recovery (see *Honest limits*).
 > **Tuning & false positives:** a large legitimate **deploy** can also trip the mass-change rule.
 > That's why containment is **recommend-only by default** (an analyst approves it in the Response
 > page) — it only auto-isolates when `CONTAINMENT_AUTO=1` **and** the alert severity meets the
-> rule's `criticality_threshold`. Tune the threshold/timeframe to your environment. A precise
-> **content-entropy** signal (text → encrypted) is a planned enhancement to cut false positives.
+> rule's `criticality_threshold`. Tune the threshold/timeframe to your environment. The
+> **entropy signal** above (text → encrypted) is the precise, low-false-positive path — prefer it.
 
 ## 2. Contain
 

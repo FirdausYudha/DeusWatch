@@ -42,6 +42,52 @@ func TestUnifiedDiffLargeFileSummary(t *testing.T) {
 	}
 }
 
+func TestShannonEntropy(t *testing.T) {
+	if e := shannonEntropy([]byte("aaaaaaaaaaaaaaaa")); e > 0.01 {
+		t.Fatalf("single-symbol entropy should be ~0, got %f", e)
+	}
+	if e := shannonEntropy([]byte("the quick brown fox jumps over the lazy dog")); e < 3 || e > 5.5 {
+		t.Fatalf("english text entropy ~4, got %f", e)
+	}
+	all := make([]byte, 256) // every byte value once → maximum entropy 8.0
+	for i := range all {
+		all[i] = byte(i)
+	}
+	if e := shannonEntropy(all); e < 7.99 {
+		t.Fatalf("uniform 256-value entropy should be 8.0, got %f", e)
+	}
+}
+
+func TestScannerFlagsEncryption(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "config.php")
+	if err := os.WriteFile(f, []byte("<?php $db='localhost'; // config\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sc := NewFIMScanner(dir)
+	if _, err := sc.Scan(); err != nil { // baseline
+		t.Fatal(err)
+	}
+	// Overwrite with high-entropy, non-text content (a text file "encrypted" in place).
+	enc := make([]byte, 4096)
+	for i := range enc {
+		enc[i] = byte((i*7 + 13) % 256)
+	}
+	if err := os.WriteFile(f, enc, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changes, err := sc.Scan()
+	if err != nil || len(changes) != 1 {
+		t.Fatalf("want 1 change, got %d err=%v", len(changes), err)
+	}
+	if changes[0].Action != "encrypted" {
+		t.Fatalf("text->random should flag encrypted, got %q (entropy %f)", changes[0].Action, changes[0].Entropy)
+	}
+	if changes[0].Entropy < 7.0 {
+		t.Fatalf("encrypted content entropy should be high, got %f", changes[0].Entropy)
+	}
+}
+
 func TestParseSizeEnv(t *testing.T) {
 	const key = "DW_TEST_SIZE"
 	cases := []struct {
