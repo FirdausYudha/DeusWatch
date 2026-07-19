@@ -58,6 +58,21 @@ Sudden changes without a legitimate session keep their normal alert severity.
 - Honesty: the whole path must be **verified on a real Linux agent** before it is claimed
   working (implemented ≠ verified) — the reason this is staged, not built blind.
 
+## Limits & tuning (large HTML/PHP)
+
+- **Snapshot size ceiling** — only TEXT files up to `maxSnapshotBytes` are versioned (diff +
+  restore); larger files are still change-DETECTED by hash, but get no version/diff/restore.
+  Default **2 MiB** (was 256 KiB), overridable with **`FIM_SNAPSHOT_MAX_BYTES`** (plain bytes or a
+  `K`/`M` suffix, e.g. `4M`). Raising it costs agent memory (the file is read whole) and, in
+  manager-storage mode, upload bandwidth + central DB space — the admin's call.
+- **Diff safety** — the old-vs-new diff is a full O(m·n) LCS. To keep it from exhausting memory on
+  a large file, when `lines_old × lines_new > maxDiffCells` (2M) it falls back to a cheap O(m+n)
+  "~X added / ~Y removed" summary. The version + restore are unaffected (both are O(size)).
+- **Manager-mode upload cap** — the agent's snapshot uploader flushes by accumulated bytes so a
+  batch of large files never exceeds the gateway's 8 MiB body limit. A single manager-stored
+  version's content is therefore practically bounded to ~7 MiB; agent-mode uploads only metadata,
+  so it has no wire limit (bounded only by agent memory / the size ceiling above).
+
 ## Phased build plan
 
 1. **Config + schema (manager-side, testable without an agent):** agent-config fields;

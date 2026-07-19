@@ -23,6 +23,51 @@ func TestUnifiedDiff(t *testing.T) {
 	}
 }
 
+func TestUnifiedDiffLargeFileSummary(t *testing.T) {
+	// Two large files (line counts whose product exceeds maxDiffCells) must NOT run the O(m*n)
+	// LCS — they get the cheap added/removed summary instead.
+	var oldB, newB strings.Builder
+	for i := 0; i < 2000; i++ {
+		oldB.WriteString("original config line\n")
+	}
+	for i := 0; i < 2100; i++ {
+		newB.WriteString("changed config line\n")
+	}
+	d := unifiedDiff(oldB.String(), newB.String())
+	if !strings.Contains(d, "large file") || !strings.Contains(d, "full diff omitted") {
+		t.Fatalf("large file should get the summary, got:\n%s", d)
+	}
+	if strings.Contains(d, "\n- ") || strings.Contains(d, "\n+ ") {
+		t.Fatalf("summary must not contain per-line diff output:\n%s", d)
+	}
+}
+
+func TestParseSizeEnv(t *testing.T) {
+	const key = "DW_TEST_SIZE"
+	cases := []struct {
+		val  string
+		want int64
+	}{
+		{"", 2 << 20},          // unset → default
+		{"4M", 4 << 20},        // 4 MiB
+		{"2MiB", 2 << 20},      // MiB suffix
+		{"512K", 512 << 10},    // 512 KiB
+		{"1048576", 1 << 20},   // plain bytes
+		{"bogus", 2 << 20},     // invalid → default
+		{"0", 2 << 20},         // non-positive → default
+	}
+	for _, c := range cases {
+		if c.val == "" {
+			os.Unsetenv(key)
+		} else {
+			t.Setenv(key, c.val)
+		}
+		if got := parseSizeEnv(key, 2<<20); got != c.want {
+			t.Fatalf("parseSizeEnv(%q) = %d, want %d", c.val, got, c.want)
+		}
+	}
+}
+
 func TestUnifiedDiffTruncates(t *testing.T) {
 	var oldB, newB strings.Builder
 	for i := 0; i < maxDiffLines+50; i++ {

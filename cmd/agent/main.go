@@ -561,13 +561,28 @@ func runFileActions(ctx context.Context, snaps *agent.SnapshotStore, shipper *ag
 	}
 }
 
+// maxSnapshotUploadBytes keeps each snapshot POST safely under the gateway's 8 MiB body cap —
+// important in manager-storage mode, where each version carries its (up to multi-MiB) content.
+const maxSnapshotUploadBytes = 7 << 20
+
+// metaBytes is the rough wire size of one snapshot metadata item (content + diff + overhead).
+func metaBytes(m agent.SnapshotMeta) int { return len(m.Content) + len(m.Diff) + 256 }
+
 // runSnapshotUploader batches captured FIM version metadata and ships it to the manager every
-// few seconds (ADR 0002 Phase 2). Metadata is small; the version CONTENT stays on the agent.
+// few seconds (ADR 0002 Phase 2). It flushes on item count, accumulated BYTES (so a manager-mode
+// batch of large files never exceeds the gateway body limit), or the tick.
 func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan agent.SnapshotMeta) {
 	log.Printf("agent: FIM versioned-snapshot uploader active")
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
 	var batch []agent.SnapshotMeta
+	batchBytes := 0
+	recount := func() {
+		batchBytes = 0
+		for _, m := range batch {
+			batchBytes += metaBytes(m)
+		}
+	}
 	flush := func() {
 		if len(batch) == 0 {
 			return
@@ -578,9 +593,11 @@ func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan 
 			if len(batch) > 2000 {
 				batch = batch[len(batch)-2000:]
 			}
+			recount()
 			return
 		}
 		batch = nil
+		batchBytes = 0
 	}
 	for {
 		select {
@@ -588,8 +605,14 @@ func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan 
 			flush()
 			return
 		case m := <-in:
+			// Flush first if adding this item (esp. its manager-mode content) would push the
+			// batch over the wire limit.
+			if len(batch) > 0 && batchBytes+metaBytes(m) > maxSnapshotUploadBytes {
+				flush()
+			}
 			batch = append(batch, m)
-			if len(batch) >= 100 {
+			batchBytes += metaBytes(m)
+			if len(batch) >= 100 || batchBytes >= maxSnapshotUploadBytes {
 				flush()
 			}
 		case <-t.C:

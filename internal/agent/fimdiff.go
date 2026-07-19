@@ -2,16 +2,53 @@ package agent
 
 import (
 	"bytes"
+	"fmt"
+	"os"
+	"strconv"
 	"strings"
 )
 
-// Content-snapshot limits: only small TEXT files are snapshotted for diffing/restore.
-// Webroot files that matter for defacement (index.php, .htaccess, config, templates) are
-// small text; binaries and large files are tracked by hash only (no snapshot, no diff).
+// Content-snapshot limits: only TEXT files up to maxSnapshotBytes are snapshotted for
+// diffing/restore. Webroot files that matter for defacement (index.php, .htaccess, config,
+// templates, larger HTML/PHP) are text; binaries and oversized files are tracked by hash only.
+//
+// maxSnapshotBytes defaults to 2 MiB (enterprise HTML/PHP), overridable with
+// FIM_SNAPSHOT_MAX_BYTES (a plain byte count or a K/M suffix, e.g. "4M", "1536K"). Raising it
+// costs agent memory (the file is read whole) and, in manager-storage mode, upload bandwidth +
+// central DB space, so it is the admin's call.
+var maxSnapshotBytes int64 = parseSizeEnv("FIM_SNAPSHOT_MAX_BYTES", 2<<20)
+
 const (
-	maxSnapshotBytes = 256 << 10 // 256 KiB - above this, hash only
-	maxDiffLines     = 200       // cap the emitted diff so one huge change can't flood
+	maxDiffLines = 200 // cap the emitted diff so one huge change can't flood
+	// maxDiffCells bounds the O(m*n) LCS table so a large file never blows up the agent's
+	// memory/CPU: above it, a cheap O(m+n) summary is emitted instead of the full line diff.
+	maxDiffCells = 2_000_000
 )
+
+// parseSizeEnv reads a byte-size env value (plain integer, or a K/KiB/M/MiB suffix). Returns def
+// when unset or invalid.
+func parseSizeEnv(key string, def int64) int64 {
+	s := strings.ToUpper(strings.TrimSpace(os.Getenv(key)))
+	if s == "" {
+		return def
+	}
+	mult := int64(1)
+	switch {
+	case strings.HasSuffix(s, "MIB"):
+		mult, s = 1<<20, strings.TrimSuffix(s, "MIB")
+	case strings.HasSuffix(s, "M"):
+		mult, s = 1<<20, strings.TrimSuffix(s, "M")
+	case strings.HasSuffix(s, "KIB"):
+		mult, s = 1<<10, strings.TrimSuffix(s, "KIB")
+	case strings.HasSuffix(s, "K"):
+		mult, s = 1<<10, strings.TrimSuffix(s, "K")
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n * mult
+}
 
 // isProbablyText reports whether b looks like text (no NUL byte in the sampled prefix).
 func isProbablyText(b []byte) bool {
@@ -33,8 +70,14 @@ func unifiedDiff(oldText, newText string) string {
 	a := splitLines(oldText)
 	b := splitLines(newText)
 
-	// LCS table (O(len(a)*len(b)) - fine for small snapshotted files).
 	m, n := len(a), len(b)
+	// Guard: the LCS below is O(m*n) time AND memory. For a large file that would blow up the
+	// agent, so fall back to a cheap O(m+n) added/removed summary instead of the full line diff.
+	if int64(m)*int64(n) > maxDiffCells {
+		return diffSummary(a, b)
+	}
+
+	// LCS table (O(len(a)*len(b)) - fine for small snapshotted files).
 	lcs := make([][]int, m+1)
 	for i := range lcs {
 		lcs[i] = make([]int, n+1)
@@ -88,6 +131,30 @@ done:
 		out = append(out, "… (diff truncated)")
 	}
 	return strings.Join(out, "\n")
+}
+
+// diffSummary is a cheap O(m+n) fallback for large files: it counts added/removed lines via a
+// line multiset (positional context is lost, but "how much changed" is preserved) — safe to run
+// on multi-megabyte files where the full LCS would exhaust memory.
+func diffSummary(a, b []string) string {
+	old := make(map[string]int, len(a))
+	for _, l := range a {
+		old[l]++
+	}
+	added := 0
+	for _, l := range b {
+		if old[l] > 0 {
+			old[l]--
+		} else {
+			added++
+		}
+	}
+	removed := 0
+	for _, c := range old {
+		removed += c
+	}
+	return fmt.Sprintf("… large file: ~%d line(s) added, ~%d line(s) removed (full diff omitted; %d → %d lines)",
+		added, removed, len(a), len(b))
 }
 
 func splitLines(s string) []string {
