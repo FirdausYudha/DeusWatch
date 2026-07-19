@@ -3,6 +3,16 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**FIM large-file handling done 2026-07-19 (post-v1.17.0, on `main`, unreleased).** Raised the
+snapshot content ceiling 256 KiB → **2 MiB default, configurable via `FIM_SNAPSHOT_MAX_BYTES`**
+(K/M suffix) for enterprise HTML/PHP. Two correctness guards that raising it REQUIRES: (1) the
+old-vs-new diff (full O(m·n) LCS) falls back to a cheap O(m+n) "~X added/~Y removed" summary when
+lines_old×lines_new > 2M (a 2 MiB file could otherwise need a ~13 GB LCS table → agent OOM);
+(2) the snapshot uploader now flushes by BYTES (7 MiB, under the gateway's 8 MiB body cap) so a
+manager-mode batch of large files can't overflow the gateway. Files > ceiling are still change-
+detected by hash (no version/diff/restore). docs/adr/0002 "Limits & tuning". Tests: parseSizeEnv,
+large-file diff summary. (commit 4138ab4)
+
 **v1.17.0 RELEASED 2026-07-19** — **Versioned FIM snapshots & restore** (ADR 0002, all phases) +
 **LLM analyzer live-reload**. Snapshots: dated per-file version timeline (Phase 1), agent capture
 on-change/scheduled (Phase 2, live-verified by user), on-demand snapshot-now + quarantine-for-
