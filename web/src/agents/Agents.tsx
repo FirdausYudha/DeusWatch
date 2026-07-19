@@ -13,6 +13,7 @@ import {
   snapshotNow,
   quarantineFile,
   restoreVersion,
+  bulkRestore,
   type AgentInfo,
   type AgentSource,
   type FIMSnapshot,
@@ -627,6 +628,7 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
+  const [bulkAt, setBulkAt] = useState('')
 
   const canSnapshot = can(me, 'manage_agents')
   const canQuarantine = can(me, 'approve_remediation')
@@ -699,6 +701,26 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
     }
   }
 
+  const doBulkRestore = async () => {
+    if (!bulkAt) return
+    const asOf = new Date(bulkAt)
+    if (isNaN(asOf.getTime())) {
+      setError('Pick a valid date/time')
+      return
+    }
+    if (!confirm(`Roll back ALL of ${agent.name}'s watched files to their versions as of ${asOf.toLocaleString()}?\n\nThis is the ransomware recovery action: each file's current content is snapshotted first, then overwritten with its as-of version. Only files stored on the manager can be restored if the agent's copies were lost.`)) return
+    setBusy('bulk'); setError(''); setMsg('')
+    try {
+      const n = await bulkRestore(agent.name, '', asOf.toISOString())
+      setMsg(`Point-in-time revert requested for ${n} file(s) — the agent applies them on its next polls.`)
+      setTimeout(() => { loadFile(); loadPaths() }, 3000)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
   const fmtBytes = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`)
 
   return (
@@ -711,9 +733,29 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
           <h2 className="text-lg font-semibold text-white">FIM snapshots — {agent.name}</h2>
           <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" className="shrink-0" />
         </div>
-        <p className="mb-4 text-xs text-slate-500">
+        <p className="mb-3 text-xs text-slate-500">
           Dated version timeline of watched files. Expand a version to see the old-vs-new diff.
         </p>
+
+        {canQuarantine && !loading && paths.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-900/40 bg-amber-500/5 px-3 py-2">
+            <span className="text-xs font-medium text-amber-200">Ransomware recovery — roll all files back to:</span>
+            <input
+              type="datetime-local"
+              value={bulkAt}
+              onChange={(e) => setBulkAt(e.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-500"
+            />
+            <button
+              onClick={doBulkRestore}
+              disabled={busy !== '' || !bulkAt}
+              className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              {busy === 'bulk' ? 'Requesting…' : 'Restore all to this time'}
+            </button>
+            <span className="text-[10px] text-slate-500">Point-in-time revert of every watched file to its version as of the chosen time.</span>
+          </div>
+        )}
 
         {loading ? (
           <p className="text-sm text-slate-500">Loading…</p>

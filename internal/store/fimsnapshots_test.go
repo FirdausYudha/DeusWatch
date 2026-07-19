@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -144,5 +145,56 @@ func TestFileActions(t *testing.T) {
 	if err != nil || len(rv) != 1 || rv[0].Action != "restore_version" || rv[0].VersionSHA != sha {
 		t.Fatalf("restore-version pending: got %+v err=%v", rv, err)
 	}
+	_, _ = st.pool.Exec(ctx, `DELETE FROM agent_file_actions WHERE agent_name=$1`, agent)
+}
+
+// TestBulkRestoreVersions proves the point-in-time revert queues, for each watched file, its
+// latest version at or before the chosen time (the ransomware recovery action).
+func TestBulkRestoreVersions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	st, err := Connect(ctx, dsn())
+	if err != nil {
+		t.Skipf("Postgres unavailable — skipping: %v", err)
+	}
+	defer st.Close()
+
+	agent := "bulk-restore-agent"
+	_, _ = st.pool.Exec(ctx, `DELETE FROM fim_snapshots WHERE agent_name=$1`, agent)
+	_, _ = st.pool.Exec(ctx, `DELETE FROM agent_file_actions WHERE agent_name=$1`, agent)
+
+	// Two files, each with a "good" version (2h ago) and an "encrypted" version (10m ago).
+	seed := func(path, sha string, ago time.Duration) {
+		_, e := st.pool.Exec(ctx,
+			`INSERT INTO fim_snapshots (agent_name, path, sha256, storage, trigger, captured_at)
+			 VALUES ($1,$2,$3,'agent','on_change', now() - $4::interval)`,
+			agent, path, sha, fmt.Sprintf("%d seconds", int(ago.Seconds())))
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
+	seed("/var/www/a.php", "good-a", 2*time.Hour)
+	seed("/var/www/a.php", "enc-a", 10*time.Minute)
+	seed("/var/www/b.php", "good-b", 2*time.Hour)
+	seed("/var/www/b.php", "enc-b", 10*time.Minute)
+
+	// Roll back to 1h ago → should pick each file's GOOD (pre-encryption) version.
+	asOf := time.Now().Add(-1 * time.Hour)
+	n, err := st.BulkRestoreVersions(ctx, agent, "/var/www", asOf, "responder")
+	if err != nil || n != 2 {
+		t.Fatalf("bulk restore queued %d (want 2), err=%v", n, err)
+	}
+	acts, _ := st.PendingFileActions(ctx, agent)
+	got := map[string]string{}
+	for _, a := range acts {
+		if a.Action != "restore_version" {
+			t.Fatalf("unexpected action %q", a.Action)
+		}
+		got[a.Path] = a.VersionSHA
+	}
+	if got["/var/www/a.php"] != "good-a" || got["/var/www/b.php"] != "good-b" {
+		t.Fatalf("bulk restore picked the wrong versions: %+v", got)
+	}
+	_, _ = st.pool.Exec(ctx, `DELETE FROM fim_snapshots WHERE agent_name=$1`, agent)
 	_, _ = st.pool.Exec(ctx, `DELETE FROM agent_file_actions WHERE agent_name=$1`, agent)
 }

@@ -244,6 +244,7 @@ func main() {
 		mux.Handle("POST /api/fim/snapshot-now", protect(auth.PermManageAgents, fimSnapshotNowHandler(st)))
 		mux.Handle("POST /api/fim/quarantine", protect(auth.PermApproveRemediation, fimQuarantineHandler(st)))
 		mux.Handle("POST /api/fim/restore-version", protect(auth.PermApproveRemediation, fimRestoreVersionHandler(st)))
+		mux.Handle("POST /api/fim/bulk-restore", protect(auth.PermApproveRemediation, fimBulkRestoreHandler(st)))
 
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
@@ -1742,6 +1743,34 @@ func fimRestoreVersionHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// fimBulkRestoreHandler (POST /api/fim/bulk-restore {agent, path, as_of}) queues a point-in-time
+// revert of every watched file (optionally under `path`) to its version as of `as_of` — the
+// ransomware "roll everything back to before the attack" action (ADR 0002).
+func fimBulkRestoreHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Agent string `json:"agent"`
+			Path  string `json:"path"`   // optional directory subtree ("" = all watched files)
+			AsOf  string `json:"as_of"`  // RFC3339
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Agent) == "" {
+			http.Error(w, "agent and as_of required", http.StatusBadRequest)
+			return
+		}
+		asOf, err := time.Parse(time.RFC3339, strings.TrimSpace(req.AsOf))
+		if err != nil {
+			http.Error(w, "as_of must be RFC3339", http.StatusBadRequest)
+			return
+		}
+		n, err := st.BulkRestoreVersions(r.Context(), req.Agent, req.Path, asOf, currentUsername(r))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"queued": n})
 	}
 }
 

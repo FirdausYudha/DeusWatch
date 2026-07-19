@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -182,6 +183,42 @@ func (s *Store) RequestRestoreVersion(ctx context.Context, agentName, path, vers
 		return fmt.Errorf("store: request restore-version: %w", err)
 	}
 	return nil
+}
+
+// BulkRestoreVersions queues a point-in-time revert: for every watched file on the agent (optionally
+// under pathPrefix), it finds that file's latest captured version AT OR BEFORE asOf and queues a
+// restore_version action for it. This is the ransomware recovery action — "roll everything back to
+// just before the attack". De-duplicated against identical still-pending requests. Returns the
+// number of files queued.
+func (s *Store) BulkRestoreVersions(ctx context.Context, agentName, pathPrefix string, asOf time.Time, requestedBy string) (int, error) {
+	if agentName == "" || asOf.IsZero() {
+		return 0, fmt.Errorf("store: bulk restore needs agent and as-of time")
+	}
+	// Match all of the agent's paths, or just those in the given directory subtree.
+	pathCond := "TRUE"
+	args := []any{agentName, asOf, requestedBy}
+	if p := strings.TrimRight(strings.TrimSpace(pathPrefix), "/"); p != "" {
+		pathCond = "(fs.path = $4 OR fs.path LIKE $4 || '/%')"
+		args = append(args, p)
+	}
+	ct, err := s.pool.Exec(ctx, `
+		INSERT INTO agent_file_actions (agent_name, path, action, version_sha256, requested_by)
+		SELECT latest.agent_name, latest.path, 'restore_version', latest.sha256, $3
+		FROM (
+		  SELECT DISTINCT ON (fs.path) fs.agent_name, fs.path, fs.sha256
+		  FROM fim_snapshots fs
+		  WHERE fs.agent_name = $1 AND fs.captured_at <= $2 AND `+pathCond+`
+		  ORDER BY fs.path, fs.captured_at DESC
+		) latest
+		WHERE NOT EXISTS (
+		  SELECT 1 FROM agent_file_actions a
+		  WHERE a.agent_name = latest.agent_name AND a.path = latest.path
+		    AND a.action = 'restore_version' AND a.version_sha256 = latest.sha256
+		    AND a.status IN ('requested','delivered'))`, args...)
+	if err != nil {
+		return 0, fmt.Errorf("store: bulk restore: %w", err)
+	}
+	return int(ct.RowsAffected()), nil
 }
 
 // PendingFileActions returns an agent's requested actions and marks them delivered (one-shot).

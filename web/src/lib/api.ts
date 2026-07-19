@@ -435,6 +435,17 @@ export async function restoreVersion(agent: string, path: string, sha256: string
   })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
+// Point-in-time bulk revert: roll every watched file (optionally under `path`) back to its version
+// as of `asOf` (ISO 8601). The ransomware "restore everything to before the attack" action.
+export async function bulkRestore(agent: string, path: string, asOf: string): Promise<number> {
+  const res = await authFetch('/api/fim/bulk-restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent, path, as_of: asOf }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).queued ?? 0
+}
 export async function fetchSnapshotPaths(agent: string): Promise<FIMSnapshotPath[]> {
   const res = await authFetch(`/api/fim/snapshots/paths?agent=${encodeURIComponent(agent)}`)
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
