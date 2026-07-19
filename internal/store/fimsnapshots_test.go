@@ -55,3 +55,48 @@ func TestFIMSnapshots(t *testing.T) {
 	}
 	_, _ = st.pool.Exec(ctx, `DELETE FROM fim_snapshots WHERE agent_name=$1`, agent)
 }
+
+// TestFileActions exercises the manager→agent action queue (request → pending/deliver → result).
+func TestFileActions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	st, err := Connect(ctx, dsn())
+	if err != nil {
+		t.Skipf("Postgres unavailable — skipping: %v", err)
+	}
+	defer st.Close()
+
+	agent, path := "action-test-agent", "/var/www/html/x.php"
+	_, _ = st.pool.Exec(ctx, `DELETE FROM agent_file_actions WHERE agent_name=$1`, agent)
+
+	if err := st.RequestFileAction(ctx, agent, path, "quarantine", "alice"); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	// Dedup: an identical still-pending request is a no-op.
+	if err := st.RequestFileAction(ctx, agent, path, "quarantine", "alice"); err != nil {
+		t.Fatalf("request dup: %v", err)
+	}
+	if err := st.RequestFileAction(ctx, agent, path, "bogus", "alice"); err == nil {
+		t.Fatal("unknown action should be rejected")
+	}
+
+	// Agent polls → gets the one action, now marked delivered.
+	pend, err := st.PendingFileActions(ctx, agent)
+	if err != nil || len(pend) != 1 || pend[0].Action != "quarantine" {
+		t.Fatalf("pending: got %+v err=%v", pend, err)
+	}
+	// A second poll returns nothing (already delivered).
+	if again, _ := st.PendingFileActions(ctx, agent); len(again) != 0 {
+		t.Fatalf("second poll should be empty, got %d", len(again))
+	}
+
+	// Agent reports the outcome.
+	if err := st.SetFileActionResult(ctx, pend[0].ID, "done", "quarantined to /var/lib/deuswatch/quarantine/x.php.abc.q"); err != nil {
+		t.Fatalf("result: %v", err)
+	}
+	acts, err := st.ListFileActions(ctx, agent, path, 10)
+	if err != nil || len(acts) != 1 || acts[0].Status != "done" || acts[0].Result == "" {
+		t.Fatalf("list actions: got %+v err=%v", acts, err)
+	}
+	_, _ = st.pool.Exec(ctx, `DELETE FROM agent_file_actions WHERE agent_name=$1`, agent)
+}

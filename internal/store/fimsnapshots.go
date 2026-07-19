@@ -15,7 +15,8 @@ type FIMSnapshot struct {
 	SHA256     string    `json:"sha256"`
 	Size       int64     `json:"size"`
 	Storage    string    `json:"storage"` // agent | manager
-	Trigger    string    `json:"trigger"` // on_change | scheduled
+	Trigger    string    `json:"trigger"` // on_change | scheduled | manual
+	Diff       string    `json:"diff,omitempty"` // unified diff vs the previous captured version
 	CapturedAt time.Time `json:"captured_at"`
 }
 
@@ -46,10 +47,14 @@ func (s *Store) RecordSnapshot(ctx context.Context, snap FIMSnapshot, content []
 	if err == nil && latest == snap.SHA256 {
 		return false, nil // unchanged since the last version — skip
 	}
+	var diff *string
+	if snap.Diff != "" {
+		diff = &snap.Diff
+	}
 	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO fim_snapshots (agent_name, path, sha256, size, storage, trigger, content)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		snap.AgentName, snap.Path, snap.SHA256, snap.Size, snap.Storage, snap.Trigger, content); err != nil {
+		`INSERT INTO fim_snapshots (agent_name, path, sha256, size, storage, trigger, diff, content)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		snap.AgentName, snap.Path, snap.SHA256, snap.Size, snap.Storage, snap.Trigger, diff, content); err != nil {
 		return false, fmt.Errorf("store: record snapshot: %w", err)
 	}
 	return true, nil
@@ -82,7 +87,7 @@ func (s *Store) ListSnapshots(ctx context.Context, agentName, path string, limit
 		limit = 200
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, agent_name, path, sha256, size, storage, trigger, captured_at
+		SELECT id, agent_name, path, sha256, size, storage, trigger, COALESCE(diff,''), captured_at
 		FROM fim_snapshots WHERE agent_name=$1 AND path=$2
 		ORDER BY captured_at DESC LIMIT $3`, agentName, path, limit)
 	if err != nil {
@@ -92,10 +97,106 @@ func (s *Store) ListSnapshots(ctx context.Context, agentName, path string, limit
 	out := make([]FIMSnapshot, 0, limit)
 	for rows.Next() {
 		var v FIMSnapshot
-		if err := rows.Scan(&v.ID, &v.AgentName, &v.Path, &v.SHA256, &v.Size, &v.Storage, &v.Trigger, &v.CapturedAt); err != nil {
+		if err := rows.Scan(&v.ID, &v.AgentName, &v.Path, &v.SHA256, &v.Size, &v.Storage, &v.Trigger, &v.Diff, &v.CapturedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// ── Manager→agent file actions (snapshot_now / quarantine) ────────────────────
+
+// FileAction is one on-demand operation queued for an agent (ADR 0002 Phase 3).
+type FileAction struct {
+	ID          int64      `json:"id"`
+	AgentName   string     `json:"agent_name"`
+	Path        string     `json:"path"`
+	Action      string     `json:"action"` // snapshot_now | quarantine
+	Status      string     `json:"status"` // requested | delivered | done | failed
+	RequestedBy string     `json:"requested_by,omitempty"`
+	Result      string     `json:"result,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ResultAt    *time.Time `json:"result_at,omitempty"`
+}
+
+// RequestFileAction queues an action for an agent, de-duplicated against an identical
+// still-pending request (same agent+path+action not yet acted on).
+func (s *Store) RequestFileAction(ctx context.Context, agentName, path, action, requestedBy string) error {
+	if agentName == "" || path == "" {
+		return fmt.Errorf("store: file action needs agent and path")
+	}
+	if action != "snapshot_now" && action != "quarantine" {
+		return fmt.Errorf("store: unknown file action %q", action)
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO agent_file_actions (agent_name, path, action, requested_by)
+		SELECT $1, $2, $3, $4
+		WHERE NOT EXISTS (
+		  SELECT 1 FROM agent_file_actions
+		  WHERE agent_name=$1 AND path=$2 AND action=$3 AND status IN ('requested','delivered'))`,
+		agentName, path, action, requestedBy)
+	if err != nil {
+		return fmt.Errorf("store: request file action: %w", err)
+	}
+	return nil
+}
+
+// PendingFileActions returns an agent's requested actions and marks them delivered (one-shot).
+func (s *Store) PendingFileActions(ctx context.Context, agentName string) ([]FileAction, error) {
+	rows, err := s.pool.Query(ctx, `
+		UPDATE agent_file_actions SET status='delivered', delivered_at=now()
+		WHERE id IN (SELECT id FROM agent_file_actions WHERE agent_name=$1 AND status='requested')
+		RETURNING id, agent_name, path, action, status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at`,
+		agentName)
+	if err != nil {
+		return nil, fmt.Errorf("store: pending file actions: %w", err)
+	}
+	defer rows.Close()
+	out := make([]FileAction, 0, 8)
+	for rows.Next() {
+		var a FileAction
+		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// SetFileActionResult records the outcome an agent reports for an action (status done|failed).
+func (s *Store) SetFileActionResult(ctx context.Context, id int64, status, result string) error {
+	if status != "done" && status != "failed" {
+		return fmt.Errorf("store: bad action status %q", status)
+	}
+	_, err := s.pool.Exec(ctx,
+		`UPDATE agent_file_actions SET status=$2, result=$3, result_at=now() WHERE id=$1`, id, status, result)
+	if err != nil {
+		return fmt.Errorf("store: set file action result: %w", err)
+	}
+	return nil
+}
+
+// ListFileActions returns recent actions for an agent+path (newest first), for the UI.
+func (s *Store) ListFileActions(ctx context.Context, agentName, path string, limit int) ([]FileAction, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, agent_name, path, action, status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at
+		FROM agent_file_actions WHERE agent_name=$1 AND path=$2
+		ORDER BY created_at DESC LIMIT $3`, agentName, path, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: list file actions: %w", err)
+	}
+	defer rows.Close()
+	out := make([]FileAction, 0, limit)
+	for rows.Next() {
+		var a FileAction
+		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
 	}
 	return out, rows.Err()
 }

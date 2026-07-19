@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   fetchAgents,
   createEnrollToken,
@@ -9,10 +9,14 @@ import {
   can,
   fetchSnapshotPaths,
   fetchSnapshots,
+  fetchFileActions,
+  snapshotNow,
+  quarantineFile,
   type AgentInfo,
   type AgentSource,
   type FIMSnapshot,
   type FIMSnapshotPath,
+  type FileAction,
   type Me,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
@@ -192,7 +196,7 @@ export default function Agents({ me }: { me: Me }) {
         />
       )}
       {uninstalling && <UninstallHelp agent={uninstalling} onClose={() => setUninstalling(null)} />}
-      {snapshotsFor && <SnapshotViewer agent={snapshotsFor} onClose={() => setSnapshotsFor(null)} />}
+      {snapshotsFor && <SnapshotViewer agent={snapshotsFor} me={me} onClose={() => setSnapshotsFor(null)} />}
     </div>
   )
 }
@@ -597,40 +601,77 @@ function ConfigEditor({
 }
 
 // SnapshotViewer — read-only browser of an agent's dated FIM snapshot timeline (ADR 0002,
-// Phase 1). Pick a watched file to see its versions by date; restore-by-date arrives in Phase 3.
-function SnapshotViewer({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
+// Phase 1-3). Browse a watched file's dated versions, see the old-vs-new diff per version, take a
+// snapshot on demand, and quarantine the current (possibly infected) file for blue-team analysis.
+function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onClose: () => void }) {
   const [paths, setPaths] = useState<FIMSnapshotPath[]>([])
   const [selected, setSelected] = useState<string>('')
   const [versions, setVersions] = useState<FIMSnapshot[]>([])
+  const [actions, setActions] = useState<FileAction[]>([])
+  const [expanded, setExpanded] = useState<number | null>(null)
   const [error, setError] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState('')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const canSnapshot = can(me, 'manage_agents')
+  const canQuarantine = can(me, 'approve_remediation')
+
+  const loadPaths = () =>
     fetchSnapshotPaths(agent.name)
       .then((p) => {
         setPaths(p)
-        if (p.length > 0) setSelected(p[0].path)
+        setSelected((cur) => cur || (p.length > 0 ? p[0].path : ''))
       })
       .catch((e) => setError((e as Error).message))
-      .finally(() => setLoading(false))
-  }, [agent.name])
 
   useEffect(() => {
+    loadPaths().finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent.name])
+
+  const loadFile = () => {
     if (!selected) {
       setVersions([])
+      setActions([])
       return
     }
-    fetchSnapshots(agent.name, selected)
-      .then(setVersions)
-      .catch((e) => setError((e as Error).message))
-  }, [agent.name, selected])
+    fetchSnapshots(agent.name, selected).then(setVersions).catch((e) => setError((e as Error).message))
+    fetchFileActions(agent.name, selected).then(setActions).catch(() => {})
+  }
+  useEffect(loadFile, [agent.name, selected])
+
+  const act = async (kind: 'snapshot' | 'quarantine') => {
+    if (!selected) return
+    if (kind === 'quarantine' && !confirm(`Quarantine ${selected} on ${agent.name}?\n\nThe current file is MOVED into the agent's quarantine dir (read-only) for analysis. Restore a good version afterwards if needed.`)) return
+    setBusy(kind)
+    setError('')
+    setMsg('')
+    try {
+      if (kind === 'snapshot') {
+        await snapshotNow(agent.name, selected)
+        setMsg('Snapshot requested — the agent captures it on its next poll (~10s).')
+      } else {
+        await quarantineFile(agent.name, selected)
+        setMsg('Quarantine requested — the agent moves the file on its next poll (~10s). Refresh to see the result.')
+      }
+      setTimeout(() => {
+        loadFile()
+        loadPaths()
+      }, 3000)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
 
   const fmtBytes = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`)
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between gap-3">
@@ -638,8 +679,7 @@ function SnapshotViewer({ agent, onClose }: { agent: AgentInfo; onClose: () => v
           <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" className="shrink-0" />
         </div>
         <p className="mb-4 text-xs text-slate-500">
-          Dated version timeline of watched files. Restore-by-date lands in a later phase; today
-          this is a read-only history.
+          Dated version timeline of watched files. Expand a version to see the old-vs-new diff.
         </p>
 
         {loading ? (
@@ -650,12 +690,12 @@ function SnapshotViewer({ agent, onClose }: { agent: AgentInfo; onClose: () => v
             (Monitoring → Snapshots) and the agent will start capturing versions.
           </p>
         ) : (
-          <div className="grid grid-cols-[16rem_1fr] gap-4">
+          <div className="grid grid-cols-[15rem_1fr] gap-4">
             <div className="space-y-1 border-r border-slate-800 pr-3">
               {paths.map((p) => (
                 <button
                   key={p.path}
-                  onClick={() => setSelected(p.path)}
+                  onClick={() => { setSelected(p.path); setExpanded(null) }}
                   className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${
                     selected === p.path ? 'bg-indigo-500/15 text-indigo-300' : 'text-slate-400 hover:bg-slate-800'
                   }`}
@@ -667,6 +707,30 @@ function SnapshotViewer({ agent, onClose }: { agent: AgentInfo; onClose: () => v
               ))}
             </div>
             <div>
+              {selected && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="mr-auto truncate font-mono text-[11px] text-slate-500" title={selected}>{selected}</span>
+                  {canSnapshot && (
+                    <button
+                      onClick={() => act('snapshot')}
+                      disabled={busy !== ''}
+                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      {busy === 'snapshot' ? 'Requesting…' : 'Snapshot now'}
+                    </button>
+                  )}
+                  {canQuarantine && (
+                    <button
+                      onClick={() => act('quarantine')}
+                      disabled={busy !== ''}
+                      title="Move the current file into the agent's quarantine dir for blue-team analysis"
+                      className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
+                    >
+                      {busy === 'quarantine' ? 'Requesting…' : 'Quarantine infected/old file'}
+                    </button>
+                  )}
+                </div>
+              )}
               {versions.length === 0 ? (
                 <p className="text-sm text-slate-600">Select a file.</p>
               ) : (
@@ -675,29 +739,74 @@ function SnapshotViewer({ agent, onClose }: { agent: AgentInfo; onClose: () => v
                     <tr>
                       <th className="py-1 font-medium">Captured</th>
                       <th className="py-1 font-medium">Trigger</th>
-                      <th className="py-1 font-medium">Store</th>
                       <th className="py-1 font-medium">Size</th>
                       <th className="py-1 font-medium">SHA-256</th>
+                      <th className="py-1 font-medium"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {versions.map((v) => (
-                      <tr key={v.id}>
-                        <td className="py-1.5 text-slate-300">{new Date(v.captured_at).toLocaleString()}</td>
-                        <td className="py-1.5 text-slate-400">{v.trigger}</td>
-                        <td className="py-1.5 text-slate-400">{v.storage}</td>
-                        <td className="py-1.5 text-slate-400">{fmtBytes(v.size)}</td>
-                        <td className="py-1.5 font-mono text-slate-500">{v.sha256.slice(0, 12)}…</td>
-                      </tr>
+                      <Fragment key={v.id}>
+                        <tr>
+                          <td className="py-1.5 text-slate-300">{new Date(v.captured_at).toLocaleString()}</td>
+                          <td className="py-1.5 text-slate-400">{v.trigger}</td>
+                          <td className="py-1.5 text-slate-400">{fmtBytes(v.size)}</td>
+                          <td className="py-1.5 font-mono text-slate-500">{v.sha256.slice(0, 12)}…</td>
+                          <td className="py-1.5 text-right">
+                            {v.diff ? (
+                              <button
+                                onClick={() => setExpanded(expanded === v.id ? null : v.id)}
+                                className="text-indigo-300 hover:underline"
+                              >
+                                {expanded === v.id ? 'hide diff' : 'old vs new'}
+                              </button>
+                            ) : (
+                              <span className="text-slate-700">—</span>
+                            )}
+                          </td>
+                        </tr>
+                        {expanded === v.id && v.diff && (
+                          <tr>
+                            <td colSpan={5} className="pb-2">
+                              <pre className="max-h-64 overflow-auto rounded-md bg-slate-950/70 p-2 font-mono text-[11px] leading-relaxed">
+                                {v.diff.split('\n').map((line, i) => (
+                                  <div
+                                    key={i}
+                                    className={line.startsWith('+') ? 'text-emerald-400' : line.startsWith('-') ? 'text-rose-400' : 'text-slate-400'}
+                                  >
+                                    {line || ' '}
+                                  </div>
+                                ))}
+                              </pre>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
+              )}
+
+              {actions.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="mb-1 text-[11px] uppercase tracking-wider text-slate-500">Recent actions</h3>
+                  <ul className="space-y-1 text-xs">
+                    {actions.map((a) => (
+                      <li key={a.id} className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">{a.action}</span>
+                        <span className={a.status === 'done' ? 'text-emerald-400' : a.status === 'failed' ? 'text-rose-400' : 'text-slate-500'}>{a.status}</span>
+                        {a.result && <span className="truncate font-mono text-slate-500" title={a.result}>{a.result}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </div>
         )}
 
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+        {msg && <p className="mt-3 text-sm text-emerald-400">{msg}</p>}
         <div className="mt-5 flex justify-end">
           <button onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">
             Close

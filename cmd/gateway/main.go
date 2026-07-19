@@ -62,6 +62,8 @@ func main() {
 	var containFunc gateway.ContainmentFunc
 	var restoreFunc gateway.RestoreFunc
 	var snapshotFunc gateway.SnapshotFunc
+	var fileActionsFunc gateway.FileActionsFunc
+	var fileActionResultFunc gateway.FileActionResultFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
@@ -84,13 +86,27 @@ func main() {
 				for _, sm := range snaps {
 					if _, err := snapStore.RecordSnapshot(ctx, store.FIMSnapshot{
 						AgentName: cn, Path: sm.Path, SHA256: sm.SHA256, Size: sm.Size,
-						Storage: "agent", Trigger: sm.Trigger,
+						Storage: "agent", Trigger: sm.Trigger, Diff: sm.Diff,
 					}, nil); err != nil {
 						return err
 					}
 				}
 				return nil
 			}
+			// On-demand file actions (snapshot_now / quarantine): serve the agent its queue and
+			// record the outcome it reports back (ADR 0002 Phase 3).
+			fileActionsFunc = func(ctx context.Context, cn string) ([]gateway.FileActionItem, error) {
+				acts, err := st.PendingFileActions(ctx, cn)
+				if err != nil {
+					return nil, err
+				}
+				out := make([]gateway.FileActionItem, len(acts))
+				for i, a := range acts {
+					out[i] = gateway.FileActionItem{ID: a.ID, Path: a.Path, Action: a.Action}
+				}
+				return out, nil
+			}
+			fileActionResultFunc = st.SetFileActionResult
 			// Agent-side auto-block: only feed the blocklist when the admin has enabled an
 			// nftables_agent integration; the IPs are the active response-engine blocks.
 			rs := respond.NewStore(st.Pool())
@@ -144,6 +160,8 @@ func main() {
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))
 	mux.HandleFunc("GET /v1/restore", gateway.RestoreHandler(restoreFunc))
 	mux.HandleFunc("POST /v1/snapshots", gateway.SnapshotHandler(snapshotFunc, revoked))
+	mux.HandleFunc("GET /v1/file-actions", gateway.FileActionsHandler(fileActionsFunc, revoked))
+	mux.HandleFunc("POST /v1/file-actions/result", gateway.FileActionResultHandler(fileActionResultFunc, revoked))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))

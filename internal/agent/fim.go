@@ -39,7 +39,31 @@ type SnapshotMeta struct {
 	Path    string `json:"path"`
 	SHA256  string `json:"sha256"`
 	Size    int64  `json:"size"`
-	Trigger string `json:"trigger"` // on_change | scheduled
+	Trigger string `json:"trigger"`        // on_change | scheduled | manual
+	Diff    string `json:"diff,omitempty"` // unified diff vs the previously captured version
+}
+
+// CaptureVersionNow snapshots the current content of path as a manual, on-demand version (the
+// "Snapshot now" action). It stores the content on the agent (content-addressed) and returns the
+// metadata to upload. ok=false when snapshots are disabled or the file isn't a small text file.
+func CaptureVersionNow(path string) (SnapshotMeta, bool) {
+	if fimSnapshots == nil {
+		return SnapshotMeta{}, false
+	}
+	fi, err := os.Stat(path)
+	if err != nil || !fi.Mode().IsRegular() || fi.Size() > maxSnapshotBytes {
+		return SnapshotMeta{}, false
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || !isProbablyText(b) {
+		return SnapshotMeta{}, false
+	}
+	sum := hashBytes(b)
+	if _, err := fimSnapshots.SaveVersion(sum, string(b)); err != nil {
+		log.Printf("agent: snapshot-now %s: %v", path, err)
+		return SnapshotMeta{}, false
+	}
+	return SnapshotMeta{Path: path, SHA256: sum, Size: fi.Size(), Trigger: "manual"}, true
 }
 
 // fimSnapshotSink receives version metadata to upload to the manager. Set once at startup via
@@ -321,12 +345,20 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 		if lastHash[path] == sum {
 			return // unchanged since the last captured version
 		}
+		// Diff vs the previously captured version of this file (old vs new), when we still have
+		// its content blob. Best-effort — empty on the first version or if the blob is gone.
+		diff := ""
+		if prev := lastHash[path]; prev != "" {
+			if prevContent, ok := fimSnapshots.ReadVersion(prev); ok {
+				diff = unifiedDiff(prevContent, string(b))
+			}
+		}
 		if _, err := fimSnapshots.SaveVersion(sum, string(b)); err != nil {
 			log.Printf("agent: fim %q: save version %s: %v", s.Dataset, path, err)
 			return
 		}
 		lastHash[path] = sum
-		fimSnapshotSink(SnapshotMeta{Path: path, SHA256: sum, Size: fi.Size(), Trigger: trigger})
+		fimSnapshotSink(SnapshotMeta{Path: path, SHA256: sum, Size: fi.Size(), Trigger: trigger, Diff: diff})
 	}
 
 	scanAndEmit := func() {

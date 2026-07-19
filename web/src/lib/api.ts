@@ -391,9 +391,42 @@ export type FIMSnapshot = {
   size: number
   storage: string
   trigger: string
+  diff?: string
   captured_at: string
 }
 export type FIMSnapshotPath = { path: string; versions: number; latest: string }
+export type FileAction = {
+  id: number
+  agent_name: string
+  path: string
+  action: string
+  status: string
+  requested_by?: string
+  result?: string
+  created_at: string
+  result_at?: string
+}
+export async function fetchFileActions(agent: string, path: string): Promise<FileAction[]> {
+  const res = await authFetch(`/api/fim/actions?agent=${encodeURIComponent(agent)}&path=${encodeURIComponent(path)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).actions ?? []
+}
+export async function snapshotNow(agent: string, path: string): Promise<void> {
+  const res = await authFetch('/api/fim/snapshot-now', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent, path }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+export async function quarantineFile(agent: string, path: string): Promise<void> {
+  const res = await authFetch('/api/fim/quarantine', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent, path }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
 export async function fetchSnapshotPaths(agent: string): Promise<FIMSnapshotPath[]> {
   const res = await authFetch(`/api/fim/snapshots/paths?agent=${encodeURIComponent(agent)}`)
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)

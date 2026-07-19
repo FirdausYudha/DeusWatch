@@ -96,6 +96,60 @@ func (s *Shipper) PostSnapshots(ctx context.Context, snaps []SnapshotMeta) error
 	return nil
 }
 
+// FileActionItem is one manager-requested on-demand file operation (ADR 0002 Phase 3).
+type FileActionItem struct {
+	ID     int64  `json:"id"`
+	Path   string `json:"path"`
+	Action string `json:"action"` // snapshot_now | quarantine
+}
+
+// FetchFileActions retrieves the actions the manager wants this agent to perform
+// (GET /v1/file-actions). Returns an empty slice when none/disabled.
+func (s *Shipper) FetchFileActions(ctx context.Context) ([]FileActionItem, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/v1/file-actions", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("agent: fetch file-actions (status %d)", resp.StatusCode)
+	}
+	var body struct {
+		Actions []FileActionItem `json:"actions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	return body.Actions, nil
+}
+
+// PostFileActionResult reports the outcome of one action back to the manager
+// (POST /v1/file-actions/result). status is "done" or "failed".
+func (s *Shipper) PostFileActionResult(ctx context.Context, id int64, status, result string) error {
+	body, err := json.Marshal(map[string]any{"id": id, "status": status, "result": result})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/file-actions/result", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("agent: post file-action result: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("agent: file-action result rejected (status %d)", resp.StatusCode)
+	}
+	return nil
+}
+
 // Health is the agent's self-reported state carried on the heartbeat. Degraded means
 // "alive but not fully working" - e.g. the offline buffer is piling up because log
 // batches are not getting through while the heartbeat itself still succeeds.

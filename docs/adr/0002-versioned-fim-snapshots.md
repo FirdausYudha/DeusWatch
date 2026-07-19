@@ -1,7 +1,9 @@
 # ADR 0002 - Versioned FIM Snapshots & Restore-by-Date
 
 - Status: **In progress** — Phase 1 (manager) done & verified; Phase 2 (agent capture + upload)
-  built, pending live Linux-agent verification; Phases 3-5 pending.
+  done & live-verified on the user's agent; Phase 3 (on-demand actions: snapshot-now, quarantine
+  for analysis, old-vs-new diff) built & manager-verified, agent side pending live check; Phase 4
+  (authorized_change) + restore-by-version + Phase 5 (manager storage) pending.
 - Date: 2026-07-19
 - Context: extends the existing single-baseline FIM restore (`internal/agent/fimsnap.go`,
   `internal/store/restores.go`) into a dated, versioned snapshot + one-click restore-by-date

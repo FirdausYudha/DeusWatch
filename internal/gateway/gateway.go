@@ -117,7 +117,83 @@ type SnapshotMeta struct {
 	Path    string `json:"path"`
 	SHA256  string `json:"sha256"`
 	Size    int64  `json:"size"`
-	Trigger string `json:"trigger"` // on_change | scheduled
+	Trigger string `json:"trigger"`        // on_change | scheduled | manual
+	Diff    string `json:"diff,omitempty"` // unified diff vs the previous captured version
+}
+
+// FileActionItem is one manager-requested on-demand file operation served to an agent.
+type FileActionItem struct {
+	ID     int64  `json:"id"`
+	Path   string `json:"path"`
+	Action string `json:"action"` // snapshot_now | quarantine
+}
+
+// FileActionsFunc returns the pending actions for an agent (by CN), marking them delivered.
+type FileActionsFunc func(ctx context.Context, agentName string) ([]FileActionItem, error)
+
+// FileActionResultFunc records an agent's reported outcome for an action.
+type FileActionResultFunc func(ctx context.Context, id int64, status, result string) error
+
+// FileActionsHandler serves an agent its pending on-demand file actions over mTLS (ADR 0002).
+func FileActionsHandler(fn FileActionsFunc, revoked RevokedFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var certCN, certSerial string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			certCN = r.TLS.PeerCertificates[0].Subject.CommonName
+			certSerial = r.TLS.PeerCertificates[0].SerialNumber.String()
+		}
+		if revoked != nil && certCN != "" {
+			if rev, err := revoked(r.Context(), certCN, certSerial); err == nil && rev {
+				http.Error(w, "agent revoked", http.StatusGone)
+				return
+			}
+		}
+		actions := []FileActionItem{}
+		if fn != nil && certCN != "" {
+			if got, err := fn(r.Context(), certCN); err == nil && got != nil {
+				actions = got
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string][]FileActionItem{"actions": actions})
+	}
+}
+
+// FileActionResultHandler receives an agent's outcome for one action (id, status, result).
+func FileActionResultHandler(fn FileActionResultFunc, revoked RevokedFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var certCN, certSerial string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			certCN = r.TLS.PeerCertificates[0].Subject.CommonName
+			certSerial = r.TLS.PeerCertificates[0].SerialNumber.String()
+		}
+		if revoked != nil && certCN != "" {
+			if rev, err := revoked(r.Context(), certCN, certSerial); err == nil && rev {
+				http.Error(w, "agent revoked", http.StatusGone)
+				return
+			}
+		}
+		var body struct {
+			ID     int64  `json:"id"`
+			Status string `json:"status"`
+			Result string `json:"result"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&body); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+		if fn != nil && body.ID != 0 {
+			if err := fn(r.Context(), body.ID, body.Status, body.Result); err != nil {
+				http.Error(w, "record failed", http.StatusServiceUnavailable)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 // SnapshotFunc records a batch of an agent's captured version metadata. nil = feed disabled.

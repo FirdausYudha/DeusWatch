@@ -240,6 +240,9 @@ func main() {
 		// Versioned FIM snapshots (ADR 0002): browse the dated version timeline of watched files.
 		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
 		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))
+		mux.Handle("GET /api/fim/actions", protect(auth.PermViewDashboard, fimActionsHandler(st)))
+		mux.Handle("POST /api/fim/snapshot-now", protect(auth.PermManageAgents, fimSnapshotNowHandler(st)))
+		mux.Handle("POST /api/fim/quarantine", protect(auth.PermApproveRemediation, fimQuarantineHandler(st)))
 
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
@@ -1654,6 +1657,68 @@ func fimSnapshotsHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"snapshots": snaps})
+	}
+}
+
+// fimActionsHandler (GET /api/fim/actions?agent=&path=) returns recent on-demand file actions
+// (snapshot_now / quarantine) and their outcomes for one watched file (ADR 0002 Phase 3).
+func fimActionsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		agent, path := strings.TrimSpace(q.Get("agent")), strings.TrimSpace(q.Get("path"))
+		if agent == "" || path == "" {
+			http.Error(w, "agent and path required", http.StatusBadRequest)
+			return
+		}
+		acts, err := st.ListFileActions(r.Context(), agent, path, 25)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"actions": acts})
+	}
+}
+
+// fimActionReq is the body for the on-demand file-action endpoints.
+type fimActionReq struct {
+	Agent string `json:"agent"`
+	Path  string `json:"path"`
+}
+
+func (req fimActionReq) valid() bool {
+	return strings.TrimSpace(req.Agent) != "" && strings.TrimSpace(req.Path) != ""
+}
+
+// fimSnapshotNowHandler (POST /api/fim/snapshot-now) queues an immediate version capture.
+func fimSnapshotNowHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req fimActionReq
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !req.valid() {
+			http.Error(w, "agent and path required", http.StatusBadRequest)
+			return
+		}
+		if err := st.RequestFileAction(r.Context(), req.Agent, req.Path, "snapshot_now", currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// fimQuarantineHandler (POST /api/fim/quarantine) queues moving the current file into quarantine
+// for blue-team analysis.
+func fimQuarantineHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req fimActionReq
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || !req.valid() {
+			http.Error(w, "agent and path required", http.StatusBadRequest)
+			return
+		}
+		if err := st.RequestFileAction(r.Context(), req.Agent, req.Path, "quarantine", currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

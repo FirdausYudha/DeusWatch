@@ -68,6 +68,30 @@ func RemediateFile(path, wantHash, mode, dir string) (bool, error) {
 	return true, nil
 }
 
+// QuarantineForAnalysis moves the CURRENT file at path into the quarantine dir (read-only,
+// timestamped) regardless of its hash — the operator-triggered "quarantine infected/old file for
+// blue-team analysis" action (ADR 0002 Phase 3). Unlike RemediateFile it does not hash-gate: the
+// operator explicitly asked to isolate this exact file. Returns the quarantine destination path.
+func QuarantineForAnalysis(path, dir string) (string, error) {
+	if path == "" {
+		return "", os.ErrInvalid
+	}
+	sum, err := fileSHA256(path) // also proves the file exists/readable
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	tag := sum[:12]
+	dest := filepath.Join(dir, filepath.Base(path)+"."+tag+"."+time.Now().Format("20060102T150405")+".quarantine")
+	if err := moveFile(path, dest); err != nil {
+		return "", err
+	}
+	_ = os.Chmod(dest, 0o400) // inert: read-only evidence
+	return dest, nil
+}
+
 // moveFile renames src to dst, falling back to copy+remove across filesystems.
 func moveFile(src, dst string) error {
 	if err := os.Rename(src, dst); err == nil {

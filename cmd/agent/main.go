@@ -152,6 +152,8 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	if snapStore != nil {
 		go runFimRestore(ctx, shipper, snapStore, host)
 	}
+	// On-demand FIM file actions (snapshot_now / quarantine), triggered from the Snapshots UI.
+	go runFileActions(ctx, shipper, host)
 	// Host network containment (opt-in via AGENT_CONTAINMENT=1): poll the manager's isolation
 	// directive and firewall the host off from the LAN (except the manager) when told to.
 	if containmentEnabled(os.Getenv("AGENT_CONTAINMENT")) {
@@ -461,6 +463,61 @@ func runFimRestore(ctx context.Context, shipper *agent.Shipper, snaps *agent.Sna
 					_ = shipper.Send(ctx, []ingest.RawLog{{
 						Timestamp: time.Now(), Host: host, Dataset: "fim", Message: string(body),
 					}})
+				}
+			}
+		}
+	}
+}
+
+// runFileActions polls the manager for on-demand file operations and executes them (ADR 0002
+// Phase 3): "snapshot_now" captures a version immediately; "quarantine" moves the current file
+// into the agent's quarantine dir (read-only) for blue-team analysis. Each outcome is reported
+// back to the manager.
+func runFileActions(ctx context.Context, shipper *agent.Shipper, host string) {
+	qdir := getenv("QUARANTINE_DIR", agent.DefaultQuarantineDir())
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			actions, err := shipper.FetchFileActions(ctx)
+			if err != nil {
+				continue
+			}
+			for _, a := range actions {
+				status, result := "done", ""
+				switch a.Action {
+				case "snapshot_now":
+					if meta, ok := agent.CaptureVersionNow(a.Path); ok {
+						if serr := shipper.PostSnapshots(ctx, []agent.SnapshotMeta{meta}); serr != nil {
+							status, result = "failed", "upload: "+serr.Error()
+						} else {
+							result = "captured version " + meta.SHA256[:12]
+						}
+					} else {
+						status, result = "failed", "not a small text file, or snapshots disabled"
+					}
+				case "quarantine":
+					if dest, qerr := agent.QuarantineForAnalysis(a.Path, qdir); qerr != nil {
+						status, result = "failed", qerr.Error()
+					} else {
+						result = "quarantined to " + dest
+						// Surface the action on the dashboard too.
+						c := agent.FIMChange{Path: a.Path, Action: "quarantined"}
+						if body, merr := json.Marshal(c); merr == nil {
+							_ = shipper.Send(ctx, []ingest.RawLog{{
+								Timestamp: time.Now(), Host: host, Dataset: "fim", Message: string(body),
+							}})
+						}
+						log.Printf("agent: quarantined %s -> %s", a.Path, dest)
+					}
+				default:
+					status, result = "failed", "unknown action"
+				}
+				if rerr := shipper.PostFileActionResult(ctx, a.ID, status, result); rerr != nil {
+					log.Printf("agent: report file-action %d: %v", a.ID, rerr)
 				}
 			}
 		}
