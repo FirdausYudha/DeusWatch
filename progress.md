@@ -3,6 +3,15 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**FIM snapshots — Phase 4 (authorized_change) done 2026-07-19 → ADR 0002 FULLY BUILT (on `main`,
+unreleased).** The trusted-session gate no longer drops a file-change alert silently: when a change
+happens during a login from a whitelisted admin/IP, the worker records a low-severity
+`authorized_change` audit event (file + who-data kept, no notify/response) instead of suppressing
+it; a sudden change with no legitimate session still alerts. `internal/worker.markAuthorizedChange`
+(relabel + severity→low + keep original severity + strip remediation/containment); test updated;
+docs/features/02-response.md. **ADR 0002 all phases built (1-5 + restore-by-version); manager side
+verified throughout, agent-executed pieces verified as the user tests on their live agent.**
+
 **FIM snapshots — Phase 5 (manager storage) done 2026-07-19 (ADR 0002, on `main`, unreleased).**
 The per-source **Store: on agent / on manager** choice is now the admin's explicit decision AND
 works (was a no-op before). Manager mode: agent uploads the full version CONTENT
