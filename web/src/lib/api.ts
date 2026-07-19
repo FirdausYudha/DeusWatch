@@ -900,6 +900,7 @@ export type RiskyIP = {
   abuse: number
   otx: number
   max_sev: number
+  agents?: number // distinct endpoints touched (cross-agent fan-out)
   updated_at: string
 }
 
@@ -916,6 +917,22 @@ export type SuspiciousIP = {
   last_seen: string
 }
 
+// SlowScanner is the multi-DAY reconnaissance pattern: a source that keeps coming back on separate
+// days at a volume too low for any burst rule ("2 today, none tomorrow, 5 the day after").
+export type SlowScanner = {
+  ip: string
+  score: number
+  band: string
+  active_days: number
+  span_days: number
+  events: number
+  targets: number
+  agents: number
+  first_seen?: string
+  last_seen?: string
+  updated_at: string
+}
+
 export type DashboardData = {
   total_events: number
   total_alerts: number
@@ -924,6 +941,7 @@ export type DashboardData = {
   timeline: TimelinePoint[]
   risky_ips: RiskyIP[] | null
   suspicious_ips: SuspiciousIP[] | null
+  slow_scanners: SlowScanner[] | null
 }
 
 // DashRange selects the dashboard window: either a relative number of hours, or an
@@ -944,7 +962,7 @@ export async function fetchDashboardData(range: number | DashRange = 24): Promis
   return res.json()
 }
 
-export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch'
+export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow'
 export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide: boolean }
 export type DashLayout = { widgets: DashWidget[] }
 
@@ -1329,7 +1347,9 @@ export async function saveNotifyConfig(c: NotifyConfig): Promise<NotifyConfig> {
 // ── Threat-scoring weights (composite score + suspicious-IP watchlist) ─
 export type CompositeWeights = {
   abuse: number; fired_times: number; otx: number; severity: number; anomaly: number
-  otx_cap: number; fired_cap: number
+  // fanout: one source IP touching many of our agents = campaign behaviour, scores higher.
+  fanout: number
+  otx_cap: number; fired_cap: number; agents_cap: number
 }
 export type SuspicionWeights = {
   fanout: number; fail_ratio: number; spread: number; volume: number

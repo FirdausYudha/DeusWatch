@@ -13,6 +13,10 @@ type Signals struct {
 	OTX         int // AlienVault OTX pulse count
 	MaxSeverity int // worst DCS severity seen 0-4 (info..critical)
 	Anomaly     int // 0-100 ML anomaly score written back by the external Isolation Forest batch
+	// Agents is how many DISTINCT agents/endpoints this IP touched in the window. One source
+	// hitting many of our hosts is campaign behaviour, not a stray probe — it deserves a higher
+	// score than the same volume aimed at a single host.
+	Agents int
 }
 
 // Weights control the relative contribution of each signal and the caps that saturate the
@@ -26,15 +30,23 @@ type Weights struct {
 	// Anomaly weight for the ML anomaly_score. Default 0 so folding in the ML signal is opt-in
 	// (raise it in Settings once the external Isolation Forest batch is writing scores back) —
 	// this keeps existing deployments' scores unchanged.
-	Anomaly  float64 `json:"anomaly"`
+	Anomaly float64 `json:"anomaly"`
+	// FanOut weights how many distinct agents the IP touched (see Signals.Agents).
+	FanOut   float64 `json:"fanout"`
 	OTXCap   int     `json:"otx_cap"`
 	FiredCap int     `json:"fired_cap"`
+	// AgentsCap is the fan-out that already counts as "hitting everything" (saturates to 100).
+	AgentsCap int `json:"agents_cap"`
 }
 
 // DefaultWeights: reputation-forward but repeat-offense still matters. Anomaly defaults to 0
-// (opt-in). Suricata/WAF severity can be folded into MaxSeverity later without changing this shape.
+// (opt-in). Fan-out carries real weight: an IP probing 5 of our endpoints is a campaign.
+// Suricata/WAF severity can be folded into MaxSeverity later without changing this shape.
 func DefaultWeights() Weights {
-	return Weights{Abuse: 0.40, FiredTimes: 0.30, OTX: 0.15, Severity: 0.15, Anomaly: 0, OTXCap: 20, FiredCap: 20}
+	return Weights{
+		Abuse: 0.35, FiredTimes: 0.25, OTX: 0.10, Severity: 0.15, Anomaly: 0, FanOut: 0.15,
+		OTXCap: 20, FiredCap: 20, AgentsCap: 5,
+	}
 }
 
 // Result is the computed score + its band.
@@ -60,9 +72,15 @@ func Compute(s Signals, w Weights) Result {
 	otx := cap100(s.OTX, w.OTXCap)
 	sev := clamp100(float64(s.MaxSeverity) * 25) // 0..4 -> 0..100
 	anomaly := clamp100(float64(s.Anomaly))      // ML anomaly_score, already 0..100
+	// Fan-out: 1 agent is the baseline (no bonus); each additional distinct endpoint ramps
+	// towards 100 at AgentsCap, so a single-host probe never inherits campaign-level score.
+	fanout := 0.0
+	if s.Agents > 1 && w.AgentsCap > 1 {
+		fanout = cap100(s.Agents-1, w.AgentsCap-1)
+	}
 
-	total := abuse*w.Abuse + fired*w.FiredTimes + otx*w.OTX + sev*w.Severity + anomaly*w.Anomaly
-	if sum := w.Abuse + w.FiredTimes + w.OTX + w.Severity + w.Anomaly; sum > 0 {
+	total := abuse*w.Abuse + fired*w.FiredTimes + otx*w.OTX + sev*w.Severity + anomaly*w.Anomaly + fanout*w.FanOut
+	if sum := w.Abuse + w.FiredTimes + w.OTX + w.Severity + w.Anomaly + w.FanOut; sum > 0 {
 		total /= sum
 	}
 	score := int(total + 0.5)

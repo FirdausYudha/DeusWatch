@@ -6,7 +6,7 @@ import {
   type DashboardData, type DashWidget, type WidgetKind, type DashRange, type EventSearch,
   type StorageStatus,
 } from '../lib/api'
-import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, WIDGET_COLORS } from './widgets'
+import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, WIDGET_COLORS } from './widgets'
 import DocLink from '../components/DocLink'
 import { PageHeader, Button, Select } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
@@ -148,6 +148,7 @@ const SOURCES: { source: string; label: string; kind: WidgetKind }[] = [
   { source: 'countries', label: 'Attack origins (map)', kind: 'map' },
   { source: 'risky_ips', label: 'Top risky IPs (score)', kind: 'risk' },
   { source: 'suspicious_ips', label: 'Suspicious IPs (recon watchlist)', kind: 'watch' },
+  { source: 'slow_scanners', label: 'Slow scanners (multi-day recon)', kind: 'slow' },
 ]
 
 function kindsFor(source: string): WidgetKind[] {
@@ -156,6 +157,7 @@ function kindsFor(source: string): WidgetKind[] {
   if (source === 'countries') return ['map', 'bar', 'donut', 'table']
   if (source === 'risky_ips') return ['risk'] // score + band, not a plain count series
   if (source === 'suspicious_ips') return ['watch']
+  if (source === 'slow_scanners') return ['slow'] // multi-day pattern, not a count series
   return ['bar', 'donut', 'table']
 }
 
@@ -170,6 +172,7 @@ function defaultWidgets(): DashWidget[] {
     mk({ kind: 'bar', source: 'source_ips', title: 'Top source IPs', color: '#38bdf8', wide: false }),
     mk({ kind: 'risk', source: 'risky_ips', title: 'Top risky IPs', color: '#f43f5e', wide: false }),
     mk({ kind: 'watch', source: 'suspicious_ips', title: 'Suspicious IPs (recon)', color: '#f59e0b', wide: false }),
+    mk({ kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', wide: true }),
     mk({ kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', wide: false }),
     mk({ kind: 'map', source: 'countries', title: 'Attack origins', color: '#f43f5e', wide: true }),
   ]
@@ -194,6 +197,8 @@ function WidgetBody({ w, data }: { w: DashWidget; data: DashboardData | null }) 
       return <RiskyIPsWidget data={data.risky_ips ?? []} />
     case 'watch':
       return <SuspiciousIPsWidget data={data.suspicious_ips ?? []} />
+    case 'slow':
+      return <SlowScannerWidget data={data.slow_scanners ?? []} />
     default:
       return <BarChart data={data.series[w.source] ?? []} color={w.color} />
   }

@@ -1,0 +1,1 @@
+ALTER TABLE ip_scores DROP COLUMN IF EXISTS agents;

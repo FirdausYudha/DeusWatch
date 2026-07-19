@@ -9,6 +9,7 @@ import (
 
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/respond"
+	"deuswatch/internal/score"
 	"deuswatch/internal/store"
 )
 
@@ -86,6 +87,42 @@ func scenarioBanLabel(banAt int) string {
 // (SUSPICIOUS_WINDOW, default 24h): external IPs whose low-and-slow behaviour looks like
 // reconnaissance even without any CTI/WAF hit. Cheaper than the composite scorer, so it runs
 // less often (SUSPICIOUS_INTERVAL, default 5m).
+// runSlowScanScorer refreshes the low-and-slow reconnaissance watchlist: sources that come back on
+// separate DAYS at a volume no burst rule will ever trip. It is a multi-day aggregate, so it runs
+// infrequently (default hourly) over a long window (default 14 days).
+func runSlowScanScorer(ctx context.Context, st *store.Store) {
+	interval := durEnv("SLOWSCAN_INTERVAL", time.Hour)
+	window := durEnv("SLOWSCAN_WINDOW", 14*24*time.Hour)
+	log.Printf("worker: slow-scanner watchlist active (every %s over a %s window)", interval, window)
+
+	run := func() {
+		sc, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+		found, err := st.RefreshSlowScanners(sc, window, score.DefaultSlowScanWeights())
+		if err != nil {
+			log.Printf("worker: slow-scanner scan: %v", err)
+			return
+		}
+		if len(found) > 0 {
+			log.Printf("worker: slow-scanner watchlist: %d source(s) recurring at low volume", len(found))
+		}
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	first := time.NewTimer(45 * time.Second) // let the pipeline settle after boot
+	defer first.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-first.C:
+			run()
+		case <-t.C:
+			run()
+		}
+	}
+}
+
 func runSuspiciousScorer(ctx context.Context, st *store.Store) {
 	interval := durEnv("SUSPICIOUS_INTERVAL", 5*time.Minute)
 	log.Printf("worker: suspicious-IP watchlist active (every %s; window is UI-configurable)", interval)

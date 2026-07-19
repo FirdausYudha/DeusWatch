@@ -169,6 +169,10 @@ func main() {
 	// (independent of CTI/WAF), for the dashboard + the AI report.
 	go runSuspiciousScorer(ctx, st)
 
+	// Slow-scanner watchlist: the multi-DAY view — sources that keep coming back at a volume too
+	// low for any burst rule (2 probes today, none tomorrow, 5 the day after).
+	go runSlowScanScorer(ctx, st)
+
 	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. the Wazuh
 	// indexer) into the pipeline. No-op when no such integration is enabled.
 	go runESPull(ctx, intStore, b, st)

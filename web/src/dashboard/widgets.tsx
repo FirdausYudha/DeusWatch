@@ -1,4 +1,4 @@
-﻿import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP } from '../lib/api'
+﻿import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner } from '../lib/api'
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
 // Categorical palette for donut segments, starting from the widget's chosen color.
@@ -133,7 +133,70 @@ export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
             <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
           </div>
           <span className="w-7 text-right text-[11px] font-medium text-fg">{r.score}</span>
+          {/* Cross-agent fan-out: this IP hit more than one of our endpoints (campaign behaviour). */}
+          {(r.agents ?? 0) > 1 && (
+            <span
+              className="shrink-0 rounded bg-high/15 px-1.5 py-0.5 text-[10px] font-medium text-high"
+              title={`Touched ${r.agents} of your endpoints — cross-agent fan-out raises the score`}
+            >
+              {r.agents} hosts
+            </span>
+          )}
           <span className={`w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${BAND_STYLE[r.band] ?? BAND_STYLE.low}`}>
+            {r.band}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// SlowScannerWidget lists the MULTI-DAY pattern static rules can never catch: sources that come
+// back on separate days at a volume too low to trip any burst threshold ("2 today, none tomorrow,
+// 5 the day after"). The day-strip makes the recurrence visible at a glance.
+export function SlowScannerWidget({ data }: { data: SlowScanner[] }) {
+  if (!data?.length)
+    return (
+      <p className="py-6 text-center text-[11px] text-dim">
+        No slow scanners yet — this watchlist needs a few days of history to see a pattern.
+      </p>
+    )
+  return (
+    <ul className="space-y-2">
+      {data.map((r) => (
+        <li key={r.ip} className="flex items-center gap-2">
+          <span className="w-32 shrink-0 truncate font-mono text-[11px] text-fg" title={r.ip}>
+            {r.ip}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-[10px] text-dim">
+              <span title="Separate days this source came back — the recurrence signal">
+                <b className="text-muted">{r.active_days}</b> active days
+              </span>
+              <span>·</span>
+              <span title="Total events across the whole window (deliberately low)">{r.events} events</span>
+              <span>·</span>
+              <span title="Days between first and last sighting">{r.span_days}d span</span>
+              {r.agents > 1 && (
+                <>
+                  <span>·</span>
+                  <span className="text-high" title="Touched more than one of your endpoints">
+                    {r.agents} hosts
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded bg-surface-2">
+              <div
+                className="h-full rounded"
+                style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }}
+              />
+            </div>
+          </div>
+          <span className="w-7 text-right text-[11px] font-medium text-fg">{r.score}</span>
+          <span
+            className={`w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${BAND_STYLE[r.band] ?? BAND_STYLE.low}`}
+          >
             {r.band}
           </span>
         </li>

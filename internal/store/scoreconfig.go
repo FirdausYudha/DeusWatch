@@ -102,7 +102,8 @@ func (c ScoreConfig) sanitized() ScoreConfig {
 	c.Composite.Abuse, c.Composite.FiredTimes = nn(c.Composite.Abuse), nn(c.Composite.FiredTimes)
 	c.Composite.OTX, c.Composite.Severity = nn(c.Composite.OTX), nn(c.Composite.Severity)
 	c.Composite.Anomaly = nn(c.Composite.Anomaly) // opt-in ML weight; negative clamps to 0
-	if c.Composite.Abuse+c.Composite.FiredTimes+c.Composite.OTX+c.Composite.Severity+c.Composite.Anomaly <= 0 {
+	c.Composite.FanOut = nn(c.Composite.FanOut)   // cross-agent fan-out weight
+	if c.Composite.Abuse+c.Composite.FiredTimes+c.Composite.OTX+c.Composite.Severity+c.Composite.Anomaly+c.Composite.FanOut <= 0 {
 		c.Composite = d.Composite
 	}
 	if c.Composite.OTXCap <= 0 {
@@ -110,6 +111,9 @@ func (c ScoreConfig) sanitized() ScoreConfig {
 	}
 	if c.Composite.FiredCap <= 0 {
 		c.Composite.FiredCap = d.Composite.FiredCap
+	}
+	if c.Composite.AgentsCap <= 1 {
+		c.Composite.AgentsCap = d.Composite.AgentsCap
 	}
 
 	c.Suspicion.FanOut, c.Suspicion.FailRatio = nn(c.Suspicion.FanOut), nn(c.Suspicion.FailRatio)

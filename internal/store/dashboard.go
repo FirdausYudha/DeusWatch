@@ -37,6 +37,9 @@ type DashboardData struct {
 	RiskyIPs []IPScore `json:"risky_ips"`
 	// SuspiciousIPs is the low-and-slow reconnaissance watchlist, for the "Suspicious IPs" widget.
 	SuspiciousIPs []SuspiciousIP `json:"suspicious_ips"`
+	// SlowScanners is the MULTI-DAY watchlist: sources that keep coming back at a volume too low
+	// for any burst rule to fire. Independent of the dashboard time range (it is a days-long view).
+	SlowScanners []SlowScanner `json:"slow_scanners"`
 }
 
 // Dashboard assembles all dashboard series for the window [since, until].
@@ -102,6 +105,9 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (Dashboar
 	}
 	if susp, serr := s.TopSuspiciousIPs(ctx, 10); serr == nil {
 		d.SuspiciousIPs = susp
+	}
+	if slow, serr := s.TopSlowScanners(ctx, 10); serr == nil {
+		d.SlowScanners = slow
 	}
 	return d, nil
 }

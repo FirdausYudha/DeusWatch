@@ -2,6 +2,34 @@ package score
 
 import "testing"
 
+// TestFanOutRaisesScore locks in the cross-agent rule: the SAME activity aimed at many of our
+// endpoints scores higher than at one, because that is campaign behaviour.
+func TestFanOutRaisesScore(t *testing.T) {
+	w := DefaultWeights()
+	base := Signals{FiredTimes: 5, Abuse: 30, MaxSeverity: 2}
+
+	one := Compute(withAgents(base, 1), w)
+	few := Compute(withAgents(base, 3), w)
+	many := Compute(withAgents(base, 10), w) // beyond AgentsCap → saturated
+
+	if few.Score <= one.Score {
+		t.Fatalf("hitting 3 endpoints must score higher than 1: one=%d few=%d", one.Score, few.Score)
+	}
+	if many.Score <= few.Score {
+		t.Fatalf("hitting 10 endpoints must score higher than 3: few=%d many=%d", few.Score, many.Score)
+	}
+	// A single endpoint gets no fan-out bonus at all (0 agents and 1 agent are equivalent).
+	if Compute(withAgents(base, 0), w).Score != one.Score {
+		t.Fatal("0 and 1 agents must score the same (no fan-out bonus for a single host)")
+	}
+	// Saturation: past the cap the fan-out contribution stops growing.
+	if Compute(withAgents(base, 50), w).Score != many.Score {
+		t.Fatal("fan-out must saturate at AgentsCap")
+	}
+}
+
+func withAgents(s Signals, n int) Signals { s.Agents = n; return s }
+
 func TestCompute(t *testing.T) {
 	w := DefaultWeights()
 

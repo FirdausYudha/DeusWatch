@@ -18,6 +18,7 @@ type IPScore struct {
 	OTX        int       `json:"otx"`
 	MaxSev     int       `json:"max_sev"`
 	Anomaly    int       `json:"anomaly"` // ML anomaly_score folded into the composite score
+	Agents     int       `json:"agents"`  // distinct endpoints this IP touched (cross-agent fan-out)
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
@@ -31,7 +32,8 @@ func (s *Store) RefreshIPScores(ctx context.Context, window time.Duration, w sco
 		       COALESCE(max(e.dw_enrichment_abuse_confidence),0) AS abuse,
 		       COALESCE(max(e.dw_enrichment_otx_pulse_count),0)  AS otx,
 		       COALESCE(max(e.event_severity),0)                AS max_sev,
-		       COALESCE(max(an.anomaly),0)                      AS anomaly
+		       COALESCE(max(an.anomaly),0)                      AS anomaly,
+		       count(DISTINCT e.agent_id) FILTER (WHERE e.agent_id IS NOT NULL AND e.agent_id <> '') AS agents
 		FROM events e LEFT JOIN ip_anomaly an ON an.ip = e.source_ip
 		WHERE e.source_ip IS NOT NULL AND e.time > now() - $1::interval
 		GROUP BY e.source_ip`, fmt.Sprintf("%d seconds", int(window.Seconds())))
@@ -43,11 +45,12 @@ func (s *Store) RefreshIPScores(ctx context.Context, window time.Duration, w sco
 	var out []IPScore
 	for rows.Next() {
 		var r IPScore
-		if err := rows.Scan(&r.IP, &r.FiredTimes, &r.Abuse, &r.OTX, &r.MaxSev, &r.Anomaly); err != nil {
+		if err := rows.Scan(&r.IP, &r.FiredTimes, &r.Abuse, &r.OTX, &r.MaxSev, &r.Anomaly, &r.Agents); err != nil {
 			return nil, err
 		}
 		res := score.Compute(score.Signals{
-			FiredTimes: r.FiredTimes, Abuse: r.Abuse, OTX: r.OTX, MaxSeverity: r.MaxSev, Anomaly: r.Anomaly,
+			FiredTimes: r.FiredTimes, Abuse: r.Abuse, OTX: r.OTX, MaxSeverity: r.MaxSev,
+			Anomaly: r.Anomaly, Agents: r.Agents,
 		}, w)
 		r.Score, r.Band = res.Score, res.Band
 		out = append(out, r)
@@ -59,16 +62,16 @@ func (s *Store) RefreshIPScores(ctx context.Context, window time.Duration, w sco
 	// Upsert current scores; prune IPs that dropped out of the window.
 	batch := make([][]any, 0, len(out))
 	for _, r := range out {
-		batch = append(batch, []any{r.IP, r.Score, r.Band, r.FiredTimes, r.Abuse, r.OTX, r.MaxSev, r.Anomaly})
+		batch = append(batch, []any{r.IP, r.Score, r.Band, r.FiredTimes, r.Abuse, r.OTX, r.MaxSev, r.Anomaly, r.Agents})
 	}
 	for _, b := range batch {
 		if _, err := s.pool.Exec(ctx, `
-			INSERT INTO ip_scores (ip, score, band, fired_times, abuse, otx, max_sev, anomaly, updated_at)
-			VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8, now())
+			INSERT INTO ip_scores (ip, score, band, fired_times, abuse, otx, max_sev, anomaly, agents, updated_at)
+			VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9, now())
 			ON CONFLICT (ip) DO UPDATE SET
 			  score=EXCLUDED.score, band=EXCLUDED.band, fired_times=EXCLUDED.fired_times,
 			  abuse=EXCLUDED.abuse, otx=EXCLUDED.otx, max_sev=EXCLUDED.max_sev,
-			  anomaly=EXCLUDED.anomaly, updated_at=now()`,
+			  anomaly=EXCLUDED.anomaly, agents=EXCLUDED.agents, updated_at=now()`,
 			b...); err != nil {
 			return nil, fmt.Errorf("store: score upsert: %w", err)
 		}
@@ -107,7 +110,7 @@ func (s *Store) TopIPScores(ctx context.Context, limit int) ([]IPScore, error) {
 		limit = 20
 	}
 	rows, err := s.pool.Query(ctx,
-		`SELECT host(ip), score, band, fired_times, abuse, otx, max_sev, updated_at
+		`SELECT host(ip), score, band, fired_times, abuse, otx, max_sev, COALESCE(agents,0), updated_at
 		 FROM ip_scores ORDER BY score DESC, updated_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: top scores: %w", err)
@@ -116,7 +119,7 @@ func (s *Store) TopIPScores(ctx context.Context, limit int) ([]IPScore, error) {
 	var out []IPScore
 	for rows.Next() {
 		var r IPScore
-		if err := rows.Scan(&r.IP, &r.Score, &r.Band, &r.FiredTimes, &r.Abuse, &r.OTX, &r.MaxSev, &r.UpdatedAt); err != nil {
+		if err := rows.Scan(&r.IP, &r.Score, &r.Band, &r.FiredTimes, &r.Abuse, &r.OTX, &r.MaxSev, &r.Agents, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
