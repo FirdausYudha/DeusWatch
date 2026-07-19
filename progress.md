@@ -3,6 +3,17 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**FIM snapshots — Phase 5 (manager storage) done 2026-07-19 (ADR 0002, on `main`, unreleased).**
+The per-source **Store: on agent / on manager** choice is now the admin's explicit decision AND
+works (was a no-op before). Manager mode: agent uploads the full version CONTENT
+(`SnapshotMeta.Content`) → gateway stores it in `fim_snapshots.content` with storage="manager";
+`store.SnapshotContent` reads it back; restore_version now carries the manager-stored content so a
+version restores even if the agent lost its local blob (agent `RestoreContent` writes it, else
+falls back to the local blob). UI: choosing "on manager" pops a confirmation (content leaves the
+host); per-version agent/manager storage badge. Manager side live-verified (store test:
+RecordSnapshot+content round-trip via SnapshotContent). **Only remaining ADR 0002 item: Phase 4
+authorized_change warning.**
+
 **FIM snapshots — restore-by-version done 2026-07-19 (ADR 0002, on `main`, unreleased).** Each
 version in the Snapshots timeline now has a **restore** button → rolls the file back to that exact
 dated version (distinct from the single-baseline restore). Reuses the Phase-3 action queue:
