@@ -15,8 +15,13 @@ file changes/2m/host, critical → network_containment, recommend-only unless CO
 files only, manager-storage is the ransomware-safe choice, use immutable backups for full coverage).
 Tests: agg mitigation parse + buildAggAlert containment + bulk-restore. HONEST: FIM snapshots are a
 complement, NOT a backup; auto-containment can false-positive on big deploys (hence recommend-only
-default); entropy signal is a planned precision enhancement. Agent-side execution needs the user's
-live agent.
+default). Agent-side execution needs the user's live agent.
+**Entropy signal added (commit 66d0e84):** the agent computes each changed file's byte Shannon
+entropy; a watched TEXT file that becomes high-entropy random data (>= FIM_ENTROPY_THRESHOLD,
+default 7.2) is emitted as action `encrypted` (not modified) → normalizeFIM `event.action=file_encrypted`
+severity High. Rules: `ransomware_file_encrypted.yml` (single hit) + `agg/ransomware_encryption_burst_containment.yml`
+(>15 encrypted files/2m/host → critical → containment) — precise, low-false-positive vs raw
+mass-change. This is the recommended detection path.
 
 **FIM large-file handling done 2026-07-19 (post-v1.17.0, on `main`, unreleased).** Raised the
 snapshot content ceiling 256 KiB → **2 MiB default, configurable via `FIM_SNAPSHOT_MAX_BYTES`**
