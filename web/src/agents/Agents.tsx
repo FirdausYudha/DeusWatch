@@ -7,21 +7,13 @@ import {
   setAgentConfig,
   agentOnline,
   can,
-  fetchSnapshotPaths,
-  fetchSnapshots,
-  fetchFileActions,
-  snapshotNow,
-  quarantineFile,
-  restoreVersion,
-  bulkRestore,
   type AgentInfo,
   type AgentSource,
-  type FIMSnapshot,
-  type FIMSnapshotPath,
-  type FileAction,
   type Me,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
+import { Button } from '../components/ui'
+import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim']
 const POLL_TYPES = new Set(['fim', 'wineventlog']) // types where the interval applies
@@ -43,7 +35,7 @@ function relative(ts: string | null): string {
 // online/disconnected stay accurate even between checker ticks.
 function StatusBadge({ a }: { a: AgentInfo }) {
   const badge = (cls: string, label: string, title?: string) => (
-    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`} title={title}>{label}</span>
+    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`} title={title}>{label}</span>
   )
   if (a.revoked) return badge('text-rose-300 bg-rose-500/15', 'revoked')
   const live = agentOnline(a)
@@ -87,11 +79,11 @@ export default function Agents({ me }: { me: Me }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
-      <header className="mb-8 flex items-end justify-between">
+    <div className="mx-auto max-w-[1400px] px-6 py-5">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Agents</h1>
-          <p className="mt-1 text-sm text-dim">Registered agents, heartbeat status &amp; centrally-pushed config</p>
+          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Agents</h1>
+          <p className="mt-0.5 text-[12px] text-muted">Registered agents, heartbeat status &amp; centrally-pushed config</p>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             <DocLink file="new-log-source.md" label="Add a log source" />
             <DocLink file="whodata.md" label="FIM who-data" />
@@ -105,18 +97,18 @@ export default function Agents({ me }: { me: Me }) {
         {isAdmin && (
           <button
             onClick={() => setWizard(true)}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90"
           >
             + Add agent
           </button>
         )}
       </header>
 
-      {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
+      {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
 
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="overflow-hidden rounded-[12px] border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
+          <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">OS</th>
@@ -151,20 +143,20 @@ export default function Agents({ me }: { me: Me }) {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEditing(a)}
-                        className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2"
+                        className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2"
                       >
                         Monitoring
                       </button>
                       <button
                         onClick={() => setSnapshotsFor(a)}
-                        className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2"
+                        className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2"
                         title="Browse the dated FIM snapshot timeline of this agent's watched files"
                       >
                         Snapshots
                       </button>
                       <button
                         onClick={() => setUninstalling(a)}
-                        className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2"
+                        className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2"
                         title="Show commands to uninstall this agent from its endpoint"
                       >
                         Uninstall
@@ -172,7 +164,7 @@ export default function Agents({ me }: { me: Me }) {
                       {!a.revoked && (
                         <button
                           onClick={() => doRevoke(a)}
-                          className="rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10"
+                          className="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10"
                         >
                           Revoke
                         </button>
@@ -229,24 +221,24 @@ function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => vo
 
   return (
     <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-1 text-sm font-semibold text-fg">
+      <div className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="mb-1 text-[12.5px] font-semibold text-fg">
           Uninstall agent â€” <span className="text-accent">{agent.name}</span>
           <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase text-muted">{agent.os || 'linux'}</span>
         </h3>
-        <p className="mb-4 text-xs text-dim">
+        <p className="mb-4 text-[11px] text-dim">
           Cleanest way: <span className="text-fg">Revoke</span> this agent â€” it self-uninstalls on its
           next heartbeat. Run the commands below on the endpoint for a manual or forced cleanup.
         </p>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-dim">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-dim">
           Run on the {isWindows ? 'Windows endpoint (elevated PowerShell)' : 'Linux endpoint'}
         </div>
         <Copyable text={isWindows ? windows : linux} />
-        <p className="mt-3 text-xs text-dim">
+        <p className="mt-3 text-[11px] text-dim">
           Removing the certs de-enrolls the host; re-installing later issues a fresh certificate.
         </p>
         <div className="mt-5 flex justify-end">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">Close</button>
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">Close</button>
         </div>
       </div>
     </div>
@@ -273,7 +265,7 @@ function Copyable({ text }: { text: string }) {
       >
         {copied ? 'copied âœ“' : 'copy'}
       </button>
-      <code className="block whitespace-pre-wrap break-all rounded-lg border border-border bg-bg px-3 py-2 pr-14 text-xs text-emerald-300">
+      <code className="block whitespace-pre-wrap break-all rounded-[8px] border border-border bg-bg px-3 py-2 pr-14 text-[11px] text-emerald-300">
         {text}
       </code>
     </div>
@@ -337,58 +329,58 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-xl border border-border bg-surface p-5 shadow-2xl"
+        className="w-full max-w-xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-lg font-semibold text-fg">Add agent</h2>
-        <p className="mb-4 text-xs text-dim">Pick the endpointâ€™s platform, then run the generated command on it.</p>
+        <h2 className="mb-1 text-[15px] font-semibold text-fg">Add agent</h2>
+        <p className="mb-4 text-[11px] text-dim">Pick the endpointâ€™s platform, then run the generated command on it.</p>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Operating system</span>
+            <span className="mb-1 block text-[11px] font-medium text-muted">Operating system</span>
             <select
               value={os}
               onChange={(e) => setOs(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
             >
               <option value="linux">Linux</option>
               <option value="windows">Windows</option>
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Agent name</span>
+            <span className="mb-1 block text-[11px] font-medium text-muted">Agent name</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. web01"
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Manager host</span>
+            <span className="mb-1 block text-[11px] font-medium text-muted">Manager host</span>
             <input
               value={host}
               onChange={(e) => setHost(e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
             />
           </label>
         </div>
 
         <div className="mt-5 space-y-4">
           <div>
-            <div className="mb-1 text-xs font-medium text-muted">
+            <div className="mb-1 text-[11px] font-medium text-muted">
               1 Â· On the manager â€” open the firewall <span className="text-dim">(elevated PowerShell, once)</span>
             </div>
             <Copyable text={managerFw} />
           </div>
           <div>
-            <div className="mb-1 text-xs font-medium text-muted">
+            <div className="mb-1 text-[11px] font-medium text-muted">
               2 Â· On the endpoint â€” paste &amp; run{' '}
               <span className="text-dim">{os === 'windows' ? '(elevated PowerShell)' : '(root; sudo is included)'}</span>
             </div>
             <Copyable text={install} />
             {!token && (
-              <p className="mt-1 text-xs text-amber-400/80">{busy ? 'Generating tokenâ€¦' : 'No token yet â€” click â€œGenerate tokenâ€.'}</p>
+              <p className="mt-1 text-[11px] text-amber-400/80">{busy ? 'Generating tokenâ€¦' : 'No token yet â€” click â€œGenerate tokenâ€.'}</p>
             )}
             <p className="mt-1 text-[11px] text-dim">
               Downloads the agent, opens its firewall, enrolls with the token, installs an auto-start service, and connects to the gateway.
@@ -396,16 +388,16 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+        {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
 
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">
             Close
           </button>
           <button
             onClick={gen}
             disabled={busy}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {busy ? 'Generatingâ€¦' : token ? 'Regenerate token' : 'Generate token'}
           </button>
@@ -470,11 +462,11 @@ function ConfigEditor({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-lg font-semibold text-fg">Monitoring â€” {agent.name}</h2>
-        <p className="mb-4 text-xs text-dim">
+        <h2 className="mb-1 text-[15px] font-semibold text-fg">Monitoring â€” {agent.name}</h2>
+        <p className="mb-4 text-[11px] text-dim">
           Choose what this agent collects. For <code className="text-fg">fim</code> &amp;{' '}
           <code className="text-fg">wineventlog</code> set a scan interval (seconds) to control intensity.
           Saving bumps the version &amp; the agent re-applies on its next poll.
@@ -489,7 +481,7 @@ function ConfigEditor({
             <span></span>
           </div>
           {sources.length === 0 && (
-            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-dim">
+            <p className="rounded-[8px] border border-dashed border-border px-3 py-4 text-center text-[11px] text-dim">
               No sources. Add one below (or save empty to clear).
             </p>
           )}
@@ -499,12 +491,12 @@ function ConfigEditor({
                 value={s.dataset}
                 onChange={(e) => update(i, { dataset: e.target.value })}
                 placeholder="sshd"
-                className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm outline-none focus:border-accent"
+                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
               />
               <select
                 value={s.type}
                 onChange={(e) => update(i, { type: e.target.value })}
-                className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm outline-none focus:border-accent"
+                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
               >
                 {SOURCE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -516,7 +508,7 @@ function ConfigEditor({
                 value={s.path}
                 onChange={(e) => update(i, { path: e.target.value })}
                 placeholder={s.type === 'fim' ? '/etc/passwd,/etc/ssh' : s.type === 'wineventlog' ? 'Security' : '/var/log/auth.log'}
-                className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm outline-none focus:border-accent"
+                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
               />
               {POLL_TYPES.has(s.type) ? (
                 <input
@@ -525,20 +517,20 @@ function ConfigEditor({
                   value={s.interval || ''}
                   onChange={(e) => update(i, { interval: Number(e.target.value) })}
                   placeholder={s.type === 'fim' ? '60' : '5'}
-                  className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm outline-none focus:border-accent"
+                  className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
                 />
               ) : (
                 <span className="grid place-items-center text-[11px] text-dim">live</span>
               )}
               <button
                 onClick={() => removeRow(i)}
-                className="grid place-items-center rounded-lg border border-border text-muted hover:bg-surface-2"
+                className="grid place-items-center rounded-[8px] border border-border text-muted hover:bg-surface-2"
                 title="Remove"
               >
                 âœ•
               </button>
               {s.type === 'fim' && (
-                <div className="col-span-5 mb-1 grid grid-cols-[auto_1fr_auto_1fr_auto_5rem] items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5 text-xs">
+                <div className="col-span-5 mb-1 grid grid-cols-[auto_1fr_auto_1fr_auto_5rem] items-center gap-2 rounded-[8px] border border-border bg-surface px-2 py-1.5 text-xs">
                   <span className="text-dim">Snapshots</span>
                   <select
                     value={s.snapshot_mode || 'baseline'}
@@ -592,20 +584,20 @@ function ConfigEditor({
 
         <button
           onClick={addRow}
-          className="mt-3 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-fg hover:bg-surface-2"
+          className="mt-3 rounded-[8px] border border-dashed border-border px-3 py-1.5 text-[11px] text-fg hover:bg-surface-2"
         >
           + Add source
         </button>
 
-        {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+        {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">
             Cancel
           </button>
           <button
             onClick={save}
             disabled={busy}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {busy ? 'Savingâ€¦' : 'Save & push'}
           </button>
@@ -618,291 +610,26 @@ function ConfigEditor({
 // SnapshotViewer â€” read-only browser of an agent's dated FIM snapshot timeline (ADR 0002,
 // Phase 1-3). Browse a watched file's dated versions, see the old-vs-new diff per version, take a
 // snapshot on demand, and quarantine the current (possibly infected) file for blue-team analysis.
+
+// SnapshotViewer is a thin modal around the shared browser (the full page lives in
+// snapshots/Snapshots.tsx) so the timeline, diff and destructive actions have one implementation.
 function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onClose: () => void }) {
-  const [paths, setPaths] = useState<FIMSnapshotPath[]>([])
-  const [selected, setSelected] = useState<string>('')
-  const [versions, setVersions] = useState<FIMSnapshot[]>([])
-  const [actions, setActions] = useState<FileAction[]>([])
-  const [expanded, setExpanded] = useState<number | null>(null)
-  const [error, setError] = useState('')
-  const [msg, setMsg] = useState('')
-  const [busy, setBusy] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [bulkAt, setBulkAt] = useState('')
-
-  const canSnapshot = can(me, 'manage_agents')
-  const canQuarantine = can(me, 'approve_remediation')
-
-  const loadPaths = () =>
-    fetchSnapshotPaths(agent.name)
-      .then((p) => {
-        setPaths(p)
-        setSelected((cur) => cur || (p.length > 0 ? p[0].path : ''))
-      })
-      .catch((e) => setError((e as Error).message))
-
-  useEffect(() => {
-    loadPaths().finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agent.name])
-
-  const loadFile = () => {
-    if (!selected) {
-      setVersions([])
-      setActions([])
-      return
-    }
-    fetchSnapshots(agent.name, selected).then(setVersions).catch((e) => setError((e as Error).message))
-    fetchFileActions(agent.name, selected).then(setActions).catch(() => {})
-  }
-  useEffect(loadFile, [agent.name, selected])
-
-  const act = async (kind: 'snapshot' | 'quarantine') => {
-    if (!selected) return
-    if (kind === 'quarantine' && !confirm(`Quarantine ${selected} on ${agent.name}?\n\nThe current file is MOVED into the agent's quarantine dir (read-only) for analysis. Restore a good version afterwards if needed.`)) return
-    setBusy(kind)
-    setError('')
-    setMsg('')
-    try {
-      if (kind === 'snapshot') {
-        await snapshotNow(agent.name, selected)
-        setMsg('Snapshot requested â€” the agent captures it on its next poll (~10s).')
-      } else {
-        await quarantineFile(agent.name, selected)
-        setMsg('Quarantine requested â€” the agent moves the file on its next poll (~10s). Refresh to see the result.')
-      }
-      setTimeout(() => {
-        loadFile()
-        loadPaths()
-      }, 3000)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const restore = async (v: FIMSnapshot) => {
-    if (!confirm(`Restore ${selected} to the version from ${new Date(v.captured_at).toLocaleString()}?\n\nThe current file is snapshotted first (nothing is lost), then overwritten with this version.`)) return
-    setBusy('restore-' + v.id)
-    setError('')
-    setMsg('')
-    try {
-      await restoreVersion(agent.name, selected, v.sha256)
-      setMsg('Restore requested â€” the agent applies it on its next poll (~10s).')
-      setTimeout(() => {
-        loadFile()
-        loadPaths()
-      }, 3000)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const doBulkRestore = async () => {
-    if (!bulkAt) return
-    const asOf = new Date(bulkAt)
-    if (isNaN(asOf.getTime())) {
-      setError('Pick a valid date/time')
-      return
-    }
-    if (!confirm(`Roll back ALL of ${agent.name}'s watched files to their versions as of ${asOf.toLocaleString()}?\n\nThis is the ransomware recovery action: each file's current content is snapshotted first, then overwritten with its as-of version. Only files stored on the manager can be restored if the agent's copies were lost.`)) return
-    setBusy('bulk'); setError(''); setMsg('')
-    try {
-      const n = await bulkRestore(agent.name, '', asOf.toISOString())
-      setMsg(`Point-in-time revert requested for ${n} file(s) â€” the agent applies them on its next polls.`)
-      setTimeout(() => { loadFile(); loadPaths() }, 3000)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const fmtBytes = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`)
-
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-fg">FIM snapshots â€” {agent.name}</h2>
+          <h2 className="text-[15px] font-semibold text-fg">FIM snapshots — {agent.name}</h2>
           <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" className="shrink-0" />
         </div>
-        <p className="mb-3 text-xs text-dim">
+        <p className="mb-3 text-[11.5px] text-dim">
           Dated version timeline of watched files. Expand a version to see the old-vs-new diff.
         </p>
-
-        {canQuarantine && !loading && paths.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-900/40 bg-amber-500/5 px-3 py-2">
-            <span className="text-xs font-medium text-amber-200">Ransomware recovery â€” roll all files back to:</span>
-            <input
-              type="datetime-local"
-              value={bulkAt}
-              onChange={(e) => setBulkAt(e.target.value)}
-              className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-fg outline-none focus:border-accent"
-            />
-            <button
-              onClick={doBulkRestore}
-              disabled={busy !== '' || !bulkAt}
-              className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
-            >
-              {busy === 'bulk' ? 'Requestingâ€¦' : 'Restore all to this time'}
-            </button>
-            <span className="text-[10px] text-dim">Point-in-time revert of every watched file to its version as of the chosen time.</span>
-          </div>
-        )}
-
-        {loading ? (
-          <p className="text-sm text-dim">Loadingâ€¦</p>
-        ) : paths.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-dim">
-            No snapshots recorded for this agent yet. Enable a snapshot mode on a <code className="text-muted">fim</code> source
-            (Monitoring â†’ Snapshots) and the agent will start capturing versions.
-          </p>
-        ) : (
-          <div className="grid grid-cols-[15rem_1fr] gap-4">
-            <div className="space-y-1 border-r border-border pr-3">
-              {paths.map((p) => (
-                <button
-                  key={p.path}
-                  onClick={() => { setSelected(p.path); setExpanded(null) }}
-                  className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${
-                    selected === p.path ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'
-                  }`}
-                  title={p.path}
-                >
-                  <span className="block truncate font-mono">{p.path}</span>
-                  <span className="text-[10px] text-dim">{p.versions} version{p.versions === 1 ? '' : 's'}</span>
-                </button>
-              ))}
-            </div>
-            <div>
-              {selected && (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="mr-auto truncate font-mono text-[11px] text-dim" title={selected}>{selected}</span>
-                  {canSnapshot && (
-                    <button
-                      onClick={() => act('snapshot')}
-                      disabled={busy !== ''}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2 disabled:opacity-50"
-                    >
-                      {busy === 'snapshot' ? 'Requestingâ€¦' : 'Snapshot now'}
-                    </button>
-                  )}
-                  {canQuarantine && (
-                    <button
-                      onClick={() => act('quarantine')}
-                      disabled={busy !== ''}
-                      title="Move the current file into the agent's quarantine dir for blue-team analysis"
-                      className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
-                    >
-                      {busy === 'quarantine' ? 'Requestingâ€¦' : 'Quarantine infected/old file'}
-                    </button>
-                  )}
-                </div>
-              )}
-              {versions.length === 0 ? (
-                <p className="text-sm text-dim">Select a file.</p>
-              ) : (
-                <table className="w-full text-left text-xs">
-                  <thead className="uppercase tracking-wider text-dim">
-                    <tr>
-                      <th className="py-1 font-medium">Captured</th>
-                      <th className="py-1 font-medium">Trigger</th>
-                      <th className="py-1 font-medium">Size</th>
-                      <th className="py-1 font-medium">SHA-256</th>
-                      <th className="py-1 font-medium"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {versions.map((v) => (
-                      <Fragment key={v.id}>
-                        <tr>
-                          <td className="py-1.5 text-fg">{new Date(v.captured_at).toLocaleString()}</td>
-                          <td className="py-1.5 text-muted">
-                            {v.trigger}
-                            <span
-                              className={`ml-1.5 rounded px-1 py-0.5 text-[9px] ${v.storage === 'manager' ? 'bg-sky-500/15 text-sky-300' : 'bg-surface-2 text-muted'}`}
-                              title={v.storage === 'manager' ? 'content stored on the manager' : 'content stored on the agent'}
-                            >
-                              {v.storage}
-                            </span>
-                          </td>
-                          <td className="py-1.5 text-muted">{fmtBytes(v.size)}</td>
-                          <td className="py-1.5 font-mono text-dim">{v.sha256.slice(0, 12)}â€¦</td>
-                          <td className="whitespace-nowrap py-1.5 text-right">
-                            {v.diff && (
-                              <button
-                                onClick={() => setExpanded(expanded === v.id ? null : v.id)}
-                                className="text-accent hover:underline"
-                              >
-                                {expanded === v.id ? 'hide diff' : 'old vs new'}
-                              </button>
-                            )}
-                            {canQuarantine && (
-                              <button
-                                onClick={() => restore(v)}
-                                disabled={busy !== ''}
-                                title="Restore the file to this version (current content is snapshotted first)"
-                                className="ml-3 text-amber-300 hover:underline disabled:opacity-50"
-                              >
-                                {busy === 'restore-' + v.id ? 'â€¦' : 'restore'}
-                              </button>
-                            )}
-                            {!v.diff && !canQuarantine && <span className="text-slate-700">â€”</span>}
-                          </td>
-                        </tr>
-                        {expanded === v.id && v.diff && (
-                          <tr>
-                            <td colSpan={5} className="pb-2">
-                              <pre className="max-h-64 overflow-auto rounded-md bg-bg/70 p-2 font-mono text-[11px] leading-relaxed">
-                                {v.diff.split('\n').map((line, i) => (
-                                  <div
-                                    key={i}
-                                    className={line.startsWith('+') ? 'text-emerald-400' : line.startsWith('-') ? 'text-rose-400' : 'text-muted'}
-                                  >
-                                    {line || ' '}
-                                  </div>
-                                ))}
-                              </pre>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {actions.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="mb-1 text-[11px] uppercase tracking-wider text-dim">Recent actions</h3>
-                  <ul className="space-y-1 text-xs">
-                    {actions.map((a) => (
-                      <li key={a.id} className="flex flex-wrap items-center gap-2">
-                        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-fg">{a.action}</span>
-                        <span className={a.status === 'done' ? 'text-emerald-400' : a.status === 'failed' ? 'text-rose-400' : 'text-dim'}>{a.status}</span>
-                        {a.result && <span className="truncate font-mono text-dim" title={a.result}>{a.result}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
-        {msg && <p className="mt-3 text-sm text-emerald-400">{msg}</p>}
+        <SnapshotBrowser agentName={agent.name} me={me} />
         <div className="mt-5 flex justify-end">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">
-            Close
-          </button>
+          <Button onClick={onClose}>Close</Button>
         </div>
       </div>
     </div>

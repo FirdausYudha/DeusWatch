@@ -20,7 +20,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-fg">
+          <h2 className="text-[15px] font-semibold text-fg">
             <span className="text-rose-400">â™¥</span> Support DeusWatch
           </h2>
           <button
@@ -31,7 +31,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
             âœ•
           </button>
         </div>
-        <p className="mb-5 text-sm text-muted">
+        <p className="mb-5 text-[12.5px] text-muted">
           DeusWatch is free &amp; open. If it helps you, a small donation keeps it going â€” thank you! ðŸ™
         </p>
 
@@ -40,7 +40,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
             href={SAWERIA_PAGE}
             target="_blank"
             rel="noopener noreferrer"
-            className="block rounded-lg bg-amber-500 px-4 py-2.5 text-center text-sm font-semibold text-slate-900 transition-colors hover:bg-amber-400"
+            className="block rounded-[8px] bg-amber-500 px-4 py-2.5 text-center text-[12.5px] font-semibold text-slate-900 transition-colors hover:bg-amber-400"
           >
             Donate via Saweria
           </a>
@@ -49,7 +49,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
               href={KOFI_PAGE}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-lg bg-sky-500 px-4 py-2.5 text-center text-sm font-semibold text-fg transition-colors hover:bg-sky-400"
+              className="block rounded-[8px] bg-sky-500 px-4 py-2.5 text-center text-[12.5px] font-semibold text-fg transition-colors hover:bg-sky-400"
             >
               Support on Ko-fi
             </a>
@@ -57,8 +57,8 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-5">
-          <p className="mb-2 text-center text-xs text-dim">or scan to open the donate page</p>
-          <div className="mx-auto w-fit rounded-lg bg-white p-3">
+          <p className="mb-2 text-center text-[11px] text-dim">or scan to open the donate page</p>
+          <div className="mx-auto w-fit rounded-[8px] bg-white p-3">
             <QRCodeSVG value={SAWERIA_PAGE} size={200} level="M" />
           </div>
         </div>

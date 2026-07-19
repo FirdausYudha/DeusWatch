@@ -49,7 +49,7 @@ function FieldInput({
   const hasOptions = !!field.options && field.options.length > 0
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted">
+      <span className="mb-1 block text-[11px] font-medium text-muted">
         {field.label}
         {field.optional && <span className="ml-1 text-dim">(optional)</span>}
       </span>
@@ -57,7 +57,7 @@ function FieldInput({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
         >
           {!value && <option value="">Selectâ€¦</option>}
           {field.options!.map((o) => (
@@ -73,7 +73,7 @@ function FieldInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.secret && configured ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ configured (leave blank to keep)' : field.help ?? ''}
           autoComplete="off"
-          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
         />
       )}
       {field.help && !(field.secret && configured) && (
@@ -118,16 +118,16 @@ function IngestWebhookPanel() {
   }
 
   return (
-    <section className="mb-8 rounded-xl border border-border bg-surface p-5">
+    <section className="mb-8 rounded-[12px] border border-border bg-surface p-5">
       <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-fg">Log ingest webhook (Wazuh & others)</h2>
+        <h2 className="text-[12.5px] font-semibold text-fg">Log ingest webhook (Wazuh & others)</h2>
         <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-cyan-300 bg-cyan-500/15">Inbound</span>
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${enabled ? 'text-emerald-300 bg-emerald-500/15' : 'text-muted bg-surface-2'}`}>
           {enabled ? 'Active' : 'Disabled'}
         </span>
         <DocLink file="wazuh-webhook.md" className="ml-auto shrink-0" />
       </div>
-      <p className="mb-3 mt-1 text-sm text-dim">
+      <p className="mb-3 mt-0.5 text-[12px] text-muted">
         A token-gated endpoint that external systems POST raw logs or Wazuh alerts to â€” they flow
         through the normal pipeline (normalize â†’ detect â†’ playbooks â†’ response). Point a Wazuh
         manager's integrator at this URL, or <span className="font-mono text-[11px]">curl</span> lines to it.
@@ -136,18 +136,18 @@ function IngestWebhookPanel() {
         <>
           <div className="flex flex-wrap items-center gap-2">
             <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
-              className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-fg outline-none" />
-            <button onClick={copy} className="rounded-lg border border-border px-3 py-2 text-sm text-fg hover:bg-surface-2">{copied ? 'Copied âœ“' : 'Copy'}</button>
+              className="min-w-0 flex-1 rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[11px] text-fg outline-none" />
+            <button onClick={copy} className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg hover:bg-surface-2">{copied ? 'Copied âœ“' : 'Copy'}</button>
             <button onClick={regenerate} disabled={busy}
-              className="rounded-lg border border-amber-700/60 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
+              className="rounded-[8px] border border-amber-700/60 px-3 py-2 text-[12.5px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
               {busy ? 'Regeneratingâ€¦' : 'Regenerate'}
             </button>
             <button onClick={disable} disabled={busy}
-              className="rounded-lg border border-rose-900/60 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10 disabled:opacity-50">
+              className="rounded-[8px] border border-rose-900/60 px-3 py-2 text-[12.5px] text-rose-300 hover:bg-rose-500/10 disabled:opacity-50">
               Disable
             </button>
           </div>
-          <p className="mt-2 text-xs text-dim">
+          <p className="mt-2 text-[11px] text-dim">
             Replace <span className="font-mono">&lt;name&gt;</span> with the source agent name (shown in the Agent column) and
             <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, â€¦).
             The token is in the URL â€” serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
@@ -155,11 +155,11 @@ function IngestWebhookPanel() {
         </>
       ) : (
         <button onClick={regenerate} disabled={busy}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+          className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
           {busy ? 'Generatingâ€¦' : 'Enable webhook (generate token)'}
         </button>
       )}
-      {err && <p className="mt-2 text-sm text-rose-400">{err}</p>}
+      {err && <p className="mt-2 text-[12.5px] text-rose-400">{err}</p>}
     </section>
   )
 }
@@ -269,17 +269,17 @@ export default function Integrations() {
   const editType = editing ? typeMap[editing.type] : null
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
+    <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Integrations</h1>
-        <p className="mt-1 text-sm text-dim">
+        <h1 className="text-[16px] font-semibold tracking-tight text-fg">Integrations</h1>
+        <p className="mt-0.5 text-[12px] text-muted">
           Connect firewalls, bouncers, and threat-intel providers. API keys & credentials are encrypted at rest.
         </p>
       </header>
 
       {/* Add integration */}
-      <section className="mb-8 rounded-xl border border-border bg-surface p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-dim">Add integration</h2>
+      <section className="mb-8 rounded-[12px] border border-border bg-surface p-5">
+        <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-dim">Add integration</h2>
         <div className="flex flex-wrap gap-2">
           {types.map((t) => (
             <button
@@ -289,7 +289,7 @@ export default function Integrations() {
                 setName('')
                 setConfig({})
               }}
-              className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+              className={`rounded-[8px] border px-3 py-2 text-left text-[12.5px] transition-colors ${
                 pick === t.type
                   ? 'border-accent bg-accent-soft text-accent'
                   : 'border-border bg-surface-2 text-fg hover:bg-surface-2'
@@ -304,19 +304,19 @@ export default function Integrations() {
         </div>
 
         {picked && (
-          <div className="mt-5 rounded-lg border border-border bg-surface p-4">
+          <div className="mt-5 rounded-[8px] border border-border bg-surface p-4">
             <div className="mb-3 flex items-start justify-between gap-3">
-              <p className="text-sm text-muted">{picked.desc}</p>
+              <p className="text-[12.5px] text-muted">{picked.desc}</p>
               {picked.doc && <DocLink file={picked.doc} className="shrink-0" />}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-muted">Name</span>
+                <span className="mb-1 block text-[11px] font-medium text-muted">Name</span>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={`e.g. ${picked.label}`}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
                 />
               </label>
               {picked.fields.map((f) => (
@@ -332,21 +332,21 @@ export default function Integrations() {
             <div className="mt-4 flex justify-end gap-3">
               <button
                 onClick={resetAdd}
-                className="rounded-lg border border-border px-4 py-2 text-sm text-fg transition-colors hover:bg-surface-2"
+                className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
               >
                 Cancel
               </button>
               <button
                 onClick={submitAdd}
                 disabled={busy || !name}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
                 {busy ? 'Savingâ€¦' : 'Add integration'}
               </button>
             </div>
           </div>
         )}
-        {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+        {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
       </section>
 
       {/* Inbound ingest webhook (Wazuh & others) */}
@@ -354,11 +354,11 @@ export default function Integrations() {
 
       {/* Existing integrations */}
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dim">
+        <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-dim">
           Configured ({items.length})
         </h2>
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-dim">
+          <p className="rounded-[12px] border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-dim">
             No integrations yet. Pick one above to get started.
           </p>
         ) : (
@@ -368,7 +368,7 @@ export default function Integrations() {
               return (
                 <div
                   key={it.id}
-                  className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3"
+                  className="flex items-center justify-between rounded-[12px] border border-border bg-surface px-4 py-3"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -382,24 +382,24 @@ export default function Integrations() {
                         <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">disabled</span>
                       )}
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-dim">{t?.label ?? it.type}</div>
+                    <div className="mt-0.5 truncate text-[11px] text-dim">{t?.label ?? it.type}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <button
                       onClick={() => toggleEnabled(it)}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-fg transition-colors hover:bg-surface-2"
+                      className="rounded-md border border-border px-2 py-1 text-[11px] text-fg transition-colors hover:bg-surface-2"
                     >
                       {it.enabled ? 'Disable' : 'Enable'}
                     </button>
                     <button
                       onClick={() => startEdit(it)}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-fg transition-colors hover:bg-surface-2"
+                      className="rounded-md border border-border px-2 py-1 text-[11px] text-fg transition-colors hover:bg-surface-2"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => remove(it)}
-                      className="rounded-md border border-rose-900/60 px-2 py-1 text-xs text-rose-300 transition-colors hover:bg-rose-500/10"
+                      className="rounded-md border border-rose-900/60 px-2 py-1 text-[11px] text-rose-300 transition-colors hover:bg-rose-500/10"
                     >
                       Delete
                     </button>
@@ -415,23 +415,23 @@ export default function Integrations() {
       {editing && editType && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
           <div
-            className="w-full max-w-xl rounded-xl border border-border bg-surface p-5 shadow-2xl"
+            className="w-full max-w-xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-fg">
+              <h3 className="text-[12.5px] font-semibold text-fg">
                 Edit â€” <span className="text-accent">{editing.name}</span>
-                <span className="ml-2 text-xs font-normal text-dim">{editType.label}</span>
+                <span className="ml-2 text-[11px] font-normal text-dim">{editType.label}</span>
               </h3>
               {editType.doc && <DocLink file={editType.doc} className="shrink-0" />}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-muted">Name</span>
+                <span className="mb-1 block text-[11px] font-medium text-muted">Name</span>
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
                 />
               </label>
               {editType.fields.map((f) => (
@@ -444,7 +444,7 @@ export default function Integrations() {
                 />
               ))}
             </div>
-            <label className="mt-4 flex items-center gap-2 text-sm text-fg">
+            <label className="mt-4 flex items-center gap-2 text-[12.5px] text-fg">
               <input
                 type="checkbox"
                 checked={editEnabled}
@@ -456,14 +456,14 @@ export default function Integrations() {
             <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={() => setEditing(null)}
-                className="rounded-lg border border-border px-4 py-2 text-sm text-fg transition-colors hover:bg-surface-2"
+                className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
               >
                 Cancel
               </button>
               <button
                 onClick={saveEdit}
                 disabled={editBusy}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
                 {editBusy ? 'Savingâ€¦' : 'Save'}
               </button>

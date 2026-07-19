@@ -8,7 +8,7 @@ function palette(start: string): string[] {
 }
 
 function Empty() {
-  return <p className="py-6 text-center text-sm text-dim">no data yet</p>
+  return <p className="py-6 text-center text-[12.5px] text-dim">no data yet</p>
 }
 
 export function StatWidget({ value, color }: { value: number; color: string }) {
@@ -26,7 +26,7 @@ export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }
           <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
           </div>
-          <span className="w-8 text-right text-xs text-muted">{d.count}</span>
+          <span className="w-8 text-right text-[11px] text-muted">{d.count}</span>
         </li>
       ))}
     </ul>
@@ -101,7 +101,7 @@ export function TableWidget({ data }: { data: SeriesPoint[] }) {
         {data.map((d, i) => (
           <tr key={i}>
             <td className="py-1.5 pr-2 text-fg">{d.label || 'â€”'}</td>
-            <td className="py-1.5 text-right font-mono text-xs text-muted">{d.count}</td>
+            <td className="py-1.5 text-right font-mono text-[11px] text-muted">{d.count}</td>
           </tr>
         ))}
       </tbody>
@@ -128,11 +128,11 @@ export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
     <ul className="space-y-1.5">
       {data.map((r) => (
         <li key={r.ip} className="flex items-center gap-2 text-sm">
-          <span className="w-32 shrink-0 truncate font-mono text-xs text-fg" title={r.ip}>{r.ip}</span>
+          <span className="w-32 shrink-0 truncate font-mono text-[11px] text-fg" title={r.ip}>{r.ip}</span>
           <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
           </div>
-          <span className="w-7 text-right text-xs font-medium text-fg">{r.score}</span>
+          <span className="w-7 text-right text-[11px] font-medium text-fg">{r.score}</span>
           <span className={`w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${BAND_STYLE[r.band] ?? BAND_STYLE.low}`}>
             {r.band}
           </span>
@@ -154,11 +154,11 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
           className="flex items-center gap-2 text-sm"
           title={`${r.contacts} contacts Â· ${r.fanout} distinct targets Â· ${r.failures} failed Â· seen across ${r.distinct_hours}h`}
         >
-          <span className="w-32 shrink-0 truncate font-mono text-xs text-fg">{r.ip}</span>
+          <span className="w-32 shrink-0 truncate font-mono text-[11px] text-fg">{r.ip}</span>
           <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
           </div>
-          <span className="w-7 text-right text-xs font-medium text-fg">{r.score}</span>
+          <span className="w-7 text-right text-[11px] font-medium text-fg">{r.score}</span>
           <span className="w-24 shrink-0 text-right text-[10px] text-dim">
             {r.fanout}âœ¦ Â· {r.contacts}Ã—
           </span>
@@ -182,12 +182,12 @@ export function AttackMap({ data, color }: { data: SeriesPoint[]; color: string 
     <ul className="grid grid-cols-1 gap-x-8 gap-y-1.5 sm:grid-cols-2">
       {data.map((d, i) => (
         <li key={i} className="flex items-center gap-2 text-sm">
-          <span className="text-lg leading-none">{flag(d.label)}</span>
-          <span className="w-8 font-mono text-xs text-fg">{d.label}</span>
+          <span className="text-[15px] leading-none">{flag(d.label)}</span>
+          <span className="w-8 font-mono text-[11px] text-fg">{d.label}</span>
           <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
           </div>
-          <span className="w-8 text-right text-xs text-muted">{d.count}</span>
+          <span className="w-8 text-right text-[11px] text-muted">{d.count}</span>
         </li>
       ))}
     </ul>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Sidebar, { type View } from './components/Sidebar'
 import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
+import Snapshots from './snapshots/Snapshots'
 import Response from './response/Response'
 import Report from './report/Report'
 import Tickets from './tickets/Tickets'
@@ -50,6 +51,8 @@ export default function App() {
       <main className="flex-1 overflow-y-auto">
         {view === 'agents' ? (
           <Agents me={me} />
+        ) : view === 'snapshots' ? (
+          <Snapshots me={me} />
         ) : view === 'response' ? (
           <Response me={me} />
         ) : view === 'tickets' && can(me, 'view_tickets') ? (

@@ -65,14 +65,14 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
       <form onSubmit={submit} className="w-80 space-y-5 rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <div className="flex flex-col items-center gap-2 text-center">
           <img src="/deuswatch-eye.png" alt="DeusWatch" className="h-12 w-auto" />
-          <div className="text-lg font-semibold tracking-tight text-fg">
+          <div className="text-[15px] font-semibold tracking-tight text-fg">
             <span className="text-accent">DEUS</span>WATCH
           </div>
-          <div className="text-xs text-dim">{isRegister ? 'Create a new account' : 'Sign in to continue'}</div>
+          <div className="text-[11px] text-dim">{isRegister ? 'Create a new account' : 'Sign in to continue'}</div>
         </div>
 
         {canRegister && !need2fa && (
-          <div className="flex rounded-lg border border-border bg-bg p-0.5 text-sm">
+          <div className="flex rounded-[8px] border border-border bg-bg p-0.5 text-sm">
             <button
               type="button"
               onClick={() => switchMode('login')}
@@ -101,7 +101,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
             placeholder="Username"
             autoFocus
             disabled={need2fa}
-            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60"
+            className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:opacity-60"
           />
           <input
             type="password"
@@ -109,7 +109,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
             onChange={(e) => setPassword(e.target.value)}
             placeholder={isRegister ? 'Password (min 8)' : 'Password'}
             disabled={need2fa}
-            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60"
+            className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:opacity-60"
           />
           {isRegister && !need2fa && (
             <input
@@ -117,7 +117,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               placeholder="Confirm password"
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
             />
           )}
           {need2fa && (
@@ -127,23 +127,23 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
               placeholder="2FA code (6 digits)"
               inputMode="numeric"
               autoFocus
-              className="w-full rounded-lg border border-indigo-700 bg-surface-2 px-3 py-2 text-sm tracking-widest outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-indigo-700 bg-surface-2 px-3 py-2 text-[12.5px] tracking-widest outline-none focus:border-accent"
             />
           )}
         </div>
 
-        {error && <p className="text-sm text-rose-400">{error}</p>}
+        {error && <p className="text-[12.5px] text-rose-400">{error}</p>}
 
         <button
           type="submit"
           disabled={!canSubmit}
-          className="w-full rounded-lg bg-accent py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-[8px] bg-accent py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
           {busy ? 'Processingâ€¦' : need2fa ? 'Verify' : isRegister ? 'Sign up' : 'Sign in'}
         </button>
 
         {isRegister && (
-          <p className="text-center text-xs text-dim">New accounts get the viewer role (read-only).</p>
+          <p className="text-center text-[11px] text-dim">New accounts get the viewer role (read-only).</p>
         )}
       </form>
     </div>

@@ -185,16 +185,16 @@ export default function Response({ me }: { me: Me }) {
       : actions.filter((a) => a.status === 'recommended').length
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
-      <header className="mb-6 flex items-end justify-between">
+    <div className="mx-auto max-w-[1400px] px-6 py-5">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Response</h1>
-          <p className="mt-1 text-sm text-dim">
+          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Response</h1>
+          <p className="mt-0.5 text-[12px] text-muted">
             Block recommendations &amp; approval Â· progressive ban
             {pending > 0 && <span className="ml-2 text-amber-300">{pending} awaiting approval</span>}
           </p>
         </div>
-        <div className="flex rounded-lg border border-border p-0.5 text-sm">
+        <div className="flex rounded-[8px] border border-border p-0.5 text-sm">
           {(['ip', 'events'] as View[]).map((v) => (
             <button
               key={v}
@@ -222,7 +222,7 @@ export default function Response({ me }: { me: Me }) {
               <button
                 key={f.value}
                 onClick={() => setFilter(f.value)}
-                className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                className={`rounded-[8px] px-3 py-1.5 text-[12.5px] transition-colors ${
                   filter === f.value
                     ? 'bg-accent-soft font-medium text-accent'
                     : 'text-muted hover:bg-surface-2 hover:text-fg'
@@ -235,34 +235,34 @@ export default function Response({ me }: { me: Me }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search IP, rule, reasonâ€¦"
-              className="ml-auto w-64 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-sm text-fg outline-none focus:border-accent"
+              className="ml-auto w-64 rounded-[8px] border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-fg outline-none focus:border-accent"
             />
           </div>
           {canApprove && selected.size > 0 && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 rounded-[8px] border border-border bg-surface px-3 py-2 text-sm">
               <span className="text-muted">{selected.size} selected</span>
               <button onClick={() => bulk('approve')} disabled={busy === 'bulk'}
-                className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50">Approve</button>
+                className="rounded-md border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50">Approve</button>
               <button onClick={() => bulk('dismiss')} disabled={busy === 'bulk'}
-                className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2 disabled:opacity-50">Dismiss</button>
+                className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2 disabled:opacity-50">Dismiss</button>
               <button onClick={() => bulk('unban')} disabled={busy === 'bulk'}
-                className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">Unban</button>
-              <button onClick={() => setSelected(new Set())} className="ml-1 text-xs text-dim hover:text-fg">Clear</button>
+                className="rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">Unban</button>
+              <button onClick={() => setSelected(new Set())} className="ml-1 text-[11px] text-dim hover:text-fg">Clear</button>
             </div>
           )}
         </div>
       )}
 
-      {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
+      {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
 
       {/* Honesty guard: if nothing is wired up to enforce a ban, say so rather than badging
           IPs "blocked" â€” DeusWatch would be claiming an action it never performed. */}
       {enforcement && !enforcement.enforcing && (
-        <div className="mt-4 rounded-lg border border-amber-900/50 bg-amber-500/5 p-3">
-          <p className="text-sm text-amber-200">
+        <div className="mt-4 rounded-[8px] border border-amber-900/50 bg-amber-500/5 p-3">
+          <p className="text-[12.5px] text-amber-200">
             No enforcement configured â€” these IPs are <span className="font-medium">flagged, not blocked</span>.
           </p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-[11px] text-muted">
             DeusWatch is recording the decisions, but nothing pushes them to a firewall yet.
             {!enforcement.response_live && <> Set <span className="font-mono">RESPONSE_LIVE=1</span> and</>}
             {' '}connect a responder (MikroTik / CrowdSec / agent nftables) in Integrations, or enable the
@@ -281,7 +281,7 @@ export default function Response({ me }: { me: Me }) {
       )}
 
       {!canApprove && (
-        <p className="mt-3 text-xs text-dim">Your role is view-only; approving/dismissing requires analyst or admin.</p>
+        <p className="mt-3 text-[11px] text-dim">Your role is view-only; approving/dismissing requires analyst or admin.</p>
       )}
     </div>
   )
@@ -305,9 +305,9 @@ function OffendersTable({
   enforcing: boolean
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
+    <div className="overflow-hidden rounded-[12px] border border-border">
       <table className="w-full text-left text-sm">
-        <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
+        <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
           <tr>
             <th className="px-4 py-2 font-medium">Source IP</th>
             <th className="px-4 py-2 font-medium">Agent</th>
@@ -341,7 +341,7 @@ function OffendersTable({
                 {o.blocked ? (
                   enforcing ? (
                     <span
-                      className="rounded bg-rose-500/15 px-1.5 py-0.5 text-xs font-medium text-rose-300"
+                      className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[11px] font-medium text-rose-300"
                       title={o.blocked_until ? `until ${new Date(o.blocked_until).toLocaleString('en-US')}` : 'permanent'}
                     >
                       blocked{o.blocked_until ? '' : ' Â· permanent'}
@@ -349,14 +349,14 @@ function OffendersTable({
                   ) : (
                     // Nothing enforces the ban â€” the decision is recorded, the IP is not blocked.
                     <span
-                      className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-300"
+                      className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-300"
                       title="Flagged for blocking, but no firewall/responder is connected â€” the IP is NOT actually blocked. Connect a responder or enable the blocklist feed."
                     >
                       Dangerous IP
                     </span>
                   )
                 ) : (
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[o.last_status] ?? 'text-muted bg-surface-2'}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[o.last_status] ?? 'text-muted bg-surface-2'}`}>
                     {o.last_status}
                   </span>
                 )}
@@ -368,14 +368,14 @@ function OffendersTable({
                     <button
                       onClick={() => act(o.pending_id, o.source_ip, o.last_ban_secs, 'approve')}
                       disabled={busy === o.pending_id}
-                      className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+                      className="rounded-md border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
                     >
                       Approve
                     </button>
                     <button
                       onClick={() => act(o.pending_id, o.source_ip, o.last_ban_secs, 'dismiss')}
                       disabled={busy === o.pending_id || busy === o.source_ip}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2 disabled:opacity-50"
+                      className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2 disabled:opacity-50"
                     >
                       Dismiss
                     </button>
@@ -383,7 +383,7 @@ function OffendersTable({
                       <button
                         onClick={() => dismissAll(o.source_ip, o.pending)}
                         disabled={busy === o.source_ip}
-                        className="rounded-md border border-amber-600/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
+                        className="rounded-md border border-amber-600/40 px-2 py-1 text-[11px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
                         title={`Dismiss all ${o.pending} pending recommendations for this IP`}
                       >
                         Dismiss all ({o.pending})
@@ -391,7 +391,7 @@ function OffendersTable({
                     )}
                   </div>
                 ) : (
-                  <span className="text-xs text-dim">â€”</span>
+                  <span className="text-[11px] text-dim">â€”</span>
                 )}
               </td>
             </tr>
@@ -425,9 +425,9 @@ function EventsTable({
   const selectableIds = actions.filter((a) => a.status === 'recommended' || isActiveBlock(a)).map((a) => a.id)
   const allChecked = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
+    <div className="overflow-hidden rounded-[12px] border border-border">
       <table className="w-full text-left text-sm">
-        <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
+        <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
           <tr>
             {canApprove && (
               <th className="px-3 py-2">
@@ -470,10 +470,10 @@ function EventsTable({
                 <td className="px-4 py-2 text-muted">{banLabel(a.ban_seconds)}</td>
                 <td className="px-4 py-2 text-muted">#{a.offense_count}</td>
                 <td className="px-4 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[a.status]}`}>{a.status}</span>
-                  {a.responder && <span className="ml-1 text-xs text-dim">{a.responder}</span>}
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[a.status]}`}>{a.status}</span>
+                  {a.responder && <span className="ml-1 text-[11px] text-dim">{a.responder}</span>}
                   {a.status === 'failed' && a.error && (
-                    <div className="mt-0.5 text-xs text-rose-400" title={a.error}>{a.error.slice(0, 40)}â€¦</div>
+                    <div className="mt-0.5 text-[11px] text-rose-400" title={a.error}>{a.error.slice(0, 40)}â€¦</div>
                   )}
                 </td>
                 <td className="px-4 py-2">
@@ -482,14 +482,14 @@ function EventsTable({
                       <button
                         onClick={() => act(a.id, a.source_ip, a.ban_seconds, 'approve')}
                         disabled={busy === a.id}
-                        className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+                        className="rounded-md border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => act(a.id, a.source_ip, a.ban_seconds, 'dismiss')}
                         disabled={busy === a.id}
-                        className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2 disabled:opacity-50"
+                        className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2 disabled:opacity-50"
                       >
                         Dismiss
                       </button>
@@ -498,12 +498,12 @@ function EventsTable({
                     <button
                       onClick={() => unban(a.id, a.source_ip)}
                       disabled={busy === a.id}
-                      className="rounded-md border border-amber-500/40 px-2 py-1 text-xs text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
+                      className="rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50"
                     >
                       Unban
                     </button>
                   ) : (
-                    <span className="text-xs text-dim">{a.decided_by ? `by ${a.decided_by}` : 'â€”'}</span>
+                    <span className="text-[11px] text-dim">{a.decided_by ? `by ${a.decided_by}` : 'â€”'}</span>
                   )}
                 </td>
               </tr>
@@ -605,26 +605,26 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
     (autoApprove ? ' Â· auto' : '')
 
   return (
-    <div className="mb-6 overflow-hidden rounded-xl border border-border bg-surface">
+    <div className="mb-6 overflow-hidden rounded-[12px] border border-border bg-surface">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-2"
       >
-        <span className="text-sm font-medium text-fg">
+        <span className="text-[12.5px] font-medium text-fg">
           Progressive-ban policy
-          <span className="ml-2 font-mono text-xs text-dim">{preview}</span>
+          <span className="ml-2 font-mono text-[11px] text-dim">{preview}</span>
         </span>
-        <span className="text-xs text-dim">{open ? 'â–² hide' : 'â–¼ configure'}</span>
+        <span className="text-[11px] text-dim">{open ? 'â–² hide' : 'â–¼ configure'}</span>
       </button>
 
       {open && (
         <div className="space-y-5 border-t border-border px-4 py-4">
-          <p className="text-xs text-dim">
+          <p className="text-[11px] text-dim">
             Each repeat offense from the same source IP escalates one step down this ladder. The
             offense count is taken from prior executed blocks.
           </p>
 
-          <label className="flex items-start gap-3 rounded-lg border border-border bg-bg px-3 py-2.5">
+          <label className="flex items-start gap-3 rounded-[8px] border border-border bg-bg px-3 py-2.5">
             <input
               type="checkbox"
               checked={autoApprove}
@@ -632,9 +632,9 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
               onChange={(e) => setAutoApprove(e.target.checked)}
               className="mt-0.5 h-4 w-4 accent-indigo-500 disabled:opacity-60"
             />
-            <span className="text-sm text-fg">
+            <span className="text-[12.5px] text-fg">
               Automatic ban (no manual approval)
-              <span className="mt-0.5 block text-xs text-dim">
+              <span className="mt-0.5 block text-[11px] text-dim">
                 When on, the engine bans the IP automatically and escalates the duration on each
                 repeat â€” no analyst approval needed. When off, every block waits for approval.
               </span>
@@ -642,26 +642,26 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
           </label>
 
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-dim">
+            <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-dim">
               Escalation ladder
             </label>
             <div className="space-y-2">
               {steps.map((s, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="w-16 text-xs text-dim">offense #{i + 1}</span>
+                  <span className="w-16 text-[11px] text-dim">offense #{i + 1}</span>
                   <input
                     type="number"
                     min={1}
                     value={s.value}
                     disabled={!canManage}
                     onChange={(e) => setStep(i, { value: Number(e.target.value) })}
-                    className="w-20 rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg disabled:opacity-60"
+                    className="w-20 rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg disabled:opacity-60"
                   />
                   <select
                     value={s.unit}
                     disabled={!canManage}
                     onChange={(e) => setStep(i, { unit: e.target.value })}
-                    className="rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg disabled:opacity-60"
+                    className="rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg disabled:opacity-60"
                   >
                     {UNITS.map((u) => (
                       <option key={u.u} value={u.u}>
@@ -672,7 +672,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
                   {canManage && (
                     <button
                       onClick={() => removeStep(i)}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2 hover:text-rose-300"
+                      className="rounded-md border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2 hover:text-rose-300"
                     >
                       remove
                     </button>
@@ -680,13 +680,13 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
                 </div>
               ))}
               {steps.length === 0 && (
-                <p className="text-xs text-dim">No steps defined.</p>
+                <p className="text-[11px] text-dim">No steps defined.</p>
               )}
             </div>
             {canManage && (
               <button
                 onClick={addStep}
-                className="mt-2 rounded-md border border-border px-2.5 py-1 text-xs text-fg hover:bg-surface-2"
+                className="mt-2 rounded-md border border-border px-2.5 py-1 text-[11px] text-fg hover:bg-surface-2"
               >
                 + Add step
               </button>
@@ -694,14 +694,14 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-dim">
+            <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-dim">
               After the last step
             </label>
             <select
               value={permanent ? 'permanent' : 'cap'}
               disabled={!canManage}
               onChange={(e) => setPermanent(e.target.value === 'permanent')}
-              className="rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg disabled:opacity-60"
+              className="rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg disabled:opacity-60"
             >
               <option value="permanent">Permanent ban</option>
               <option value="cap">Keep the longest duration</option>
@@ -709,7 +709,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-dim">
+            <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-dim">
               Observation window
             </label>
             <div className="flex items-center gap-2">
@@ -719,13 +719,13 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
                 value={win.value}
                 disabled={!canManage}
                 onChange={(e) => setWin((w) => ({ ...w, value: Number(e.target.value) }))}
-                className="w-20 rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg disabled:opacity-60"
+                className="w-20 rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg disabled:opacity-60"
               />
               <select
                 value={win.unit}
                 disabled={!canManage}
                 onChange={(e) => setWin((w) => ({ ...w, unit: e.target.value }))}
-                className="rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg disabled:opacity-60"
+                className="rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg disabled:opacity-60"
               >
                 {UNITS.map((u) => (
                   <option key={u.u} value={u.u}>
@@ -733,23 +733,23 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
                   </option>
                 ))}
               </select>
-              <span className="text-xs text-dim">0 = count all history</span>
+              <span className="text-[11px] text-dim">0 = count all history</span>
             </div>
           </div>
 
-          {error && <p className="text-sm text-rose-400">{error}</p>}
-          {msg && <p className="text-sm text-emerald-400">{msg}</p>}
+          {error && <p className="text-[12.5px] text-rose-400">{error}</p>}
+          {msg && <p className="text-[12.5px] text-emerald-400">{msg}</p>}
 
           {canManage ? (
             <button
               onClick={save}
               disabled={busy}
-              className="rounded-lg bg-accent/90 px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded-[8px] bg-accent/90 px-4 py-1.5 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {busy ? 'Savingâ€¦' : 'Save policy'}
             </button>
           ) : (
-            <p className="text-xs text-dim">Editing the ban policy requires the manage-settings permission.</p>
+            <p className="text-[11px] text-dim">Editing the ban policy requires the manage-settings permission.</p>
           )}
         </div>
       )}
@@ -784,12 +784,12 @@ function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
   }
 
   return (
-    <section className="mt-6 rounded-xl border border-border bg-surface p-5">
+    <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-fg">Blocklist feed (external firewalls)</h2>
+        <h2 className="text-[12.5px] font-semibold text-fg">Blocklist feed (external firewalls)</h2>
         <DocLink file="blocklist-feed.md" className="shrink-0" />
       </div>
-      <p className="mb-3 mt-1 text-sm text-dim">
+      <p className="mb-3 mt-0.5 text-[12px] text-muted">
         A token-gated URL of the currently-banned IPs. Point a firewall's dynamic block list
         at it (Palo Alto EDL, OPNsense URL table, pfSense pfBlockerNG, MikroTik) to mirror your
         bans. Expired/unbanned IPs drop off automatically.
@@ -797,26 +797,26 @@ function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
       {enabled ? (
         <div className="flex flex-wrap items-center gap-2">
           <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
-            className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-fg outline-none" />
-          <button onClick={copy} className="rounded-lg border border-border px-3 py-2 text-sm text-fg hover:bg-surface-2">{copied ? 'Copied âœ“' : 'Copy'}</button>
+            className="min-w-0 flex-1 rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[11px] text-fg outline-none" />
+          <button onClick={copy} className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg hover:bg-surface-2">{copied ? 'Copied âœ“' : 'Copy'}</button>
           <button onClick={regenerate} disabled={busy}
-            className="rounded-lg border border-amber-700/60 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
+            className="rounded-[8px] border border-amber-700/60 px-3 py-2 text-[12.5px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
             {busy ? 'Regeneratingâ€¦' : 'Regenerate token'}
           </button>
         </div>
       ) : (
         <button onClick={regenerate} disabled={busy}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+          className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
           {busy ? 'Generatingâ€¦' : 'Enable feed (generate token)'}
         </button>
       )}
       {enabled && (
-        <p className="mt-2 text-xs text-dim">
+        <p className="mt-2 text-[11px] text-dim">
           The token is in the URL - serve it over HTTPS / LAN. Regenerating invalidates the old URL.
           Add <span className="font-mono">&amp;format=json</span> for JSON.
         </p>
       )}
-      {err && <p className="mt-2 text-sm text-rose-400">{err}</p>}
+      {err && <p className="mt-2 text-[12.5px] text-rose-400">{err}</p>}
     </section>
   )
 }
@@ -876,21 +876,21 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
   if (!loaded) return null
 
   return (
-    <div className="mb-6 overflow-hidden rounded-xl border border-border bg-surface">
+    <div className="mb-6 overflow-hidden rounded-[12px] border border-border bg-surface">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-2"
       >
-        <span className="text-sm font-medium text-fg">
+        <span className="text-[12.5px] font-medium text-fg">
           IP whitelist
-          <span className="ml-2 text-xs text-dim">{entries.length} trusted Â· never banned</span>
+          <span className="ml-2 text-[11px] text-dim">{entries.length} trusted Â· never banned</span>
         </span>
-        <span className="text-xs text-dim">{open ? 'â–² hide' : 'â–¼ configure'}</span>
+        <span className="text-[11px] text-dim">{open ? 'â–² hide' : 'â–¼ configure'}</span>
       </button>
 
       {open && (
         <div className="space-y-4 border-t border-border px-4 py-4">
-          <p className="text-xs text-dim">
+          <p className="text-[11px] text-dim">
             A matching source IP is never banned (single IP like <code className="text-muted">192.168.81.10</code> or a
             range like <code className="text-muted">10.0.0.0/8</code>). Alerts and notifications still fire â€” only the
             block is skipped.
@@ -903,30 +903,30 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
                 onChange={(e) => setCidr(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && add()}
                 placeholder="IP or CIDR"
-                className="w-44 rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg outline-none focus:border-accent"
+                className="w-44 rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
               />
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && add()}
                 placeholder="note (optional)"
-                className="min-w-0 flex-1 rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg outline-none focus:border-accent"
+                className="min-w-0 flex-1 rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
               />
               <button
                 onClick={add}
                 disabled={busy || !cidr.trim()}
-                className="rounded-lg bg-accent/90 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="rounded-[8px] bg-accent/90 px-3 py-1.5 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 + Add
               </button>
             </div>
           )}
 
-          {error && <p className="text-sm text-rose-400">{error}</p>}
+          {error && <p className="text-[12.5px] text-rose-400">{error}</p>}
 
-          <div className="overflow-hidden rounded-lg border border-border">
+          <div className="overflow-hidden rounded-[8px] border border-border">
             <table className="w-full text-left text-sm">
-              <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
+              <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
                 <tr>
                   <th className="px-3 py-2 font-medium">IP / CIDR</th>
                   <th className="px-3 py-2 font-medium">Note</th>
@@ -951,7 +951,7 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
                       <td className="px-3 py-2 text-right">
                         <button
                           onClick={() => remove(e.id)}
-                          className="rounded-md border border-rose-900/60 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10"
+                          className="rounded-md border border-rose-900/60 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10"
                         >
                           remove
                         </button>
@@ -964,7 +964,7 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
           </div>
 
           {!canManage && (
-            <p className="text-xs text-dim">Editing the whitelist requires the manage-settings permission.</p>
+            <p className="text-[11px] text-dim">Editing the whitelist requires the manage-settings permission.</p>
           )}
         </div>
       )}
@@ -1007,14 +1007,14 @@ function DecisionTablePanel() {
   }, [])
 
   return (
-    <section className="mb-6 overflow-hidden rounded-xl border border-border bg-surface">
+    <section className="mb-6 overflow-hidden rounded-[12px] border border-border bg-surface">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-2/30"
       >
         <div>
-          <h2 className="text-sm font-semibold text-fg">Decision table</h2>
-          <p className="mt-0.5 text-xs text-dim">
+          <h2 className="text-[12.5px] font-semibold text-fg">Decision table</h2>
+          <p className="mt-0.5 text-[11px] text-dim">
             What DeusWatch does with each entity type â€” the policy alerts are routed by.
           </p>
         </div>
@@ -1022,9 +1022,9 @@ function DecisionTablePanel() {
       </button>
       {open && (
         <div className="border-t border-border">
-          {error && <p className="px-4 py-2 text-sm text-rose-400">{error}</p>}
+          {error && <p className="px-4 py-2 text-[12.5px] text-rose-400">{error}</p>}
           <table className="w-full text-left text-sm">
-            <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
+            <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
               <tr>
                 <th className="px-4 py-2 font-medium">Entity</th>
                 <th className="px-4 py-2 font-medium">Action</th>
@@ -1035,20 +1035,20 @@ function DecisionTablePanel() {
             <tbody className="divide-y divide-border">
               {rows.map((d) => (
                 <tr key={d.entity_type} className="hover:bg-surface-2">
-                  <td className="px-4 py-2 font-mono text-xs text-fg">{d.entity_type}</td>
+                  <td className="px-4 py-2 font-mono text-[11px] text-fg">{d.entity_type}</td>
                   <td className="px-4 py-2 text-fg">{d.action}</td>
                   <td className="px-4 py-2">
                     {d.enforced ? (
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs font-medium text-emerald-300">
+                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-300">
                         auto Â· {d.engine}
                       </span>
                     ) : (
-                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-muted">
+                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-muted">
                         alert-only
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-xs text-muted">{d.description}</td>
+                  <td className="px-4 py-2 text-[11px] text-muted">{d.description}</td>
                 </tr>
               ))}
             </tbody>
@@ -1099,10 +1099,10 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
   const pending = items.filter((c) => c.status === 'recommended').length
 
   return (
-    <section className="mb-6 overflow-hidden rounded-xl border border-border bg-surface">
+    <section className="mb-6 overflow-hidden rounded-[12px] border border-border bg-surface">
       <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold text-fg">Network containment</h2>
-        <p className="mt-0.5 text-xs text-dim">
+        <h2 className="text-[12.5px] font-semibold text-fg">Network containment</h2>
+        <p className="mt-0.5 text-[11px] text-dim">
           Isolated hosts (host firewall + edge block).{' '}
           {active > 0 && <span className="text-rose-300">{active} contained</span>}
           {active > 0 && pending > 0 && ' Â· '}
@@ -1110,10 +1110,10 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
           {active === 0 && pending === 0 && 'No active isolations.'}
         </p>
       </div>
-      {error && <p className="px-4 py-2 text-sm text-rose-400">{error}</p>}
+      {error && <p className="px-4 py-2 text-[12.5px] text-rose-400">{error}</p>}
       {items.length > 0 && (
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
+          <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Host / Agent</th>
               <th className="px-4 py-2 font-medium">IP</th>
@@ -1132,12 +1132,12 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
                     <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">auto</span>
                   )}
                 </td>
-                <td className="px-4 py-2 font-mono text-xs text-muted">{c.ip_address || 'â€”'}</td>
+                <td className="px-4 py-2 font-mono text-[11px] text-muted">{c.ip_address || 'â€”'}</td>
                 <td className="px-4 py-2 text-muted">{c.reason || 'â€”'}</td>
                 <td className="px-4 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${CONTAIN_BADGE[c.status]}`}>{c.status}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${CONTAIN_BADGE[c.status]}`}>{c.status}</span>
                 </td>
-                <td className="px-4 py-2 text-xs text-muted">{expiryLabel(c)}</td>
+                <td className="px-4 py-2 text-[11px] text-muted">{expiryLabel(c)}</td>
                 <td className="px-4 py-2 text-right">
                   {canApprove && (
                     <div className="flex justify-end gap-2">
@@ -1146,14 +1146,14 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
                           <button
                             onClick={() => act(c.id, c.host_name || c.agent_id, 'approve')}
                             disabled={busy === c.id}
-                            className="rounded-md border border-rose-500/40 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+                            className="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
                           >
                             Isolate
                           </button>
                           <button
                             onClick={() => act(c.id, c.host_name || c.agent_id, 'dismiss')}
                             disabled={busy === c.id}
-                            className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2 disabled:opacity-50"
+                            className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2 disabled:opacity-50"
                           >
                             Dismiss
                           </button>
@@ -1163,7 +1163,7 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
                         <button
                           onClick={() => act(c.id, c.host_name || c.agent_id, 'release')}
                           disabled={busy === c.id}
-                          className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
+                          className="rounded-md border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50"
                         >
                           Release
                         </button>

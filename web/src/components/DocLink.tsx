@@ -16,7 +16,7 @@ export default function DocLink({
       href={DOC_BASE + file}
       target="_blank"
       rel="noreferrer"
-      className={`inline-flex items-center gap-1 text-xs text-accent transition-colors hover:text-accent hover:underline ${className}`}
+      className={`inline-flex items-center gap-1 text-[11px] text-accent transition-colors hover:text-accent hover:underline ${className}`}
     >
       {label}
       <span aria-hidden>â†—</span>

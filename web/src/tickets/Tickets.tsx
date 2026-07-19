@@ -30,7 +30,7 @@ const STATUS_BADGE: Record<TicketStatus, string> = {
 
 function SeverityBadge({ sev }: { sev: number }) {
   const m = SEVERITY[sev] ?? SEVERITY[0]
-  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${m.cls}`}>{m.label}</span>
+  return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${m.cls}`}>{m.label}</span>
 }
 
 function duration(fromISO: string, toISO: string): string {
@@ -95,11 +95,11 @@ export default function Tickets({
   }, {})
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-8">
-      <header className="mb-6 flex items-end justify-between">
+    <div className="mx-auto max-w-[1400px] px-6 py-5">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Tickets</h1>
-          <p className="mt-1 text-sm text-dim">Tier-2 DFIR case management Â· open â†’ in progress â†’ resolved â†’ closed</p>
+          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Tickets</h1>
+          <p className="mt-0.5 text-[12px] text-muted">Tier-2 DFIR case management Â· open â†’ in progress â†’ resolved â†’ closed</p>
         </div>
         {canManage && (
           <button
@@ -107,7 +107,7 @@ export default function Tickets({
               setNewInput({ title: '', description: '', severity: 2 })
               setShowNew(true)
             }}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90"
           >
             + New ticket
           </button>
@@ -118,7 +118,7 @@ export default function Tickets({
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <button
           onClick={() => setFilter('')}
-          className={`rounded-lg px-3 py-1.5 ${filter === '' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
+          className={`rounded-[8px] px-3 py-1.5 ${filter === '' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
         >
           All ({tickets.length})
         </button>
@@ -126,7 +126,7 @@ export default function Tickets({
           <button
             key={s}
             onClick={() => setFilter(s)}
-            className={`rounded-lg px-3 py-1.5 ${filter === s ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
+            className={`rounded-[8px] px-3 py-1.5 ${filter === s ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
           >
             {STATUS_LABEL[s]}
             {filter === '' && counts[s] ? <span className="ml-1 text-dim">{counts[s]}</span> : ''}
@@ -134,11 +134,11 @@ export default function Tickets({
         ))}
       </div>
 
-      {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
+      {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
 
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="overflow-hidden rounded-[12px] border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
+          <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Title</th>
               <th className="px-4 py-2 font-medium">Severity</th>
@@ -161,7 +161,7 @@ export default function Tickets({
                 <td className="px-4 py-2 font-medium text-fg">{t.title}</td>
                 <td className="px-4 py-2"><SeverityBadge sev={t.severity} /></td>
                 <td className="px-4 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[t.status]}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[t.status]}`}>
                     {STATUS_LABEL[t.status]}
                   </span>
                 </td>
@@ -216,30 +216,30 @@ function NewTicketModal({
   }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-4 text-lg font-semibold text-fg">New ticket</h2>
+      <div className="w-full max-w-lg rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="mb-4 text-[15px] font-semibold text-fg">New ticket</h2>
         <div className="space-y-3">
           <input
             value={value.title}
             onChange={(e) => onChange({ ...value, title: e.target.value })}
             placeholder="Title"
             autoFocus
-            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
           />
           <textarea
             value={value.description ?? ''}
             onChange={(e) => onChange({ ...value, description: e.target.value })}
             placeholder="Report / case detailsâ€¦"
             rows={6}
-            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
           />
           <div className="flex gap-3">
             <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-muted">Severity</span>
+              <span className="mb-1 block text-[11px] font-medium text-muted">Severity</span>
               <select
                 value={value.severity ?? 2}
                 onChange={(e) => onChange({ ...value, severity: Number(e.target.value) })}
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
               >
                 {[0, 1, 2, 3, 4].map((s) => (
                   <option key={s} value={s}>
@@ -249,24 +249,24 @@ function NewTicketModal({
               </select>
             </label>
             <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-muted">Assignee (optional)</span>
+              <span className="mb-1 block text-[11px] font-medium text-muted">Assignee (optional)</span>
               <input
                 value={value.assignee ?? ''}
                 onChange={(e) => onChange({ ...value, assignee: e.target.value })}
                 placeholder="username"
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
               />
             </label>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={busy || !value.title}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {busy ? 'Creatingâ€¦' : 'Create ticket'}
           </button>
@@ -330,7 +330,7 @@ function TicketDetail({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {!ticket ? (
@@ -338,11 +338,11 @@ function TicketDetail({
         ) : (
           <>
             <div className="mb-3 flex items-start justify-between gap-4">
-              <h2 className="text-lg font-semibold text-fg">{ticket.title}</h2>
+              <h2 className="text-[15px] font-semibold text-fg">{ticket.title}</h2>
               <button onClick={onClose} className="text-dim hover:text-fg">âœ•</button>
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px] text-muted">
               <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_BADGE[ticket.status]}`}>{STATUS_LABEL[ticket.status]}</span>
               <SeverityBadge sev={ticket.severity} />
               <span>Â· opened by {ticket.created_by}</span>
@@ -358,21 +358,21 @@ function TicketDetail({
             )}
 
             {ticket.description && (
-              <pre className="mb-4 whitespace-pre-wrap rounded-lg border border-border bg-bg p-3 text-xs text-fg">
+              <pre className="mb-4 whitespace-pre-wrap rounded-[8px] border border-border bg-bg p-3 text-[11px] text-fg">
                 {ticket.description}
               </pre>
             )}
 
             {canManage && (
-              <div className="mb-5 space-y-3 rounded-lg border border-border bg-surface p-3">
+              <div className="mb-5 space-y-3 rounded-[8px] border border-border bg-surface p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-dim">Status:</span>
+                  <span className="text-[11px] font-medium text-dim">Status:</span>
                   {STATUSES.map((s) => (
                     <button
                       key={s}
                       onClick={() => patch({ status: s })}
                       disabled={ticket.status === s}
-                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                      className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
                         ticket.status === s
                           ? 'border-accent bg-accent-soft text-accent'
                           : 'border-border text-fg hover:bg-surface-2'
@@ -383,12 +383,12 @@ function TicketDetail({
                   ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-dim">Assignee:</span>
-                  <span className="text-xs text-fg">{ticket.assignee || 'unassigned'}</span>
+                  <span className="text-[11px] font-medium text-dim">Assignee:</span>
+                  <span className="text-[11px] text-fg">{ticket.assignee || 'unassigned'}</span>
                   {ticket.assignee !== me.username && (
                     <button
                       onClick={() => patch({ assignee: me.username })}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2"
+                      className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2"
                     >
                       Assign to me
                     </button>
@@ -396,16 +396,16 @@ function TicketDetail({
                   {ticket.assignee && (
                     <button
                       onClick={() => patch({ assignee: '' })}
-                      className="rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2"
+                      className="rounded-md border border-border px-2 py-1 text-[11px] text-muted hover:bg-surface-2"
                     >
                       Unassign
                     </button>
                   )}
-                  <span className="ml-2 text-xs font-medium text-dim">Severity:</span>
+                  <span className="ml-2 text-[11px] font-medium text-dim">Severity:</span>
                   <select
                     value={ticket.severity}
                     onChange={(e) => patch({ severity: Number(e.target.value) })}
-                    className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs outline-none focus:border-accent"
+                    className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] outline-none focus:border-accent"
                   >
                     {[0, 1, 2, 3, 4].map((s) => (
                       <option key={s} value={s}>
@@ -418,16 +418,16 @@ function TicketDetail({
             )}
 
             {/* Case notes */}
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-dim">Case notes ({comments.length})</h3>
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-dim">Case notes ({comments.length})</h3>
             <div className="space-y-2">
-              {comments.length === 0 && <p className="text-xs text-dim">No notes yet.</p>}
+              {comments.length === 0 && <p className="text-[11px] text-dim">No notes yet.</p>}
               {comments.map((c) => (
-                <div key={c.id} className="rounded-lg border border-border bg-surface p-3">
+                <div key={c.id} className="rounded-[8px] border border-border bg-surface p-3">
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span className="font-medium text-fg">{c.author}</span>
                     <span className="text-dim">{new Date(c.created_at).toLocaleString('en-US')}</span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-fg">{c.body}</p>
+                  <p className="whitespace-pre-wrap text-[12.5px] text-fg">{c.body}</p>
                 </div>
               ))}
             </div>
@@ -439,18 +439,18 @@ function TicketDetail({
                   onChange={(e) => setComment(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && postComment()}
                   placeholder="Add a case noteâ€¦"
-                  className="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="flex-1 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
                 />
                 <button
                   onClick={postComment}
                   disabled={!comment.trim()}
-                  className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
                 >
                   Add
                 </button>
               </div>
             )}
-            {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+            {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
           </>
         )}
       </div>
