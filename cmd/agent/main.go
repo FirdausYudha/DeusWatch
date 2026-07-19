@@ -530,7 +530,15 @@ func runFileActions(ctx context.Context, snaps *agent.SnapshotStore, shipper *ag
 					if meta, ok := agent.CaptureVersionNow(a.Path); ok {
 						_ = shipper.PostSnapshots(ctx, []agent.SnapshotMeta{meta})
 					}
-					if rerr := snaps.RestoreVersion(a.Path, a.VersionSHA256); rerr != nil {
+					// Prefer manager-supplied content (Phase 5 storage / host-loss recovery); else
+					// resolve the version from the agent's local content-addressed blob store.
+					var rerr error
+					if a.Content != "" {
+						rerr = snaps.RestoreContent(a.Path, a.Content)
+					} else {
+						rerr = snaps.RestoreVersion(a.Path, a.VersionSHA256)
+					}
+					if rerr != nil {
 						status, result = "failed", rerr.Error()
 					} else {
 						result = "restored to version " + shortHash(a.VersionSHA256)

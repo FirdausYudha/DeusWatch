@@ -56,6 +56,39 @@ func TestFIMSnapshots(t *testing.T) {
 	_, _ = st.pool.Exec(ctx, `DELETE FROM fim_snapshots WHERE agent_name=$1`, agent)
 }
 
+// TestManagerStoredSnapshotContent proves a manager-stored version keeps its content centrally
+// and that SnapshotContent reads it back (Phase 5 durability / restore-from-manager).
+func TestManagerStoredSnapshotContent(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	st, err := Connect(ctx, dsn())
+	if err != nil {
+		t.Skipf("Postgres unavailable — skipping: %v", err)
+	}
+	defer st.Close()
+
+	agent, path := "mgr-store-agent", "/etc/mgr.conf"
+	_, _ = st.pool.Exec(ctx, `DELETE FROM fim_snapshots WHERE agent_name=$1`, agent)
+
+	// Agent-stored version → no content on the manager.
+	if _, err := st.RecordSnapshot(ctx, FIMSnapshot{AgentName: agent, Path: path, SHA256: "aaa", Storage: "agent"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := st.SnapshotContent(ctx, agent, path, "aaa"); ok {
+		t.Fatal("agent-stored version must not have manager content")
+	}
+	// Manager-stored version → content retained centrally.
+	content := []byte("central copy of the config\n")
+	if _, err := st.RecordSnapshot(ctx, FIMSnapshot{AgentName: agent, Path: path, SHA256: "bbb", Storage: "manager"}, content); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := st.SnapshotContent(ctx, agent, path, "bbb")
+	if err != nil || !ok || string(got) != string(content) {
+		t.Fatalf("manager content: got %q ok=%v err=%v", got, ok, err)
+	}
+	_, _ = st.pool.Exec(ctx, `DELETE FROM fim_snapshots WHERE agent_name=$1`, agent)
+}
+
 // TestFileActions exercises the manager→agent action queue (request → pending/deliver → result).
 func TestFileActions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

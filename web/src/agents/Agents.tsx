@@ -553,8 +553,21 @@ function ConfigEditor({
                   <span className="text-slate-500">Store</span>
                   <select
                     value={s.snapshot_storage || 'agent'}
-                    onChange={(e) => update(i, { snapshot_storage: e.target.value })}
-                    title="Where version content is kept"
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (
+                        v === 'manager' &&
+                        !confirm(
+                          'Store snapshot CONTENT on the manager?\n\n' +
+                            'The full file content of each version will be uploaded to and kept on the DeusWatch server (survives host loss, viewable/restorable centrally). ' +
+                            'Choose "on agent" to keep content on the host and upload only metadata.',
+                        )
+                      ) {
+                        return // keep the current choice
+                      }
+                      update(i, { snapshot_storage: v })
+                    }}
+                    title="Where version content is kept — the admin's choice (agent = host only; manager = central copy)"
                     className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 outline-none focus:border-indigo-500"
                   >
                     <option value="agent">on agent</option>
@@ -769,7 +782,15 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
                       <Fragment key={v.id}>
                         <tr>
                           <td className="py-1.5 text-slate-300">{new Date(v.captured_at).toLocaleString()}</td>
-                          <td className="py-1.5 text-slate-400">{v.trigger}</td>
+                          <td className="py-1.5 text-slate-400">
+                            {v.trigger}
+                            <span
+                              className={`ml-1.5 rounded px-1 py-0.5 text-[9px] ${v.storage === 'manager' ? 'bg-sky-500/15 text-sky-300' : 'bg-slate-700/40 text-slate-400'}`}
+                              title={v.storage === 'manager' ? 'content stored on the manager' : 'content stored on the agent'}
+                            >
+                              {v.storage}
+                            </span>
+                          </td>
                           <td className="py-1.5 text-slate-400">{fmtBytes(v.size)}</td>
                           <td className="py-1.5 font-mono text-slate-500">{v.sha256.slice(0, 12)}…</td>
                           <td className="whitespace-nowrap py-1.5 text-right">

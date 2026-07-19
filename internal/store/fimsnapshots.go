@@ -2,8 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // FIMSnapshot is one dated version of a watched file (ADR 0002). Content is never returned by
@@ -103,6 +106,24 @@ func (s *Store) ListSnapshots(ctx context.Context, agentName, path string, limit
 		out = append(out, v)
 	}
 	return out, rows.Err()
+}
+
+// SnapshotContent returns the stored content of a specific version (manager-side storage), so a
+// restore can be served centrally even if the agent no longer has the blob (ADR 0002 Phase 5).
+// ok=false when the version isn't found or its content wasn't kept on the manager.
+func (s *Store) SnapshotContent(ctx context.Context, agentName, path, sha256 string) ([]byte, bool, error) {
+	var content []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT content FROM fim_snapshots
+		 WHERE agent_name=$1 AND path=$2 AND sha256=$3 AND content IS NOT NULL
+		 ORDER BY captured_at DESC LIMIT 1`, agentName, path, sha256).Scan(&content)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("store: snapshot content: %w", err)
+	}
+	return content, len(content) > 0, nil
 }
 
 // ── Manager→agent file actions (snapshot_now / quarantine) ────────────────────

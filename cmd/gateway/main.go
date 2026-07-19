@@ -84,10 +84,19 @@ func main() {
 			snapStore := st
 			snapshotFunc = func(ctx context.Context, cn string, snaps []gateway.SnapshotMeta) error {
 				for _, sm := range snaps {
+					// The admin's storage choice: manager-side means the agent uploaded the
+					// content, which we retain centrally (storage="manager"); otherwise the
+					// content stays on the host (storage="agent") and only metadata is recorded.
+					storage := "agent"
+					var content []byte
+					if sm.Content != "" {
+						storage = "manager"
+						content = []byte(sm.Content)
+					}
 					if _, err := snapStore.RecordSnapshot(ctx, store.FIMSnapshot{
 						AgentName: cn, Path: sm.Path, SHA256: sm.SHA256, Size: sm.Size,
-						Storage: "agent", Trigger: sm.Trigger, Diff: sm.Diff,
-					}, nil); err != nil {
+						Storage: storage, Trigger: sm.Trigger, Diff: sm.Diff,
+					}, content); err != nil {
 						return err
 					}
 				}
@@ -102,7 +111,15 @@ func main() {
 				}
 				out := make([]gateway.FileActionItem, len(acts))
 				for i, a := range acts {
-					out[i] = gateway.FileActionItem{ID: a.ID, Path: a.Path, Action: a.Action, VersionSHA256: a.VersionSHA}
+					item := gateway.FileActionItem{ID: a.ID, Path: a.Path, Action: a.Action, VersionSHA256: a.VersionSHA}
+					// For a manager-stored version, ship the content so the agent can restore even
+					// if it no longer has the local blob (durability — survives host reprovision).
+					if a.Action == "restore_version" && a.VersionSHA != "" {
+						if content, ok, cerr := st.SnapshotContent(ctx, cn, a.Path, a.VersionSHA); cerr == nil && ok {
+							item.Content = string(content)
+						}
+					}
+					out[i] = item
 				}
 				return out, nil
 			}

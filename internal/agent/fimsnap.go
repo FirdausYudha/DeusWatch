@@ -119,6 +119,12 @@ func (s *SnapshotStore) RestoreVersion(path, sha256hex string) error {
 	return s.writeAtomic(path, content)
 }
 
+// RestoreContent writes manager-supplied version content back to path atomically — used when the
+// version is stored on the manager (Phase 5) rather than in the agent's local blob store.
+func (s *SnapshotStore) RestoreContent(path, content string) error {
+	return s.writeAtomic(path, content)
+}
+
 // Restore writes the known-good baseline snapshot back to path atomically (temp file + rename), so
 // a reader never sees a half-written file. Returns an error if there is no snapshot for path.
 func (s *SnapshotStore) Restore(path string) error {

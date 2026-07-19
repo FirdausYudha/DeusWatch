@@ -41,6 +41,10 @@ type SnapshotMeta struct {
 	Size    int64  `json:"size"`
 	Trigger string `json:"trigger"`        // on_change | scheduled | manual
 	Diff    string `json:"diff,omitempty"` // unified diff vs the previously captured version
+	// Content is the full version content, uploaded ONLY when the source is configured for
+	// manager-side storage (ADR 0002 Phase 5) — the admin's explicit choice to keep a central
+	// copy. Empty for agent-side storage (content stays on the host, content-addressed).
+	Content string `json:"content,omitempty"`
 }
 
 // CaptureVersionNow snapshots the current content of path as a manual, on-demand version (the
@@ -358,7 +362,12 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 			return
 		}
 		lastHash[path] = sum
-		fimSnapshotSink(SnapshotMeta{Path: path, SHA256: sum, Size: fi.Size(), Trigger: trigger, Diff: diff})
+		meta := SnapshotMeta{Path: path, SHA256: sum, Size: fi.Size(), Trigger: trigger, Diff: diff}
+		// Manager-side storage (admin's choice): also upload the content for central retention.
+		if s.SnapshotStorage == "manager" {
+			meta.Content = string(b)
+		}
+		fimSnapshotSink(meta)
 	}
 
 	scanAndEmit := func() {

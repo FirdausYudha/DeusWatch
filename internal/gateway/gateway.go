@@ -119,6 +119,7 @@ type SnapshotMeta struct {
 	Size    int64  `json:"size"`
 	Trigger string `json:"trigger"`        // on_change | scheduled | manual
 	Diff    string `json:"diff,omitempty"` // unified diff vs the previous captured version
+	Content string `json:"content,omitempty"` // present only for manager-side storage (Phase 5)
 }
 
 // FileActionItem is one manager-requested on-demand file operation served to an agent.
@@ -127,6 +128,7 @@ type FileActionItem struct {
 	Path          string `json:"path"`
 	Action        string `json:"action"`                   // snapshot_now | quarantine | restore_version
 	VersionSHA256 string `json:"version_sha256,omitempty"` // target version for restore_version
+	Content       string `json:"content,omitempty"`        // manager-stored content for restore_version (Phase 5)
 }
 
 // FileActionsFunc returns the pending actions for an agent (by CN), marking them delivered.
