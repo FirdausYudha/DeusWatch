@@ -3,6 +3,21 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**Ransomware defense done 2026-07-19 (post-v1.17.0, on `main`, unreleased).** User's concern =
+ransomware → revert. Delivered 3 layers: (1) **Detect+contain** — `AggRule` now parses
+`mitigation_action` and `buildAggAlert` sets the containment directive, so an AGGREGATION alert can
+auto-isolate (was impossible before); bundled rule `ransomware_mass_change_containment.yml` (>200
+file changes/2m/host, critical → network_containment, recommend-only unless CONTAINMENT_AUTO=1).
+(2) **Recover** — `store.BulkRestoreVersions` + `POST /api/fim/bulk-restore` + Snapshots-viewer
+"roll all files back to <time>" bar: point-in-time revert queues each watched file's latest version
+≤ chosen time as restore_version (verified on PG: rollback picks the pre-encryption version).
+(3) **Guidance** — docs/ransomware.md (layered strategy + honest limits: snapshots cover small text
+files only, manager-storage is the ransomware-safe choice, use immutable backups for full coverage).
+Tests: agg mitigation parse + buildAggAlert containment + bulk-restore. HONEST: FIM snapshots are a
+complement, NOT a backup; auto-containment can false-positive on big deploys (hence recommend-only
+default); entropy signal is a planned precision enhancement. Agent-side execution needs the user's
+live agent.
+
 **FIM large-file handling done 2026-07-19 (post-v1.17.0, on `main`, unreleased).** Raised the
 snapshot content ceiling 256 KiB → **2 MiB default, configurable via `FIM_SNAPSHOT_MAX_BYTES`**
 (K/M suffix) for enterprise HTML/PHP. Two correctness guards that raising it REQUIRES: (1) the
