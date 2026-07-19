@@ -3,6 +3,16 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**FIM versioned snapshots — Phase 1 done 2026-07-19 (ADR 0002, on `main`, unreleased).** Manager-
+side foundation of dated snapshots + restore-by-date, fully verified locally: migration 000041
+`fim_snapshots`; `internal/store/fimsnapshots.go` (RecordSnapshot w/ dedup, ListSnapshots timeline,
+ListSnapshotPaths, PruneSnapshots — integration test passes on real PG); `agent.Source` snapshot_mode/
+snapshot_storage/snapshot_retention (carried via config push, backward-compatible); API
+`GET /api/fim/snapshots{,/paths}` (verified via curl); UI = snapshot Mode/Store/Keep selectors on FIM
+sources + a read-only "Snapshots" timeline viewer on the Agents page. **Both storage (agent/manager)
+and trigger (on_change/scheduled/both) are admin-configurable** per the user's directive. Phases 2-3
+(agent capture + restore-by-date directive) need a live Linux agent — NOT built. Target v1.17.0.
+
 **LIVE-VERIFIED 2026-07-18 (Phase D + decision table)** — brought up a real stack (Docker
 Postgres+NATS, `api` via `go run`), applied migration 000040, and exercised the endpoints
 end-to-end. ALL PASS: subscription create → one-time key (only hash stored); events feed honors
