@@ -109,13 +109,29 @@ func (s *SnapshotStore) Read(path string) (string, bool) {
 	return string(b), true
 }
 
-// Restore writes the known-good snapshot back to path atomically (temp file + rename), so a
-// reader never sees a half-written file. Returns an error if there is no snapshot for path.
+// RestoreVersion writes a SPECIFIC captured version (by content hash) back to path atomically
+// (ADR 0002 restore-by-date). Returns an error if that version's content is not on the agent.
+func (s *SnapshotStore) RestoreVersion(path, sha256hex string) error {
+	content, ok := s.ReadVersion(sha256hex)
+	if !ok {
+		return fmt.Errorf("version %s not available on this agent", sha256hex)
+	}
+	return s.writeAtomic(path, content)
+}
+
+// Restore writes the known-good baseline snapshot back to path atomically (temp file + rename), so
+// a reader never sees a half-written file. Returns an error if there is no snapshot for path.
 func (s *SnapshotStore) Restore(path string) error {
 	content, ok := s.Read(path)
 	if !ok {
 		return fmt.Errorf("no snapshot for %q (nothing to restore)", path)
 	}
+	return s.writeAtomic(path, content)
+}
+
+// writeAtomic writes content to path via a temp file + rename, preserving the target's existing
+// permissions, so a reader never sees a half-written file.
+func (s *SnapshotStore) writeAtomic(path, content string) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".deuswatch-restore-*")
 	if err != nil {

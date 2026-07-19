@@ -102,7 +102,7 @@ func main() {
 				}
 				out := make([]gateway.FileActionItem, len(acts))
 				for i, a := range acts {
-					out[i] = gateway.FileActionItem{ID: a.ID, Path: a.Path, Action: a.Action}
+					out[i] = gateway.FileActionItem{ID: a.ID, Path: a.Path, Action: a.Action, VersionSHA256: a.VersionSHA}
 				}
 				return out, nil
 			}

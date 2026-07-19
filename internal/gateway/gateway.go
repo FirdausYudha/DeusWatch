@@ -123,9 +123,10 @@ type SnapshotMeta struct {
 
 // FileActionItem is one manager-requested on-demand file operation served to an agent.
 type FileActionItem struct {
-	ID     int64  `json:"id"`
-	Path   string `json:"path"`
-	Action string `json:"action"` // snapshot_now | quarantine
+	ID            int64  `json:"id"`
+	Path          string `json:"path"`
+	Action        string `json:"action"`                   // snapshot_now | quarantine | restore_version
+	VersionSHA256 string `json:"version_sha256,omitempty"` // target version for restore_version
 }
 
 // FileActionsFunc returns the pending actions for an agent (by CN), marking them delivered.

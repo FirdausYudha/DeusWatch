@@ -427,6 +427,14 @@ export async function quarantineFile(agent: string, path: string): Promise<void>
   })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
+export async function restoreVersion(agent: string, path: string, sha256: string): Promise<void> {
+  const res = await authFetch('/api/fim/restore-version', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent, path, sha256 }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
 export async function fetchSnapshotPaths(agent: string): Promise<FIMSnapshotPath[]> {
   const res = await authFetch(`/api/fim/snapshots/paths?agent=${encodeURIComponent(agent)}`)
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)

@@ -98,5 +98,18 @@ func TestFileActions(t *testing.T) {
 	if err != nil || len(acts) != 1 || acts[0].Status != "done" || acts[0].Result == "" {
 		t.Fatalf("list actions: got %+v err=%v", acts, err)
 	}
+
+	// restore_version carries the target version hash through the queue.
+	sha := "1111111111111111111111111111111111111111111111111111111111111111"
+	if err := st.RequestRestoreVersion(ctx, agent, path, sha, "bob"); err != nil {
+		t.Fatalf("request restore-version: %v", err)
+	}
+	if err := st.RequestRestoreVersion(ctx, agent, path, "short", "bob"); err == nil {
+		t.Fatal("a non-64-char sha should be rejected")
+	}
+	rv, err := st.PendingFileActions(ctx, agent)
+	if err != nil || len(rv) != 1 || rv[0].Action != "restore_version" || rv[0].VersionSHA != sha {
+		t.Fatalf("restore-version pending: got %+v err=%v", rv, err)
+	}
 	_, _ = st.pool.Exec(ctx, `DELETE FROM agent_file_actions WHERE agent_name=$1`, agent)
 }

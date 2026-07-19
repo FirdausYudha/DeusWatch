@@ -12,6 +12,7 @@ import {
   fetchFileActions,
   snapshotNow,
   quarantineFile,
+  restoreVersion,
   type AgentInfo,
   type AgentSource,
   type FIMSnapshot,
@@ -666,6 +667,25 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
     }
   }
 
+  const restore = async (v: FIMSnapshot) => {
+    if (!confirm(`Restore ${selected} to the version from ${new Date(v.captured_at).toLocaleString()}?\n\nThe current file is snapshotted first (nothing is lost), then overwritten with this version.`)) return
+    setBusy('restore-' + v.id)
+    setError('')
+    setMsg('')
+    try {
+      await restoreVersion(agent.name, selected, v.sha256)
+      setMsg('Restore requested — the agent applies it on its next poll (~10s).')
+      setTimeout(() => {
+        loadFile()
+        loadPaths()
+      }, 3000)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
   const fmtBytes = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`)
 
   return (
@@ -752,17 +772,26 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
                           <td className="py-1.5 text-slate-400">{v.trigger}</td>
                           <td className="py-1.5 text-slate-400">{fmtBytes(v.size)}</td>
                           <td className="py-1.5 font-mono text-slate-500">{v.sha256.slice(0, 12)}…</td>
-                          <td className="py-1.5 text-right">
-                            {v.diff ? (
+                          <td className="whitespace-nowrap py-1.5 text-right">
+                            {v.diff && (
                               <button
                                 onClick={() => setExpanded(expanded === v.id ? null : v.id)}
                                 className="text-indigo-300 hover:underline"
                               >
                                 {expanded === v.id ? 'hide diff' : 'old vs new'}
                               </button>
-                            ) : (
-                              <span className="text-slate-700">—</span>
                             )}
+                            {canQuarantine && (
+                              <button
+                                onClick={() => restore(v)}
+                                disabled={busy !== ''}
+                                title="Restore the file to this version (current content is snapshotted first)"
+                                className="ml-3 text-amber-300 hover:underline disabled:opacity-50"
+                              >
+                                {busy === 'restore-' + v.id ? '…' : 'restore'}
+                              </button>
+                            )}
+                            {!v.diff && !canQuarantine && <span className="text-slate-700">—</span>}
                           </td>
                         </tr>
                         {expanded === v.id && v.diff && (

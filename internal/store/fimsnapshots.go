@@ -112,8 +112,9 @@ type FileAction struct {
 	ID          int64      `json:"id"`
 	AgentName   string     `json:"agent_name"`
 	Path        string     `json:"path"`
-	Action      string     `json:"action"` // snapshot_now | quarantine
-	Status      string     `json:"status"` // requested | delivered | done | failed
+	Action      string     `json:"action"`                   // snapshot_now | quarantine | restore_version
+	VersionSHA  string     `json:"version_sha256,omitempty"` // target version for restore_version
+	Status      string     `json:"status"`                   // requested | delivered | done | failed
 	RequestedBy string     `json:"requested_by,omitempty"`
 	Result      string     `json:"result,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -142,12 +143,32 @@ func (s *Store) RequestFileAction(ctx context.Context, agentName, path, action, 
 	return nil
 }
 
+// RequestRestoreVersion queues a restore of a watched file to a SPECIFIC captured version
+// (identified by its content SHA-256), de-duplicated against an identical still-pending request.
+func (s *Store) RequestRestoreVersion(ctx context.Context, agentName, path, versionSHA, requestedBy string) error {
+	if agentName == "" || path == "" || len(versionSHA) != 64 {
+		return fmt.Errorf("store: restore-version needs agent, path and a 64-char sha256")
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO agent_file_actions (agent_name, path, action, version_sha256, requested_by)
+		SELECT $1, $2, 'restore_version', $3, $4
+		WHERE NOT EXISTS (
+		  SELECT 1 FROM agent_file_actions
+		  WHERE agent_name=$1 AND path=$2 AND action='restore_version' AND version_sha256=$3
+		    AND status IN ('requested','delivered'))`,
+		agentName, path, versionSHA, requestedBy)
+	if err != nil {
+		return fmt.Errorf("store: request restore-version: %w", err)
+	}
+	return nil
+}
+
 // PendingFileActions returns an agent's requested actions and marks them delivered (one-shot).
 func (s *Store) PendingFileActions(ctx context.Context, agentName string) ([]FileAction, error) {
 	rows, err := s.pool.Query(ctx, `
 		UPDATE agent_file_actions SET status='delivered', delivered_at=now()
 		WHERE id IN (SELECT id FROM agent_file_actions WHERE agent_name=$1 AND status='requested')
-		RETURNING id, agent_name, path, action, status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at`,
+		RETURNING id, agent_name, path, action, COALESCE(version_sha256,''), status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at`,
 		agentName)
 	if err != nil {
 		return nil, fmt.Errorf("store: pending file actions: %w", err)
@@ -156,7 +177,7 @@ func (s *Store) PendingFileActions(ctx context.Context, agentName string) ([]Fil
 	out := make([]FileAction, 0, 8)
 	for rows.Next() {
 		var a FileAction
-		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.VersionSHA, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -183,7 +204,7 @@ func (s *Store) ListFileActions(ctx context.Context, agentName, path string, lim
 		limit = 25
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, agent_name, path, action, status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at
+		SELECT id, agent_name, path, action, COALESCE(version_sha256,''), status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at
 		FROM agent_file_actions WHERE agent_name=$1 AND path=$2
 		ORDER BY created_at DESC LIMIT $3`, agentName, path, limit)
 	if err != nil {
@@ -193,7 +214,7 @@ func (s *Store) ListFileActions(ctx context.Context, agentName, path string, lim
 	out := make([]FileAction, 0, limit)
 	for rows.Next() {
 		var a FileAction
-		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.VersionSHA, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

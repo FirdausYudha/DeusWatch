@@ -40,6 +40,35 @@ func TestSnapshotSaveAndReadVersion(t *testing.T) {
 	}
 }
 
+func TestRestoreVersion(t *testing.T) {
+	store, err := NewSnapshotStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	target := filepath.Join(dir, "conf.txt")
+	if err := os.WriteFile(target, []byte("CURRENT (bad) content\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Save a historical good version, then restore the file to it by hash.
+	good := "GOOD historical content\n"
+	sum := hashBytes([]byte(good))
+	if _, err := store.SaveVersion(sum, good); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RestoreVersion(target, sum); err != nil {
+		t.Fatalf("RestoreVersion: %v", err)
+	}
+	got, _ := os.ReadFile(target)
+	if string(got) != good {
+		t.Fatalf("file not restored: got %q want %q", got, good)
+	}
+	// Restoring an unknown version errors (content not on this agent).
+	if err := store.RestoreVersion(target, "deadbeef"); err == nil {
+		t.Fatal("restoring an unknown version should error")
+	}
+}
+
 func TestSnapshotModeHelpers(t *testing.T) {
 	cases := []struct {
 		mode              string

@@ -98,9 +98,10 @@ func (s *Shipper) PostSnapshots(ctx context.Context, snaps []SnapshotMeta) error
 
 // FileActionItem is one manager-requested on-demand file operation (ADR 0002 Phase 3).
 type FileActionItem struct {
-	ID     int64  `json:"id"`
-	Path   string `json:"path"`
-	Action string `json:"action"` // snapshot_now | quarantine
+	ID            int64  `json:"id"`
+	Path          string `json:"path"`
+	Action        string `json:"action"`                   // snapshot_now | quarantine | restore_version
+	VersionSHA256 string `json:"version_sha256,omitempty"` // target version for restore_version
 }
 
 // FetchFileActions retrieves the actions the manager wants this agent to perform

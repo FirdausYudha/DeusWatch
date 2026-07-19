@@ -243,6 +243,7 @@ func main() {
 		mux.Handle("GET /api/fim/actions", protect(auth.PermViewDashboard, fimActionsHandler(st)))
 		mux.Handle("POST /api/fim/snapshot-now", protect(auth.PermManageAgents, fimSnapshotNowHandler(st)))
 		mux.Handle("POST /api/fim/quarantine", protect(auth.PermApproveRemediation, fimQuarantineHandler(st)))
+		mux.Handle("POST /api/fim/restore-version", protect(auth.PermApproveRemediation, fimRestoreVersionHandler(st)))
 
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
@@ -1715,6 +1716,28 @@ func fimQuarantineHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		if err := st.RequestFileAction(r.Context(), req.Agent, req.Path, "quarantine", currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// fimRestoreVersionHandler (POST /api/fim/restore-version {agent, path, sha256}) queues restoring
+// a watched file to a specific captured version (ADR 0002 restore-by-date).
+func fimRestoreVersionHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Agent  string `json:"agent"`
+			Path   string `json:"path"`
+			SHA256 string `json:"sha256"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
+			strings.TrimSpace(req.Agent) == "" || strings.TrimSpace(req.Path) == "" || len(strings.TrimSpace(req.SHA256)) != 64 {
+			http.Error(w, "agent, path and a 64-char sha256 required", http.StatusBadRequest)
+			return
+		}
+		if err := st.RequestRestoreVersion(r.Context(), req.Agent, req.Path, strings.TrimSpace(req.SHA256), currentUsername(r)); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

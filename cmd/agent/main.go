@@ -152,8 +152,8 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	if snapStore != nil {
 		go runFimRestore(ctx, shipper, snapStore, host)
 	}
-	// On-demand FIM file actions (snapshot_now / quarantine), triggered from the Snapshots UI.
-	go runFileActions(ctx, shipper, host)
+	// On-demand FIM file actions (snapshot_now / quarantine / restore_version) from the UI.
+	go runFileActions(ctx, snapStore, shipper, host)
 	// Host network containment (opt-in via AGENT_CONTAINMENT=1): poll the manager's isolation
 	// directive and firewall the host off from the LAN (except the manager) when told to.
 	if containmentEnabled(os.Getenv("AGENT_CONTAINMENT")) {
@@ -469,11 +469,18 @@ func runFimRestore(ctx context.Context, shipper *agent.Shipper, snaps *agent.Sna
 	}
 }
 
-// runFileActions polls the manager for on-demand file operations and executes them (ADR 0002
-// Phase 3): "snapshot_now" captures a version immediately; "quarantine" moves the current file
-// into the agent's quarantine dir (read-only) for blue-team analysis. Each outcome is reported
-// back to the manager.
-func runFileActions(ctx context.Context, shipper *agent.Shipper, host string) {
+// runFileActions polls the manager for on-demand file operations and executes them (ADR 0002):
+// "snapshot_now" captures a version immediately; "quarantine" moves the current file into the
+// agent's quarantine dir (read-only) for blue-team analysis; "restore_version" writes a specific
+// dated version back to the file. Each outcome is reported back to the manager.
+func shortHash(h string) string {
+	if len(h) > 12 {
+		return h[:12]
+	}
+	return h
+}
+
+func runFileActions(ctx context.Context, snaps *agent.SnapshotStore, shipper *agent.Shipper, host string) {
 	qdir := getenv("QUARANTINE_DIR", agent.DefaultQuarantineDir())
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
@@ -512,6 +519,28 @@ func runFileActions(ctx context.Context, shipper *agent.Shipper, host string) {
 							}})
 						}
 						log.Printf("agent: quarantined %s -> %s", a.Path, dest)
+					}
+				case "restore_version":
+					if snaps == nil {
+						status, result = "failed", "snapshots disabled on this agent"
+						break
+					}
+					// Safety: capture the CURRENT content as a version first, so restoring never
+					// loses the pre-restore state (best-effort — ignored if not a small text file).
+					if meta, ok := agent.CaptureVersionNow(a.Path); ok {
+						_ = shipper.PostSnapshots(ctx, []agent.SnapshotMeta{meta})
+					}
+					if rerr := snaps.RestoreVersion(a.Path, a.VersionSHA256); rerr != nil {
+						status, result = "failed", rerr.Error()
+					} else {
+						result = "restored to version " + shortHash(a.VersionSHA256)
+						c := agent.FIMChange{Path: a.Path, Action: "restored"}
+						if body, merr := json.Marshal(c); merr == nil {
+							_ = shipper.Send(ctx, []ingest.RawLog{{
+								Timestamp: time.Now(), Host: host, Dataset: "fim", Message: string(body),
+							}})
+						}
+						log.Printf("agent: restored %s to version %s", a.Path, shortHash(a.VersionSHA256))
 					}
 				default:
 					status, result = "failed", "unknown action"
