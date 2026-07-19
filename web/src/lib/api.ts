@@ -371,7 +371,39 @@ export async function deleteUser(id: string): Promise<void> {
 
 // ── Agents (enrollment, config push, revoke) ──────────────
 
-export type AgentSource = { dataset: string; type: string; path: string; interval?: number }
+export type AgentSource = {
+  dataset: string
+  type: string
+  path: string
+  interval?: number
+  // FIM versioned-snapshot config (type "fim"; ADR 0002)
+  snapshot_mode?: string // baseline | on_change | scheduled | both ("" = legacy single baseline)
+  snapshot_storage?: string // agent | manager
+  snapshot_retention?: number // versions kept per file (0 = unlimited)
+}
+
+// Versioned FIM snapshots (ADR 0002): dated version timeline of a watched file.
+export type FIMSnapshot = {
+  id: number
+  agent_name: string
+  path: string
+  sha256: string
+  size: number
+  storage: string
+  trigger: string
+  captured_at: string
+}
+export type FIMSnapshotPath = { path: string; versions: number; latest: string }
+export async function fetchSnapshotPaths(agent: string): Promise<FIMSnapshotPath[]> {
+  const res = await authFetch(`/api/fim/snapshots/paths?agent=${encodeURIComponent(agent)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).paths ?? []
+}
+export async function fetchSnapshots(agent: string, path: string): Promise<FIMSnapshot[]> {
+  const res = await authFetch(`/api/fim/snapshots?agent=${encodeURIComponent(agent)}&path=${encodeURIComponent(path)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).snapshots ?? []
+}
 
 export type AgentStatus = 'unknown' | 'online' | 'degraded' | 'disconnected' | 'stale'
 

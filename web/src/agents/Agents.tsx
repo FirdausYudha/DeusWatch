@@ -7,8 +7,12 @@ import {
   setAgentConfig,
   agentOnline,
   can,
+  fetchSnapshotPaths,
+  fetchSnapshots,
   type AgentInfo,
   type AgentSource,
+  type FIMSnapshot,
+  type FIMSnapshotPath,
   type Me,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
@@ -50,6 +54,7 @@ export default function Agents({ me }: { me: Me }) {
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<AgentInfo | null>(null)
+  const [snapshotsFor, setSnapshotsFor] = useState<AgentInfo | null>(null)
   const [wizard, setWizard] = useState(false)
   const [uninstalling, setUninstalling] = useState<AgentInfo | null>(null)
 
@@ -145,6 +150,13 @@ export default function Agents({ me }: { me: Me }) {
                         Monitoring
                       </button>
                       <button
+                        onClick={() => setSnapshotsFor(a)}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                        title="Browse the dated FIM snapshot timeline of this agent's watched files"
+                      >
+                        Snapshots
+                      </button>
+                      <button
                         onClick={() => setUninstalling(a)}
                         className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
                         title="Show commands to uninstall this agent from its endpoint"
@@ -180,6 +192,7 @@ export default function Agents({ me }: { me: Me }) {
         />
       )}
       {uninstalling && <UninstallHelp agent={uninstalling} onClose={() => setUninstalling(null)} />}
+      {snapshotsFor && <SnapshotViewer agent={snapshotsFor} onClose={() => setSnapshotsFor(null)} />}
     </div>
   )
 }
@@ -425,12 +438,20 @@ function ConfigEditor({
       for (const s of sources) {
         if (!s.dataset || !s.type) throw new Error('each source needs a dataset and a type')
       }
-      const clean = sources.map((s) => ({
-        dataset: s.dataset.trim(),
-        type: s.type,
-        path: s.path.trim(),
-        interval: POLL_TYPES.has(s.type) && s.interval ? Number(s.interval) : 0,
-      }))
+      const clean = sources.map((s) => {
+        const base: AgentSource = {
+          dataset: s.dataset.trim(),
+          type: s.type,
+          path: s.path.trim(),
+          interval: POLL_TYPES.has(s.type) && s.interval ? Number(s.interval) : 0,
+        }
+        if (s.type === 'fim') {
+          if (s.snapshot_mode && s.snapshot_mode !== 'baseline') base.snapshot_mode = s.snapshot_mode
+          if (s.snapshot_storage) base.snapshot_storage = s.snapshot_storage
+          if (s.snapshot_retention) base.snapshot_retention = Number(s.snapshot_retention)
+        }
+        return base
+      })
       await setAgentConfig(agent.id, clean)
       onSaved()
     } catch (e) {
@@ -510,6 +531,42 @@ function ConfigEditor({
               >
                 ✕
               </button>
+              {s.type === 'fim' && (
+                <div className="col-span-5 mb-1 grid grid-cols-[auto_1fr_auto_1fr_auto_5rem] items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-2 py-1.5 text-xs">
+                  <span className="text-slate-500">Snapshots</span>
+                  <select
+                    value={s.snapshot_mode || 'baseline'}
+                    onChange={(e) => update(i, { snapshot_mode: e.target.value })}
+                    title="How dated versions are captured"
+                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 outline-none focus:border-indigo-500"
+                  >
+                    <option value="baseline">baseline only (single)</option>
+                    <option value="on_change">on every change</option>
+                    <option value="scheduled">scheduled (daily)</option>
+                    <option value="both">both</option>
+                  </select>
+                  <span className="text-slate-500">Store</span>
+                  <select
+                    value={s.snapshot_storage || 'agent'}
+                    onChange={(e) => update(i, { snapshot_storage: e.target.value })}
+                    title="Where version content is kept"
+                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 outline-none focus:border-indigo-500"
+                  >
+                    <option value="agent">on agent</option>
+                    <option value="manager">on manager</option>
+                  </select>
+                  <span className="text-slate-500">Keep</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={s.snapshot_retention || ''}
+                    onChange={(e) => update(i, { snapshot_retention: Number(e.target.value) })}
+                    placeholder="∞"
+                    title="Versions kept per file (0 = unlimited)"
+                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 outline-none focus:border-indigo-500"
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -532,6 +589,118 @@ function ConfigEditor({
             className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
           >
             {busy ? 'Saving…' : 'Save & push'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// SnapshotViewer — read-only browser of an agent's dated FIM snapshot timeline (ADR 0002,
+// Phase 1). Pick a watched file to see its versions by date; restore-by-date arrives in Phase 3.
+function SnapshotViewer({ agent, onClose }: { agent: AgentInfo; onClose: () => void }) {
+  const [paths, setPaths] = useState<FIMSnapshotPath[]>([])
+  const [selected, setSelected] = useState<string>('')
+  const [versions, setVersions] = useState<FIMSnapshot[]>([])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchSnapshotPaths(agent.name)
+      .then((p) => {
+        setPaths(p)
+        if (p.length > 0) setSelected(p[0].path)
+      })
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false))
+  }, [agent.name])
+
+  useEffect(() => {
+    if (!selected) {
+      setVersions([])
+      return
+    }
+    fetchSnapshots(agent.name, selected)
+      .then(setVersions)
+      .catch((e) => setError((e as Error).message))
+  }, [agent.name, selected])
+
+  const fmtBytes = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`)
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-white">FIM snapshots — {agent.name}</h2>
+          <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" className="shrink-0" />
+        </div>
+        <p className="mb-4 text-xs text-slate-500">
+          Dated version timeline of watched files. Restore-by-date lands in a later phase; today
+          this is a read-only history.
+        </p>
+
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading…</p>
+        ) : paths.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-slate-800 px-3 py-6 text-center text-sm text-slate-600">
+            No snapshots recorded for this agent yet. Enable a snapshot mode on a <code className="text-slate-400">fim</code> source
+            (Monitoring → Snapshots) and the agent will start capturing versions.
+          </p>
+        ) : (
+          <div className="grid grid-cols-[16rem_1fr] gap-4">
+            <div className="space-y-1 border-r border-slate-800 pr-3">
+              {paths.map((p) => (
+                <button
+                  key={p.path}
+                  onClick={() => setSelected(p.path)}
+                  className={`block w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${
+                    selected === p.path ? 'bg-indigo-500/15 text-indigo-300' : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                  title={p.path}
+                >
+                  <span className="block truncate font-mono">{p.path}</span>
+                  <span className="text-[10px] text-slate-600">{p.versions} version{p.versions === 1 ? '' : 's'}</span>
+                </button>
+              ))}
+            </div>
+            <div>
+              {versions.length === 0 ? (
+                <p className="text-sm text-slate-600">Select a file.</p>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="py-1 font-medium">Captured</th>
+                      <th className="py-1 font-medium">Trigger</th>
+                      <th className="py-1 font-medium">Store</th>
+                      <th className="py-1 font-medium">Size</th>
+                      <th className="py-1 font-medium">SHA-256</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {versions.map((v) => (
+                      <tr key={v.id}>
+                        <td className="py-1.5 text-slate-300">{new Date(v.captured_at).toLocaleString()}</td>
+                        <td className="py-1.5 text-slate-400">{v.trigger}</td>
+                        <td className="py-1.5 text-slate-400">{v.storage}</td>
+                        <td className="py-1.5 text-slate-400">{fmtBytes(v.size)}</td>
+                        <td className="py-1.5 font-mono text-slate-500">{v.sha256.slice(0, 12)}…</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">
+            Close
           </button>
         </div>
       </div>

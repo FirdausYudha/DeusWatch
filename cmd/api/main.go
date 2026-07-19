@@ -237,6 +237,10 @@ func main() {
 		mux.Handle("POST /api/subscriptions/{id}/toggle", protect(auth.PermManageIntegrations, subscriptionToggleHandler(st)))
 		mux.Handle("DELETE /api/subscriptions/{id}", protect(auth.PermManageIntegrations, subscriptionDeleteHandler(st)))
 
+		// Versioned FIM snapshots (ADR 0002): browse the dated version timeline of watched files.
+		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
+		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))
+
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
@@ -1612,6 +1616,44 @@ func enforcementHandler(st *store.Store, feedToken func(context.Context) (string
 			"backends":       backends,
 			"blocklist_feed": feed,
 		})
+	}
+}
+
+// fimSnapshotPathsHandler (GET /api/fim/snapshots/paths?agent=) lists the watched files that have
+// dated snapshots for an agent (ADR 0002).
+func fimSnapshotPathsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agent := strings.TrimSpace(r.URL.Query().Get("agent"))
+		if agent == "" {
+			http.Error(w, "agent required", http.StatusBadRequest)
+			return
+		}
+		paths, err := st.ListSnapshotPaths(r.Context(), agent)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"paths": paths})
+	}
+}
+
+// fimSnapshotsHandler (GET /api/fim/snapshots?agent=&path=&limit=) returns the dated version
+// timeline of one watched file, newest first (ADR 0002).
+func fimSnapshotsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		agent, path := strings.TrimSpace(q.Get("agent")), strings.TrimSpace(q.Get("path"))
+		if agent == "" || path == "" {
+			http.Error(w, "agent and path required", http.StatusBadRequest)
+			return
+		}
+		limit, _ := strconv.Atoi(q.Get("limit"))
+		snaps, err := st.ListSnapshots(r.Context(), agent, path, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"snapshots": snaps})
 	}
 }
 

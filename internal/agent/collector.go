@@ -32,6 +32,17 @@ type Source struct {
 	// Interval is the polling/scan interval in seconds for poll-based collectors
 	// (fim, wineventlog). 0 = the per-type default. Higher = lighter on the endpoint.
 	Interval int `json:"interval,omitempty"`
+
+	// ── FIM versioned-snapshot config (type "fim" only; ADR 0002) ─────────────
+	// SnapshotMode controls dated-version capture: "" / "baseline" (single first-seen
+	// snapshot, current behaviour), "on_change", "scheduled", or "both". Empty keeps the
+	// legacy single-baseline behaviour, so existing configs are unaffected.
+	SnapshotMode string `json:"snapshot_mode,omitempty"`
+	// SnapshotStorage is where version CONTENT lives: "agent" (default; content-addressed on
+	// the host, only metadata shipped) or "manager" (content uploaded and kept centrally).
+	SnapshotStorage string `json:"snapshot_storage,omitempty"`
+	// SnapshotRetention caps versions kept per watched file (0 = unlimited).
+	SnapshotRetention int `json:"snapshot_retention,omitempty"`
 }
 
 // scanInterval resolves a source's effective poll interval, falling back to def.
