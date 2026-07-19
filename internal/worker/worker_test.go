@@ -27,32 +27,36 @@ type stubDetector struct{ alert *ingest.Event }
 
 func (d stubDetector) Inspect(_ *ingest.Event) *ingest.Event { return d.alert }
 
-// TestHandlerSuppressesGatedAlert proves the trusted-session gate path: a suppressed alert is
-// neither stored nor forwarded to onAlert, while the raw source event still is. The inverse
-// case (not suppressed) stores the alert and calls onAlert.
+// TestHandlerSuppressesGatedAlert proves the trusted-session gate path (ADR 0002 Phase 4): a
+// suppressed alert is NOT forwarded to onAlert (no notify/response) but IS recorded as a low-
+// severity `authorized_change` audit event. The inverse case (not suppressed) keeps the original
+// alert and calls onAlert. The raw source event is stored in both cases.
 func TestHandlerSuppressesGatedAlert(t *testing.T) {
 	raw, _ := json.Marshal(ingest.Event{Event: ingest.EventFields{Category: "file", Action: "file_modified"}})
-	alert := &ingest.Event{
-		Event: ingest.EventFields{Category: "intrusion_detection", Dataset: "deuswatch.detect"},
-		File:  &ingest.File{Path: "/var/www/html/index.php"},
-		DeusWatch: ingest.DeusWatch{Label: "impact"},
+	newAlert := func() *ingest.Event {
+		return &ingest.Event{
+			Event:     ingest.EventFields{Category: "intrusion_detection", Dataset: "deuswatch.detect", Severity: ingest.SeverityHigh},
+			File:      &ingest.File{Path: "/var/www/html/index.php"},
+			DeusWatch: ingest.DeusWatch{Label: "impact"},
+		}
 	}
 
 	for _, tc := range []struct {
 		name       string
 		suppress   AlertSuppressor
-		wantStored int // raw + (alert unless suppressed)
+		wantStored int // raw + alert (kept OR downgraded to authorized_change)
 		wantHook   bool
+		wantLabel  string
 	}{
-		{"suppressed", func(context.Context, *ingest.Event) bool { return true }, 1, false},
-		{"kept", func(context.Context, *ingest.Event) bool { return false }, 2, true},
+		{"suppressed", func(context.Context, *ingest.Event) bool { return true }, 2, false, "authorized_change"},
+		{"kept", func(context.Context, *ingest.Event) bool { return false }, 2, true, "impact"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			sink := &recSink{}
 			hookCalled := false
 			h := Handler(context.Background(), sink, nil,
 				func(context.Context, *ingest.Event) { hookCalled = true },
-				tc.suppress, nil, stubDetector{alert})
+				tc.suppress, nil, stubDetector{newAlert()})
 			if err := h(bus.SubjectLogsNormalized, raw); err != nil {
 				t.Fatalf("handler: %v", err)
 			}
@@ -61,6 +65,18 @@ func TestHandlerSuppressesGatedAlert(t *testing.T) {
 			}
 			if hookCalled != tc.wantHook {
 				t.Fatalf("onAlert called=%v, want %v", hookCalled, tc.wantHook)
+			}
+			stored := sink.events[len(sink.events)-1] // the alert (last stored)
+			if stored.DeusWatch.Label != tc.wantLabel {
+				t.Fatalf("stored label=%q, want %q", stored.DeusWatch.Label, tc.wantLabel)
+			}
+			if tc.name == "suppressed" {
+				if stored.Event.Severity != ingest.SeverityLow {
+					t.Fatalf("authorized_change severity=%d, want low", stored.Event.Severity)
+				}
+				if stored.DeusWatch.Severity.Original != ingest.SeverityHigh {
+					t.Fatalf("original severity not recorded: %d", stored.DeusWatch.Severity.Original)
+				}
 			}
 		})
 	}

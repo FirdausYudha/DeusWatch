@@ -83,8 +83,16 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 				continue
 			}
 			if suppress != nil && suppress(ic, alert) {
-				log.Printf("worker: suppressed %s alert on %s (trusted session)",
-					alert.DeusWatch.Label, alertTarget(alert))
+				// Trusted-session change (ADR 0002 Phase 4): don't drop it silently — record it as
+				// a low-severity `authorized_change` audit event so there is a trail, but do NOT
+				// notify or respond (it's an official deploy/content edit, not an attack). A sudden
+				// change with no legitimate session is not suppressed and keeps its normal severity.
+				markAuthorizedChange(alert)
+				if err := sink.InsertEvent(ic, alert); err != nil {
+					return err
+				}
+				log.Printf("worker: authorized change on %s recorded (trusted session; not alerted)",
+					alertTarget(alert))
 				continue
 			}
 			if annotate != nil {
@@ -100,6 +108,22 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 			}
 		}
 		return nil
+	}
+}
+
+// markAuthorizedChange turns a trusted-session-suppressed file alert into a low-severity audit
+// event: it keeps the file + who-data context but relabels it `authorized_change`, records the
+// original severity, drops the severity below the notify threshold, and strips any
+// remediation/containment so nothing fires downstream (ADR 0002 Phase 4).
+func markAuthorizedChange(alert *ingest.Event) {
+	alert.DeusWatch.Severity.Original = alert.Event.Severity
+	alert.DeusWatch.Severity.EscalatedBy = "trusted-session (authorized change)"
+	alert.Event.Severity = ingest.SeverityLow
+	alert.DeusWatch.Label = "authorized_change"
+	alert.DeusWatch.Remediation = ingest.Remediation{}
+	alert.DeusWatch.Containment = nil
+	if alert.Event.Outcome == "" {
+		alert.Event.Outcome = "success"
 	}
 }
 

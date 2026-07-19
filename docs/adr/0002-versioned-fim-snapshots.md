@@ -1,9 +1,10 @@
 # ADR 0002 - Versioned FIM Snapshots & Restore-by-Date
 
-- Status: **Nearly complete** — Phases 1, 2, 3, restore-by-version, and Phase 5 (manager-side
-  content storage, admin-chosen) all built; Phase 2 live-verified on the user's agent, the rest
-  manager-verified (agent side pending the user's live check). Only remaining: Phase 4
-  (authorized_change warning).
+- Status: **Complete (build)** — all phases built: 1 (manager config/schema/UI), 2 (agent capture
+  + upload; live-verified on the user's agent), 3 (snapshot-now, quarantine-for-analysis, old-vs-
+  new diff), restore-by-version, 4 (authorized_change audit event), 5 (manager-side content
+  storage, admin-chosen). Manager side verified throughout; the agent-executed pieces (capture,
+  quarantine, restore, manager-upload) are verified end-to-end as the user tests on their agent.
 - Date: 2026-07-19
 - Context: extends the existing single-baseline FIM restore (`internal/agent/fimsnap.go`,
   `internal/store/restores.go`) into a dated, versioned snapshot + one-click restore-by-date
