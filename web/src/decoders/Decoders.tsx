@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+﻿import { useEffect, useState, type FormEvent } from 'react'
 import {
   fetchDecoders, createDecoder, updateDecoder, deleteDecoder,
   fetchDecoderSamples, testDecoder,
@@ -7,7 +7,7 @@ import {
 
 const LEVELS = ['', 'info', 'low', 'medium', 'high', 'critical']
 const EMPTY: DecoderSpec = { name: '', dataset: '', category: '', action: '', outcome: '', level: '', regex: '' }
-const input = 'w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500'
+const input = 'w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent'
 
 function specOf(d: Decoder): DecoderSpec {
   return { name: d.name, dataset: d.dataset, category: d.category, action: d.action, outcome: d.outcome, level: d.level, regex: d.regex }
@@ -18,23 +18,23 @@ function Form({ value, onChange }: { value: DecoderSpec; onChange: (v: DecoderSp
   const set = (k: keyof DecoderSpec, v: string) => onChange({ ...value, [k]: v })
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <label className="block"><span className="mb-1 block text-xs text-slate-400">Name</span>
+      <label className="block"><span className="mb-1 block text-xs text-muted">Name</span>
         <input className={input} value={value.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. haproxy-http" /></label>
-      <label className="block"><span className="mb-1 block text-xs text-slate-400">Dataset *</span>
+      <label className="block"><span className="mb-1 block text-xs text-muted">Dataset *</span>
         <input className={input} value={value.dataset} onChange={(e) => set('dataset', e.target.value)} placeholder="agent source dataset, e.g. haproxy" /></label>
-      <label className="block"><span className="mb-1 block text-xs text-slate-400">Category</span>
+      <label className="block"><span className="mb-1 block text-xs text-muted">Category</span>
         <input className={input} value={value.category} onChange={(e) => set('category', e.target.value)} placeholder="event.category, e.g. web / mail / authentication" /></label>
       <div className="grid grid-cols-3 gap-2">
-        <label className="block"><span className="mb-1 block text-xs text-slate-400">Action</span>
+        <label className="block"><span className="mb-1 block text-xs text-muted">Action</span>
           <input className={input} value={value.action} onChange={(e) => set('action', e.target.value)} /></label>
-        <label className="block"><span className="mb-1 block text-xs text-slate-400">Outcome</span>
+        <label className="block"><span className="mb-1 block text-xs text-muted">Outcome</span>
           <input className={input} value={value.outcome} onChange={(e) => set('outcome', e.target.value)} placeholder="failure" /></label>
-        <label className="block"><span className="mb-1 block text-xs text-slate-400">Level</span>
+        <label className="block"><span className="mb-1 block text-xs text-muted">Level</span>
           <select className={input} value={value.level} onChange={(e) => set('level', e.target.value)}>
             {LEVELS.map((l) => <option key={l} value={l}>{l || '(default)'}</option>)}
           </select></label>
       </div>
-      <label className="block sm:col-span-2"><span className="mb-1 block text-xs text-slate-400">Regex (Go RE2, named groups -&gt; fields) *</span>
+      <label className="block sm:col-span-2"><span className="mb-1 block text-xs text-muted">Regex (Go RE2, named groups -&gt; fields) *</span>
         <textarea className={`${input} font-mono`} rows={2} value={value.regex} onChange={(e) => set('regex', e.target.value)}
           placeholder={`client=[^[]*\\[(?P<source_ip>\\d{1,3}(?:\\.\\d{1,3}){3})\\]`} /></label>
     </div>
@@ -100,40 +100,40 @@ export default function Decoders() {
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Decoders</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Decoders</h1>
+        <p className="mt-1 text-sm text-dim">
           Data-driven log parsing for sources without a built-in decoder. A regex extracts fields
           from a dataset's raw lines; the gateway live-reloads changes. Built-ins for sshd/web/fim/
           windows/suricata are always active.
         </p>
       </header>
 
-      <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Add decoder</h2>
+      <section className="mb-8 rounded-xl border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-dim">Add decoder</h2>
         <form onSubmit={submitAdd}>
           <Form value={add} onChange={setAdd} />
           <div className="mt-4 flex justify-end">
             <button type="submit" disabled={busy || !add.dataset || !add.regex}
-              className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
-              {busy ? 'Saving…' : 'Add decoder'}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+              {busy ? 'Savingâ€¦' : 'Add decoder'}
             </button>
           </div>
         </form>
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
 
         {/* Tester: the answer to "how do I know my raw lines?" - pull real lines, try the regex. */}
-        <div className="mt-5 border-t border-slate-800 pt-4">
+        <div className="mt-5 border-t border-border pt-4">
           <div className="mb-2 flex items-center gap-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Test against real log lines</h3>
-            <button onClick={loadSamples} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">
-              Load recent lines for "{add.dataset || '…'}"
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-dim">Test against real log lines</h3>
+            <button onClick={loadSamples} className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2">
+              Load recent lines for "{add.dataset || 'â€¦'}"
             </button>
           </div>
           {samples.length > 0 && (
-            <div className="mb-3 max-h-40 overflow-auto rounded-lg border border-slate-800 bg-slate-950/60 p-2">
+            <div className="mb-3 max-h-40 overflow-auto rounded-lg border border-border bg-bg p-2">
               {samples.map((l, i) => (
                 <button key={i} onClick={() => { setTestLine(l); runTest(l) }}
-                  className="block w-full truncate px-2 py-1 text-left font-mono text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200" title={l}>
+                  className="block w-full truncate px-2 py-1 text-left font-mono text-xs text-muted hover:bg-surface-2 hover:text-fg" title={l}>
                   {l}
                 </button>
               ))}
@@ -141,62 +141,62 @@ export default function Decoders() {
           )}
           <div className="flex gap-2">
             <input className={`${input} font-mono`} value={testLine} onChange={(e) => setTestLine(e.target.value)} placeholder="paste one raw log line to test the regex against" />
-            <button onClick={() => runTest(testLine)} className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">Test</button>
+            <button onClick={() => runTest(testLine)} className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm text-fg hover:bg-surface-2">Test</button>
           </div>
           {testMsg && <p className="mt-2 text-xs text-amber-400">{testMsg}</p>}
           {testResult && (
-            <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-sm">
+            <div className="mt-2 rounded-lg border border-border bg-bg p-3 text-sm">
               {testResult.matched ? (
                 <>
-                  <span className="text-emerald-400">✓ matched</span>
+                  <span className="text-emerald-400">âœ“ matched</span>
                   {Object.keys(testResult.fields).length > 0 ? (
                     <table className="mt-2 text-xs">
                       <tbody>
                         {Object.entries(testResult.fields).map(([k, v]) => (
-                          <tr key={k}><td className="pr-3 font-mono text-slate-500">{k}</td><td className="font-mono text-slate-300">{v}</td></tr>
+                          <tr key={k}><td className="pr-3 font-mono text-dim">{k}</td><td className="font-mono text-fg">{v}</td></tr>
                         ))}
                       </tbody>
                     </table>
-                  ) : <span className="ml-2 text-slate-500">(no named groups extracted; only category/defaults applied)</span>}
+                  ) : <span className="ml-2 text-dim">(no named groups extracted; only category/defaults applied)</span>}
                 </>
-              ) : <span className="text-rose-400">✗ no match on this line</span>}
+              ) : <span className="text-rose-400">âœ— no match on this line</span>}
             </div>
           )}
         </div>
       </section>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Configured ({items.length})</h2>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dim">Configured ({items.length})</h2>
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-800 px-4 py-8 text-center text-sm text-slate-600">
+          <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-dim">
             No custom decoders yet.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-800">
+          <div className="overflow-hidden rounded-xl border border-border">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+              <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
                 <tr>
                   <th className="px-4 py-2">Name</th><th className="px-4 py-2">Dataset</th>
                   <th className="px-4 py-2">Category</th><th className="px-4 py-2">Regex</th>
                   <th className="px-4 py-2">Status</th><th className="px-4 py-2"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+              <tbody className="divide-y divide-border bg-surface">
                 {items.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-800/40">
-                    <td className="px-4 py-2 text-slate-200">{d.name}{d.builtin && <span className="ml-1 rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">builtin</span>}</td>
-                    <td className="px-4 py-2 font-mono text-slate-300">{d.dataset}</td>
-                    <td className="px-4 py-2 text-slate-400">{d.category || '—'}</td>
-                    <td className="px-4 py-2 max-w-[16rem] truncate font-mono text-xs text-slate-500" title={d.regex}>{d.regex}</td>
+                  <tr key={d.id} className="hover:bg-surface-2">
+                    <td className="px-4 py-2 text-fg">{d.name}{d.builtin && <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">builtin</span>}</td>
+                    <td className="px-4 py-2 font-mono text-fg">{d.dataset}</td>
+                    <td className="px-4 py-2 text-muted">{d.category || 'â€”'}</td>
+                    <td className="px-4 py-2 max-w-[16rem] truncate font-mono text-xs text-dim" title={d.regex}>{d.regex}</td>
                     <td className="px-4 py-2">
-                      <span className={`rounded px-1.5 py-0.5 text-xs ${d.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700/40 text-slate-400'}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-xs ${d.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-surface-2 text-muted'}`}>
                         {d.enabled ? 'enabled' : 'disabled'}
                       </span>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => toggle(d)} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">{d.enabled ? 'Disable' : 'Enable'}</button>
-                        <button onClick={() => { setEditing(d); setEditSpec(specOf(d)) }} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">Edit</button>
+                        <button onClick={() => toggle(d)} className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2">{d.enabled ? 'Disable' : 'Enable'}</button>
+                        <button onClick={() => { setEditing(d); setEditSpec(specOf(d)) }} className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2">Edit</button>
                         <button onClick={() => remove(d)} className="rounded-md border border-rose-900/60 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">Delete</button>
                       </div>
                     </td>
@@ -210,14 +210,14 @@ export default function Decoders() {
 
       {editing && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
-          <div className="w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-4 text-sm font-semibold text-white">Edit decoder — <span className="text-indigo-300">{editing.name}</span></h3>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-4 text-sm font-semibold text-fg">Edit decoder â€” <span className="text-accent">{editing.name}</span></h3>
             <Form value={editSpec} onChange={setEditSpec} />
             <div className="mt-5 flex justify-end gap-3">
-              <button onClick={() => setEditing(null)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancel</button>
+              <button onClick={() => setEditing(null)} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">Cancel</button>
               <button onClick={saveEdit} disabled={busy || !editSpec.dataset || !editSpec.regex}
-                className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
-                {busy ? 'Saving…' : 'Save'}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+                {busy ? 'Savingâ€¦' : 'Save'}
               </button>
             </div>
           </div>

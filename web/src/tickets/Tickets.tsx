@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import {
   fetchTickets,
   fetchTicket,
@@ -25,7 +25,7 @@ const STATUS_BADGE: Record<TicketStatus, string> = {
   open: 'text-sky-300 bg-sky-500/15',
   in_progress: 'text-amber-300 bg-amber-500/15',
   resolved: 'text-emerald-300 bg-emerald-500/15',
-  closed: 'text-slate-400 bg-slate-700/40',
+  closed: 'text-muted bg-surface-2',
 }
 
 function SeverityBadge({ sev }: { sev: number }) {
@@ -35,7 +35,7 @@ function SeverityBadge({ sev }: { sev: number }) {
 
 function duration(fromISO: string, toISO: string): string {
   const ms = new Date(toISO).getTime() - new Date(fromISO).getTime()
-  if (ms < 0) return '—'
+  if (ms < 0) return 'â€”'
   const m = Math.floor(ms / 60000)
   if (m < 60) return `${m}m`
   const h = Math.floor(m / 60)
@@ -67,7 +67,7 @@ export default function Tickets({
   }
   useEffect(load, [filter])
 
-  // Prefill from an alert → open the New ticket form.
+  // Prefill from an alert â†’ open the New ticket form.
   useEffect(() => {
     if (prefill) {
       setNewInput({ severity: 2, description: '', ...prefill })
@@ -98,8 +98,8 @@ export default function Tickets({
     <div className="mx-auto max-w-5xl px-8 py-8">
       <header className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Tickets</h1>
-          <p className="mt-1 text-sm text-slate-500">Tier-2 DFIR case management · open → in progress → resolved → closed</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">Tickets</h1>
+          <p className="mt-1 text-sm text-dim">Tier-2 DFIR case management Â· open â†’ in progress â†’ resolved â†’ closed</p>
         </div>
         {canManage && (
           <button
@@ -107,7 +107,7 @@ export default function Tickets({
               setNewInput({ title: '', description: '', severity: 2 })
               setShowNew(true)
             }}
-            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
           >
             + New ticket
           </button>
@@ -118,7 +118,7 @@ export default function Tickets({
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <button
           onClick={() => setFilter('')}
-          className={`rounded-lg px-3 py-1.5 ${filter === '' ? 'bg-indigo-500/10 text-indigo-300' : 'text-slate-400 hover:bg-slate-800'}`}
+          className={`rounded-lg px-3 py-1.5 ${filter === '' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
         >
           All ({tickets.length})
         </button>
@@ -126,19 +126,19 @@ export default function Tickets({
           <button
             key={s}
             onClick={() => setFilter(s)}
-            className={`rounded-lg px-3 py-1.5 ${filter === s ? 'bg-indigo-500/10 text-indigo-300' : 'text-slate-400 hover:bg-slate-800'}`}
+            className={`rounded-lg px-3 py-1.5 ${filter === s ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
           >
             {STATUS_LABEL[s]}
-            {filter === '' && counts[s] ? <span className="ml-1 text-slate-600">{counts[s]}</span> : ''}
+            {filter === '' && counts[s] ? <span className="ml-1 text-dim">{counts[s]}</span> : ''}
           </button>
         ))}
       </div>
 
       {error && <p className="mb-4 text-sm text-rose-400">{error}</p>}
 
-      <div className="overflow-hidden rounded-xl border border-slate-800">
+      <div className="overflow-hidden rounded-xl border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+          <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Title</th>
               <th className="px-4 py-2 font-medium">Severity</th>
@@ -148,27 +148,27 @@ export default function Tickets({
               <th className="px-4 py-2 font-medium">Resolve time</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+          <tbody className="divide-y divide-border bg-surface">
             {tickets.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-dim">
                   No tickets. Raise one from an alert on the Dashboard, or create a new one.
                 </td>
               </tr>
             )}
             {tickets.map((t) => (
-              <tr key={t.id} className="cursor-pointer hover:bg-slate-800/40" onClick={() => setSelectedId(t.id)}>
-                <td className="px-4 py-2 font-medium text-slate-200">{t.title}</td>
+              <tr key={t.id} className="cursor-pointer hover:bg-surface-2" onClick={() => setSelectedId(t.id)}>
+                <td className="px-4 py-2 font-medium text-fg">{t.title}</td>
                 <td className="px-4 py-2"><SeverityBadge sev={t.severity} /></td>
                 <td className="px-4 py-2">
                   <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[t.status]}`}>
                     {STATUS_LABEL[t.status]}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-slate-400">{t.assignee || <span className="text-slate-600">unassigned</span>}</td>
-                <td className="px-4 py-2 text-slate-400">{new Date(t.created_at).toLocaleString('en-US')}</td>
-                <td className="px-4 py-2 text-slate-400">
-                  {t.resolved_at ? duration(t.created_at, t.resolved_at) : <span className="text-slate-600">—</span>}
+                <td className="px-4 py-2 text-muted">{t.assignee || <span className="text-dim">unassigned</span>}</td>
+                <td className="px-4 py-2 text-muted">{new Date(t.created_at).toLocaleString('en-US')}</td>
+                <td className="px-4 py-2 text-muted">
+                  {t.resolved_at ? duration(t.created_at, t.resolved_at) : <span className="text-dim">â€”</span>}
                 </td>
               </tr>
             ))}
@@ -216,30 +216,30 @@ function NewTicketModal({
   }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-4 text-lg font-semibold text-white">New ticket</h2>
+      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="mb-4 text-lg font-semibold text-fg">New ticket</h2>
         <div className="space-y-3">
           <input
             value={value.title}
             onChange={(e) => onChange({ ...value, title: e.target.value })}
             placeholder="Title"
             autoFocus
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <textarea
             value={value.description ?? ''}
             onChange={(e) => onChange({ ...value, description: e.target.value })}
-            placeholder="Report / case details…"
+            placeholder="Report / case detailsâ€¦"
             rows={6}
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <div className="flex gap-3">
             <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-slate-400">Severity</span>
+              <span className="mb-1 block text-xs font-medium text-muted">Severity</span>
               <select
                 value={value.severity ?? 2}
                 onChange={(e) => onChange({ ...value, severity: Number(e.target.value) })}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
               >
                 {[0, 1, 2, 3, 4].map((s) => (
                   <option key={s} value={s}>
@@ -249,26 +249,26 @@ function NewTicketModal({
               </select>
             </label>
             <label className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-slate-400">Assignee (optional)</span>
+              <span className="mb-1 block text-xs font-medium text-muted">Assignee (optional)</span>
               <input
                 value={value.assignee ?? ''}
                 onChange={(e) => onChange({ ...value, assignee: e.target.value })}
                 placeholder="username"
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
               />
             </label>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={busy || !value.title}
-            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? 'Creating…' : 'Create ticket'}
+            {busy ? 'Creatingâ€¦' : 'Create ticket'}
           </button>
         </div>
       </div>
@@ -330,43 +330,43 @@ function TicketDetail({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {!ticket ? (
-          <p className="text-slate-500">Loading…</p>
+          <p className="text-dim">Loadingâ€¦</p>
         ) : (
           <>
             <div className="mb-3 flex items-start justify-between gap-4">
-              <h2 className="text-lg font-semibold text-white">{ticket.title}</h2>
-              <button onClick={onClose} className="text-slate-500 hover:text-slate-300">✕</button>
+              <h2 className="text-lg font-semibold text-fg">{ticket.title}</h2>
+              <button onClick={onClose} className="text-dim hover:text-fg">âœ•</button>
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted">
               <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_BADGE[ticket.status]}`}>{STATUS_LABEL[ticket.status]}</span>
               <SeverityBadge sev={ticket.severity} />
-              <span>· opened by {ticket.created_by}</span>
-              <span>· {new Date(ticket.created_at).toLocaleString('en-US')}</span>
-              {ticket.resolved_at && <span>· resolved in {duration(ticket.created_at, ticket.resolved_at)}</span>}
+              <span>Â· opened by {ticket.created_by}</span>
+              <span>Â· {new Date(ticket.created_at).toLocaleString('en-US')}</span>
+              {ticket.resolved_at && <span>Â· resolved in {duration(ticket.created_at, ticket.resolved_at)}</span>}
             </div>
 
             {(ticket.source_ip || ticket.rule_id) && (
               <div className="mb-3 flex flex-wrap gap-2 text-xs">
-                {ticket.source_ip && <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-slate-300">{ticket.source_ip}</span>}
-                {ticket.rule_id && <span className="rounded bg-slate-800 px-2 py-0.5 text-slate-300">{ticket.rule_id}</span>}
+                {ticket.source_ip && <span className="rounded bg-surface-2 px-2 py-0.5 font-mono text-fg">{ticket.source_ip}</span>}
+                {ticket.rule_id && <span className="rounded bg-surface-2 px-2 py-0.5 text-fg">{ticket.rule_id}</span>}
               </div>
             )}
 
             {ticket.description && (
-              <pre className="mb-4 whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-300">
+              <pre className="mb-4 whitespace-pre-wrap rounded-lg border border-border bg-bg p-3 text-xs text-fg">
                 {ticket.description}
               </pre>
             )}
 
             {canManage && (
-              <div className="mb-5 space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+              <div className="mb-5 space-y-3 rounded-lg border border-border bg-surface p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">Status:</span>
+                  <span className="text-xs font-medium text-dim">Status:</span>
                   {STATUSES.map((s) => (
                     <button
                       key={s}
@@ -374,8 +374,8 @@ function TicketDetail({
                       disabled={ticket.status === s}
                       className={`rounded-md border px-2 py-1 text-xs transition-colors ${
                         ticket.status === s
-                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
-                          : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                          ? 'border-accent bg-accent-soft text-accent'
+                          : 'border-border text-fg hover:bg-surface-2'
                       }`}
                     >
                       {STATUS_LABEL[s]}
@@ -383,12 +383,12 @@ function TicketDetail({
                   ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">Assignee:</span>
-                  <span className="text-xs text-slate-300">{ticket.assignee || 'unassigned'}</span>
+                  <span className="text-xs font-medium text-dim">Assignee:</span>
+                  <span className="text-xs text-fg">{ticket.assignee || 'unassigned'}</span>
                   {ticket.assignee !== me.username && (
                     <button
                       onClick={() => patch({ assignee: me.username })}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                      className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2"
                     >
                       Assign to me
                     </button>
@@ -396,16 +396,16 @@ function TicketDetail({
                   {ticket.assignee && (
                     <button
                       onClick={() => patch({ assignee: '' })}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:bg-slate-800"
+                      className="rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2"
                     >
                       Unassign
                     </button>
                   )}
-                  <span className="ml-2 text-xs font-medium text-slate-500">Severity:</span>
+                  <span className="ml-2 text-xs font-medium text-dim">Severity:</span>
                   <select
                     value={ticket.severity}
                     onChange={(e) => patch({ severity: Number(e.target.value) })}
-                    className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs outline-none focus:border-indigo-500"
+                    className="rounded-md border border-border bg-surface-2 px-2 py-1 text-xs outline-none focus:border-accent"
                   >
                     {[0, 1, 2, 3, 4].map((s) => (
                       <option key={s} value={s}>
@@ -418,16 +418,16 @@ function TicketDetail({
             )}
 
             {/* Case notes */}
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Case notes ({comments.length})</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-dim">Case notes ({comments.length})</h3>
             <div className="space-y-2">
-              {comments.length === 0 && <p className="text-xs text-slate-600">No notes yet.</p>}
+              {comments.length === 0 && <p className="text-xs text-dim">No notes yet.</p>}
               {comments.map((c) => (
-                <div key={c.id} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                <div key={c.id} className="rounded-lg border border-border bg-surface p-3">
                   <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-300">{c.author}</span>
-                    <span className="text-slate-600">{new Date(c.created_at).toLocaleString('en-US')}</span>
+                    <span className="font-medium text-fg">{c.author}</span>
+                    <span className="text-dim">{new Date(c.created_at).toLocaleString('en-US')}</span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-slate-300">{c.body}</p>
+                  <p className="whitespace-pre-wrap text-sm text-fg">{c.body}</p>
                 </div>
               ))}
             </div>
@@ -438,13 +438,13 @@ function TicketDetail({
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && postComment()}
-                  placeholder="Add a case note…"
-                  className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                  placeholder="Add a case noteâ€¦"
+                  className="flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
                 />
                 <button
                   onClick={postComment}
                   disabled={!comment.trim()}
-                  className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                 >
                   Add
                 </button>

@@ -1,4 +1,4 @@
-import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP } from '../lib/api'
+﻿import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP } from '../lib/api'
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
 // Categorical palette for donut segments, starting from the widget's chosen color.
@@ -8,7 +8,7 @@ function palette(start: string): string[] {
 }
 
 function Empty() {
-  return <p className="py-6 text-center text-sm text-slate-600">no data yet</p>
+  return <p className="py-6 text-center text-sm text-dim">no data yet</p>
 }
 
 export function StatWidget({ value, color }: { value: number; color: string }) {
@@ -22,11 +22,11 @@ export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }
     <ul className="space-y-1.5">
       {data.map((d, i) => (
         <li key={i} className="flex items-center gap-2 text-sm">
-          <span className="w-28 truncate text-slate-400" title={d.label}>{d.label || '—'}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+          <span className="w-28 truncate text-muted" title={d.label}>{d.label || 'â€”'}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
           </div>
-          <span className="w-8 text-right text-xs text-slate-400">{d.count}</span>
+          <span className="w-8 text-right text-xs text-muted">{d.count}</span>
         </li>
       ))}
     </ul>
@@ -67,8 +67,8 @@ export function DonutChart({ data, color }: { data: SeriesPoint[]; color: string
         {data.map((d, i) => (
           <li key={i} className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: colors[i % colors.length] }} />
-            <span className="text-slate-300">{d.label || '—'}</span>
-            <span className="text-slate-500">{d.count}</span>
+            <span className="text-fg">{d.label || 'â€”'}</span>
+            <span className="text-dim">{d.count}</span>
           </li>
         ))}
       </ul>
@@ -97,11 +97,11 @@ export function TableWidget({ data }: { data: SeriesPoint[] }) {
   if (!data?.length) return <Empty />
   return (
     <table className="w-full text-sm">
-      <tbody className="divide-y divide-slate-800">
+      <tbody className="divide-y divide-border">
         {data.map((d, i) => (
           <tr key={i}>
-            <td className="py-1.5 pr-2 text-slate-300">{d.label || '—'}</td>
-            <td className="py-1.5 text-right font-mono text-xs text-slate-400">{d.count}</td>
+            <td className="py-1.5 pr-2 text-fg">{d.label || 'â€”'}</td>
+            <td className="py-1.5 text-right font-mono text-xs text-muted">{d.count}</td>
           </tr>
         ))}
       </tbody>
@@ -114,25 +114,25 @@ const BAND_STYLE: Record<string, string> = {
   critical: 'text-rose-300 bg-rose-500/15',
   high: 'text-orange-300 bg-orange-500/15',
   medium: 'text-amber-300 bg-amber-500/15',
-  low: 'text-slate-400 bg-slate-700/40',
+  low: 'text-muted bg-surface-2',
 }
 function bandColor(band: string): string {
   return band === 'critical' ? '#f43f5e' : band === 'high' ? '#fb923c' : band === 'medium' ? '#f59e0b' : '#64748b'
 }
 
-// RiskyIPsWidget ranks source IPs by their 0–100 composite score (fired times + AbuseIPDB +
-// OTX + worst severity) — the "who to ban first" list, not just who was noisiest.
+// RiskyIPsWidget ranks source IPs by their 0â€“100 composite score (fired times + AbuseIPDB +
+// OTX + worst severity) â€” the "who to ban first" list, not just who was noisiest.
 export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
   if (!data?.length) return <Empty />
   return (
     <ul className="space-y-1.5">
       {data.map((r) => (
         <li key={r.ip} className="flex items-center gap-2 text-sm">
-          <span className="w-32 shrink-0 truncate font-mono text-xs text-slate-300" title={r.ip}>{r.ip}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+          <span className="w-32 shrink-0 truncate font-mono text-xs text-fg" title={r.ip}>{r.ip}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
           </div>
-          <span className="w-7 text-right text-xs font-medium text-slate-300">{r.score}</span>
+          <span className="w-7 text-right text-xs font-medium text-fg">{r.score}</span>
           <span className={`w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${BAND_STYLE[r.band] ?? BAND_STYLE.low}`}>
             {r.band}
           </span>
@@ -152,15 +152,15 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
         <li
           key={r.ip}
           className="flex items-center gap-2 text-sm"
-          title={`${r.contacts} contacts · ${r.fanout} distinct targets · ${r.failures} failed · seen across ${r.distinct_hours}h`}
+          title={`${r.contacts} contacts Â· ${r.fanout} distinct targets Â· ${r.failures} failed Â· seen across ${r.distinct_hours}h`}
         >
-          <span className="w-32 shrink-0 truncate font-mono text-xs text-slate-300">{r.ip}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+          <span className="w-32 shrink-0 truncate font-mono text-xs text-fg">{r.ip}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
           </div>
-          <span className="w-7 text-right text-xs font-medium text-slate-300">{r.score}</span>
-          <span className="w-24 shrink-0 text-right text-[10px] text-slate-500">
-            {r.fanout}✦ · {r.contacts}×
+          <span className="w-7 text-right text-xs font-medium text-fg">{r.score}</span>
+          <span className="w-24 shrink-0 text-right text-[10px] text-dim">
+            {r.fanout}âœ¦ Â· {r.contacts}Ã—
           </span>
         </li>
       ))}
@@ -170,7 +170,7 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
 
 // flag converts an ISO-3166 alpha-2 code to its emoji flag.
 function flag(iso?: string): string {
-  if (!iso || iso.length !== 2) return '🌐'
+  if (!iso || iso.length !== 2) return 'ðŸŒ'
   return String.fromCodePoint(...[...iso.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)))
 }
 
@@ -183,11 +183,11 @@ export function AttackMap({ data, color }: { data: SeriesPoint[]; color: string 
       {data.map((d, i) => (
         <li key={i} className="flex items-center gap-2 text-sm">
           <span className="text-lg leading-none">{flag(d.label)}</span>
-          <span className="w-8 font-mono text-xs text-slate-300">{d.label}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+          <span className="w-8 font-mono text-xs text-fg">{d.label}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
           </div>
-          <span className="w-8 text-right text-xs text-slate-400">{d.count}</span>
+          <span className="w-8 text-right text-xs text-muted">{d.count}</span>
         </li>
       ))}
     </ul>

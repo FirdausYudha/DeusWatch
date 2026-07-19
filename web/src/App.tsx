@@ -38,14 +38,14 @@ export default function App() {
   }, [])
 
   if (!checked) {
-    return <div className="grid h-screen place-items-center bg-slate-950 text-slate-500">Loading…</div>
+    return <div className="grid h-screen place-items-center bg-bg text-dim">Loading…</div>
   }
   if (!me) {
     return <Login onSuccess={setMe} />
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-200">
+    <div className="flex h-screen overflow-hidden bg-bg text-fg">
       <Sidebar me={me} view={view} onNavigate={setView} onLogout={() => setMe(null)} />
       <main className="flex-1 overflow-y-auto">
         {view === 'agents' ? (

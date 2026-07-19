@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import {
   fetchRules, createRule, updateRule, deleteRule,
   fetchRulePacks, toggleRulePack, installRulePack, uninstallRulePack,
@@ -119,7 +119,7 @@ export default function Rules() {
       .filter(({ r }) =>
         statusFilter === 'all' || (statusFilter === 'enabled' ? r.enabled : !r.enabled),
       )
-      // every whitespace-separated term must appear (AND) — lets you narrow with "judi gacor".
+      // every whitespace-separated term must appear (AND) â€” lets you narrow with "judi gacor".
       .filter(({ hay }) => terms.every((t) => hay.includes(t)))
       .map(({ r }) => r)
   }, [indexed, query, kindFilter, statusFilter, categoryFilter])
@@ -128,14 +128,14 @@ export default function Rules() {
     <div className="mx-auto max-w-5xl px-8 py-8">
       <header className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Detection rules</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Sigma rules · {counts.enabled}/{counts.total} enabled · edits apply to the worker within ~30s
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">Detection rules</h1>
+          <p className="mt-1 text-sm text-dim">
+            Sigma rules Â· {counts.enabled}/{counts.total} enabled Â· edits apply to the worker within ~30s
           </p>
         </div>
         <button
           onClick={() => setCreating(true)}
-          className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90"
         >
           + New rule
         </button>
@@ -151,23 +151,23 @@ export default function Rules() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-            placeholder="Search name, source, or rule body (e.g. gacor, judi, T1110, shadow)…"
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-8 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-indigo-500"
+            placeholder="Search name, source, or rule body (e.g. gacor, judi, T1110, shadow)â€¦"
+            className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 pr-8 text-sm text-fg outline-none placeholder:text-dim focus:border-accent"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-slate-500 hover:text-slate-300"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-dim hover:text-fg"
             >
-              ×
+              Ã—
             </button>
           )}
         </div>
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
+          className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent"
         >
           <option value="all">All categories</option>
           {categories.map(([c, n]) => (
@@ -179,7 +179,7 @@ export default function Rules() {
         <select
           value={kindFilter}
           onChange={(e) => setKindFilter(e.target.value as KindFilter)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
+          className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent"
         >
           <option value="all">All types</option>
           <option value="single">single-event</option>
@@ -188,20 +188,20 @@ export default function Rules() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500"
+          className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent"
         >
           <option value="all">All status</option>
           <option value="enabled">enabled</option>
           <option value="disabled">disabled</option>
         </select>
-        <span className="ml-auto whitespace-nowrap text-xs text-slate-500">
+        <span className="ml-auto whitespace-nowrap text-xs text-dim">
           {filtered.length} of {counts.total}
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-800">
+      <div className="overflow-hidden rounded-xl border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+          <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Category</th>
@@ -211,46 +211,46 @@ export default function Rules() {
               <th className="px-4 py-2 font-medium"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+          <tbody className="divide-y divide-border bg-surface">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-dim">
                   {rules.length === 0 ? 'No rules.' : 'No rules match your search.'}
                 </td>
               </tr>
             )}
             {filtered.map((r) => (
-              <tr key={r.id} className="hover:bg-slate-800/40">
-                <td className="px-4 py-2 font-medium text-slate-200">
+              <tr key={r.id} className="hover:bg-surface-2">
+                <td className="px-4 py-2 font-medium text-fg">
                   {r.name}
-                  {r.builtin && <span className="ml-2 rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">builtin</span>}
+                  {r.builtin && <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">builtin</span>}
                 </td>
                 <td className="px-4 py-2">
                   <button
                     onClick={() => setCategoryFilter(r.category || 'general')}
                     title="Filter by this category"
-                    className="rounded bg-slate-700/40 px-1.5 py-0.5 text-xs text-slate-300 hover:bg-slate-700"
+                    className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg hover:bg-surface-2"
                   >
                     {categoryLabel(r.category || 'general')}
                   </button>
                 </td>
                 <td className="px-4 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${KIND_BADGE[r.kind] ?? 'text-slate-400 bg-slate-700/40'}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${KIND_BADGE[r.kind] ?? 'text-muted bg-surface-2'}`}>
                     {r.kind === 'aggregation' ? 'aggregation' : 'single-event'}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-slate-400">{sourceOf(r.yaml)}</td>
+                <td className="px-4 py-2 text-muted">{sourceOf(r.yaml)}</td>
                 <td className="px-4 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${r.enabled ? 'text-emerald-300 bg-emerald-500/15' : 'text-slate-400 bg-slate-700/40'}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${r.enabled ? 'text-emerald-300 bg-emerald-500/15' : 'text-muted bg-surface-2'}`}>
                     {r.enabled ? 'enabled' : 'disabled'}
                   </span>
                 </td>
                 <td className="px-4 py-2 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => toggle(r)} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">
+                    <button onClick={() => toggle(r)} className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2">
                       {r.enabled ? 'Disable' : 'Enable'}
                     </button>
-                    <button onClick={() => setEditing(r)} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">
+                    <button onClick={() => setEditing(r)} className="rounded-md border border-border px-2 py-1 text-xs text-fg hover:bg-surface-2">
                       Edit
                     </button>
                     <button onClick={() => remove(r)} className="rounded-md border border-rose-900/60 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/10">
@@ -279,7 +279,7 @@ export default function Rules() {
       )}
       {editing && (
         <RuleEditor
-          title={`Edit — ${editing.name}`}
+          title={`Edit â€” ${editing.name}`}
           initialName={editing.name}
           initialYaml={editing.yaml}
           onClose={() => setEditing(null)}
@@ -331,53 +331,53 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
   }
 
   return (
-    <section className="mb-6 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+    <section className="mb-6 rounded-xl border border-border bg-surface p-4">
       <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-white">Rule packs</h2>
+            <h2 className="text-sm font-semibold text-fg">Rule packs</h2>
             {available.length > 0 && (
-              <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
+              <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">
                 {available.length} available to install
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-dim">
             Enable a whole detection domain in one click, or browse third-party rulesets to add.
           </p>
         </div>
-        <span className="text-slate-500">{open ? '▾' : '▸'}</span>
+        <span className="text-dim">{open ? 'â–¾' : 'â–¸'}</span>
       </button>
 
       {open && (
         <div className="mt-4 space-y-5">
           {err && <p className="text-sm text-rose-400">{err}</p>}
 
-          {/* Installed packs — toggle the real bundled rules */}
+          {/* Installed packs â€” toggle the real bundled rules */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {installed.map((p) => {
               const allOn = p.rule_count > 0 && p.enabled === p.rule_count
               const someOn = p.enabled > 0 && !allOn
               return (
-                <div key={p.id} className="flex flex-col rounded-lg border border-slate-800 bg-slate-900 p-3">
+                <div key={p.id} className="flex flex-col rounded-lg border border-border bg-surface p-3">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="font-medium text-slate-200">{p.name}</span>
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${allOn ? 'text-emerald-300 bg-emerald-500/15' : someOn ? 'text-amber-300 bg-amber-500/15' : 'text-slate-400 bg-slate-700/40'}`}>
+                    <span className="font-medium text-fg">{p.name}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${allOn ? 'text-emerald-300 bg-emerald-500/15' : someOn ? 'text-amber-300 bg-amber-500/15' : 'text-muted bg-surface-2'}`}>
                       {p.enabled}/{p.rule_count}
                     </span>
                   </div>
-                  <p className="mb-3 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
+                  <p className="mb-3 flex-1 text-xs leading-relaxed text-dim">{p.description}</p>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-slate-600">{p.source}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-dim">{p.source}</span>
                     <div className="flex gap-2">
                       {p.remote && (
                         <button
                           onClick={() => install(p)}
                           disabled={busy === p.id}
-                          title="Re-fetch from the feed — adds any rules published since you installed"
-                          className="rounded-md border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                          title="Re-fetch from the feed â€” adds any rules published since you installed"
+                          className="rounded-md border border-border px-2.5 py-1 text-xs text-fg hover:bg-surface-2 disabled:opacity-50"
                         >
-                          {busy === p.id ? '…' : 'Update'}
+                          {busy === p.id ? 'â€¦' : 'Update'}
                         </button>
                       )}
                       {p.installable && (
@@ -392,9 +392,9 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                       <button
                         onClick={() => toggle(p, !allOn)}
                         disabled={busy === p.id}
-                        className={`rounded-md border px-2.5 py-1 text-xs disabled:opacity-50 ${allOn ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-indigo-600/60 text-indigo-300 hover:bg-indigo-500/10'}`}
+                        className={`rounded-md border px-2.5 py-1 text-xs disabled:opacity-50 ${allOn ? 'border-border text-fg hover:bg-surface-2' : 'border-indigo-600/60 text-accent hover:bg-accent-soft'}`}
                       >
-                        {busy === p.id ? '…' : allOn ? 'Disable all' : someOn ? 'Enable rest' : 'Enable all'}
+                        {busy === p.id ? 'â€¦' : allOn ? 'Disable all' : someOn ? 'Enable rest' : 'Enable all'}
                       </button>
                     </div>
                   </div>
@@ -403,45 +403,45 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
             })}
           </div>
 
-          {/* Bundled curated packs not installed yet — real one-click Install, no network */}
+          {/* Bundled curated packs not installed yet â€” real one-click Install, no network */}
           {available.length > 0 && (
             <div>
-              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Available to install</h3>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-dim">Available to install</h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {available.map((p) => (
-                  <div key={p.id} className="flex flex-col rounded-lg border border-indigo-900/50 bg-indigo-500/5 p-3">
+                  <div key={p.id} className="flex flex-col rounded-lg border border-indigo-900/50 bg-accent-soft p-3">
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="font-medium text-slate-200">{p.name}</span>
+                      <span className="font-medium text-fg">{p.name}</span>
                       <div className="flex shrink-0 items-center gap-1">
-                        {p.remote && <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">online</span>}
-                        <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">{p.rule_count} rules</span>
+                        {p.remote && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">online</span>}
+                        <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">{p.rule_count} rules</span>
                       </div>
                     </div>
-                    <p className="mb-3 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
+                    <p className="mb-3 flex-1 text-xs leading-relaxed text-dim">{p.description}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase tracking-wider text-slate-600">{p.source}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-dim">{p.source}</span>
                       <button
                         onClick={() => install(p)}
                         disabled={busy === p.id}
-                        className="rounded-md bg-indigo-500 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+                        className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
                       >
-                        {busy === p.id ? 'Installing…' : 'Install'}
+                        {busy === p.id ? 'Installingâ€¦' : 'Install'}
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] text-slate-600">
-                Packs without an <span className="text-slate-400">online</span> tag are bundled with DeusWatch — Install works with no internet.
+              <p className="mt-2 text-[11px] text-dim">
+                Packs without an <span className="text-muted">online</span> tag are bundled with DeusWatch â€” Install works with no internet.
                 Online packs are fetched from the DeusWatch feed so they can be added or refreshed without upgrading (set <span className="font-mono">PACKS_FEED_URL=off</span> to disable).
               </p>
             </div>
           )}
 
-          {/* External catalog — real-world rulesets you bring in (link-out) */}
+          {/* External catalog â€” real-world rulesets you bring in (link-out) */}
           {external.length > 0 && (
             <div>
-              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">From the community & vendors</h3>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-dim">From the community & vendors</h3>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {external.map((p) => (
                   <a
@@ -449,19 +449,19 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                     href={p.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="group flex flex-col rounded-lg border border-slate-800 bg-slate-900/60 p-3 transition-colors hover:border-slate-700"
+                    className="group flex flex-col rounded-lg border border-border bg-surface p-3 transition-colors hover:border-border"
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <span className="font-medium text-slate-200 group-hover:text-white">{p.name}</span>
-                      <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">External</span>
+                      <span className="font-medium text-fg group-hover:text-fg">{p.name}</span>
+                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">External</span>
                     </div>
-                    <p className="mb-2 flex-1 text-xs leading-relaxed text-slate-500">{p.description}</p>
-                    <span className="text-[11px] text-indigo-300 group-hover:text-indigo-200">{p.source} · Open ↗</span>
+                    <p className="mb-2 flex-1 text-xs leading-relaxed text-dim">{p.description}</p>
+                    <span className="text-[11px] text-accent group-hover:text-accent">{p.source} Â· Open â†—</span>
                   </a>
                 ))}
               </div>
-              <p className="mt-2 text-[11px] text-slate-600">
-                External rulesets are brought in via <span className="text-slate-400">New rule</span> (paste Sigma YAML) or the matching sensor input — not one-click yet.
+              <p className="mt-2 text-[11px] text-dim">
+                External rulesets are brought in via <span className="text-muted">New rule</span> (paste Sigma YAML) or the matching sensor input â€” not one-click yet.
               </p>
             </div>
           )}
@@ -476,7 +476,7 @@ function sourceOf(yaml: string): string {
   const product = yaml.match(/product:\s*(\S+)/)?.[1]
   const service = yaml.match(/service:\s*(\S+)/)?.[1]
   const category = yaml.match(/category:\s*(\S+)/)?.[1]
-  return [product, service ?? category].filter(Boolean).join(' / ') || '—'
+  return [product, service ?? category].filter(Boolean).join(' / ') || 'â€”'
 }
 
 function RuleEditor({
@@ -511,36 +511,36 @@ function RuleEditor({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-1 text-lg font-semibold text-white">{title}</h2>
-        <p className="mb-3 text-xs text-slate-500">
-          Sigma YAML. An aggregation condition (e.g. <code className="text-slate-300">selection | count() by source.ip &gt; 10</code>)
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="mb-1 text-lg font-semibold text-fg">{title}</h2>
+        <p className="mb-3 text-xs text-dim">
+          Sigma YAML. An aggregation condition (e.g. <code className="text-fg">selection | count() by source.ip &gt; 10</code>)
           makes it an aggregation rule (banlist/brute-force); otherwise it is single-event.
         </p>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name (defaults to the rule title)"
-          className="mb-3 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          className="mb-3 w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <textarea
           value={yaml}
           onChange={(e) => setYaml(e.target.value)}
           spellCheck={false}
           rows={16}
-          className="w-full flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-200 outline-none focus:border-indigo-500"
+          className="w-full flex-1 rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-fg outline-none focus:border-accent"
         />
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">
+          <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm text-fg hover:bg-surface-2">
             Cancel
           </button>
           <button
             onClick={save}
             disabled={busy || !yaml.trim()}
-            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? 'Savingâ€¦' : 'Save'}
           </button>
         </div>
       </div>

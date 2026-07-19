@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import {
   fetchIntegrationTypes,
   fetchIntegrations,
@@ -49,17 +49,17 @@ function FieldInput({
   const hasOptions = !!field.options && field.options.length > 0
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-slate-400">
+      <span className="mb-1 block text-xs font-medium text-muted">
         {field.label}
-        {field.optional && <span className="ml-1 text-slate-600">(optional)</span>}
+        {field.optional && <span className="ml-1 text-dim">(optional)</span>}
       </span>
       {hasOptions ? (
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
         >
-          {!value && <option value="">Select…</option>}
+          {!value && <option value="">Selectâ€¦</option>}
           {field.options!.map((o) => (
             <option key={o} value={o}>
               {o}
@@ -71,13 +71,13 @@ function FieldInput({
           type={field.secret ? 'password' : 'text'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.secret && configured ? '•••••••• configured (leave blank to keep)' : field.help ?? ''}
+          placeholder={field.secret && configured ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ configured (leave blank to keep)' : field.help ?? ''}
           autoComplete="off"
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
         />
       )}
       {field.help && !(field.secret && configured) && (
-        <span className="mt-1 block text-[11px] text-slate-600">{field.help}</span>
+        <span className="mt-1 block text-[11px] text-dim">{field.help}</span>
       )}
     </label>
   )
@@ -118,45 +118,45 @@ function IngestWebhookPanel() {
   }
 
   return (
-    <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+    <section className="mb-8 rounded-xl border border-border bg-surface p-5">
       <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-white">Log ingest webhook (Wazuh & others)</h2>
+        <h2 className="text-sm font-semibold text-fg">Log ingest webhook (Wazuh & others)</h2>
         <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-cyan-300 bg-cyan-500/15">Inbound</span>
-        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${enabled ? 'text-emerald-300 bg-emerald-500/15' : 'text-slate-400 bg-slate-700/40'}`}>
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${enabled ? 'text-emerald-300 bg-emerald-500/15' : 'text-muted bg-surface-2'}`}>
           {enabled ? 'Active' : 'Disabled'}
         </span>
         <DocLink file="wazuh-webhook.md" className="ml-auto shrink-0" />
       </div>
-      <p className="mb-3 mt-1 text-sm text-slate-500">
-        A token-gated endpoint that external systems POST raw logs or Wazuh alerts to — they flow
-        through the normal pipeline (normalize → detect → playbooks → response). Point a Wazuh
+      <p className="mb-3 mt-1 text-sm text-dim">
+        A token-gated endpoint that external systems POST raw logs or Wazuh alerts to â€” they flow
+        through the normal pipeline (normalize â†’ detect â†’ playbooks â†’ response). Point a Wazuh
         manager's integrator at this URL, or <span className="font-mono text-[11px]">curl</span> lines to it.
       </p>
       {enabled ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
             <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
-              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-300 outline-none" />
-            <button onClick={copy} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">{copied ? 'Copied ✓' : 'Copy'}</button>
+              className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-fg outline-none" />
+            <button onClick={copy} className="rounded-lg border border-border px-3 py-2 text-sm text-fg hover:bg-surface-2">{copied ? 'Copied âœ“' : 'Copy'}</button>
             <button onClick={regenerate} disabled={busy}
               className="rounded-lg border border-amber-700/60 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
-              {busy ? 'Regenerating…' : 'Regenerate'}
+              {busy ? 'Regeneratingâ€¦' : 'Regenerate'}
             </button>
             <button onClick={disable} disabled={busy}
               className="rounded-lg border border-rose-900/60 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10 disabled:opacity-50">
               Disable
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-600">
+          <p className="mt-2 text-xs text-dim">
             Replace <span className="font-mono">&lt;name&gt;</span> with the source agent name (shown in the Agent column) and
-            <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, …).
-            The token is in the URL — serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
+            <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, â€¦).
+            The token is in the URL â€” serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
           </p>
         </>
       ) : (
         <button onClick={regenerate} disabled={busy}
-          className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">
-          {busy ? 'Generating…' : 'Enable webhook (generate token)'}
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+          {busy ? 'Generatingâ€¦' : 'Enable webhook (generate token)'}
         </button>
       )}
       {err && <p className="mt-2 text-sm text-rose-400">{err}</p>}
@@ -271,15 +271,15 @@ export default function Integrations() {
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Integrations</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Integrations</h1>
+        <p className="mt-1 text-sm text-dim">
           Connect firewalls, bouncers, and threat-intel providers. API keys & credentials are encrypted at rest.
         </p>
       </header>
 
       {/* Add integration */}
-      <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Add integration</h2>
+      <section className="mb-8 rounded-xl border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-dim">Add integration</h2>
         <div className="flex flex-wrap gap-2">
           {types.map((t) => (
             <button
@@ -291,8 +291,8 @@ export default function Integrations() {
               }}
               className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                 pick === t.type
-                  ? 'border-indigo-500 bg-indigo-500/10 text-indigo-200'
-                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  ? 'border-accent bg-accent-soft text-accent'
+                  : 'border-border bg-surface-2 text-fg hover:bg-surface-2'
               }`}
             >
               <span className={`mr-2 rounded px-1.5 py-0.5 text-[10px] font-medium ${CATEGORY_BADGE[t.category]}`}>
@@ -304,19 +304,19 @@ export default function Integrations() {
         </div>
 
         {picked && (
-          <div className="mt-5 rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div className="mt-5 rounded-lg border border-border bg-surface p-4">
             <div className="mb-3 flex items-start justify-between gap-3">
-              <p className="text-sm text-slate-400">{picked.desc}</p>
+              <p className="text-sm text-muted">{picked.desc}</p>
               {picked.doc && <DocLink file={picked.doc} className="shrink-0" />}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-400">Name</span>
+                <span className="mb-1 block text-xs font-medium text-muted">Name</span>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={`e.g. ${picked.label}`}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
                 />
               </label>
               {picked.fields.map((f) => (
@@ -332,16 +332,16 @@ export default function Integrations() {
             <div className="mt-4 flex justify-end gap-3">
               <button
                 onClick={resetAdd}
-                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+                className="rounded-lg border border-border px-4 py-2 text-sm text-fg transition-colors hover:bg-surface-2"
               >
                 Cancel
               </button>
               <button
                 onClick={submitAdd}
                 disabled={busy || !name}
-                className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
-                {busy ? 'Saving…' : 'Add integration'}
+                {busy ? 'Savingâ€¦' : 'Add integration'}
               </button>
             </div>
           </div>
@@ -354,11 +354,11 @@ export default function Integrations() {
 
       {/* Existing integrations */}
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dim">
           Configured ({items.length})
         </h2>
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-800 px-4 py-8 text-center text-sm text-slate-600">
+          <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-dim">
             No integrations yet. Pick one above to get started.
           </p>
         ) : (
@@ -368,32 +368,32 @@ export default function Integrations() {
               return (
                 <div
                   key={it.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3"
+                  className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-200">{it.name}</span>
+                      <span className="font-medium text-fg">{it.name}</span>
                       {t && (
                         <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${CATEGORY_BADGE[t.category]}`}>
                           {CATEGORY[t.category] ?? t.category}
                         </span>
                       )}
                       {!it.enabled && (
-                        <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-400">disabled</span>
+                        <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">disabled</span>
                       )}
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-slate-500">{t?.label ?? it.type}</div>
+                    <div className="mt-0.5 truncate text-xs text-dim">{t?.label ?? it.type}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <button
                       onClick={() => toggleEnabled(it)}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+                      className="rounded-md border border-border px-2 py-1 text-xs text-fg transition-colors hover:bg-surface-2"
                     >
                       {it.enabled ? 'Disable' : 'Enable'}
                     </button>
                     <button
                       onClick={() => startEdit(it)}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+                      className="rounded-md border border-border px-2 py-1 text-xs text-fg transition-colors hover:bg-surface-2"
                     >
                       Edit
                     </button>
@@ -415,23 +415,23 @@ export default function Integrations() {
       {editing && editType && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
           <div
-            className="w-full max-w-xl rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-2xl"
+            className="w-full max-w-xl rounded-xl border border-border bg-surface p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-white">
-                Edit — <span className="text-indigo-300">{editing.name}</span>
-                <span className="ml-2 text-xs font-normal text-slate-500">{editType.label}</span>
+              <h3 className="text-sm font-semibold text-fg">
+                Edit â€” <span className="text-accent">{editing.name}</span>
+                <span className="ml-2 text-xs font-normal text-dim">{editType.label}</span>
               </h3>
               {editType.doc && <DocLink file={editType.doc} className="shrink-0" />}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-400">Name</span>
+                <span className="mb-1 block text-xs font-medium text-muted">Name</span>
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
                 />
               </label>
               {editType.fields.map((f) => (
@@ -444,28 +444,28 @@ export default function Integrations() {
                 />
               ))}
             </div>
-            <label className="mt-4 flex items-center gap-2 text-sm text-slate-300">
+            <label className="mt-4 flex items-center gap-2 text-sm text-fg">
               <input
                 type="checkbox"
                 checked={editEnabled}
                 onChange={(e) => setEditEnabled(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-indigo-500"
+                className="h-4 w-4 rounded border-border-strong bg-surface-2 accent-indigo-500"
               />
               Enabled
             </label>
             <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={() => setEditing(null)}
-                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+                className="rounded-lg border border-border px-4 py-2 text-sm text-fg transition-colors hover:bg-surface-2"
               >
                 Cancel
               </button>
               <button
                 onClick={saveEdit}
                 disabled={editBusy}
-                className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
-                {editBusy ? 'Saving…' : 'Save'}
+                {editBusy ? 'Savingâ€¦' : 'Save'}
               </button>
             </div>
           </div>

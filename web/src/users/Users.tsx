@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+﻿import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   fetchUsers,
   createUser,
@@ -41,16 +41,16 @@ function Checklist({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {groups.map(([group, items]) => (
-        <div key={group} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{group}</div>
+        <div key={group} className="rounded-lg border border-border bg-surface p-3">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-dim">{group}</div>
           <div className="space-y-1.5">
             {items.map((p) => (
-              <label key={p.key} className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+              <label key={p.key} className="flex cursor-pointer items-center gap-2 text-sm text-fg">
                 <input
                   type="checkbox"
                   checked={selected.has(p.key)}
                   onChange={() => onToggle(p.key)}
-                  className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-indigo-500"
+                  className="h-4 w-4 rounded border-border-strong bg-surface-2 accent-indigo-500"
                 />
                 {p.label}
               </label>
@@ -189,33 +189,33 @@ export default function Users({ me }: { me: Me }) {
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Users &amp; Access</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Users &amp; Access</h1>
+        <p className="mt-1 text-sm text-dim">
           Manage accounts, roles, and per-user permissions (granular RBAC)
         </p>
       </header>
 
-      <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Add user</h2>
+      <section className="mb-8 rounded-xl border border-border bg-surface p-5">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-dim">Add user</h2>
         <form onSubmit={submit} className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Username"
-              className="w-40 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              className="w-40 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
             />
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password (min 8)"
-              className="w-44 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              className="w-44 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
             />
             <select
               value={role}
               onChange={(e) => onRoleChange(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -223,38 +223,38 @@ export default function Users({ me }: { me: Me }) {
                 </option>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-sm text-slate-300">
+            <label className="flex items-center gap-2 text-sm text-fg">
               <input
                 type="checkbox"
                 checked={custom}
                 onChange={(e) => toggleCustom(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-indigo-500"
+                className="h-4 w-4 rounded border-border-strong bg-surface-2 accent-indigo-500"
               />
               Customize permissions
             </label>
             <button
               type="submit"
               disabled={busy || !username || !password}
-              className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
             >
-              {busy ? 'Saving…' : 'Add'}
+              {busy ? 'Savingâ€¦' : 'Add'}
             </button>
           </div>
           {custom ? (
             <Checklist groups={groups} selected={perms} onToggle={togglePerm} />
           ) : (
-            <p className="text-xs text-slate-500">
-              Inherits the <span className="text-slate-300">{role}</span> role defaults. Tick “Customize
-              permissions” to tailor exactly what this user can access.
+            <p className="text-xs text-dim">
+              Inherits the <span className="text-fg">{role}</span> role defaults. Tick â€œCustomize
+              permissionsâ€ to tailor exactly what this user can access.
             </p>
           )}
         </form>
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
       </section>
 
-      <div className="overflow-hidden rounded-xl border border-slate-800">
+      <div className="overflow-hidden rounded-xl border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-900 text-xs uppercase tracking-wider text-slate-500">
+          <thead className="bg-surface text-xs uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Username</th>
               <th className="px-4 py-2 font-medium">Role</th>
@@ -264,29 +264,29 @@ export default function Users({ me }: { me: Me }) {
               <th className="px-4 py-2 font-medium"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+          <tbody className="divide-y divide-border bg-surface">
             {users.map((u) => (
-              <tr key={u.id} className="align-top hover:bg-slate-800/40">
-                <td className="px-4 py-2 font-medium text-slate-200">{u.username}</td>
+              <tr key={u.id} className="align-top hover:bg-surface-2">
+                <td className="px-4 py-2 font-medium text-fg">{u.username}</td>
                 <td className="px-4 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${ROLE_BADGE[u.role] ?? 'text-slate-400 bg-slate-700/40'}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${ROLE_BADGE[u.role] ?? 'text-muted bg-surface-2'}`}>
                     {u.role}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-slate-400">
+                <td className="px-4 py-2 text-muted">
                   {u.permissions === null ? (
-                    <span className="text-slate-500">role default</span>
+                    <span className="text-dim">role default</span>
                   ) : (
-                    <span className="text-indigo-300">custom · {u.permissions.length} perms</span>
+                    <span className="text-accent">custom Â· {u.permissions.length} perms</span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-slate-400">{u.disabled ? 'disabled' : 'active'}</td>
-                <td className="px-4 py-2 text-slate-400">{new Date(u.created_at).toLocaleString('en-US')}</td>
+                <td className="px-4 py-2 text-muted">{u.disabled ? 'disabled' : 'active'}</td>
+                <td className="px-4 py-2 text-muted">{new Date(u.created_at).toLocaleString('en-US')}</td>
                 <td className="px-4 py-2 text-right">
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => startEdit(u)}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+                      className="rounded-md border border-border px-2 py-1 text-xs text-fg transition-colors hover:bg-surface-2"
                     >
                       Edit access
                     </button>
@@ -309,17 +309,17 @@ export default function Users({ me }: { me: Me }) {
       {editId && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditId(null)}>
           <div
-            className="w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-2xl"
+            className="w-full max-w-2xl rounded-xl border border-border bg-surface p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-4 text-sm font-semibold text-white">
-              Edit access — <span className="text-indigo-300">{users.find((u) => u.id === editId)?.username}</span>
+            <h3 className="mb-4 text-sm font-semibold text-fg">
+              Edit access â€” <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span>
             </h3>
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <select
                 value={editRole}
                 onChange={(e) => editOnRoleChange(e.target.value)}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -327,12 +327,12 @@ export default function Users({ me }: { me: Me }) {
                   </option>
                 ))}
               </select>
-              <label className="flex items-center gap-2 text-sm text-slate-300">
+              <label className="flex items-center gap-2 text-sm text-fg">
                 <input
                   type="checkbox"
                   checked={editCustom}
                   onChange={(e) => editToggleCustom(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-indigo-500"
+                  className="h-4 w-4 rounded border-border-strong bg-surface-2 accent-indigo-500"
                 />
                 Customize permissions
               </label>
@@ -340,23 +340,23 @@ export default function Users({ me }: { me: Me }) {
             {editCustom ? (
               <Checklist groups={groups} selected={editPerms} onToggle={editTogglePerm} />
             ) : (
-              <p className="text-xs text-slate-500">
-                Inherits the <span className="text-slate-300">{editRole}</span> role defaults.
+              <p className="text-xs text-dim">
+                Inherits the <span className="text-fg">{editRole}</span> role defaults.
               </p>
             )}
             <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={() => setEditId(null)}
-                className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+                className="rounded-lg border border-border px-4 py-2 text-sm text-fg transition-colors hover:bg-surface-2"
               >
                 Cancel
               </button>
               <button
                 onClick={saveEdit}
                 disabled={editBusy}
-                className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
-                {editBusy ? 'Saving…' : 'Save'}
+                {editBusy ? 'Savingâ€¦' : 'Save'}
               </button>
             </div>
           </div>
