@@ -19,7 +19,7 @@ export default function DocLink({
       className={`inline-flex items-center gap-1 text-[11px] text-accent transition-colors hover:text-accent hover:underline ${className}`}
     >
       {label}
-      <span aria-hidden>â†—</span>
+      <span aria-hidden>↗</span>
     </a>
   )
 }

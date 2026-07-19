@@ -122,14 +122,14 @@ export default function Agents({ me }: { me: Me }) {
             {agents.length === 0 && (
               <tr>
                 <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-dim">
-                  No agents yet. Click â€œAdd agentâ€ to enroll one.
+                  No agents yet. Click “Add agent” to enroll one.
                 </td>
               </tr>
             )}
             {agents.map((a) => (
               <tr key={a.id} className="hover:bg-surface-2">
                 <td className="px-4 py-2 font-medium text-fg">{a.name}</td>
-                <td className="px-4 py-2 text-muted">{a.os || 'â€”'}</td>
+                <td className="px-4 py-2 text-muted">{a.os || '—'}</td>
                 <td className="px-4 py-2"><StatusBadge a={a} /></td>
                 <td className="px-4 py-2 text-muted">{relative(a.last_seen_at)}</td>
                 <td className="px-4 py-2 text-muted">
@@ -223,11 +223,11 @@ function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => vo
     <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="mb-1 text-[12.5px] font-semibold text-fg">
-          Uninstall agent â€” <span className="text-accent">{agent.name}</span>
+          Uninstall agent — <span className="text-accent">{agent.name}</span>
           <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase text-muted">{agent.os || 'linux'}</span>
         </h3>
         <p className="mb-4 text-[11px] text-dim">
-          Cleanest way: <span className="text-fg">Revoke</span> this agent â€” it self-uninstalls on its
+          Cleanest way: <span className="text-fg">Revoke</span> this agent — it self-uninstalls on its
           next heartbeat. Run the commands below on the endpoint for a manual or forced cleanup.
         </p>
         <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-dim">
@@ -263,7 +263,7 @@ function Copyable({ text }: { text: string }) {
         onClick={copy}
         className="absolute right-2 top-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-accent hover:bg-surface-2"
       >
-        {copied ? 'copied âœ“' : 'copy'}
+        {copied ? 'copied ✓' : 'copy'}
       </button>
       <code className="block whitespace-pre-wrap break-all rounded-[8px] border border-border bg-bg px-3 py-2 pr-14 text-[11px] text-emerald-300">
         {text}
@@ -272,7 +272,7 @@ function Copyable({ text }: { text: string }) {
   )
 }
 
-// EnrollWizard â€” Wazuh-style: pick OS, auto-generate a one-time token, and get a
+// EnrollWizard — Wazuh-style: pick OS, auto-generate a one-time token, and get a
 // single copy-paste command that downloads, enrolls, installs the service and connects.
 function EnrollWizard({ onClose }: { onClose: () => void }) {
   const [os, setOs] = useState('linux')
@@ -333,7 +333,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-1 text-[15px] font-semibold text-fg">Add agent</h2>
-        <p className="mb-4 text-[11px] text-dim">Pick the endpointâ€™s platform, then run the generated command on it.</p>
+        <p className="mb-4 text-[11px] text-dim">Pick the endpoint’s platform, then run the generated command on it.</p>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
@@ -369,18 +369,18 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
         <div className="mt-5 space-y-4">
           <div>
             <div className="mb-1 text-[11px] font-medium text-muted">
-              1 Â· On the manager â€” open the firewall <span className="text-dim">(elevated PowerShell, once)</span>
+              1 · On the manager — open the firewall <span className="text-dim">(elevated PowerShell, once)</span>
             </div>
             <Copyable text={managerFw} />
           </div>
           <div>
             <div className="mb-1 text-[11px] font-medium text-muted">
-              2 Â· On the endpoint â€” paste &amp; run{' '}
+              2 · On the endpoint — paste &amp; run{' '}
               <span className="text-dim">{os === 'windows' ? '(elevated PowerShell)' : '(root; sudo is included)'}</span>
             </div>
             <Copyable text={install} />
             {!token && (
-              <p className="mt-1 text-[11px] text-amber-400/80">{busy ? 'Generating tokenâ€¦' : 'No token yet â€” click â€œGenerate tokenâ€.'}</p>
+              <p className="mt-1 text-[11px] text-amber-400/80">{busy ? 'Generating token…' : 'No token yet — click “Generate token”.'}</p>
             )}
             <p className="mt-1 text-[11px] text-dim">
               Downloads the agent, opens its firewall, enrolls with the token, installs an auto-start service, and connects to the gateway.
@@ -399,7 +399,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             disabled={busy}
             className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? 'Generatingâ€¦' : token ? 'Regenerate token' : 'Generate token'}
+            {busy ? 'Generating…' : token ? 'Regenerate token' : 'Generate token'}
           </button>
         </div>
       </div>
@@ -407,7 +407,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ConfigEditor â€” central monitoring config: which sources each agent collects and,
+// ConfigEditor — central monitoring config: which sources each agent collects and,
 // for poll-based collectors, how often (intensity).
 function ConfigEditor({
   agent,
@@ -465,7 +465,7 @@ function ConfigEditor({
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-[15px] font-semibold text-fg">Monitoring â€” {agent.name}</h2>
+        <h2 className="mb-1 text-[15px] font-semibold text-fg">Monitoring — {agent.name}</h2>
         <p className="mb-4 text-[11px] text-dim">
           Choose what this agent collects. For <code className="text-fg">fim</code> &amp;{' '}
           <code className="text-fg">wineventlog</code> set a scan interval (seconds) to control intensity.
@@ -527,7 +527,7 @@ function ConfigEditor({
                 className="grid place-items-center rounded-[8px] border border-border text-muted hover:bg-surface-2"
                 title="Remove"
               >
-                âœ•
+                ✕
               </button>
               {s.type === 'fim' && (
                 <div className="col-span-5 mb-1 grid grid-cols-[auto_1fr_auto_1fr_auto_5rem] items-center gap-2 rounded-[8px] border border-border bg-surface px-2 py-1.5 text-xs">
@@ -560,7 +560,7 @@ function ConfigEditor({
                       }
                       update(i, { snapshot_storage: v })
                     }}
-                    title="Where version content is kept â€” the admin's choice (agent = host only; manager = central copy)"
+                    title="Where version content is kept — the admin's choice (agent = host only; manager = central copy)"
                     className="rounded-md border border-border bg-surface-2 px-2 py-1 outline-none focus:border-accent"
                   >
                     <option value="agent">on agent</option>
@@ -572,7 +572,7 @@ function ConfigEditor({
                     min={0}
                     value={s.snapshot_retention || ''}
                     onChange={(e) => update(i, { snapshot_retention: Number(e.target.value) })}
-                    placeholder="âˆž"
+                    placeholder="∞"
                     title="Versions kept per file (0 = unlimited)"
                     className="rounded-md border border-border bg-surface-2 px-2 py-1 outline-none focus:border-accent"
                   />
@@ -599,7 +599,7 @@ function ConfigEditor({
             disabled={busy}
             className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? 'Savingâ€¦' : 'Save & push'}
+            {busy ? 'Saving…' : 'Save & push'}
           </button>
         </div>
       </div>
@@ -607,7 +607,7 @@ function ConfigEditor({
   )
 }
 
-// SnapshotViewer â€” read-only browser of an agent's dated FIM snapshot timeline (ADR 0002,
+// SnapshotViewer — read-only browser of an agent's dated FIM snapshot timeline (ADR 0002,
 // Phase 1-3). Browse a watched file's dated versions, see the old-vs-new diff per version, take a
 // snapshot on demand, and quarantine the current (possibly infected) file for blue-team analysis.
 

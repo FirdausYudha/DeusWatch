@@ -35,7 +35,7 @@ function SeverityBadge({ sev }: { sev: number }) {
 
 function duration(fromISO: string, toISO: string): string {
   const ms = new Date(toISO).getTime() - new Date(fromISO).getTime()
-  if (ms < 0) return 'â€”'
+  if (ms < 0) return '—'
   const m = Math.floor(ms / 60000)
   if (m < 60) return `${m}m`
   const h = Math.floor(m / 60)
@@ -67,7 +67,7 @@ export default function Tickets({
   }
   useEffect(load, [filter])
 
-  // Prefill from an alert â†’ open the New ticket form.
+  // Prefill from an alert → open the New ticket form.
   useEffect(() => {
     if (prefill) {
       setNewInput({ severity: 2, description: '', ...prefill })
@@ -99,7 +99,7 @@ export default function Tickets({
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[16px] font-semibold tracking-tight text-fg">Tickets</h1>
-          <p className="mt-0.5 text-[12px] text-muted">Tier-2 DFIR case management Â· open â†’ in progress â†’ resolved â†’ closed</p>
+          <p className="mt-0.5 text-[12px] text-muted">Tier-2 DFIR case management · open → in progress → resolved → closed</p>
         </div>
         {canManage && (
           <button
@@ -168,7 +168,7 @@ export default function Tickets({
                 <td className="px-4 py-2 text-muted">{t.assignee || <span className="text-dim">unassigned</span>}</td>
                 <td className="px-4 py-2 text-muted">{new Date(t.created_at).toLocaleString('en-US')}</td>
                 <td className="px-4 py-2 text-muted">
-                  {t.resolved_at ? duration(t.created_at, t.resolved_at) : <span className="text-dim">â€”</span>}
+                  {t.resolved_at ? duration(t.created_at, t.resolved_at) : <span className="text-dim">—</span>}
                 </td>
               </tr>
             ))}
@@ -229,7 +229,7 @@ function NewTicketModal({
           <textarea
             value={value.description ?? ''}
             onChange={(e) => onChange({ ...value, description: e.target.value })}
-            placeholder="Report / case detailsâ€¦"
+            placeholder="Report / case details…"
             rows={6}
             className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
           />
@@ -268,7 +268,7 @@ function NewTicketModal({
             disabled={busy || !value.title}
             className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? 'Creatingâ€¦' : 'Create ticket'}
+            {busy ? 'Creating…' : 'Create ticket'}
           </button>
         </div>
       </div>
@@ -334,20 +334,20 @@ function TicketDetail({
         onClick={(e) => e.stopPropagation()}
       >
         {!ticket ? (
-          <p className="text-dim">Loadingâ€¦</p>
+          <p className="text-dim">Loading…</p>
         ) : (
           <>
             <div className="mb-3 flex items-start justify-between gap-4">
               <h2 className="text-[15px] font-semibold text-fg">{ticket.title}</h2>
-              <button onClick={onClose} className="text-dim hover:text-fg">âœ•</button>
+              <button onClick={onClose} className="text-dim hover:text-fg">✕</button>
             </div>
 
             <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px] text-muted">
               <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_BADGE[ticket.status]}`}>{STATUS_LABEL[ticket.status]}</span>
               <SeverityBadge sev={ticket.severity} />
-              <span>Â· opened by {ticket.created_by}</span>
-              <span>Â· {new Date(ticket.created_at).toLocaleString('en-US')}</span>
-              {ticket.resolved_at && <span>Â· resolved in {duration(ticket.created_at, ticket.resolved_at)}</span>}
+              <span>· opened by {ticket.created_by}</span>
+              <span>· {new Date(ticket.created_at).toLocaleString('en-US')}</span>
+              {ticket.resolved_at && <span>· resolved in {duration(ticket.created_at, ticket.resolved_at)}</span>}
             </div>
 
             {(ticket.source_ip || ticket.rule_id) && (
@@ -438,7 +438,7 @@ function TicketDetail({
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && postComment()}
-                  placeholder="Add a case noteâ€¦"
+                  placeholder="Add a case note…"
                   className="flex-1 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
                 />
                 <button

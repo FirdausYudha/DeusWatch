@@ -115,7 +115,7 @@ export default function Decoders() {
           <div className="mt-4 flex justify-end">
             <button type="submit" disabled={busy || !add.dataset || !add.regex}
               className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-              {busy ? 'Savingâ€¦' : 'Add decoder'}
+              {busy ? 'Saving…' : 'Add decoder'}
             </button>
           </div>
         </form>
@@ -126,7 +126,7 @@ export default function Decoders() {
           <div className="mb-2 flex items-center gap-3">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-dim">Test against real log lines</h3>
             <button onClick={loadSamples} className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2">
-              Load recent lines for "{add.dataset || 'â€¦'}"
+              Load recent lines for "{add.dataset || '…'}"
             </button>
           </div>
           {samples.length > 0 && (
@@ -148,7 +148,7 @@ export default function Decoders() {
             <div className="mt-2 rounded-[8px] border border-border bg-bg p-3 text-sm">
               {testResult.matched ? (
                 <>
-                  <span className="text-emerald-400">âœ“ matched</span>
+                  <span className="text-emerald-400">✓ matched</span>
                   {Object.keys(testResult.fields).length > 0 ? (
                     <table className="mt-2 text-xs">
                       <tbody>
@@ -159,7 +159,7 @@ export default function Decoders() {
                     </table>
                   ) : <span className="ml-2 text-dim">(no named groups extracted; only category/defaults applied)</span>}
                 </>
-              ) : <span className="text-rose-400">âœ— no match on this line</span>}
+              ) : <span className="text-rose-400">✗ no match on this line</span>}
             </div>
           )}
         </div>
@@ -186,7 +186,7 @@ export default function Decoders() {
                   <tr key={d.id} className="hover:bg-surface-2">
                     <td className="px-4 py-2 text-fg">{d.name}{d.builtin && <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">builtin</span>}</td>
                     <td className="px-4 py-2 font-mono text-fg">{d.dataset}</td>
-                    <td className="px-4 py-2 text-muted">{d.category || 'â€”'}</td>
+                    <td className="px-4 py-2 text-muted">{d.category || '—'}</td>
                     <td className="px-4 py-2 max-w-[16rem] truncate font-mono text-[11px] text-dim" title={d.regex}>{d.regex}</td>
                     <td className="px-4 py-2">
                       <span className={`rounded px-1.5 py-0.5 text-[11px] ${d.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-surface-2 text-muted'}`}>
@@ -211,13 +211,13 @@ export default function Decoders() {
       {editing && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
           <div className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-4 text-[12.5px] font-semibold text-fg">Edit decoder â€” <span className="text-accent">{editing.name}</span></h3>
+            <h3 className="mb-4 text-[12.5px] font-semibold text-fg">Edit decoder — <span className="text-accent">{editing.name}</span></h3>
             <Form value={editSpec} onChange={setEditSpec} />
             <div className="mt-5 flex justify-end gap-3">
               <button onClick={() => setEditing(null)} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">Cancel</button>
               <button onClick={saveEdit} disabled={busy || !editSpec.dataset || !editSpec.regex}
                 className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-                {busy ? 'Savingâ€¦' : 'Save'}
+                {busy ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

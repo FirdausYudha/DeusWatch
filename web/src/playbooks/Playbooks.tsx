@@ -97,7 +97,7 @@ export default function Playbooks() {
           <div className="mt-4 flex justify-end">
             <button type="submit" disabled={busy || !add.label.trim() || add.steps.every((s) => !s.trim())}
               className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-              {busy ? 'Savingâ€¦' : 'Add playbook'}
+              {busy ? 'Saving…' : 'Add playbook'}
             </button>
           </div>
         </form>
@@ -139,13 +139,13 @@ export default function Playbooks() {
       {editing && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
           <div className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-4 text-[12.5px] font-semibold text-fg">Edit playbook â€” <span className="text-accent">{editing.label}</span></h3>
+            <h3 className="mb-4 text-[12.5px] font-semibold text-fg">Edit playbook — <span className="text-accent">{editing.label}</span></h3>
             <Form value={editSpec} onChange={setEditSpec} />
             <div className="mt-5 flex justify-end gap-3">
               <button onClick={() => setEditing(null)} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">Cancel</button>
               <button onClick={saveEdit} disabled={busy || !editSpec.label.trim() || editSpec.steps.every((s) => !s.trim())}
                 className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-                {busy ? 'Savingâ€¦' : 'Save'}
+                {busy ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

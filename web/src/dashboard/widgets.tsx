@@ -22,7 +22,7 @@ export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }
     <ul className="space-y-1.5">
       {data.map((d, i) => (
         <li key={i} className="flex items-center gap-2 text-sm">
-          <span className="w-28 truncate text-muted" title={d.label}>{d.label || 'â€”'}</span>
+          <span className="w-28 truncate text-muted" title={d.label}>{d.label || '—'}</span>
           <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
             <div className="h-full rounded" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
           </div>
@@ -67,7 +67,7 @@ export function DonutChart({ data, color }: { data: SeriesPoint[]; color: string
         {data.map((d, i) => (
           <li key={i} className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: colors[i % colors.length] }} />
-            <span className="text-fg">{d.label || 'â€”'}</span>
+            <span className="text-fg">{d.label || '—'}</span>
             <span className="text-dim">{d.count}</span>
           </li>
         ))}
@@ -100,7 +100,7 @@ export function TableWidget({ data }: { data: SeriesPoint[] }) {
       <tbody className="divide-y divide-border">
         {data.map((d, i) => (
           <tr key={i}>
-            <td className="py-1.5 pr-2 text-fg">{d.label || 'â€”'}</td>
+            <td className="py-1.5 pr-2 text-fg">{d.label || '—'}</td>
             <td className="py-1.5 text-right font-mono text-[11px] text-muted">{d.count}</td>
           </tr>
         ))}
@@ -120,8 +120,8 @@ function bandColor(band: string): string {
   return band === 'critical' ? '#f43f5e' : band === 'high' ? '#fb923c' : band === 'medium' ? '#f59e0b' : '#64748b'
 }
 
-// RiskyIPsWidget ranks source IPs by their 0â€“100 composite score (fired times + AbuseIPDB +
-// OTX + worst severity) â€” the "who to ban first" list, not just who was noisiest.
+// RiskyIPsWidget ranks source IPs by their 0–100 composite score (fired times + AbuseIPDB +
+// OTX + worst severity) — the "who to ban first" list, not just who was noisiest.
 export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
   if (!data?.length) return <Empty />
   return (
@@ -215,7 +215,7 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
         <li
           key={r.ip}
           className="flex items-center gap-2 text-sm"
-          title={`${r.contacts} contacts Â· ${r.fanout} distinct targets Â· ${r.failures} failed Â· seen across ${r.distinct_hours}h`}
+          title={`${r.contacts} contacts · ${r.fanout} distinct targets · ${r.failures} failed · seen across ${r.distinct_hours}h`}
         >
           <span className="w-32 shrink-0 truncate font-mono text-[11px] text-fg">{r.ip}</span>
           <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
@@ -223,7 +223,7 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
           </div>
           <span className="w-7 text-right text-[11px] font-medium text-fg">{r.score}</span>
           <span className="w-24 shrink-0 text-right text-[10px] text-dim">
-            {r.fanout}âœ¦ Â· {r.contacts}Ã—
+            {r.fanout}✦ · {r.contacts}×
           </span>
         </li>
       ))}
@@ -233,7 +233,7 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
 
 // flag converts an ISO-3166 alpha-2 code to its emoji flag.
 function flag(iso?: string): string {
-  if (!iso || iso.length !== 2) return 'ðŸŒ'
+  if (!iso || iso.length !== 2) return '🌐'
   return String.fromCodePoint(...[...iso.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)))
 }
 

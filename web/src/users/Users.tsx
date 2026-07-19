@@ -237,15 +237,15 @@ export default function Users({ me }: { me: Me }) {
               disabled={busy || !username || !password}
               className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
             >
-              {busy ? 'Savingâ€¦' : 'Add'}
+              {busy ? 'Saving…' : 'Add'}
             </button>
           </div>
           {custom ? (
             <Checklist groups={groups} selected={perms} onToggle={togglePerm} />
           ) : (
             <p className="text-[11px] text-dim">
-              Inherits the <span className="text-fg">{role}</span> role defaults. Tick â€œCustomize
-              permissionsâ€ to tailor exactly what this user can access.
+              Inherits the <span className="text-fg">{role}</span> role defaults. Tick “Customize
+              permissions” to tailor exactly what this user can access.
             </p>
           )}
         </form>
@@ -277,7 +277,7 @@ export default function Users({ me }: { me: Me }) {
                   {u.permissions === null ? (
                     <span className="text-dim">role default</span>
                   ) : (
-                    <span className="text-accent">custom Â· {u.permissions.length} perms</span>
+                    <span className="text-accent">custom · {u.permissions.length} perms</span>
                   )}
                 </td>
                 <td className="px-4 py-2 text-muted">{u.disabled ? 'disabled' : 'active'}</td>
@@ -313,7 +313,7 @@ export default function Users({ me }: { me: Me }) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="mb-4 text-[12.5px] font-semibold text-fg">
-              Edit access â€” <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span>
+              Edit access — <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span>
             </h3>
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <select
@@ -356,7 +356,7 @@ export default function Users({ me }: { me: Me }) {
                 disabled={editBusy}
                 className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
-                {editBusy ? 'Savingâ€¦' : 'Save'}
+                {editBusy ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

@@ -119,7 +119,7 @@ export default function Rules() {
       .filter(({ r }) =>
         statusFilter === 'all' || (statusFilter === 'enabled' ? r.enabled : !r.enabled),
       )
-      // every whitespace-separated term must appear (AND) â€” lets you narrow with "judi gacor".
+      // every whitespace-separated term must appear (AND) — lets you narrow with "judi gacor".
       .filter(({ hay }) => terms.every((t) => hay.includes(t)))
       .map(({ r }) => r)
   }, [indexed, query, kindFilter, statusFilter, categoryFilter])
@@ -130,7 +130,7 @@ export default function Rules() {
         <div>
           <h1 className="text-[16px] font-semibold tracking-tight text-fg">Detection rules</h1>
           <p className="mt-0.5 text-[12px] text-muted">
-            Sigma rules Â· {counts.enabled}/{counts.total} enabled Â· edits apply to the worker within ~30s
+            Sigma rules · {counts.enabled}/{counts.total} enabled · edits apply to the worker within ~30s
           </p>
         </div>
         <button
@@ -151,7 +151,7 @@ export default function Rules() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-            placeholder="Search name, source, or rule body (e.g. gacor, judi, T1110, shadow)â€¦"
+            placeholder="Search name, source, or rule body (e.g. gacor, judi, T1110, shadow)…"
             className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 pr-8 text-[12.5px] text-fg outline-none placeholder:text-dim focus:border-accent"
           />
           {query && (
@@ -160,7 +160,7 @@ export default function Rules() {
               aria-label="Clear search"
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-dim hover:text-fg"
             >
-              Ã—
+              ×
             </button>
           )}
         </div>
@@ -279,7 +279,7 @@ export default function Rules() {
       )}
       {editing && (
         <RuleEditor
-          title={`Edit â€” ${editing.name}`}
+          title={`Edit — ${editing.name}`}
           initialName={editing.name}
           initialYaml={editing.yaml}
           onClose={() => setEditing(null)}
@@ -346,14 +346,14 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
             Enable a whole detection domain in one click, or browse third-party rulesets to add.
           </p>
         </div>
-        <span className="text-dim">{open ? 'â–¾' : 'â–¸'}</span>
+        <span className="text-dim">{open ? '▾' : '▸'}</span>
       </button>
 
       {open && (
         <div className="mt-4 space-y-5">
           {err && <p className="text-[12.5px] text-rose-400">{err}</p>}
 
-          {/* Installed packs â€” toggle the real bundled rules */}
+          {/* Installed packs — toggle the real bundled rules */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {installed.map((p) => {
               const allOn = p.rule_count > 0 && p.enabled === p.rule_count
@@ -374,10 +374,10 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                         <button
                           onClick={() => install(p)}
                           disabled={busy === p.id}
-                          title="Re-fetch from the feed â€” adds any rules published since you installed"
+                          title="Re-fetch from the feed — adds any rules published since you installed"
                           className="rounded-md border border-border px-2.5 py-1 text-[11px] text-fg hover:bg-surface-2 disabled:opacity-50"
                         >
-                          {busy === p.id ? 'â€¦' : 'Update'}
+                          {busy === p.id ? '…' : 'Update'}
                         </button>
                       )}
                       {p.installable && (
@@ -394,7 +394,7 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                         disabled={busy === p.id}
                         className={`rounded-md border px-2.5 py-1 text-[11px] disabled:opacity-50 ${allOn ? 'border-border text-fg hover:bg-surface-2' : 'border-indigo-600/60 text-accent hover:bg-accent-soft'}`}
                       >
-                        {busy === p.id ? 'â€¦' : allOn ? 'Disable all' : someOn ? 'Enable rest' : 'Enable all'}
+                        {busy === p.id ? '…' : allOn ? 'Disable all' : someOn ? 'Enable rest' : 'Enable all'}
                       </button>
                     </div>
                   </div>
@@ -403,7 +403,7 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
             })}
           </div>
 
-          {/* Bundled curated packs not installed yet â€” real one-click Install, no network */}
+          {/* Bundled curated packs not installed yet — real one-click Install, no network */}
           {available.length > 0 && (
             <div>
               <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-dim">Available to install</h3>
@@ -425,20 +425,20 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                         disabled={busy === p.id}
                         className="rounded-md bg-accent px-3 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
                       >
-                        {busy === p.id ? 'Installingâ€¦' : 'Install'}
+                        {busy === p.id ? 'Installing…' : 'Install'}
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-dim">
-                Packs without an <span className="text-muted">online</span> tag are bundled with DeusWatch â€” Install works with no internet.
+                Packs without an <span className="text-muted">online</span> tag are bundled with DeusWatch — Install works with no internet.
                 Online packs are fetched from the DeusWatch feed so they can be added or refreshed without upgrading (set <span className="font-mono">PACKS_FEED_URL=off</span> to disable).
               </p>
             </div>
           )}
 
-          {/* External catalog â€” real-world rulesets you bring in (link-out) */}
+          {/* External catalog — real-world rulesets you bring in (link-out) */}
           {external.length > 0 && (
             <div>
               <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-dim">From the community & vendors</h3>
@@ -456,12 +456,12 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                       <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">External</span>
                     </div>
                     <p className="mb-2 flex-1 text-[11px] leading-relaxed text-dim">{p.description}</p>
-                    <span className="text-[11px] text-accent group-hover:text-accent">{p.source} Â· Open â†—</span>
+                    <span className="text-[11px] text-accent group-hover:text-accent">{p.source} · Open ↗</span>
                   </a>
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-dim">
-                External rulesets are brought in via <span className="text-muted">New rule</span> (paste Sigma YAML) or the matching sensor input â€” not one-click yet.
+                External rulesets are brought in via <span className="text-muted">New rule</span> (paste Sigma YAML) or the matching sensor input — not one-click yet.
               </p>
             </div>
           )}
@@ -476,7 +476,7 @@ function sourceOf(yaml: string): string {
   const product = yaml.match(/product:\s*(\S+)/)?.[1]
   const service = yaml.match(/service:\s*(\S+)/)?.[1]
   const category = yaml.match(/category:\s*(\S+)/)?.[1]
-  return [product, service ?? category].filter(Boolean).join(' / ') || 'â€”'
+  return [product, service ?? category].filter(Boolean).join(' / ') || '—'
 }
 
 function RuleEditor({
@@ -540,7 +540,7 @@ function RuleEditor({
             disabled={busy || !yaml.trim()}
             className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? 'Savingâ€¦' : 'Save'}
+            {busy ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>

@@ -65,7 +65,7 @@ function BarList({ title, rows }: { title: string; rows: ReportCount[] | null })
 export default function Report() {
   const [hours, setHours] = useState(24)
   // Optional explicit date range (YYYY-MM-DD). When `from` is set it replaces the rolling
-  // last-N-hours window, so the page â€” and therefore the PDF/Markdown export â€” covers exactly
+  // last-N-hours window, so the page — and therefore the PDF/Markdown export — covers exactly
   // the dates you picked. Persisted so it survives leaving the page.
   const [rangeFrom, setRangeFrom] = usePersistedState('report.from', '')
   const [rangeTo, setRangeTo] = usePersistedState('report.to', '')
@@ -89,7 +89,7 @@ export default function Report() {
       .finally(() => setLoading(false))
   }, [hours, rangeFrom, rangeTo])
 
-  // Scheduled report delivery to channels (Telegram/email) â€” separate from the AI schedule.
+  // Scheduled report delivery to channels (Telegram/email) — separate from the AI schedule.
   const [delivery, setDelivery] = useState<NotifyConfig | null>(null)
   const [delivCustom, setDelivCustom] = useState(false)
   const [delivDays, setDelivDays] = useState('')
@@ -175,7 +175,7 @@ export default function Report() {
     setGenBusy(true)
     setGenError('')
     try {
-      // Summarize the same window the page shows â€” the date range if one is set.
+      // Summarize the same window the page shows — the date range if one is set.
       setSummary(await generateReportSummary(hours, range))
     } catch (e) {
       setGenError((e as Error).message)
@@ -186,10 +186,10 @@ export default function Report() {
 
   const [whMsg, setWhMsg] = useState('')
   const sendWebhook = async () => {
-    setWhMsg('Sendingâ€¦')
+    setWhMsg('Sending…')
     try {
       await exportReportToWebhook(hours)
-      setWhMsg('Sent to webhook âœ“')
+      setWhMsg('Sent to webhook ✓')
     } catch (e) {
       setWhMsg((e as Error).message)
     }
@@ -218,9 +218,9 @@ export default function Report() {
           <h1 className="text-[16px] font-semibold tracking-tight text-fg">Report</h1>
           <p className="mt-0.5 text-[12px] text-muted">
             Security summary
-            {report && <span className="ml-1 text-dim">Â· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
+            {report && <span className="ml-1 text-dim">· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
           </p>
-          {/* Explicit date range â€” what the PDF / Markdown export covers. Empty = the rolling
+          {/* Explicit date range — what the PDF / Markdown export covers. Empty = the rolling
               window from the period picker below. */}
           <div className="no-print mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted">
             <span>Date range</span>
@@ -231,7 +231,7 @@ export default function Report() {
               onChange={(e) => setRangeFrom(e.target.value)}
               className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] text-fg outline-none focus:border-accent [color-scheme:dark]"
             />
-            <span className="text-dim">â†’</span>
+            <span className="text-dim">→</span>
             <input
               type="date"
               value={rangeTo}
@@ -252,7 +252,7 @@ export default function Report() {
           </div>
           {report?.until && (
             <p className="mt-1 text-[11px] text-dim">
-              Covering {new Date(report.since).toLocaleDateString('en-US')} â†’ {new Date(report.until).toLocaleDateString('en-US')}
+              Covering {new Date(report.since).toLocaleDateString('en-US')} → {new Date(report.until).toLocaleDateString('en-US')}
             </p>
           )}
         </div>
@@ -263,14 +263,14 @@ export default function Report() {
             className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
             title="Send this report as JSON to the configured export webhook"
           >
-            â†— Webhook
+            ↗ Webhook
           </button>
           <button
             onClick={() => window.print()}
             className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
             title="Print or save as PDF"
           >
-            â¬‡ PDF
+            ⬇ PDF
           </button>
           <button
             onClick={download}
@@ -281,7 +281,7 @@ export default function Report() {
         </div>
       </header>
 
-      {/* AI executive summary â€” generated on demand or on a schedule */}
+      {/* AI executive summary — generated on demand or on a schedule */}
       <section className="card-print mb-6 rounded-[12px] border border-border bg-surface p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[11px] font-semibold uppercase tracking-wider text-dim">AI executive summary</h2>
@@ -295,7 +295,7 @@ export default function Report() {
               {SCHEDULE_PRESETS.map((p) => (
                 <option key={p.hours} value={p.hours}>{p.label}</option>
               ))}
-              <option value="custom">Customâ€¦</option>
+              <option value="custom">Custom…</option>
             </select>
             {(customMode || isCustom) && (
               <span className="flex items-center gap-1 text-[11px] text-muted">
@@ -312,7 +312,7 @@ export default function Report() {
                 days
               </span>
             )}
-            {/* At a fixed hour â€” only meaningful for a daily-or-longer cadence. Without it the
+            {/* At a fixed hour — only meaningful for a daily-or-longer cadence. Without it the
                 interval drifts: it fires N hours after the last run, whenever that happened. */}
             {cfg.interval_hours >= 24 && (
               <span className="flex items-center gap-1 text-[11px] text-muted">
@@ -320,7 +320,7 @@ export default function Report() {
                 <select
                   value={String(cfg.at_hour ?? -1)}
                   onChange={(e) => saveSchedule(cfg.interval_hours, Number(e.target.value))}
-                  title={cfg.server_time ? `Server clock â€” now ${cfg.server_time} ${cfg.server_tz ?? ''}` : 'Server local time'}
+                  title={cfg.server_time ? `Server clock — now ${cfg.server_time} ${cfg.server_tz ?? ''}` : 'Server local time'}
                   className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] text-fg outline-none focus:border-accent"
                 >
                   <option value="-1">any time</option>
@@ -338,7 +338,7 @@ export default function Report() {
               disabled={genBusy}
               className="rounded-md border border-accent/40 px-2.5 py-1 text-[11px] text-accent transition-colors hover:bg-accent-soft disabled:opacity-50"
             >
-              {genBusy ? 'Generatingâ€¦' : 'âœ¨ Generate now'}
+              {genBusy ? 'Generating…' : '✨ Generate now'}
             </button>
           </div>
         </div>
@@ -346,7 +346,7 @@ export default function Report() {
         {/* Custom AI prompt template */}
         <div className="no-print mb-3">
           <button onClick={() => setPromptOpen(!promptOpen)} className="text-[11px] text-dim hover:text-fg">
-            {promptOpen ? 'â–¾' : 'â–¸'} Prompt template {cfg.summary_prompt ? '(custom)' : '(default)'}
+            {promptOpen ? '▾' : '▸'} Prompt template {cfg.summary_prompt ? '(custom)' : '(default)'}
           </button>
           {promptOpen && (
             <div className="mt-2 rounded-[8px] border border-border bg-surface p-3">
@@ -356,14 +356,14 @@ export default function Report() {
               <textarea
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
-                placeholder={cfg.default_prompt || 'Default promptâ€¦'}
+                placeholder={cfg.default_prompt || 'Default prompt…'}
                 rows={5}
                 className="w-full rounded-md border border-border bg-surface-2 px-3 py-2 text-[11px] leading-relaxed text-fg outline-none focus:border-accent"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button onClick={() => savePrompt(promptText)} disabled={promptBusy}
                   className="rounded-md border border-accent/40 px-2.5 py-1 text-[11px] text-accent hover:bg-accent-soft disabled:opacity-50">
-                  {promptBusy ? 'Savingâ€¦' : 'Save prompt'}
+                  {promptBusy ? 'Saving…' : 'Save prompt'}
                 </button>
                 <button onClick={() => savePrompt('')} disabled={promptBusy || !cfg.summary_prompt}
                   className="rounded-md border border-border px-2.5 py-1 text-[11px] text-fg hover:bg-surface-2 disabled:opacity-50">
@@ -384,15 +384,15 @@ export default function Report() {
           <>
             <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-fg">{summary.summary}</p>
             <p className="mt-3 text-[11px] text-dim">
-              {summary.model && <span>{summary.model} Â· </span>}
-              {summary.period_hours ? `last ${summary.period_hours}h Â· ` : ''}
+              {summary.model && <span>{summary.model} · </span>}
+              {summary.period_hours ? `last ${summary.period_hours}h · ` : ''}
               {summary.generated_at ? new Date(summary.generated_at).toLocaleString('en-US') : ''}
             </p>
           </>
         ) : (
           <p className="text-[12.5px] text-dim">
-            No AI summary yet. Click â€œGenerate nowâ€ â€” needs an LLM integration (e.g. a free local Ollama). Runs on
-            demand, so thereâ€™s no per-alert API cost.
+            No AI summary yet. Click “Generate now” — needs an LLM integration (e.g. a free local Ollama). Runs on
+            demand, so there’s no per-alert API cost.
           </p>
         )}
         {genError && <p className="mt-2 text-[12.5px] text-rose-400">{genError}</p>}
@@ -419,7 +419,7 @@ export default function Report() {
               {SCHEDULE_PRESETS.map((p) => (
                 <option key={p.hours} value={p.hours}>{p.label.replace('Auto: off', 'Delivery: off')}</option>
               ))}
-              <option value="custom">Customâ€¦</option>
+              <option value="custom">Custom…</option>
             </select>
             {(delivCustom || delivIsCustom) && (
               <span className="flex items-center gap-1 text-[11px] text-muted">
@@ -455,14 +455,14 @@ export default function Report() {
             {wnd.label}
           </button>
         ))}
-        {loading && <span className="self-center text-[11px] text-dim">loadingâ€¦</span>}
+        {loading && <span className="self-center text-[11px] text-dim">loading…</span>}
       </div>
 
       {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2">
-        <StatCard label="Total events" value={report?.total_events ?? 'â€”'} />
-        <StatCard label="Total alerts" value={report?.total_alerts ?? 'â€”'} accent="text-orange-300" />
+        <StatCard label="Total events" value={report?.total_events ?? '—'} />
+        <StatCard label="Total alerts" value={report?.total_alerts ?? '—'} accent="text-orange-300" />
       </section>
 
       <section className="grid gap-3 lg:grid-cols-2">

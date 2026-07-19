@@ -22,7 +22,7 @@ const NAV: NavItem[] = [
   { id: 'settings', label: 'Settings', view: 'settings', perm: 'manage_settings' },
 ]
 
-// Inline stroke icons (no icon package, no CDN â€” the app must run fully offline).
+// Inline stroke icons (no icon package, no CDN — the app must run fully offline).
 const ICONS: Record<string, string> = {
   dashboard: 'M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z',
   response: 'M12 3l8 3.5V12c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6.5zM8.5 12l2.5 2.5L16 9.5',
@@ -177,7 +177,7 @@ export default function Sidebar({
             title="Support DeusWatch"
             className="rounded-[8px] border border-border px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-surface-2 hover:text-critical"
           >
-            â™¥
+            ♥
           </button>
         </div>
       </div>

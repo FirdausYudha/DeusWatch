@@ -3,7 +3,7 @@
 // Support / donation modal. Saweria is wired now; Ko-fi can be added later once a
 // slug is available (leave KOFI_PAGE empty to hide its button).
 // The QR is generated locally from the donation page URL (Saweria refuses to be
-// embedded in an iframe), so scanning it opens the donate page â€” no external calls.
+// embedded in an iframe), so scanning it opens the donate page — no external calls.
 const SAWERIA_PAGE = 'https://saweria.co/DeusLoVult1'
 const KOFI_PAGE = 'https://ko-fi.com/firdausyudha'
 
@@ -21,18 +21,18 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
       >
         <div className="mb-1 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-fg">
-            <span className="text-rose-400">â™¥</span> Support DeusWatch
+            <span className="text-rose-400">♥</span> Support DeusWatch
           </h2>
           <button
             onClick={onClose}
             aria-label="Close"
             className="rounded-md px-2 py-1 text-dim hover:bg-surface-2 hover:text-fg"
           >
-            âœ•
+            ✕
           </button>
         </div>
         <p className="mb-5 text-[12.5px] text-muted">
-          DeusWatch is free &amp; open. If it helps you, a small donation keeps it going â€” thank you! ðŸ™
+          DeusWatch is free &amp; open. If it helps you, a small donation keeps it going — thank you! 🙏
         </p>
 
         <div className="space-y-2">

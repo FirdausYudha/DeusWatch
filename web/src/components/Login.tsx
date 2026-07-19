@@ -139,7 +139,7 @@ export default function Login({ onSuccess }: { onSuccess: (m: Me) => void }) {
           disabled={!canSubmit}
           className="w-full rounded-[8px] bg-accent py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
-          {busy ? 'Processingâ€¦' : need2fa ? 'Verify' : isRegister ? 'Sign up' : 'Sign in'}
+          {busy ? 'Processing…' : need2fa ? 'Verify' : isRegister ? 'Sign up' : 'Sign in'}
         </button>
 
         {isRegister && (

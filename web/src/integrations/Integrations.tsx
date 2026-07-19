@@ -59,7 +59,7 @@ function FieldInput({
           onChange={(e) => onChange(e.target.value)}
           className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
         >
-          {!value && <option value="">Selectâ€¦</option>}
+          {!value && <option value="">Select…</option>}
           {field.options!.map((o) => (
             <option key={o} value={o}>
               {o}
@@ -71,7 +71,7 @@ function FieldInput({
           type={field.secret ? 'password' : 'text'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.secret && configured ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ configured (leave blank to keep)' : field.help ?? ''}
+          placeholder={field.secret && configured ? '•••••••• configured (leave blank to keep)' : field.help ?? ''}
           autoComplete="off"
           className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
         />
@@ -128,8 +128,8 @@ function IngestWebhookPanel() {
         <DocLink file="wazuh-webhook.md" className="ml-auto shrink-0" />
       </div>
       <p className="mb-3 mt-0.5 text-[12px] text-muted">
-        A token-gated endpoint that external systems POST raw logs or Wazuh alerts to â€” they flow
-        through the normal pipeline (normalize â†’ detect â†’ playbooks â†’ response). Point a Wazuh
+        A token-gated endpoint that external systems POST raw logs or Wazuh alerts to — they flow
+        through the normal pipeline (normalize → detect → playbooks → response). Point a Wazuh
         manager's integrator at this URL, or <span className="font-mono text-[11px]">curl</span> lines to it.
       </p>
       {enabled ? (
@@ -137,10 +137,10 @@ function IngestWebhookPanel() {
           <div className="flex flex-wrap items-center gap-2">
             <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
               className="min-w-0 flex-1 rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[11px] text-fg outline-none" />
-            <button onClick={copy} className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg hover:bg-surface-2">{copied ? 'Copied âœ“' : 'Copy'}</button>
+            <button onClick={copy} className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg hover:bg-surface-2">{copied ? 'Copied ✓' : 'Copy'}</button>
             <button onClick={regenerate} disabled={busy}
               className="rounded-[8px] border border-amber-700/60 px-3 py-2 text-[12.5px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
-              {busy ? 'Regeneratingâ€¦' : 'Regenerate'}
+              {busy ? 'Regenerating…' : 'Regenerate'}
             </button>
             <button onClick={disable} disabled={busy}
               className="rounded-[8px] border border-rose-900/60 px-3 py-2 text-[12.5px] text-rose-300 hover:bg-rose-500/10 disabled:opacity-50">
@@ -149,14 +149,14 @@ function IngestWebhookPanel() {
           </div>
           <p className="mt-2 text-[11px] text-dim">
             Replace <span className="font-mono">&lt;name&gt;</span> with the source agent name (shown in the Agent column) and
-            <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, â€¦).
-            The token is in the URL â€” serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
+            <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, …).
+            The token is in the URL — serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
           </p>
         </>
       ) : (
         <button onClick={regenerate} disabled={busy}
           className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-          {busy ? 'Generatingâ€¦' : 'Enable webhook (generate token)'}
+          {busy ? 'Generating…' : 'Enable webhook (generate token)'}
         </button>
       )}
       {err && <p className="mt-2 text-[12.5px] text-rose-400">{err}</p>}
@@ -341,7 +341,7 @@ export default function Integrations() {
                 disabled={busy || !name}
                 className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
-                {busy ? 'Savingâ€¦' : 'Add integration'}
+                {busy ? 'Saving…' : 'Add integration'}
               </button>
             </div>
           </div>
@@ -420,7 +420,7 @@ export default function Integrations() {
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-[12.5px] font-semibold text-fg">
-                Edit â€” <span className="text-accent">{editing.name}</span>
+                Edit — <span className="text-accent">{editing.name}</span>
                 <span className="ml-2 text-[11px] font-normal text-dim">{editType.label}</span>
               </h3>
               {editType.doc && <DocLink file={editType.doc} className="shrink-0" />}
@@ -465,7 +465,7 @@ export default function Integrations() {
                 disabled={editBusy}
                 className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
-                {editBusy ? 'Savingâ€¦' : 'Save'}
+                {editBusy ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

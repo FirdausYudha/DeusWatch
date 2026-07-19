@@ -68,7 +68,7 @@ export default function Response({ me }: { me: Me }) {
   const [view, setView] = useState<View>('ip')
   const [actions, setActions] = useState<ResponseAction[]>([])
   const [offenders, setOffenders] = useState<Offender[]>([])
-  // Whether a ban can actually reach a firewall â€” drives the "blocked" vs "Dangerous IP" label.
+  // Whether a ban can actually reach a firewall — drives the "blocked" vs "Dangerous IP" label.
   const [enforcement, setEnforcement] = useState<Enforcement | null>(null)
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -190,7 +190,7 @@ export default function Response({ me }: { me: Me }) {
         <div>
           <h1 className="text-[16px] font-semibold tracking-tight text-fg">Response</h1>
           <p className="mt-0.5 text-[12px] text-muted">
-            Block recommendations &amp; approval Â· progressive ban
+            Block recommendations &amp; approval · progressive ban
             {pending > 0 && <span className="ml-2 text-amber-300">{pending} awaiting approval</span>}
           </p>
         </div>
@@ -234,7 +234,7 @@ export default function Response({ me }: { me: Me }) {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search IP, rule, reasonâ€¦"
+              placeholder="Search IP, rule, reason…"
               className="ml-auto w-64 rounded-[8px] border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-fg outline-none focus:border-accent"
             />
           </div>
@@ -256,11 +256,11 @@ export default function Response({ me }: { me: Me }) {
       {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
 
       {/* Honesty guard: if nothing is wired up to enforce a ban, say so rather than badging
-          IPs "blocked" â€” DeusWatch would be claiming an action it never performed. */}
+          IPs "blocked" — DeusWatch would be claiming an action it never performed. */}
       {enforcement && !enforcement.enforcing && (
         <div className="mt-4 rounded-[8px] border border-amber-900/50 bg-amber-500/5 p-3">
           <p className="text-[12.5px] text-amber-200">
-            No enforcement configured â€” these IPs are <span className="font-medium">flagged, not blocked</span>.
+            No enforcement configured — these IPs are <span className="font-medium">flagged, not blocked</span>.
           </p>
           <p className="mt-1 text-[11px] text-muted">
             DeusWatch is recording the decisions, but nothing pushes them to a firewall yet.
@@ -330,12 +330,12 @@ function OffendersTable({
           {offenders.map((o) => (
             <tr key={o.source_ip} className="hover:bg-surface-2">
               <td className="px-4 py-2 font-mono text-fg">{o.source_ip}</td>
-              <td className="px-4 py-2 text-fg">{o.last_agent || 'â€”'}</td>
+              <td className="px-4 py-2 text-fg">{o.last_agent || '—'}</td>
               <td className="px-4 py-2 text-muted">
                 {o.offenses}
                 {o.pending > 0 && <span className="ml-1 text-amber-300">(+{o.pending})</span>}
               </td>
-              <td className="px-4 py-2 text-fg">{o.last_reason || 'â€”'}</td>
+              <td className="px-4 py-2 text-fg">{o.last_reason || '—'}</td>
               <td className="px-4 py-2 text-muted">{banLabel(o.last_ban_secs)}</td>
               <td className="px-4 py-2">
                 {o.blocked ? (
@@ -344,13 +344,13 @@ function OffendersTable({
                       className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[11px] font-medium text-rose-300"
                       title={o.blocked_until ? `until ${new Date(o.blocked_until).toLocaleString('en-US')}` : 'permanent'}
                     >
-                      blocked{o.blocked_until ? '' : ' Â· permanent'}
+                      blocked{o.blocked_until ? '' : ' · permanent'}
                     </span>
                   ) : (
-                    // Nothing enforces the ban â€” the decision is recorded, the IP is not blocked.
+                    // Nothing enforces the ban — the decision is recorded, the IP is not blocked.
                     <span
                       className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-300"
-                      title="Flagged for blocking, but no firewall/responder is connected â€” the IP is NOT actually blocked. Connect a responder or enable the blocklist feed."
+                      title="Flagged for blocking, but no firewall/responder is connected — the IP is NOT actually blocked. Connect a responder or enable the blocklist feed."
                     >
                       Dangerous IP
                     </span>
@@ -391,7 +391,7 @@ function OffendersTable({
                     )}
                   </div>
                 ) : (
-                  <span className="text-[11px] text-dim">â€”</span>
+                  <span className="text-[11px] text-dim">—</span>
                 )}
               </td>
             </tr>
@@ -464,16 +464,16 @@ function EventsTable({
                   </td>
                 )}
                 <td className="px-4 py-2 text-muted">{new Date(a.created_at).toLocaleString('en-US')}</td>
-                <td className="px-4 py-2 text-fg">{a.agent_id || 'â€”'}</td>
+                <td className="px-4 py-2 text-fg">{a.agent_id || '—'}</td>
                 <td className="px-4 py-2 font-mono text-fg">{a.source_ip}</td>
-                <td className="px-4 py-2 text-fg">{a.reason || a.rule_id || 'â€”'}</td>
+                <td className="px-4 py-2 text-fg">{a.reason || a.rule_id || '—'}</td>
                 <td className="px-4 py-2 text-muted">{banLabel(a.ban_seconds)}</td>
                 <td className="px-4 py-2 text-muted">#{a.offense_count}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE[a.status]}`}>{a.status}</span>
                   {a.responder && <span className="ml-1 text-[11px] text-dim">{a.responder}</span>}
                   {a.status === 'failed' && a.error && (
-                    <div className="mt-0.5 text-[11px] text-rose-400" title={a.error}>{a.error.slice(0, 40)}â€¦</div>
+                    <div className="mt-0.5 text-[11px] text-rose-400" title={a.error}>{a.error.slice(0, 40)}…</div>
                   )}
                 </td>
                 <td className="px-4 py-2">
@@ -503,7 +503,7 @@ function EventsTable({
                       Unban
                     </button>
                   ) : (
-                    <span className="text-[11px] text-dim">{a.decided_by ? `by ${a.decided_by}` : 'â€”'}</span>
+                    <span className="text-[11px] text-dim">{a.decided_by ? `by ${a.decided_by}` : '—'}</span>
                   )}
                 </td>
               </tr>
@@ -515,7 +515,7 @@ function EventsTable({
   )
 }
 
-// â”€â”€ Ban-policy editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Ban-policy editor ───────────────────────────────────────
 // Configures the progressive-ban ladder: a list of escalating durations
 // applied per repeat offense, an optional cap/permanent step, and an
 // observation window that limits how far back prior offenses are counted.
@@ -588,7 +588,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
       setPermanent(saved.permanent)
       setWin(saved.window_secs > 0 ? toStep(saved.window_secs) : { value: 0, unit: 'h' })
       setAutoApprove(saved.auto_approve)
-      setMsg('Saved Â· the worker picks up the new policy within ~30s.')
+      setMsg('Saved · the worker picks up the new policy within ~30s.')
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -600,9 +600,9 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
 
   const preview =
     (steps.length === 0
-      ? 'â€”'
-      : [...steps.map((s) => `${s.value}${s.unit}`), permanent ? 'permanent' : 'cap'].join(' â†’ ')) +
-    (autoApprove ? ' Â· auto' : '')
+      ? '—'
+      : [...steps.map((s) => `${s.value}${s.unit}`), permanent ? 'permanent' : 'cap'].join(' → ')) +
+    (autoApprove ? ' · auto' : '')
 
   return (
     <div className="mb-6 overflow-hidden rounded-[12px] border border-border bg-surface">
@@ -614,7 +614,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
           Progressive-ban policy
           <span className="ml-2 font-mono text-[11px] text-dim">{preview}</span>
         </span>
-        <span className="text-[11px] text-dim">{open ? 'â–² hide' : 'â–¼ configure'}</span>
+        <span className="text-[11px] text-dim">{open ? '▲ hide' : '▼ configure'}</span>
       </button>
 
       {open && (
@@ -636,7 +636,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
               Automatic ban (no manual approval)
               <span className="mt-0.5 block text-[11px] text-dim">
                 When on, the engine bans the IP automatically and escalates the duration on each
-                repeat â€” no analyst approval needed. When off, every block waits for approval.
+                repeat — no analyst approval needed. When off, every block waits for approval.
               </span>
             </span>
           </label>
@@ -746,7 +746,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
               disabled={busy}
               className="rounded-[8px] bg-accent/90 px-4 py-1.5 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {busy ? 'Savingâ€¦' : 'Save policy'}
+              {busy ? 'Saving…' : 'Save policy'}
             </button>
           ) : (
             <p className="text-[11px] text-dim">Editing the ban policy requires the manage-settings permission.</p>
@@ -757,7 +757,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
   )
 }
 
-// â”€â”€ Blocklist feed (external-firewall sync) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Blocklist feed (external-firewall sync) ─────────────────
 function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
   const [token, setToken] = useState('')
   const [enabled, setEnabled] = useState(false)
@@ -798,16 +798,16 @@ function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
         <div className="flex flex-wrap items-center gap-2">
           <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
             className="min-w-0 flex-1 rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[11px] text-fg outline-none" />
-          <button onClick={copy} className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg hover:bg-surface-2">{copied ? 'Copied âœ“' : 'Copy'}</button>
+          <button onClick={copy} className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg hover:bg-surface-2">{copied ? 'Copied ✓' : 'Copy'}</button>
           <button onClick={regenerate} disabled={busy}
             className="rounded-[8px] border border-amber-700/60 px-3 py-2 text-[12.5px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
-            {busy ? 'Regeneratingâ€¦' : 'Regenerate token'}
+            {busy ? 'Regenerating…' : 'Regenerate token'}
           </button>
         </div>
       ) : (
         <button onClick={regenerate} disabled={busy}
           className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-          {busy ? 'Generatingâ€¦' : 'Enable feed (generate token)'}
+          {busy ? 'Generating…' : 'Enable feed (generate token)'}
         </button>
       )}
       {enabled && (
@@ -821,9 +821,9 @@ function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
   )
 }
 
-// â”€â”€ IP whitelist editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── IP whitelist editor ─────────────────────────────────────
 // Trusted IPs/CIDRs that the response engine never bans. Detection, alerting
-// and notifications still fire for them â€” only the ban is skipped.
+// and notifications still fire for them — only the ban is skipped.
 
 function WhitelistEditor({ canManage }: { canManage: boolean }) {
   const [entries, setEntries] = useState<WhitelistEntry[]>([])
@@ -883,16 +883,16 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
       >
         <span className="text-[12.5px] font-medium text-fg">
           IP whitelist
-          <span className="ml-2 text-[11px] text-dim">{entries.length} trusted Â· never banned</span>
+          <span className="ml-2 text-[11px] text-dim">{entries.length} trusted · never banned</span>
         </span>
-        <span className="text-[11px] text-dim">{open ? 'â–² hide' : 'â–¼ configure'}</span>
+        <span className="text-[11px] text-dim">{open ? '▲ hide' : '▼ configure'}</span>
       </button>
 
       {open && (
         <div className="space-y-4 border-t border-border px-4 py-4">
           <p className="text-[11px] text-dim">
             A matching source IP is never banned (single IP like <code className="text-muted">192.168.81.10</code> or a
-            range like <code className="text-muted">10.0.0.0/8</code>). Alerts and notifications still fire â€” only the
+            range like <code className="text-muted">10.0.0.0/8</code>). Alerts and notifications still fire — only the
             block is skipped.
           </p>
 
@@ -945,7 +945,7 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
                 {entries.map((e) => (
                   <tr key={e.id} className="hover:bg-surface-2">
                     <td className="px-3 py-2 font-mono text-fg">{e.cidr}</td>
-                    <td className="px-3 py-2 text-muted">{e.note || 'â€”'}</td>
+                    <td className="px-3 py-2 text-muted">{e.note || '—'}</td>
                     <td className="px-3 py-2 text-dim">{new Date(e.created_at).toLocaleString('en-US')}</td>
                     {canManage && (
                       <td className="px-3 py-2 text-right">
@@ -982,17 +982,17 @@ const CONTAIN_BADGE: Record<ContainmentStatus, string> = {
 
 // expiryLabel shows the time left before an isolated host auto-releases (or "manual").
 function expiryLabel(c: Containment): string {
-  if (c.status !== 'contained') return 'â€”'
+  if (c.status !== 'contained') return '—'
   if (!c.expires_at) return 'manual'
   const ms = new Date(c.expires_at).getTime() - Date.now()
-  if (ms <= 0) return 'expiringâ€¦'
+  if (ms <= 0) return 'expiring…'
   const m = Math.round(ms / 60000)
   return m >= 60 ? `${Math.round(m / 60)}h left` : `${m}m left`
 }
 
 // ContainmentPanel lists isolated/recommended hosts and lets an analyst isolate (approve),
 // dismiss a recommendation, or release an active containment. Self-contained (own polling).
-// DecisionTablePanel shows the explicit entity_type â†’ response policy (read-only). It is the
+// DecisionTablePanel shows the explicit entity_type → response policy (read-only). It is the
 // same table the worker routes alerts by, so an operator can see exactly what DeusWatch does
 // with each kind of entity and which actions are automatically enforced vs. alert-only.
 function DecisionTablePanel() {
@@ -1015,10 +1015,10 @@ function DecisionTablePanel() {
         <div>
           <h2 className="text-[12.5px] font-semibold text-fg">Decision table</h2>
           <p className="mt-0.5 text-[11px] text-dim">
-            What DeusWatch does with each entity type â€” the policy alerts are routed by.
+            What DeusWatch does with each entity type — the policy alerts are routed by.
           </p>
         </div>
-        <span className="text-dim">{open ? 'â–¾' : 'â–¸'}</span>
+        <span className="text-dim">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="border-t border-border">
@@ -1040,7 +1040,7 @@ function DecisionTablePanel() {
                   <td className="px-4 py-2">
                     {d.enforced ? (
                       <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[11px] font-medium text-emerald-300">
-                        auto Â· {d.engine}
+                        auto · {d.engine}
                       </span>
                     ) : (
                       <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-muted">
@@ -1105,7 +1105,7 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
         <p className="mt-0.5 text-[11px] text-dim">
           Isolated hosts (host firewall + edge block).{' '}
           {active > 0 && <span className="text-rose-300">{active} contained</span>}
-          {active > 0 && pending > 0 && ' Â· '}
+          {active > 0 && pending > 0 && ' · '}
           {pending > 0 && <span className="text-amber-300">{pending} awaiting approval</span>}
           {active === 0 && pending === 0 && 'No active isolations.'}
         </p>
@@ -1132,8 +1132,8 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
                     <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted">auto</span>
                   )}
                 </td>
-                <td className="px-4 py-2 font-mono text-[11px] text-muted">{c.ip_address || 'â€”'}</td>
-                <td className="px-4 py-2 text-muted">{c.reason || 'â€”'}</td>
+                <td className="px-4 py-2 font-mono text-[11px] text-muted">{c.ip_address || '—'}</td>
+                <td className="px-4 py-2 text-muted">{c.reason || '—'}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${CONTAIN_BADGE[c.status]}`}>{c.status}</span>
                 </td>

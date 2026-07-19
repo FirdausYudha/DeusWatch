@@ -32,7 +32,7 @@ const VERDICT_BADGE: Record<string, string> = {
   benign: 'text-emerald-300 bg-emerald-500/15',
 }
 function LLMVerdict({ a }: { a: EventRow }) {
-  if (!a.dw_llm_verdict) return <span className="text-dim">â€”</span>
+  if (!a.dw_llm_verdict) return <span className="text-dim">—</span>
   const cls = VERDICT_BADGE[a.dw_llm_verdict] ?? 'text-muted bg-surface-2'
   return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`} title={a.dw_llm_summary || undefined}>{a.dw_llm_verdict}</span>
 }
@@ -41,10 +41,10 @@ function FileHashBadge({ a }: { a: EventRow }) {
   if (!v || v === 'unknown') return null
   const bad = v === 'known_bad'
   const cls = bad ? 'text-rose-300 bg-rose-500/15' : 'text-emerald-300 bg-emerald-500/15'
-  const title = `${a.file_path || 'file'}${a.dw_filehash_detail ? ` â€” ${a.dw_filehash_detail}` : ''}`
+  const title = `${a.file_path || 'file'}${a.dw_filehash_detail ? ` — ${a.dw_filehash_detail}` : ''}`
   return (
     <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`} title={title}>
-      {bad ? 'â˜£ malware' : 'âœ“ known-good'}
+      {bad ? '☣ malware' : '✓ known-good'}
     </span>
   )
 }
@@ -72,10 +72,10 @@ function ThreatIntel({ a }: { a: EventRow }) {
   const otx = a.dw_enrichment_otx_pulse_count
   const hasFileVerdict = !!a.dw_filehash_verdict && a.dw_filehash_verdict !== 'unknown'
   const hasScore = a.threat_score > 0
-  if (!hasScore && a.dw_enrichment_status !== 'enriched' && abuse == null && !hasFileVerdict) return <span className="text-dim">â€”</span>
+  if (!hasScore && a.dw_enrichment_status !== 'enriched' && abuse == null && !hasFileVerdict) return <span className="text-dim">—</span>
   const abuseCls = abuse == null ? '' : abuse >= 90 ? 'text-rose-300 bg-rose-500/15' : abuse >= 50 ? 'text-amber-300 bg-amber-500/15' : 'text-muted bg-surface-2'
   const scoreTitle = `Composite threat score ${a.threat_score}/100 (${a.threat_band})` +
-    (abuse != null ? ` Â· abuse ${abuse}` : '') + (otx ? ` Â· otx ${otx}` : '')
+    (abuse != null ? ` · abuse ${abuse}` : '') + (otx ? ` · otx ${otx}` : '')
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {hasScore && <ScoreDoughnut score={a.threat_score} band={a.threat_band} title={scoreTitle} />}
@@ -84,7 +84,7 @@ function ThreatIntel({ a }: { a: EventRow }) {
       {!hasScore && abuse != null && <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${abuseCls}`} title="AbuseIPDB confidence">abuse {abuse}</span>}
       {!hasScore && otx != null && otx > 0 && <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[11px] font-medium text-violet-300" title="OTX pulses">otx {otx}</span>}
       <FileHashBadge a={a} />
-      {a.dw_severity_escalated_by && <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-[11px] font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>â†‘</span>}
+      {a.dw_severity_escalated_by && <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-[11px] font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>↑</span>}
     </div>
   )
 }
@@ -101,13 +101,13 @@ function RestoreButton({ agent, path }: { agent: string; path: string }) {
     try { await requestFimRestore(agent, path); setState('done') }
     catch (err) { setState('err'); setMsg((err as Error).message) }
   }
-  if (state === 'done') return <span className="text-[11px] text-emerald-400">âœ“ restore requested (applies within ~15s)</span>
+  if (state === 'done') return <span className="text-[11px] text-emerald-400">✓ restore requested (applies within ~15s)</span>
   return (
     <span className="flex items-center gap-2">
       {state === 'err' && <span className="text-[11px] text-rose-400" title={msg}>failed</span>}
       <button onClick={onClick} disabled={state === 'busy'}
         className="rounded-md border border-amber-700/60 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-500/10 disabled:opacity-50">
-        {state === 'busy' ? 'Requestingâ€¦' : 'Restore file'}
+        {state === 'busy' ? 'Requesting…' : 'Restore file'}
       </button>
     </span>
   )
@@ -116,8 +116,8 @@ function RestoreButton({ agent, path }: { agent: string; path: string }) {
 function alertToTicket(a: EventRow): NewTicketInput {
   const lines = [
     `Source IP: ${a.source_ip || 'unknown'}`,
-    `Rule: ${a.rule_name || a.rule_id || a.dw_label || 'â€”'}`,
-    a.threat_technique_id ? `MITRE: ${a.threat_technique_id} Â· ${a.threat_tactic_name}` : '',
+    `Rule: ${a.rule_name || a.rule_id || a.dw_label || '—'}`,
+    a.threat_technique_id ? `MITRE: ${a.threat_technique_id} · ${a.threat_tactic_name}` : '',
     a.dw_llm_verdict ? `LLM verdict: ${a.dw_llm_verdict}` : '',
     '',
     a.event_original || '',
@@ -131,7 +131,7 @@ function alertToTicket(a: EventRow): NewTicketInput {
   }
 }
 
-// â”€â”€ Widget layout catalog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Widget layout catalog ──────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 10)
 const STAT_SOURCES = ['total_events', 'total_alerts', 'alerts_24h']
 
@@ -179,7 +179,7 @@ function defaultWidgets(): DashWidget[] {
 }
 
 function WidgetBody({ w, data }: { w: DashWidget; data: DashboardData | null }) {
-  if (!data) return <p className="py-6 text-center text-[12.5px] text-dim">loadingâ€¦</p>
+  if (!data) return <p className="py-6 text-center text-[12.5px] text-dim">loading…</p>
   switch (w.kind) {
     case 'stat': {
       const v = w.source === 'total_alerts' ? data.total_alerts : w.source === 'alerts_24h' ? data.alerts_24h : data.total_events
@@ -204,7 +204,7 @@ function WidgetBody({ w, data }: { w: DashWidget; data: DashboardData | null }) 
   }
 }
 
-// â”€â”€ Time-range picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Time-range picker ──────────────────────────────────────
 const RANGE_PRESETS: { label: string; hours: number }[] = [
   { label: '1h', hours: 1 },
   { label: '6h', hours: 6 },
@@ -275,7 +275,7 @@ function TimeRangePicker({
             onChange={(e) => onFrom(e.target.value)}
             className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] text-fg outline-none focus:border-accent [color-scheme:dark]"
           />
-          <span className="text-[11px] text-dim">â†’</span>
+          <span className="text-[11px] text-dim">→</span>
           <input
             type="datetime-local"
             value={to}
@@ -379,9 +379,9 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
   const reset = () => { setWidgets(defaultWidgets()); setDirty(true) }
 
   const services: { name: string; sub: string; state: DotState; detail: string }[] = [
-    { name: 'API Server', sub: 'Go Â· :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'checkingâ€¦' },
-    { name: 'PostgreSQL + TimescaleDB', sub: 'log storage', state: health ? depDot(health.postgres) : 'unknown', detail: health?.postgres ?? 'checkingâ€¦' },
-    { name: 'NATS JetStream', sub: 'message bus', state: health ? depDot(health.nats) : 'unknown', detail: health?.nats ?? 'checkingâ€¦' },
+    { name: 'API Server', sub: 'Go · :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'checking…' },
+    { name: 'PostgreSQL + TimescaleDB', sub: 'log storage', state: health ? depDot(health.postgres) : 'unknown', detail: health?.postgres ?? 'checking…' },
+    { name: 'NATS JetStream', sub: 'message bus', state: health ? depDot(health.nats) : 'unknown', detail: health?.nats ?? 'checking…' },
   ]
   const allReady = health?.ready ?? false
 
@@ -404,7 +404,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
               onClick={() => setEdit((e) => !e)}
               className={edit ? 'border-accent bg-accent-soft text-accent' : ''}
             >
-              {edit ? 'Done' : 'âœŽ Customize'}
+              {edit ? 'Done' : '✎ Customize'}
             </Button>
             <span
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium ${
@@ -436,7 +436,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
             {SOURCES.map((s) => <option key={s.source} value={s.source}>{s.label}</option>)}
           </Select>
           <Button variant="primary" onClick={add}>+ Add</Button>
-          <span className="text-[11px] text-dim">Â· drag the â ¿ handle to reorder (or use â†‘ â†“); swatches recolor, the type menu switches chart.</span>
+          <span className="text-[11px] text-dim">· drag the ⠿ handle to reorder (or use ↑ ↓); swatches recolor, the type menu switches chart.</span>
         </div>
       )}
 
@@ -464,7 +464,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
                     className="cursor-grab select-none text-base leading-none text-dim hover:text-fg active:cursor-grabbing"
                     title="Drag to reorder"
                   >
-                    â ¿
+                    ⠿
                   </span>
                 )}
                 {edit ? (
@@ -485,10 +485,10 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
                       <button key={c} onClick={() => patch(w.id, { color: c })} title={c} className={`h-3.5 w-3.5 rounded-full ${w.color === c ? 'ring-2 ring-white/60' : ''}`} style={{ background: c }} />
                     ))}
                   </div>
-                  <button onClick={() => patch(w.id, { wide: !w.wide })} title="Toggle width" className={`rounded border px-1 text-[11px] ${w.wide ? 'border-accent text-accent' : 'border-border text-muted'}`}>â†”</button>
-                  <button onClick={() => move(w.id, -1)} title="Move up" className="rounded border border-border px-1 text-[11px] text-muted hover:bg-surface-2">â†‘</button>
-                  <button onClick={() => move(w.id, 1)} title="Move down" className="rounded border border-border px-1 text-[11px] text-muted hover:bg-surface-2">â†“</button>
-                  <button onClick={() => remove(w.id)} title="Remove" className="rounded border border-rose-900/60 px-1 text-[11px] text-rose-300 hover:bg-rose-500/10">âœ•</button>
+                  <button onClick={() => patch(w.id, { wide: !w.wide })} title="Toggle width" className={`rounded border px-1 text-[11px] ${w.wide ? 'border-accent text-accent' : 'border-border text-muted'}`}>↔</button>
+                  <button onClick={() => move(w.id, -1)} title="Move up" className="rounded border border-border px-1 text-[11px] text-muted hover:bg-surface-2">↑</button>
+                  <button onClick={() => move(w.id, 1)} title="Move down" className="rounded border border-border px-1 text-[11px] text-muted hover:bg-surface-2">↓</button>
+                  <button onClick={() => remove(w.id)} title="Remove" className="rounded border border-rose-900/60 px-1 text-[11px] text-rose-300 hover:bg-rose-500/10">✕</button>
                 </div>
               )}
             </div>
@@ -497,12 +497,12 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
         ))}
         {widgets.length === 0 && (
           <p className="lg:col-span-2 rounded-[12px] border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-dim">
-            No widgets. Click â€œCustomizeâ€ to add some.
+            No widgets. Click “Customize” to add some.
           </p>
         )}
       </section>
 
-      {/* Searchable events & alerts â€” filter by IP / rule / MITRE / level / time */}
+      {/* Searchable events & alerts — filter by IP / rule / MITRE / level / time */}
       <EventsPanel onCreateTicket={onCreateTicket} apiDown={health?.api === 'down'} />
 
       {/* System Health (fixed) */}
@@ -544,8 +544,8 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
           </div>
           <div className="mt-1 text-[11px] text-dim">{s?.host ? `host: ${s.host}` : 'log storage'}</div>
           <div className="mt-3 font-mono text-[12.5px] text-fg">
-            {!s ? 'checkingâ€¦' : !s.reachable ? 'unreachable' : s.db_size_pretty}
-            {s?.reachable && <span className="text-dim"> Â· {s.events_count.toLocaleString('en-US')} events</span>}
+            {!s ? 'checking…' : !s.reachable ? 'unreachable' : s.db_size_pretty}
+            {s?.reachable && <span className="text-dim"> · {s.events_count.toLocaleString('en-US')} events</span>}
           </div>
           {pct != null && (
             <div className="mt-2">
@@ -566,10 +566,10 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
           </div>
           <div className="mt-1 text-[11px] text-dim">TimescaleDB retention + compression</div>
           <div className="mt-3 font-mono text-[12.5px] text-fg">
-            {s?.retention_days != null ? `retention ${s.retention_days}d` : 'retention: â€”'}
+            {s?.retention_days != null ? `retention ${s.retention_days}d` : 'retention: —'}
           </div>
           <div className="font-mono text-[11px] text-dim">
-            {s?.compression_days != null ? `compress after ${s.compression_days}d` : 'compression: â€”'}
+            {s?.compression_days != null ? `compress after ${s.compression_days}d` : 'compression: —'}
           </div>
         </div>
 
@@ -581,7 +581,7 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
           </div>
           <div className="mt-1 text-[11px] text-dim">PostgreSQL streaming</div>
           <div className={`mt-3 font-mono text-[12.5px] ${repl?.enabled ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {!repl ? 'checkingâ€¦' : repl.enabled ? 'active' : 'not configured'}
+            {!repl ? 'checking…' : repl.enabled ? 'active' : 'not configured'}
           </div>
           {repl?.standbys?.length ? (
             <div className="mt-1 font-mono text-[11px] text-dim">{repl.standbys.join(', ')}</div>
@@ -592,7 +592,7 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
   )
 }
 
-// â”€â”€ Searchable events & alerts table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Searchable events & alerts table ───────────────────────
 const ROW_OPTIONS = [5, 20, 50, 100]
 const SEV_OPTIONS: { label: string; value: number }[] = [
   { label: 'Any level', value: -1 },
@@ -629,7 +629,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   const [rule, setRule] = useState('')
   const [technique, setTechnique] = useState('')
   // Preference-like filters are persisted so they survive leaving the page (the free-text
-  // search above stays transient â€” a hidden search that came back would confuse more than help).
+  // search above stays transient — a hidden search that came back would confuse more than help).
   const [severity, setSeverity] = usePersistedState('events.severity', -1)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -669,14 +669,14 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   }
   const [whMsg, setWhMsg] = useState('')
   const sendWebhook = async () => {
-    setWhMsg('Sendingâ€¦')
+    setWhMsg('Sending…')
     try {
       const n = await exportEventsToWebhook({
         q: q || undefined, ip: ip || undefined, agent: agent || undefined, rule: rule || undefined, technique: technique || undefined,
         severity: severity >= 0 ? severity : undefined, alerts: alertsOnly || undefined,
         from: from ? new Date(from).toISOString() : undefined, to: to ? new Date(to).toISOString() : undefined, limit,
       })
-      setWhMsg(`Sent ${n} âœ“`)
+      setWhMsg(`Sent ${n} ✓`)
     } catch (e) {
       setWhMsg((e as Error).message)
     }
@@ -693,21 +693,21 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search logsâ€¦ (IP, rule, host, file, message)"
+            placeholder="Search logs… (IP, rule, host, file, message)"
             className={`${fieldCls} w-64`}
           />
           <button
             onClick={() => setOpen((o) => !o)}
             className={`rounded-md border px-2.5 py-1.5 text-[11px] font-medium ${hasFilter || open ? 'border-accent bg-accent-soft text-accent' : 'border-border text-fg hover:bg-surface-2'}`}
           >
-            â›ƒ Filters{hasFilter ? ' Â·' : ''}
+            ⛃ Filters{hasFilter ? ' ·' : ''}
           </button>
           <button
             onClick={sendWebhook}
             className="rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg hover:bg-surface-2"
             title="Send these filtered events as JSON to the configured export webhook"
           >
-            â†— Webhook
+            ↗ Webhook
           </button>
           {whMsg && <span className="text-[11px] text-dim">{whMsg}</span>}
           <label className="flex items-center gap-1 text-[11px] text-muted">
@@ -778,18 +778,18 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                         >
                           {a.agent_id}
                         </button>
-                      ) : 'â€”'}
+                      ) : '—'}
                     </td>
-                    <td className="px-4 py-2 font-mono text-fg">{a.source_ip || 'â€”'}</td>
+                    <td className="px-4 py-2 font-mono text-fg">{a.source_ip || '—'}</td>
                     <td className="px-4 py-2 text-fg">
-                      {a.rule_name || a.dw_label || a.event_action || a.event_category || 'â€”'}
+                      {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
                       {a.file_path && (
                         <span className="mt-0.5 block truncate text-[11px] text-dim" title={a.file_path}>
                           location: <span className="font-mono text-muted">{a.file_path}</span>
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-muted">{a.threat_technique_id ? `${a.threat_technique_id} Â· ${a.threat_tactic_name}` : 'â€”'}</td>
+                    <td className="px-4 py-2 text-muted">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
                     <td className="px-4 py-2"><ThreatIntel a={a} /></td>
                     <td className="px-4 py-2"><LLMVerdict a={a} /></td>
                     <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
@@ -813,11 +813,11 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                         {(a.http_uri || a.http_host || a.http_status > 0) && (
                           <div className="mb-3 rounded-[8px] border border-cyan-900/50 bg-cyan-500/5 p-3">
                             <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-cyan-300">
-                              HTTP request{a.event_action === 'waf_block' ? ' Â· WAF blocked' : ''}
+                              HTTP request{a.event_action === 'waf_block' ? ' · WAF blocked' : ''}
                             </div>
                             <div className="space-y-0.5 font-mono text-[11px] text-fg">
                               {(a.http_method || a.http_uri) && (
-                                <div><span className="text-dim">{a.http_method || 'GET'}</span> {a.http_uri || 'â€”'}{a.http_status > 0 && <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-muted">{a.http_status}</span>}</div>
+                                <div><span className="text-dim">{a.http_method || 'GET'}</span> {a.http_uri || '—'}{a.http_status > 0 && <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-muted">{a.http_status}</span>}</div>
                               )}
                               {a.http_host && <div><span className="text-dim">host:</span> {a.http_host}</div>}
                             </div>
@@ -827,7 +827,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                           <div className="mb-3 rounded-[8px] border border-amber-900/50 bg-amber-500/5 p-3">
                             <div className="mb-1 flex items-center justify-between">
                               <span className="text-[11px] font-medium uppercase tracking-wider text-amber-300">
-                                File change{a.file_path ? ` â€” ${a.file_path}` : ''}
+                                File change{a.file_path ? ` — ${a.file_path}` : ''}
                               </span>
                               {a.file_path && a.agent_id && <RestoreButton agent={a.agent_id} path={a.file_path} />}
                             </div>
@@ -842,7 +842,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                                 {a.user_name && (
                                   <> {a.process_name ? 'as user ' : 'user '}<span className="font-mono text-amber-200">{a.user_name}</span></>
                                 )}
-                                <span className="ml-1 text-dim">Â· who-data</span>
+                                <span className="ml-1 text-dim">· who-data</span>
                                 <DocLink file="whodata.md" label="docs" className="ml-2" />
                               </div>
                             )}
@@ -867,14 +867,14 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
             ) : (
               <tr>
                 <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-6 text-center text-[12.5px] text-dim">
-                  {apiDown ? 'API unreachable â€” run docker compose up' : hasFilter || q ? 'No events match these filters.' : 'No events yet.'}
+                  {apiDown ? 'API unreachable — run docker compose up' : hasFilter || q ? 'No events match these filters.' : 'No events yet.'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-[11px] text-dim">{updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Loadingâ€¦'}</p>
+      <p className="mt-3 text-[11px] text-dim">{updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Loading…'}</p>
     </section>
   )
 }

@@ -7,7 +7,7 @@ const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
 // ScoringWeightsPanel tunes the two IP scorers. Each group's four weights are shown as their
 // NORMALIZED share (they're divided by their sum on the server), so the operator reasons in
-// percentages. Changes apply live â€” the worker re-reads the weights on its next scoring tick.
+// percentages. Changes apply live — the worker re-reads the weights on its next scoring tick.
 function ScoringWeightsPanel() {
   const [cfg, setCfg] = useState<ScoreConfig | null>(null)
   const [defaults, setDefaults] = useState<ScoreConfig | null>(null)
@@ -22,7 +22,7 @@ function ScoringWeightsPanel() {
 
   const save = async (next: ScoreConfig) => {
     setBusy(true); setErr(''); setMsg('')
-    try { setCfg(await saveScoreConfig(next)); setMsg('Saved â€” applies on the next scoring run.') }
+    try { setCfg(await saveScoreConfig(next)); setMsg('Saved — applies on the next scoring run.') }
     catch (e) { setErr((e as Error).message) }
     finally { setBusy(false) }
   }
@@ -64,7 +64,7 @@ function ScoringWeightsPanel() {
             Tune how the composite IP score and the suspicious-IP watchlist weigh their signals. Applies live.
           </p>
         </div>
-        <span className="text-dim">{open ? 'â–¾' : 'â–¸'}</span>
+        <span className="text-dim">{open ? '▾' : '▸'}</span>
       </button>
 
       {open && (
@@ -79,7 +79,7 @@ function ScoringWeightsPanel() {
               className="w-20 rounded border border-border bg-surface-2 px-2 py-1 text-right text-fg outline-none focus:border-accent"
             />
             minutes
-            <span className="text-dim">â€” how long an event keeps its score doughnut (longer = stays visible on older alerts)</span>
+            <span className="text-dim">— how long an event keeps its score doughnut (longer = stays visible on older alerts)</span>
           </label>
 
           <h3 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-dim">Suspicious-IP watchlist</h3>
@@ -92,13 +92,13 @@ function ScoringWeightsPanel() {
               className="w-20 rounded border border-border bg-surface-2 px-2 py-1 text-right text-fg outline-none focus:border-accent"
             />
             hours
-            <span className="text-dim">â€” how far back low-and-slow behaviour is measured</span>
+            <span className="text-dim">— how far back low-and-slow behaviour is measured</span>
           </label>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button onClick={() => save(cfg)} disabled={busy}
               className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-              {busy ? 'Savingâ€¦' : 'Save weights'}
+              {busy ? 'Saving…' : 'Save weights'}
             </button>
             {defaults && (
               <button onClick={() => { setCfg(defaults); save(defaults) }} disabled={busy}
@@ -110,7 +110,7 @@ function ScoringWeightsPanel() {
             {err && <span className="text-[11px] text-rose-400">{err}</span>}
           </div>
           <p className="mt-2 text-[11px] text-dim">
-            Weights are relative â€” each is divided by its group's total, so only the ratios matter. The caps
+            Weights are relative — each is divided by its group's total, so only the ratios matter. The caps
             (e.g. how many fired-times saturate to 100) keep their built-in values. See docs/suspicious-ips.md.
           </p>
         </div>
@@ -173,12 +173,12 @@ function SubscriptionsPanel() {
         <h2 className="text-[12.5px] font-medium text-fg">Log subscriptions (API)</h2>
         <div className="flex items-center gap-3">
           <DocLink file="subscription-api.md" className="shrink-0" />
-          <span className="text-dim">{open ? 'â–¾' : 'â–¸'}</span>
+          <span className="text-dim">{open ? '▾' : '▸'}</span>
         </div>
       </button>
       <p className="mb-4 mt-0.5 text-[12px] text-muted">
         Issue per-subscriber API keys so external customers can PULL enriched events / threat
-        indicators â€” the sellable rich-log product. Each key is shown once; usage is tracked.
+        indicators — the sellable rich-log product. Each key is shown once; usage is tracked.
       </p>
 
       {open && (
@@ -193,7 +193,7 @@ function SubscriptionsPanel() {
               <span className="mb-1 block text-[11px] text-muted">Min severity</span>
               <select value={minSev} onChange={(e) => setMinSev(Number(e.target.value))}
                 className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent">
-                {SEVERITY_LABELS.map((l, i) => <option key={i} value={i}>{i} Â· {l}</option>)}
+                {SEVERITY_LABELS.map((l, i) => <option key={i} value={i}>{i} · {l}</option>)}
               </select>
             </label>
             <div className="text-[12.5px] text-fg">
@@ -209,13 +209,13 @@ function SubscriptionsPanel() {
             </div>
             <button onClick={create} disabled={busy || !name.trim()}
               className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50">
-              {busy ? 'Creatingâ€¦' : 'Create key'}
+              {busy ? 'Creating…' : 'Create key'}
             </button>
           </div>
 
           {newKey && (
             <div className="mb-4 rounded-[8px] border border-emerald-900/50 bg-emerald-500/5 p-3">
-              <p className="text-[11px] text-emerald-200">New API key â€” copy it now, it is shown only once:</p>
+              <p className="text-[11px] text-emerald-200">New API key — copy it now, it is shown only once:</p>
               <code className="mt-1 block break-all rounded bg-bg px-2 py-1 font-mono text-[11px] text-emerald-300">{newKey}</code>
             </div>
           )}
@@ -240,7 +240,7 @@ function SubscriptionsPanel() {
                     <td className="py-2 text-[11px] text-muted">{s.scopes.join(', ')}</td>
                     <td className="py-2 text-muted">{s.min_severity}</td>
                     <td className="py-2 text-muted">{s.request_count}</td>
-                    <td className="py-2 text-[11px] text-dim">{s.last_used_at ? new Date(s.last_used_at).toLocaleString() : 'â€”'}</td>
+                    <td className="py-2 text-[11px] text-dim">{s.last_used_at ? new Date(s.last_used_at).toLocaleString() : '—'}</td>
                     <td className="py-2">
                       <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${s.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-surface-2 text-muted'}`}>
                         {s.enabled ? 'enabled' : 'disabled'}
@@ -307,7 +307,7 @@ export default function Settings() {
     try {
       const applied = await importConfig(await file.text())
       const parts = Object.entries(applied).map(([k, v]) => `${v} ${k}`).join(', ')
-      setCfgMsg(`Imported: ${parts || 'nothing'} Â· re-enter integration secrets afterwards.`)
+      setCfgMsg(`Imported: ${parts || 'nothing'} · re-enter integration secrets afterwards.`)
     } catch (e) {
       setCfgErr((e as Error).message)
     }
@@ -468,7 +468,7 @@ export default function Settings() {
               enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-surface-2 text-muted'
             }`}
           >
-            {enabled === null ? 'â€¦' : enabled ? 'Enabled' : 'Disabled'}
+            {enabled === null ? '…' : enabled ? 'Enabled' : 'Disabled'}
           </span>
         </div>
 
@@ -484,7 +484,7 @@ export default function Settings() {
         {enabled === false && setup && (
           <form onSubmit={confirmEnable} className="space-y-3">
             <p className="text-[12.5px] text-muted">
-              Scan this QR with your authenticator app (Google Authenticator, Authy, 1Passwordâ€¦),
+              Scan this QR with your authenticator app (Google Authenticator, Authy, 1Password…),
               then enter the 6-digit code:
             </p>
             <div className="flex flex-wrap items-start gap-4">
@@ -595,7 +595,7 @@ export default function Settings() {
           </label>
           <button type="submit" disabled={stBusy || !retDays}
             className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50">
-            {stBusy ? 'Savingâ€¦' : 'Save lifecycle'}
+            {stBusy ? 'Saving…' : 'Save lifecycle'}
           </button>
         </form>
         {stErr && <p className="mt-3 text-[12.5px] text-rose-400">{stErr}</p>}
@@ -606,24 +606,24 @@ export default function Settings() {
         <h2 className="text-[12.5px] font-medium text-fg">Software updates</h2>
         <p className="mb-4 mt-0.5 text-[12px] text-muted">
           Check whether a newer DeusWatch build is available on GitHub. Updates run on the host
-          with <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">./scripts/update.sh</code> â€”
+          with <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">./scripts/update.sh</code> —
           the web app never controls Docker, which keeps the attack surface small.
         </p>
         <button onClick={checkUpdate} disabled={updBusy}
           className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2 disabled:opacity-50">
-          {updBusy ? 'Checkingâ€¦' : 'Check for update'}
+          {updBusy ? 'Checking…' : 'Check for update'}
         </button>
         {updErr && <p className="mt-3 text-[12.5px] text-rose-400">{updErr}</p>}
         {upd && (upd.update_available ? (
           <div className="mt-3 text-[12.5px] text-amber-300">
-            Update available â€” running <span className="font-mono">{upd.current}</span>, latest <span className="font-mono">{upd.latest}</span>
+            Update available — running <span className="font-mono">{upd.current}</span>, latest <span className="font-mono">{upd.latest}</span>
             {upd.latest_date && <span className="text-dim"> ({new Date(upd.latest_date).toLocaleString('en-US')})</span>}.
             <div className="mt-1 text-muted">On the host run: <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">{upd.update_command}</code></div>
           </div>
         ) : (
           <p className="mt-3 text-[12.5px] text-emerald-400">
             {upd.current === 'dev'
-              ? `Latest on GitHub: ${upd.latest}. (This build has no version stamp â€” deploy via ./scripts/update.sh to enable comparison.)`
+              ? `Latest on GitHub: ${upd.latest}. (This build has no version stamp — deploy via ./scripts/update.sh to enable comparison.)`
               : `Up to date (${upd.current}).`}
           </p>
         ))}
@@ -661,7 +661,7 @@ export default function Settings() {
             disabled={pwBusy || !curPw || newPw.length < 8 || !confirmPw}
             className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
           >
-            {pwBusy ? 'Savingâ€¦' : 'Change password'}
+            {pwBusy ? 'Saving…' : 'Change password'}
           </button>
         </form>
         {pwError && <p className="mt-3 text-[12.5px] text-rose-400">{pwError}</p>}
@@ -671,9 +671,9 @@ export default function Settings() {
       <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
         <h2 className="text-[12.5px] font-medium text-fg">Config profile</h2>
         <p className="mb-4 mt-0.5 text-[12px] text-muted">
-          Export this server's settings â€” detection rules, ban policy, IP whitelist, the AI-report
+          Export this server's settings — detection rules, ban policy, IP whitelist, the AI-report
           schedule, alert/notification settings (severity threshold + report delivery schedule), and
-          integrations â€” as JSON to clone onto another DeusWatch server. Secrets (API keys /
+          integrations — as JSON to clone onto another DeusWatch server. Secrets (API keys /
           passwords) are not included; re-enter them after import.
         </p>
         <div className="flex flex-wrap items-center gap-3">
@@ -681,10 +681,10 @@ export default function Settings() {
             onClick={doExport}
             className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
           >
-            â¬‡ Export config
+            ⬇ Export config
           </button>
           <label className="cursor-pointer rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2">
-            â¬† Import config
+            ⬆ Import config
             <input
               type="file"
               accept="application/json,.json"
