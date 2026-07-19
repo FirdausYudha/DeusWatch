@@ -3,6 +3,20 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**FIM snapshots — Phase 3 done 2026-07-19 (ADR 0002, on `main`, unreleased).** Three UI-triggered
+features (boss asked for quarantine): (1) **Quarantine infected/old file** — moves the current
+on-disk file into the agent quarantine dir (read-only, timestamped) for blue-team analysis
+(`agent.QuarantineForAnalysis`); (2) **Snapshot now** — on-demand capture (`CaptureVersionNow`,
+trigger=manual); (3) **old vs new** — each version carries the unified diff vs the previous version
+(computed on the agent from the blob store), shown expandable in the UI. Mechanism: manager→agent
+action queue (migration 000042 `agent_file_actions` + `fim_snapshots.diff`); gateway `GET
+/v1/file-actions` + `POST /v1/file-actions/result`; agent `runFileActions` poller; API `POST
+/api/fim/snapshot-now` (manage_agents), `POST /api/fim/quarantine` (approve_remediation), `GET
+/api/fim/actions`; Snapshots-viewer buttons + diff view. Manager side live-verified (store tests +
+API queue/list on real PG); AGENT-SIDE EXECUTION NEEDS THE USER'S LIVE AGENT. Phase 2 was
+LIVE-VERIFIED by the user (snapshots captured + restore worked). Phase 4 (authorized_change) +
+restore-by-version + Phase 5 (manager storage) pending.
+
 **FIM versioned snapshots — Phase 2 done 2026-07-19 (ADR 0002, on `main`, unreleased).** Agent
 side: `SnapshotStore.SaveVersion`/`ReadVersion` (content-addressed blobs `<dir>/blobs/<sha256>`,
 dedup); FIM scanner captures per source `snapshot_mode` — on_change and/or scheduled
