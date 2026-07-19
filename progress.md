@@ -3,6 +3,18 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**FIM versioned snapshots — Phase 2 done 2026-07-19 (ADR 0002, on `main`, unreleased).** Agent
+side: `SnapshotStore.SaveVersion`/`ReadVersion` (content-addressed blobs `<dir>/blobs/<sha256>`,
+dedup); FIM scanner captures per source `snapshot_mode` — on_change and/or scheduled
+(`FIM_SNAPSHOT_SCHEDULE` override, default 24h), local last-hash dedup, small text files only;
+upload via `Shipper.PostSnapshots` → gateway `POST /v1/snapshots` (mTLS, CN, revoked→410) →
+`SnapshotHandler` → `RecordSnapshot(storage="agent")`; batching uploader goroutine (5s). Tests:
+SaveVersion/ReadVersion dedup, mode helpers, SnapshotHandler; host + linux-agent builds pass.
+**END-TO-END CAPTURE NEEDS THE USER'S LIVE LINUX AGENT** (honest boundary). Manager-storage
+(content upload) = Phase 5; today all record storage="agent". Deploy to test: rebuild api+worker+
+gateway image, update agent binary on host, set a fim source Snapshots=on_change in UI, change a
+watched file, open the "Snapshots" viewer. Phases 3 (restore-by-date) + 4 (authorized_change) pending.
+
 **FIM versioned snapshots — Phase 1 done 2026-07-19 (ADR 0002, on `main`, unreleased).** Manager-
 side foundation of dated snapshots + restore-by-date, fully verified locally: migration 000041
 `fim_snapshots`; `internal/store/fimsnapshots.go` (RecordSnapshot w/ dedup, ListSnapshots timeline,
