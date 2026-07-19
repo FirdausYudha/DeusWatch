@@ -137,12 +137,12 @@ var Catalog = []TypeInfo{
 	},
 	{
 		Type: "llm", Label: "LLM analyzer (AI)", Category: "llm", Doc: "llm-providers.md",
-		Desc: "AI analysis powered by a free self-hosted model (Ollama / any OpenAI-compatible endpoint), a hosted OpenAI-compatible provider (OpenAI, Gemini, Groq, OpenRouter), or Anthropic Claude. Pick whether this model powers per-alert triage, report summaries, or both.",
+		Desc: "AI analysis powered by a free self-hosted model (Ollama / any OpenAI-compatible endpoint), a hosted OpenAI-compatible provider (OpenAI, Gemini, Groq, OpenRouter), or Anthropic Claude. Pick whether this model powers per-alert triage, report summaries, or both. Changes apply within ~1 minute — no worker restart needed. NOTE: per-alert triage (a verdict on every alert) is OFF by default for cost control — set LLM_PER_ALERT=1 on the worker to turn it on. Report summaries appear on the Report page (Generate / scheduled) with no extra flag.",
 		Fields: []Field{
 			{Key: "provider", Label: "Provider", Options: []string{"ollama", "openai-compatible", "anthropic"},
 				Help: "ollama = local; openai-compatible = OpenAI/Gemini/Groq/OpenRouter/vLLM (set Base URL); anthropic = Claude."},
 			{Key: "purpose", Label: "Use for", Options: []string{"both", "triage", "report"},
-				Help: "triage = per-alert verdict; report = AI executive summary; both = one model for everything (default)."},
+				Help: "triage = per-alert verdict (needs LLM_PER_ALERT=1 on the worker); report = AI executive summary on the Report page; both = one model for everything (default)."},
 			{Key: "base_url", Label: "Base URL", Optional: true, Help: "OpenAI-compatible endpoint. Ollama: http://host.docker.internal:11434/v1 · OpenAI: https://api.openai.com/v1 · Gemini: https://generativelanguage.googleapis.com/v1beta/openai · Groq: https://api.groq.com/openai/v1. Leave blank for anthropic."},
 			{Key: "model", Label: "Model", Optional: true, Help: "e.g. llama3.1, qwen2.5, gpt-4o-mini, gemini-2.5-flash, or claude-opus-4-8"},
 			{Key: "api_key", Label: "API key", Secret: true, Optional: true, Help: "Not needed for local Ollama; required for hosted providers / Anthropic."},

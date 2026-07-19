@@ -58,10 +58,19 @@ every alert:
 
 1. Configure an LLM integration set to **triage** or **both** (or the env vars below).
 2. Set `LLM_PER_ALERT=1` in `deploy/.env`.
-3. Restart the worker.
+3. Restart the worker — **only** because `LLM_PER_ALERT` is an environment variable.
+
+> **The LLM *integration* itself live-reloads.** Adding, editing, disabling, or changing the
+> **Use for** of the LLM connector in the UI takes effect within ~1 minute with **no** worker
+> restart (like the CTI connectors). The restart in step 3 is needed solely for the
+> `LLM_PER_ALERT` env flag — not for the model/provider/purpose settings.
 
 The report summary needs **no** flag: as long as a model is set to **report** or **both**, the
 Report page's "Generate summary" and the scheduled delivery use it.
+
+> **Not seeing triage verdicts?** Check the worker log: `docker compose -f deploy/docker-compose.yml logs worker | grep -i llm`.
+> `per-alert triage OFF` → set `LLM_PER_ALERT=1`; `LLM ... analyzer reloaded` confirms a UI
+> change was picked up; nothing at all → the integration isn't set to triage/both yet.
 
 > The offline **heuristic** analyzer (`LLM_ENABLED=1`, no model) can produce triage verdicts
 > from CTI + severity signals, but it **cannot** write report summaries - those need a

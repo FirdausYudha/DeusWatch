@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -268,30 +269,34 @@ func main() {
 	// The "Use for" dropdown on the LLM integration decides which model powers which task, so
 	// triage and report analyzers are resolved independently (they may be the same model when
 	// purpose=both, or two different models).
-	triageAnalyzer, haveTriage := resolveAnalyzer(ctx, intStore, "triage")
-	reportAnalyzer, haveReport := resolveAnalyzer(ctx, intStore, "report")
-	if haveTriage {
-		perAlert, _ := strconv.ParseBool(os.Getenv("LLM_PER_ALERT"))
-		if perAlert {
-			log.Printf("worker: LLM per-alert triage active (%s)", triageAnalyzer.Name())
-			go runLLM(ctx, st, triageAnalyzer)
-		} else {
-			log.Printf("worker: LLM triage analyzer ready (%s); per-alert triage off (set LLM_PER_ALERT=1 to enable)", triageAnalyzer.Name())
-		}
-	} else {
-		log.Printf("worker: LLM triage disabled (add an LLM integration set to triage/both, or set ANTHROPIC_API_KEY / LLM_BASE_URL / LLM_ENABLED=1)")
+	// The triage & report analyzers live in swappable holders so a UI change to the LLM
+	// integration (add/edit/disable, or flip its "Use for") takes effect within ~1 min WITHOUT
+	// restarting the worker — runLLMReload re-resolves them on a timer, like the CTI reload.
+	triageH, reportH := &analyzerHolder{}, &analyzerHolder{}
+	if a, ok := resolveAnalyzer(ctx, intStore, "triage"); ok {
+		triageH.set(a)
 	}
-	if haveReport {
-		log.Printf("worker: LLM report analyzer ready (%s)", reportAnalyzer.Name())
-		go runReportScheduler(ctx, st, reportAnalyzer) // configurable AI report summaries
-	} else {
-		reportAnalyzer = nil
-		log.Printf("worker: LLM report summaries disabled (add an LLM integration set to report/both)")
+	if a, ok := resolveAnalyzer(ctx, intStore, "report"); ok {
+		reportH.set(a)
 	}
+	go runLLMReload(ctx, intStore, triageH, reportH)
+
+	// Per-alert AI triage is OFF by default (cost control): it calls the LLM for every alert,
+	// so it only runs when LLM_PER_ALERT=1. The report summaries (Report page + scheduled
+	// delivery) work regardless of this flag.
+	if perAlert, _ := strconv.ParseBool(os.Getenv("LLM_PER_ALERT")); perAlert {
+		log.Printf("worker: LLM per-alert triage ENABLED (LLM_PER_ALERT=1); analyzer live-reloads from Integrations")
+		go runLLM(ctx, st, triageH)
+	} else {
+		log.Printf("worker: LLM per-alert triage OFF by default (set LLM_PER_ALERT=1 to enable). AI report summaries still work on the Report page.")
+	}
+	// Scheduled AI report summaries — always running; a nil holder (no report LLM configured) is
+	// a no-op until one is added.
+	go runReportScheduler(ctx, st, reportH)
 
 	// Notification config: live-reload the alert severity threshold + scheduled report
 	// delivery to channels (Telegram/email). Runs even without an analyzer (plain report).
-	go runNotifyScheduler(ctx, st, dispatcher, reportAnalyzer)
+	go runNotifyScheduler(ctx, st, dispatcher, reportH)
 
 	// Storage monitor: warn (Telegram/email) when the log DB approaches its budget.
 	go runStorageMonitor(ctx, st, dispatcher)
@@ -573,7 +578,7 @@ func runStorageMonitor(ctx context.Context, st *store.Store, dispatcher *notify.
 // runNotifyScheduler live-reloads the alert severity threshold into the dispatcher and
 // delivers a scheduled report to the channels (Telegram/email) per notify_config —
 // independent of the AI-summary schedule. Checks every minute; only sends when due.
-func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify.Dispatcher, analyzer llm.Analyzer) {
+func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify.Dispatcher, reportH *analyzerHolder) {
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
 	for {
@@ -581,6 +586,7 @@ func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			analyzer := reportH.get() // may be nil — the plain report is still delivered
 			cfg, err := st.LoadNotifyConfig(ctx)
 			if err != nil {
 				continue
@@ -653,7 +659,7 @@ func reportDue(now, lastAt time.Time, hasLast bool, intervalHours, atHour int) b
 // (report_ai_config.interval_hours; 0 = disabled). It checks every 10 min and only
 // generates when enough time has passed since the last stored summary, so it is cheap
 // and survives restarts. The schedule is re-read each tick (live config).
-func runReportScheduler(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
+func runReportScheduler(ctx context.Context, st *store.Store, holder *analyzerHolder) {
 	t := time.NewTicker(10 * time.Minute)
 	defer t.Stop()
 	for {
@@ -661,6 +667,10 @@ func runReportScheduler(ctx context.Context, st *store.Store, analyzer llm.Analy
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			analyzer := holder.get()
+			if analyzer == nil {
+				continue // no report LLM configured (yet)
+			}
 			cfg, err := st.LoadReportAIConfig(ctx)
 			if err != nil || cfg.IntervalHours <= 0 {
 				continue // disabled
@@ -694,8 +704,59 @@ func runReportScheduler(ctx context.Context, st *store.Store, analyzer llm.Analy
 	}
 }
 
-// runLLM polls alerts without an LLM verdict, then analyzes & stores the verdict.
-func runLLM(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
+// analyzerHolder holds the currently-resolved LLM analyzer for one task (triage or report),
+// swappable at runtime so the worker's LLM consumers pick up UI integration changes live.
+type analyzerHolder struct {
+	mu sync.RWMutex
+	a  llm.Analyzer
+}
+
+func (h *analyzerHolder) get() llm.Analyzer  { h.mu.RLock(); defer h.mu.RUnlock(); return h.a }
+func (h *analyzerHolder) set(a llm.Analyzer) { h.mu.Lock(); h.a = a; h.mu.Unlock() }
+func (h *analyzerHolder) name() string {
+	if a := h.get(); a != nil {
+		return a.Name()
+	}
+	return ""
+}
+
+// runLLMReload re-resolves the triage & report analyzers from the Integrations registry every
+// minute and swaps them into their holders, so adding/editing/disabling the LLM integration in
+// the UI takes effect without a worker restart (mirrors runCTIProviderReload).
+func runLLMReload(ctx context.Context, intStore *integrations.Store, triageH, reportH *analyzerHolder) {
+	t := time.NewTicker(1 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			for _, r := range []struct {
+				purpose string
+				h       *analyzerHolder
+			}{{"triage", triageH}, {"report", reportH}} {
+				a, ok := resolveAnalyzer(ctx, intStore, r.purpose)
+				var next llm.Analyzer
+				if ok {
+					next = a
+				}
+				was := r.h.name()
+				now := ""
+				if next != nil {
+					now = next.Name()
+				}
+				if was != now {
+					r.h.set(next)
+					log.Printf("worker: LLM %s analyzer reloaded from UI change (%q -> %q)", r.purpose, was, now)
+				}
+			}
+		}
+	}
+}
+
+// runLLM polls alerts without an LLM verdict, then analyzes & stores the verdict. The analyzer
+// is read from the holder each tick, so it live-reloads (and a nil holder is a no-op).
+func runLLM(ctx context.Context, st *store.Store, holder *analyzerHolder) {
 	t := time.NewTicker(llmInterval)
 	defer t.Stop()
 	for {
@@ -703,6 +764,10 @@ func runLLM(ctx context.Context, st *store.Store, analyzer llm.Analyzer) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			analyzer := holder.get()
+			if analyzer == nil {
+				continue // no triage LLM configured (yet)
+			}
 			rc, cancel := context.WithTimeout(ctx, 30*time.Second)
 			alerts, err := st.AlertsForLLM(rc, 10)
 			if err != nil {
