@@ -3,6 +3,17 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**FIM snapshots — restore-by-version done 2026-07-19 (ADR 0002, on `main`, unreleased).** Each
+version in the Snapshots timeline now has a **restore** button → rolls the file back to that exact
+dated version (distinct from the single-baseline restore). Reuses the Phase-3 action queue:
+migration 000043 `agent_file_actions.version_sha256`; store `RequestRestoreVersion`; agent
+`SnapshotStore.RestoreVersion` (resolves the content-addressed blob, atomic write) + runFileActions
+`restore_version` (snapshots CURRENT content first so nothing is lost, then restores); gateway
+carries version_sha256; API `POST /api/fim/restore-version` (approve_remediation); per-version UI
+button. Manager side live-verified (store + API 204/400 + queued with hash); agent-side restore
+needs the user's live agent. Remaining ADR items: Phase 4 authorized_change warning, Phase 5
+manager content storage.
+
 **FIM snapshots — Phase 3 done 2026-07-19 (ADR 0002, on `main`, unreleased).** Three UI-triggered
 features (boss asked for quarantine): (1) **Quarantine infected/old file** — moves the current
 on-disk file into the agent quarantine dir (read-only, timestamped) for blue-team analysis
