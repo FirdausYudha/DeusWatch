@@ -12,8 +12,12 @@ key → indicators 403, events 200); indicators feed with min_score; usage count
 last_used_at) increment; disable → 401, revoke → 401; `GET /api/response/decision-table` returns
 the exact policy. **MalwareBazaar also LIVE-VERIFIED** (2026-07-18) against the real abuse.ch API
 with the user's Auth-Key: a catalogued sample hash → known_bad ("MalwareBazaar sample (exe)"), a
-bogus 64-zero hash → unknown. NOT yet verified: ClickHouse sink (needs a ClickHouse instance).
-See [[honesty-principle]].
+bogus 64-zero hash → unknown.
+**ClickHouse sink also LIVE-VERIFIED** (2026-07-19): real clickhouse-server:24.3 + worker with
+CLICKHOUSE_URL + API webhook ingest — EnsureSchema auto-created `deuswatch.events` (MergeTree,
+PARTITION BY toYYYYMM, ORDER BY (timestamp, source_ip)); sshd events flowed bus→sink→ClickHouse,
+flattened correctly (source_ip / category=authentication / outcome=failure / severity), and an
+analytics query returned top attacker IPs by failed-auth count. See [[honesty-principle]].
 
 **v1.16.0 RELEASED 2026-07-18** — **Phase D: subscription API** (the LAST target-
 architecture layer — A/B/C/D now all done). The sellable "rich-log" product: external subscribers
