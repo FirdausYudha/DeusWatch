@@ -3,6 +3,11 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**v1.18.0 RELEASED 2026-07-19** — **Ransomware defense** (detect+contain, point-in-time bulk
+revert, entropy encryption signal, defense guide) + **large HTML/PHP snapshots** (2 MiB default,
+`FIM_SNAPSHOT_MAX_BYTES`). See the entries below for detail.
+https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.18.0
+
 **Ransomware defense done 2026-07-19 (post-v1.17.0, on `main`, unreleased).** User's concern =
 ransomware → revert. Delivered 3 layers: (1) **Detect+contain** — `AggRule` now parses
 `mitigation_action` and `buildAggAlert` sets the containment directive, so an AGGREGATION alert can
