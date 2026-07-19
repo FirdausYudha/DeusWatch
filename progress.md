@@ -3,6 +3,15 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-18 (v1.16.0).
 
+**v1.17.0 RELEASED 2026-07-19** — **Versioned FIM snapshots & restore** (ADR 0002, all phases) +
+**LLM analyzer live-reload**. Snapshots: dated per-file version timeline (Phase 1), agent capture
+on-change/scheduled (Phase 2, live-verified by user), on-demand snapshot-now + quarantine-for-
+analysis + old-vs-new diff (Phase 3), one-click restore-by-version, manager-side content storage as
+an admin choice (Phase 5), and the `authorized_change` audit event for trusted-session changes
+(Phase 4). Plus: the LLM triage/report analyzers now live-reload from the Integrations UI (no worker
+restart) with a clearer per-alert-triage hint. Migrations 000041-000043.
+https://github.com/FirdausYudha/DeusWatch/releases/tag/v1.17.0
+
 **FIM snapshots — Phase 4 (authorized_change) done 2026-07-19 → ADR 0002 FULLY BUILT (on `main`,
 unreleased).** The trusted-session gate no longer drops a file-change alert silently: when a change
 happens during a login from a whitelisted admin/IP, the worker records a low-severity
