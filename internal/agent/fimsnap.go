@@ -42,6 +42,47 @@ func (s *SnapshotStore) key(path string) string {
 	return filepath.Join(s.dir, hex.EncodeToString(h[:]))
 }
 
+// blobPath is the content-addressed location of a versioned snapshot (ADR 0002). Versions are
+// keyed by their content SHA-256 under a blobs/ subdir, so identical content across files or over
+// time is stored once, and restore-by-date resolves (path, chosen version hash) → this blob.
+func (s *SnapshotStore) blobPath(sha256hex string) string {
+	return filepath.Join(s.dir, "blobs", sha256hex)
+}
+
+// SaveVersion stores one dated version's content, addressed by its SHA-256 (de-duplicated: an
+// existing blob is left as-is). created=false means this content was already stored. No-op (and
+// created=false) when s is nil or the hash is empty.
+func (s *SnapshotStore) SaveVersion(sha256hex, content string) (created bool, err error) {
+	if s == nil || sha256hex == "" {
+		return false, nil
+	}
+	p := s.blobPath(sha256hex)
+	if _, err := os.Stat(p); err == nil {
+		return false, nil // already have this content
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return false, fmt.Errorf("agent: fim blobs dir: %w", err)
+	}
+	// 0600: a version may contain sensitive config content.
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		return false, fmt.Errorf("agent: save version %s: %w", sha256hex, err)
+	}
+	return true, nil
+}
+
+// ReadVersion returns the content of a versioned snapshot by its content hash (ok=false when
+// absent/disabled). Used by restore-by-date to write a chosen historical version back.
+func (s *SnapshotStore) ReadVersion(sha256hex string) (string, bool) {
+	if s == nil || sha256hex == "" {
+		return "", false
+	}
+	b, err := os.ReadFile(s.blobPath(sha256hex))
+	if err != nil {
+		return "", false
+	}
+	return string(b), true
+}
+
 // Ensure writes content as the snapshot for path only if one does not already exist, so the
 // original good version is preserved across later changes and restarts. No-op if s is nil.
 func (s *SnapshotStore) Ensure(path, content string) {

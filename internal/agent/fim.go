@@ -33,6 +33,31 @@ var fimSnapshots *SnapshotStore
 // SetFIMSnapshots enables restore snapshots for FIM sources. Call once at startup.
 func SetFIMSnapshots(s *SnapshotStore) { fimSnapshots = s }
 
+// SnapshotMeta is one captured version's metadata, shipped to the manager (ADR 0002 Phase 2).
+// The content itself stays on the agent (content-addressed); only this metadata is uploaded.
+type SnapshotMeta struct {
+	Path    string `json:"path"`
+	SHA256  string `json:"sha256"`
+	Size    int64  `json:"size"`
+	Trigger string `json:"trigger"` // on_change | scheduled
+}
+
+// fimSnapshotSink receives version metadata to upload to the manager. Set once at startup via
+// SetFIMSnapshotSink; nil = versioned snapshots disabled (only the legacy single baseline runs).
+var fimSnapshotSink func(SnapshotMeta)
+
+// SetFIMSnapshotSink wires the uploader that ships captured version metadata to the manager.
+func SetFIMSnapshotSink(fn func(SnapshotMeta)) { fimSnapshotSink = fn }
+
+// snapshotEnabled reports whether a source captures dated versions (vs. the legacy single
+// baseline). "" and "baseline" keep the old behaviour.
+func (s Source) snapshotOnChange() bool {
+	return s.SnapshotMode == "on_change" || s.SnapshotMode == "both"
+}
+func (s Source) snapshotScheduled() bool {
+	return s.SnapshotMode == "scheduled" || s.SnapshotMode == "both"
+}
+
 // maxHashBytes limits the size of a file that gets hashed (huge files skip hashing,
 // only metadata is tracked) so scans don't overload I/O.
 const maxHashBytes = 64 << 20 // 64 MiB
@@ -276,6 +301,34 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}
 
+	// captureVersion snapshots the current content of a small text file as a dated version
+	// (ADR 0002): content stored on the agent (content-addressed, de-duplicated), metadata
+	// shipped to the manager. lastHash suppresses re-emitting an unchanged file (scheduled mode).
+	lastHash := map[string]string{}
+	captureVersion := func(path, trigger string) {
+		if fimSnapshots == nil || fimSnapshotSink == nil {
+			return
+		}
+		fi, err := os.Stat(path)
+		if err != nil || !fi.Mode().IsRegular() || fi.Size() > maxSnapshotBytes {
+			return
+		}
+		b, err := os.ReadFile(path)
+		if err != nil || !isProbablyText(b) {
+			return // only versioned-snapshot small text config files
+		}
+		sum := hashBytes(b)
+		if lastHash[path] == sum {
+			return // unchanged since the last captured version
+		}
+		if _, err := fimSnapshots.SaveVersion(sum, string(b)); err != nil {
+			log.Printf("agent: fim %q: save version %s: %v", s.Dataset, path, err)
+			return
+		}
+		lastHash[path] = sum
+		fimSnapshotSink(SnapshotMeta{Path: path, SHA256: sum, Size: fi.Size(), Trigger: trigger})
+	}
+
 	scanAndEmit := func() {
 		changes, err := scanner.Scan()
 		if err != nil {
@@ -283,6 +336,9 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 			return
 		}
 		for _, c := range changes {
+			if s.snapshotOnChange() && c.Action != "deleted" {
+				captureVersion(c.Path, "on_change")
+			}
 			body, err := json.Marshal(c)
 			if err != nil {
 				continue
@@ -292,6 +348,20 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 			case <-ctx.Done():
 				return
 			}
+		}
+	}
+
+	// scheduledSnapshot walks the watched roots and captures a version of every small text file,
+	// for the "scheduled"/"both" snapshot modes (a periodic baseline independent of changes).
+	scheduledSnapshot := func() {
+		for _, root := range roots {
+			_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+				if err != nil || d.IsDir() || !d.Type().IsRegular() {
+					return nil
+				}
+				captureVersion(p, "scheduled")
+				return nil
+			})
 		}
 	}
 
@@ -315,6 +385,22 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	}
 	t := time.NewTicker(poll)
 	defer t.Stop()
+
+	// Scheduled-snapshot ticker (only for scheduled/both modes). Interval defaults to 24h; a
+	// FIM_SNAPSHOT_SCHEDULE override (Go duration) keeps it testable. A first pass runs shortly
+	// after startup so the baseline timeline is populated without waiting a full day.
+	var schedC <-chan time.Time
+	if s.snapshotScheduled() {
+		every := 24 * time.Hour
+		if d, err := time.ParseDuration(os.Getenv("FIM_SNAPSHOT_SCHEDULE")); err == nil && d > 0 {
+			every = d
+		}
+		st := time.NewTicker(every)
+		defer st.Stop()
+		schedC = st.C
+		go scheduledSnapshot() // initial baseline pass
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -323,6 +409,8 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 			scanAndEmit()
 		case <-trigger:
 			scanAndEmit()
+		case <-schedC:
+			scheduledSnapshot()
 		}
 	}
 }

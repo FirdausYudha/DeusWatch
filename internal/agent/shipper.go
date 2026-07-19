@@ -67,6 +67,35 @@ func (s *Shipper) SendRaw(ctx context.Context, body []byte) error {
 	return nil
 }
 
+// PostSnapshots ships captured FIM version metadata to the manager (POST {url}/v1/snapshots).
+// The content itself stays on the agent; only this metadata is uploaded (ADR 0002 Phase 2).
+func (s *Shipper) PostSnapshots(ctx context.Context, snaps []SnapshotMeta) error {
+	if len(snaps) == 0 {
+		return nil
+	}
+	body, err := json.Marshal(snaps)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/snapshots", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("agent: post snapshots: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusGone {
+		return ErrRevoked
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("agent: snapshots rejected (status %d)", resp.StatusCode)
+	}
+	return nil
+}
+
 // Health is the agent's self-reported state carried on the heartbeat. Degraded means
 // "alive but not fully working" - e.g. the offline buffer is piling up because log
 // batches are not getting through while the heartbeat itself still succeeds.

@@ -6,6 +6,59 @@ import (
 	"testing"
 )
 
+func TestSnapshotSaveAndReadVersion(t *testing.T) {
+	store, err := NewSnapshotStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// First save of a content hash → created.
+	if created, err := store.SaveVersion("hashA", "content-A"); err != nil || !created {
+		t.Fatalf("first SaveVersion: created=%v err=%v", created, err)
+	}
+	// Same hash again → de-duplicated (content-addressed).
+	if created, err := store.SaveVersion("hashA", "content-A"); err != nil || created {
+		t.Fatalf("dup SaveVersion should not re-create: created=%v err=%v", created, err)
+	}
+	// A different version coexists.
+	if created, err := store.SaveVersion("hashB", "content-B"); err != nil || !created {
+		t.Fatalf("second version: created=%v err=%v", created, err)
+	}
+	// Both versions are independently readable.
+	if c, ok := store.ReadVersion("hashA"); !ok || c != "content-A" {
+		t.Fatalf("ReadVersion hashA = %q, %v", c, ok)
+	}
+	if c, ok := store.ReadVersion("hashB"); !ok || c != "content-B" {
+		t.Fatalf("ReadVersion hashB = %q, %v", c, ok)
+	}
+	if _, ok := store.ReadVersion("missing"); ok {
+		t.Fatal("ReadVersion of a missing hash should be ok=false")
+	}
+	// nil store is safe.
+	var nilStore *SnapshotStore
+	if created, _ := nilStore.SaveVersion("x", "y"); created {
+		t.Fatal("nil store SaveVersion must be a no-op")
+	}
+}
+
+func TestSnapshotModeHelpers(t *testing.T) {
+	cases := []struct {
+		mode              string
+		onChange, sched   bool
+	}{
+		{"", false, false},
+		{"baseline", false, false},
+		{"on_change", true, false},
+		{"scheduled", false, true},
+		{"both", true, true},
+	}
+	for _, c := range cases {
+		s := Source{SnapshotMode: c.mode}
+		if s.snapshotOnChange() != c.onChange || s.snapshotScheduled() != c.sched {
+			t.Fatalf("mode %q: onChange=%v scheduled=%v, want %v/%v", c.mode, s.snapshotOnChange(), s.snapshotScheduled(), c.onChange, c.sched)
+		}
+	}
+}
+
 func TestSnapshotEnsureAndRestore(t *testing.T) {
 	snapDir := t.TempDir()
 	webDir := t.TempDir()

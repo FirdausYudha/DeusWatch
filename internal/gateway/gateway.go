@@ -112,6 +112,56 @@ func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 	}
 }
 
+// SnapshotMeta is one captured FIM version's metadata (ADR 0002 Phase 2), uploaded by the agent.
+type SnapshotMeta struct {
+	Path    string `json:"path"`
+	SHA256  string `json:"sha256"`
+	Size    int64  `json:"size"`
+	Trigger string `json:"trigger"` // on_change | scheduled
+}
+
+// SnapshotFunc records a batch of an agent's captured version metadata. nil = feed disabled.
+type SnapshotFunc func(ctx context.Context, agentName string, snaps []SnapshotMeta) error
+
+// SnapshotHandler receives an agent's FIM version metadata over mTLS and records it (the version
+// content stays on the agent). Identity is the mTLS CN; a revoked agent gets 410 Gone.
+func SnapshotHandler(fn SnapshotFunc, revoked RevokedFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var certCN, certSerial string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			certCN = r.TLS.PeerCertificates[0].Subject.CommonName
+			certSerial = r.TLS.PeerCertificates[0].SerialNumber.String()
+		}
+		if revoked != nil && certCN != "" {
+			if rev, err := revoked(r.Context(), certCN, certSerial); err == nil && rev {
+				http.Error(w, "agent revoked", http.StatusGone)
+				return
+			}
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusBadRequest)
+			return
+		}
+		var snaps []SnapshotMeta
+		if err := json.Unmarshal(body, &snaps); err != nil {
+			http.Error(w, "invalid JSON (expected a SnapshotMeta array)", http.StatusBadRequest)
+			return
+		}
+		if fn != nil && certCN != "" && len(snaps) > 0 {
+			if err := fn(r.Context(), certCN, snaps); err != nil {
+				http.Error(w, "record failed", http.StatusServiceUnavailable)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN) and records
 // the agent's self-reported health from the optional JSON body (degraded + detail, e.g.
 // "217 batches buffered"). A revoked agent gets HTTP 410 Gone — the signal for the

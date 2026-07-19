@@ -61,6 +61,7 @@ func main() {
 	var quarantineFunc gateway.QuarantineFunc
 	var containFunc gateway.ContainmentFunc
 	var restoreFunc gateway.RestoreFunc
+	var snapshotFunc gateway.SnapshotFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
@@ -75,6 +76,21 @@ func main() {
 			seenFunc = es.MarkSeen
 			restoreFunc = st.PendingRestores
 			healthFunc = es.MarkHealth
+			// Versioned FIM snapshots (ADR 0002): record each uploaded version's metadata; the
+			// content itself stays on the agent (storage="agent"). RecordSnapshot de-dups an
+			// unchanged latest hash, so re-reported versions are no-ops.
+			snapStore := st
+			snapshotFunc = func(ctx context.Context, cn string, snaps []gateway.SnapshotMeta) error {
+				for _, sm := range snaps {
+					if _, err := snapStore.RecordSnapshot(ctx, store.FIMSnapshot{
+						AgentName: cn, Path: sm.Path, SHA256: sm.SHA256, Size: sm.Size,
+						Storage: "agent", Trigger: sm.Trigger,
+					}, nil); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
 			// Agent-side auto-block: only feed the blocklist when the admin has enabled an
 			// nftables_agent integration; the IPs are the active response-engine blocks.
 			rs := respond.NewStore(st.Pool())
@@ -127,6 +143,7 @@ func main() {
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))
 	mux.HandleFunc("GET /v1/restore", gateway.RestoreHandler(restoreFunc))
+	mux.HandleFunc("POST /v1/snapshots", gateway.SnapshotHandler(snapshotFunc, revoked))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"alive"}`))

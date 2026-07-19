@@ -18,6 +18,56 @@ import (
 	"deuswatch/internal/mtls"
 )
 
+func TestSnapshotHandler(t *testing.T) {
+	withBody := func(cn, body string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/v1/snapshots", strings.NewReader(body))
+		if cn != "" {
+			r.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{{Subject: pkix.Name{CommonName: cn}}}}
+		}
+		return r
+	}
+	var gotCN string
+	var gotSnaps []SnapshotMeta
+	fn := func(_ context.Context, cn string, snaps []SnapshotMeta) error {
+		gotCN, gotSnaps = cn, snaps
+		return nil
+	}
+	revokedFn := func(_ context.Context, cn, _ string) (bool, error) { return cn == "bad-agent", nil }
+	h := SnapshotHandler(fn, revokedFn)
+
+	// Valid batch from an authenticated agent → 204 and the func gets the CN + snaps.
+	rr := httptest.NewRecorder()
+	h(rr, withBody("web01", `[{"path":"/etc/passwd","sha256":"abc","size":10,"trigger":"on_change"}]`))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("valid batch: got %d, want 204", rr.Code)
+	}
+	if gotCN != "web01" || len(gotSnaps) != 1 || gotSnaps[0].Path != "/etc/passwd" || gotSnaps[0].Trigger != "on_change" {
+		t.Fatalf("func got cn=%q snaps=%+v", gotCN, gotSnaps)
+	}
+
+	// A revoked agent → 410 Gone.
+	rr = httptest.NewRecorder()
+	h(rr, withBody("bad-agent", `[{"path":"/x","sha256":"y","trigger":"scheduled"}]`))
+	if rr.Code != http.StatusGone {
+		t.Fatalf("revoked agent: got %d, want 410", rr.Code)
+	}
+
+	// Invalid JSON → 400.
+	rr = httptest.NewRecorder()
+	h(rr, withBody("web01", `not json`))
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("bad json: got %d, want 400", rr.Code)
+	}
+
+	// Wrong method → 405.
+	rr = httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/v1/snapshots", nil)
+	h(rr, r)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET: got %d, want 405", rr.Code)
+	}
+}
+
 func TestHeartbeatHandlerRevoked(t *testing.T) {
 	withCN := func(cn string) *http.Request {
 		r := httptest.NewRequest(http.MethodPost, "/v1/heartbeat", nil)

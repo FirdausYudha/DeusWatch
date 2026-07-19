@@ -1,6 +1,7 @@
 # ADR 0002 - Versioned FIM Snapshots & Restore-by-Date
 
-- Status: **Proposed** (design agreed; build pending — needs live Linux-agent verification)
+- Status: **In progress** — Phase 1 (manager) done & verified; Phase 2 (agent capture + upload)
+  built, pending live Linux-agent verification; Phases 3-5 pending.
 - Date: 2026-07-19
 - Context: extends the existing single-baseline FIM restore (`internal/agent/fimsnap.go`,
   `internal/store/restores.go`) into a dated, versioned snapshot + one-click restore-by-date
@@ -59,8 +60,12 @@ Sudden changes without a legitimate session keep their normal alert severity.
 1. **Config + schema (manager-side, testable without an agent):** agent-config fields;
    `fim_snapshots` table (migration); store CRUD; `GET /api/fim/snapshots?path=` timeline;
    Settings/Agents UI toggles (storage mode, trigger, retention). *Verifiable locally.*
-2. **Agent capture:** versioned content-addressed store (agent-local mode) + metadata upload;
-   trigger wiring (on-change / scheduled / both). *Verify on the user's Linux agent.*
+2. **Agent capture (BUILT 2026-07-19):** `SnapshotStore.SaveVersion`/`ReadVersion` (content-
+   addressed blob store under `<dir>/blobs/<sha256>`, de-duplicated); the FIM scanner captures a
+   version on-change and/or on a schedule (`FIM_SNAPSHOT_SCHEDULE` override) per the source's
+   `snapshot_mode`; metadata ships via `POST /v1/snapshots` (mTLS) → gateway `SnapshotHandler` →
+   `RecordSnapshot(storage="agent")`. Manager side unit- + integration-tested; *end-to-end capture
+   still needs verification on the user's Linux agent.*
 3. **Restore-by-date:** manager "restore path→version" directive + agent restore; UI timeline +
    date picker + one-click Restore. *Verify end-to-end on the agent.*
 4. **Always-warn:** `authorized_change` low-severity event from the trusted-session gate.

@@ -106,6 +106,16 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		} else {
 			agent.SetFIMSnapshots(ss)
 			snapStore = ss
+			// Versioned snapshots (ADR 0002): the FIM scanner captures dated versions locally and
+			// pushes their metadata into snapCh; the uploader batches them to the manager.
+			snapCh := make(chan agent.SnapshotMeta, 256)
+			agent.SetFIMSnapshotSink(func(m agent.SnapshotMeta) {
+				select {
+				case snapCh <- m:
+				default: // uploader is behind — drop this metadata rather than block the scan
+				}
+			})
+			go runSnapshotUploader(ctx, shipper, snapCh)
 		}
 	}
 
@@ -453,6 +463,43 @@ func runFimRestore(ctx context.Context, shipper *agent.Shipper, snaps *agent.Sna
 					}})
 				}
 			}
+		}
+	}
+}
+
+// runSnapshotUploader batches captured FIM version metadata and ships it to the manager every
+// few seconds (ADR 0002 Phase 2). Metadata is small; the version CONTENT stays on the agent.
+func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan agent.SnapshotMeta) {
+	log.Printf("agent: FIM versioned-snapshot uploader active")
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
+	var batch []agent.SnapshotMeta
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		if err := shipper.PostSnapshots(ctx, batch); err != nil {
+			log.Printf("agent: upload snapshots (%d): %v", len(batch), err)
+			// Keep the batch to retry on the next tick (bounded — drop if it grows too large).
+			if len(batch) > 2000 {
+				batch = batch[len(batch)-2000:]
+			}
+			return
+		}
+		batch = nil
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			flush()
+			return
+		case m := <-in:
+			batch = append(batch, m)
+			if len(batch) >= 100 {
+				flush()
+			}
+		case <-t.C:
+			flush()
 		}
 	}
 }
