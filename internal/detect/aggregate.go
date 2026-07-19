@@ -169,5 +169,14 @@ func buildAggAlert(rule *sigma.AggRule, g AggGroup) *ingest.Event {
 	if g.Host != "" && alert.Host == nil {
 		alert.Host = &ingest.Host{Name: g.Host}
 	}
+	// An aggregation rule with a mitigation_action block authorizes automated containment (e.g. a
+	// mass file-change / ransomware burst isolates the host), mirroring the single-event path.
+	if m := rule.Mitigation; m != nil && m.ActionType == "network_containment" {
+		alert.DeusWatch.Containment = &ingest.Containment{
+			ActionType:     m.ActionType,
+			TimeoutSeconds: m.TimeoutSeconds,
+			Threshold:      ingest.ParseSeverity(m.CriticalityThreshold, ingest.SeverityHigh),
+		}
+	}
 	return alert
 }

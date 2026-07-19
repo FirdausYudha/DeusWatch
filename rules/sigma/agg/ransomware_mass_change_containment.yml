@@ -1,0 +1,32 @@
+title: Ransomware - Mass File Encryption by Host (auto-containment)
+id: b7e4d2a1-9c3f-4a86-8d21-5f0e7c9a1b42
+status: experimental
+description: >
+  A large burst of file changes on a single host in a short window is a hallmark of ransomware
+  encrypting files en masse (it can also be mass defacement or a runaway process). This rule
+  authorizes automated network containment: when it fires at/above the criticality threshold the
+  response engine isolates the host from the LAN (except the manager) and blocks its IP at the
+  edge - stopping the ransomware from reaching file servers, storage and other users, and
+  protecting off-host (manager-stored) FIM snapshots so a clean revert is still possible.
+  NOTE: a large legitimate DEPLOY can also trip this. Containment stays recommend-only (approve in
+  the UI) unless CONTAINMENT_AUTO=1; tune the threshold/timeframe to your environment, and prefer
+  manager-side FIM snapshot storage so recovery survives the host.
+references:
+  - https://attack.mitre.org/techniques/T1486/
+author: DeusWatch
+level: critical
+logsource:
+  category: file_event
+detection:
+  selection:
+    event.category: file
+  timeframe: 2m
+  condition: selection | count() by host.name > 200
+# DeusWatch extension: authorize automated host isolation on a likely ransomware burst.
+mitigation_action:
+  action_type: network_containment
+  timeout: 1800                    # auto-release the isolation after 30 minutes (0 = manual only)
+  criticality_threshold: critical  # only auto-isolate when the alert severity is >= critical
+tags:
+  - attack.t1486
+  - attack.impact

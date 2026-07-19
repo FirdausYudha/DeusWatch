@@ -67,6 +67,42 @@ func TestAggregateRunnerEmitsAlert(t *testing.T) {
 	}
 }
 
+// TestAggregateRunnerContainment proves an aggregation rule with a mitigation_action block (e.g. a
+// ransomware mass file-change burst) produces an alert that authorizes network containment.
+func TestAggregateRunnerContainment(t *testing.T) {
+	rule, err := sigma.ParseAggRule([]byte(`title: ransomware burst
+level: critical
+detection:
+  selection:
+    event.category: file
+  timeframe: 2m
+  condition: selection | count() by host.name > 200
+mitigation_action:
+  action_type: network_containment
+  timeout: 1800
+  criticality_threshold: critical
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &fakeAgg{groups: []AggGroup{{Group: "web01", Count: 350, Agent: "web01-agent", Host: "web01", LastSeen: time.Now()}}}
+	r := NewAggregateRunner(exec, []*sigma.AggRule{rule}, time.Minute)
+	alerts, err := r.RunOnce(context.Background(), time.Now())
+	if err != nil || len(alerts) != 1 {
+		t.Fatalf("RunOnce: %d alerts, err=%v", len(alerts), err)
+	}
+	a := alerts[0]
+	if a.DeusWatch.Containment == nil {
+		t.Fatal("agg ransomware alert must authorize containment")
+	}
+	if a.DeusWatch.Containment.ActionType != "network_containment" || a.DeusWatch.Containment.Threshold != ingest.SeverityCritical {
+		t.Fatalf("bad containment directive: %+v", a.DeusWatch.Containment)
+	}
+	if a.Agent == nil || a.Agent.ID != "web01-agent" {
+		t.Fatalf("containment needs the agent id, got %+v", a.Agent)
+	}
+}
+
 func TestAggregateRunnerCooldown(t *testing.T) {
 	rule := loadBruteForceAgg(t)
 	exec := &fakeAgg{groups: []AggGroup{{Group: "10.0.0.9", Count: 9, LastSeen: time.Now()}}}

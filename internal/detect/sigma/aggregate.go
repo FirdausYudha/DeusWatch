@@ -39,6 +39,11 @@ type AggRule struct {
 	Threshold    int           // count threshold
 	Window       time.Duration // timeframe (default 5m if unset)
 
+	// Mitigation is an optional DeusWatch auto-response directive (mitigation_action:), so an
+	// aggregation alert (e.g. a mass file-change / ransomware burst) can authorize containment
+	// just like a single-event rule.
+	Mitigation *MitigationAction
+
 	whereSQL  string // WHERE fragment compiled from the selection (no time filter)
 	whereArgs []any
 }
@@ -98,8 +103,13 @@ func ParseAggRule(data []byte) (*AggRule, error) {
 		Title     string            `yaml:"title"`
 		Level     string            `yaml:"level"`
 		Tags      []string          `yaml:"tags"`
-		LogSource map[string]string `yaml:"logsource"`
-		Detection map[string]any    `yaml:"detection"`
+		LogSource  map[string]string `yaml:"logsource"`
+		Detection  map[string]any    `yaml:"detection"`
+		Mitigation *struct {
+			ActionType           string `yaml:"action_type"`
+			Timeout              int    `yaml:"timeout"`
+			CriticalityThreshold string `yaml:"criticality_threshold"`
+		} `yaml:"mitigation_action"`
 	}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("sigma: parse YAML: %w", err)
@@ -132,6 +142,13 @@ func ParseAggRule(data []byte) (*AggRule, error) {
 	r := &AggRule{
 		ID: raw.ID, Title: raw.Title, Level: raw.Level, Tags: raw.Tags,
 		LogSource: raw.LogSource, GroupByField: m[1], Op: m[2], Threshold: threshold, Window: window,
+	}
+	if raw.Mitigation != nil && raw.Mitigation.ActionType != "" {
+		r.Mitigation = &MitigationAction{
+			ActionType:           strings.ToLower(strings.TrimSpace(raw.Mitigation.ActionType)),
+			TimeoutSeconds:       raw.Mitigation.Timeout,
+			CriticalityThreshold: strings.ToLower(strings.TrimSpace(raw.Mitigation.CriticalityThreshold)),
+		}
 	}
 	where, args, err := compileCondition(left, sels)
 	if err != nil {
