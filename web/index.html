@@ -2,7 +2,12 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/deuswatch-eye.png" />
+    <!-- A favicon slot is square. The eye mark is 2:1, so pointing this straight at the artwork
+         let the browser stretch it to fit and the mark came out flattened in the tab. These are
+         pre-padded to a square canvas, so the browser only ever scales it uniformly. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/favicon-512.png" sizes="512x512" />
+    <link rel="apple-touch-icon" href="/favicon-512.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DeusWatch</title>
   </head>
