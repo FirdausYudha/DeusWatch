@@ -77,21 +77,7 @@ export default function Sidebar({
     <aside className="sticky top-0 flex h-screen w-[232px] shrink-0 flex-col border-r border-border bg-surface">
       {/* Brand */}
       <div className="flex h-[60px] items-center gap-2.5 px-[18px]">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M12 2 L21 6 V12 C21 17 17 21 12 22 C7 21 3 17 3 12 V6 Z"
-            stroke="var(--dw-accent)"
-            strokeWidth="2"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M8.5 12 L11 14.5 L16 9"
-            stroke="var(--dw-accent)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <img src="/deuswatch-eye.png" alt="" aria-hidden="true" className="h-7 w-auto shrink-0" />
         <span className="text-[15px] font-bold tracking-tight text-fg">DeusWatch</span>
       </div>
 
