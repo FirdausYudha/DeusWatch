@@ -10,6 +10,7 @@ import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, Ri
 import DocLink from '../components/DocLink'
 import { PageHeader, Button, Select } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
+import { localInput, type DashRangeState } from '../lib/range'
 
 type DotState = 'good' | 'bad' | 'unknown'
 
@@ -204,101 +205,17 @@ function WidgetBody({ w, data }: { w: DashWidget; data: DashboardData | null }) 
   }
 }
 
-// ── Time-range picker ──────────────────────────────────────
-const RANGE_PRESETS: { label: string; hours: number }[] = [
-  { label: '1h', hours: 1 },
-  { label: '6h', hours: 6 },
-  { label: '24h', hours: 24 },
-  { label: '7d', hours: 24 * 7 },
-  { label: '30d', hours: 24 * 30 },
-]
-
-// localInput formats a Date for a datetime-local input (local time, minute precision).
-function localInput(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
-}
-
-// resolveRange turns the picker state into a DashRange, or null if the custom
-// inputs are incomplete/invalid (caller skips fetching until valid).
-function resolveRange(preset: number | 'custom', from: string, to: string): DashRange | null {
-  if (preset !== 'custom') return { hours: preset }
-  if (!from || !to) return null
-  const f = new Date(from)
-  const t = new Date(to)
-  if (isNaN(+f) || isNaN(+t)) return null
-  return { from: f, to: t }
-}
-
-function TimeRangePicker({
-  preset, from, to, onPreset, onFrom, onTo,
+export default function Dashboard({
+  range,
+  onCreateTicket,
 }: {
-  preset: number | 'custom'
-  from: string
-  to: string
-  onPreset: (h: number | 'custom') => void
-  onFrom: (v: string) => void
-  onTo: (v: string) => void
+  range: DashRangeState
+  onCreateTicket?: (t: NewTicketInput) => void
 }) {
-  const startCustom = () => {
-    if (!to) onTo(localInput(new Date()))
-    if (!from) onFrom(localInput(new Date(Date.now() - 24 * 3600 * 1000)))
-    onPreset('custom')
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {RANGE_PRESETS.map((r) => (
-        <button
-          key={r.label}
-          onClick={() => onPreset(r.hours)}
-          className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-            preset === r.hours ? 'border-accent bg-accent-soft text-accent' : 'border-border text-muted hover:bg-surface-2'
-          }`}
-        >
-          {r.label}
-        </button>
-      ))}
-      <button
-        onClick={startCustom}
-        className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-          preset === 'custom' ? 'border-accent bg-accent-soft text-accent' : 'border-border text-muted hover:bg-surface-2'
-        }`}
-      >
-        Custom
-      </button>
-      {preset === 'custom' && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <input
-            type="datetime-local"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => onFrom(e.target.value)}
-            className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] text-fg outline-none focus:border-accent [color-scheme:dark]"
-          />
-          <span className="text-[11px] text-dim">→</span>
-          <input
-            type="datetime-local"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => onTo(e.target.value)}
-            className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] text-fg outline-none focus:border-accent [color-scheme:dark]"
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: NewTicketInput) => void }) {
   const [health, setHealth] = useState<Health | null>(null)
   const [storage, setStorage] = useState<StorageStatus | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
-  // Time range: a preset number of hours, or 'custom' with from/to (datetime-local strings).
-  // Persisted so leaving the page and coming back keeps the range you picked.
-  const [preset, setPreset] = usePersistedState<number | 'custom'>('dash.preset', 24)
-  const [from, setFrom] = usePersistedState('dash.from', '')
-  const [to, setTo] = usePersistedState('dash.to', '')
   const [widgets, setWidgets] = useState<DashWidget[]>(defaultWidgets())
   const [edit, setEdit] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -324,10 +241,9 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
       const h = await fetchHealth()
       if (active) setHealth(h)
       fetchStorageStatus().then((s) => { if (active) setStorage(s) }).catch(() => {})
-      const range = resolveRange(preset, from, to)
-      if (range) {
+      if (range.resolved) {
         try {
-          const d = await fetchDashboardData(range)
+          const d = await fetchDashboardData(range.resolved)
           if (active) setData(d)
         } catch {
           /* API/DB not ready */
@@ -338,7 +254,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
     void tick()
     const id = setInterval(tick, 5000)
     return () => { active = false; clearInterval(id) }
-  }, [preset, from, to])
+  }, [range.preset, range.from, range.to])
 
   const mutate = (fn: (ws: DashWidget[]) => DashWidget[]) => { setWidgets(fn); setDirty(true) }
   const patch = (id: string, p: Partial<DashWidget>) => mutate((ws) => ws.map((w) => (w.id === id ? { ...w, ...p } : w)))
@@ -388,7 +304,6 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <PageHeader
-        subtitle="Situational awareness & search"
         actions={
           <>
             {edit && (
@@ -417,16 +332,6 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
         }
       />
 
-      <div className="mb-4">
-        <TimeRangePicker
-          preset={preset}
-          from={from}
-          to={to}
-          onPreset={(h) => setPreset(h)}
-          onFrom={setFrom}
-          onTo={setTo}
-        />
-      </div>
 
       {edit && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[12px] border border-accent/30 bg-accent-soft px-4 py-3">
@@ -453,7 +358,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
             onDragLeave={() => setOverId((o) => (o === w.id ? null : o))}
             onDrop={(e) => { e.preventDefault(); if (dragId) reorder(dragId, w.id); clearDrag() }}
             onDragEnd={clearDrag}
-            className={`rounded-[12px] border bg-surface p-4 transition-all ${w.wide ? 'sm:col-span-2' : ''} ${
+            className={`rounded-[12px] border bg-surface p-[18px] transition-all ${w.wide ? 'sm:col-span-2' : ''} ${
               overId === w.id ? 'border-accent ring-2 ring-accent/40' : 'border-border'
             } ${dragId === w.id ? 'opacity-40' : ''}`}
           >
@@ -472,7 +377,15 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
                 {edit ? (
                   <input value={w.title} onChange={(e) => patch(w.id, { title: e.target.value })} className="min-w-0 flex-1 rounded border border-border bg-surface-2 px-2 py-1 text-[11px] text-fg outline-none focus:border-accent" />
                 ) : (
-                  <h2 className="text-[11px] font-semibold uppercase tracking-wider text-dim">{w.title}</h2>
+                  <h2
+                    className={
+                      w.kind === 'stat'
+                        ? 'text-[12px] font-semibold uppercase tracking-[0.4px] text-dim'
+                        : 'text-[13.5px] font-bold tracking-tight text-fg'
+                    }
+                  >
+                    {w.title}
+                  </h2>
                 )}
               </div>
               {edit && (

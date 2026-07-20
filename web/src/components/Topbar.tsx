@@ -1,5 +1,7 @@
 import type { View } from './Sidebar'
 import { useTheme } from '../lib/theme'
+import RangePicker from './RangePicker'
+import type { DashRangeState } from '../lib/range'
 
 // Topbar is the prototype's global 60px header: it names the page on the left and carries the
 // app-level controls on the right.
@@ -28,7 +30,16 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   settings: { title: 'Settings', subtitle: 'Platform configuration' },
 }
 
-export default function Topbar({ view, onMenu }: { view: View; onMenu?: () => void }) {
+export default function Topbar({
+  view,
+  onMenu,
+  range,
+}: {
+  view: View
+  onMenu?: () => void
+  /** Only the dashboard is time-scoped, so the picker appears only there. */
+  range?: DashRangeState
+}) {
   const [theme, toggle] = useTheme()
   const meta = PAGE_META[view] ?? PAGE_META.dashboard
 
@@ -50,6 +61,7 @@ export default function Topbar({ view, onMenu }: { view: View; onMenu?: () => vo
       <p className="hidden truncate text-[12.5px] text-dim sm:block">{meta.subtitle}</p>
 
       <div className="ml-auto flex items-center gap-2.5">
+        {view === 'dashboard' && range && <RangePicker range={range} />}
         <button
           onClick={toggle}
           title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}

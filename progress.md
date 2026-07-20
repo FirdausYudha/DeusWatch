@@ -3,6 +3,21 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-20 (v2.0.0).
 
+**Dashboard polish 2026-07-20 (post-v2.0.0, on `main`, unreleased).** Moved the time-range picker
+into the Topbar as the prototype's segmented control (surface-2 track, 8px radius, 3px padding,
+active pill on the accent) keeping 1h/6h/24h/7d/30d/Custom. The range now lives in `lib/range.ts`
+and is owned by App, because the Topbar RENDERS the picker while the Dashboard FETCHES the data --
+two `usePersistedState` calls on the same key would not stay in step. Custom opens a popover rather
+than expanding inline (inline inputs would push the 60px bar out of shape) and now REFUSES an
+inverted range (start >= end) instead of querying a window that returns nothing and looks like
+"no data". Widget headings now follow the prototype's two styles -- stat tiles keep the small
+uppercase caption, chart panels get a 13.5px/700 heading -- and cards use the prototype's 18px
+padding. Removed the page-level subtitles on Dashboard/Snapshots that duplicated the Topbar's.
+VERIFIED live against the real API: picker renders all 6 presets with the exact prototype track
+colours; custom range fetches `from`/`to` (inverted range fires no request); donut, severity, source
+IPs, risky IPs (with the "6 hosts" fan-out badge) and slow scanners all populate; light/dark both
+correct. NOTE: "Suspicious IPs (recon)" is empty because the demo seed does not populate that table.
+
 **v2.0.0 RELEASED 2026-07-20** - **UI revamp** (global topbar, prototype-matched layout,
 collapsible mobile nav) + **ransomware kill-switch** (kill the encrypting PID, human-approved) +
 **cross-agent fan-out ban rule** + **slow-scanner watchlist**. Major version because the shell

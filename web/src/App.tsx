@@ -15,6 +15,7 @@ import Users from './users/Users'
 import Settings from './settings/Settings'
 import Login from './components/Login'
 import { fetchMe, getToken, can, type Me, type NewTicketInput } from './lib/api'
+import { useDashRange } from './lib/range'
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
@@ -23,6 +24,8 @@ export default function App() {
   const [ticketPrefill, setTicketPrefill] = useState<NewTicketInput | null>(null)
   // Mobile nav drawer (the sidebar collapses below `lg`).
   const [navOpen, setNavOpen] = useState(false)
+  // Owned here because the Topbar renders the picker while the Dashboard fetches the data.
+  const range = useDashRange()
 
   // Triggered from an alert ("Create ticket") — jump to Tickets with the form prefilled.
   const createTicketFrom = (prefill: NewTicketInput) => {
@@ -61,7 +64,7 @@ export default function App() {
       {/* Column so the topbar stays a fixed 60px band and only the page content scrolls
           underneath it — the prototype's shell. */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar view={view} onMenu={() => setNavOpen(true)} />
+        <Topbar view={view} onMenu={() => setNavOpen(true)} range={range} />
         <main className="flex-1 overflow-y-auto">
         {view === 'agents' ? (
           <Agents me={me} />
@@ -86,7 +89,7 @@ export default function App() {
         ) : view === 'settings' ? (
           <Settings />
         ) : (
-          <Dashboard onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
+          <Dashboard range={range} onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
           )}
         </main>
       </div>
