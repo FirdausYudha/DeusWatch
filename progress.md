@@ -1,7 +1,59 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-18 (v1.16.0).
+> Last updated: 2026-07-20 (v2.0.0).
+
+**v2.0.0 RELEASED 2026-07-20** - **UI revamp** (global topbar, prototype-matched layout,
+collapsible mobile nav) + **ransomware kill-switch** (kill the encrypting PID, human-approved) +
+**cross-agent fan-out ban rule** + **slow-scanner watchlist**. Major version because the shell
+changed shape: every page's title now lives in a global Topbar, `PageHeader` lost its `title` prop,
+and the dashboard grid went 2-col -> 3-col (saved layouts reflow).
+https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.0.0
+
+**Kill-switch (feature 3) done 2026-07-20.** Four gates in series, each able only to reduce what
+happens: EVIDENCE (only `file_encrypted` entropy jumps or ransomware rules that authorized
+automated response) -> ATTRIBUTION (must name a process AND carry identity; no who-data = no
+proposal, never a guess) -> HUMAN APPROVAL (detection writes an inert `recommended` row;
+`PendingFileActions` only ever delivers `requested`, so a recommendation cannot reach an agent on
+its own; `KILL_SWITCH_AUTO=1` skips ONLY this gate) -> AGENT RE-VERIFICATION (agent re-checks the
+live process against the start time captured at detection and may refuse; its refusal is final).
+Rides the existing `agent_file_actions` queue rather than a parallel pipeline (migration 000046 adds
+pid/proc_name/proc_start + the `recommended` status). The agent captures the actor's process START
+TIME at detection - the only moment it is readable - which is what defeats PID reuse between
+detection and approval. UI is honest by construction: only `killed` is green; every `skipped_*`
+means the process is STILL RUNNING and is amber. VERIFIED end-to-end: migration applied to real
+Postgres + down-migration validated in a rolled-back txn; 2 store tests + 10 recommender tests;
+live HTTP flow (list -> unapproved NOT delivered -> approve 204 -> `requested_by` becomes the
+approver -> double-approve 409). Docs: docs/ransomware.md "Kill-switch".
+Also fixed a latent bug found on the way: `normalizeFIM`'s action whitelist silently DROPPED
+`quarantined` events, so the existing quarantine feature never reached the event timeline.
+
+**UI revamp done 2026-07-20.** Matched the `New UI/Standalone` prototype: its palette already
+equalled our token system, so the real gap was structural. Added a global 60px **Topbar** (page
+title + subtitle + theme toggle) and removed the duplicated `<h1>` from all 11 pages; `PageHeader`
+now renders only what a page knows that the shell cannot (a LIVE subtitle + page actions). Dashboard
+grid is now 3-col with `wide` = span 2, giving the prototype's exact 2fr/1fr pairing (verified by
+geometry: 3x322px columns, wide = 656px = 2x322+12 gap). Theme toggle moved sidebar -> topbar (was
+duplicated). Fixed a REAL responsive defect found while measuring: the 232px rail never collapsed,
+leaving 107px of usable width on a 375px phone - it is now a slide-over below `lg` (107px -> 318px).
+Shared `StatCard` was dead code while Report reimplemented its own; unified. Canvas colour now set
+on `<html>` too (background propagation left overscroll painting the old theme).
+HONEST: screenshots broke in the preview tool partway through, so late layout work was verified by
+DOM geometry and computed styles, not by eye - worth a visual pass on the server.
+
+**Encoding damage fully repaired 2026-07-20.** The revamp's bulk edits had gone through PowerShell
+`Get-Content`/`Set-Content`, which on PS 5.1 reads BOM-less UTF-8 as cp1252 - double-encoding every
+non-ASCII character across 16 files (235 occurrences: em dashes, arrows, middle dots and curly
+quotes all became multi-character garbage). Repaired by reversing the
+double-encoding only on runs of >=2 affected chars that round-trip cleanly, so correct text was
+provably untouched. The same incident also left a **BOM** on those 16 files (PS `-Encoding utf8`
+writes one); stripped. Repo-wide scan: 0 mojibake, 0 BOMs. NEVER bulk-edit source with PowerShell.
+
+**Demo data added 2026-07-20.** `tools/demoseed/seed.sql` + `go run ./tools/demorefresh` populate a
+database for demos/review (~2,700 events / 14 days, tagged `demo%`, one-statement removal). Shaped
+so widgets AGREE: verdicts derive from severity, loud actors run short campaigns (so they are not
+mistaken for patient scanners) while one genuine slow scanner tops the watchlist on the LOWEST event
+count, and a separate recent-24h campaign fills the default view. NOT for production.
 
 **v1.18.0 RELEASED 2026-07-19** — **Ransomware defense** (detect+contain, point-in-time bulk
 revert, entropy encryption signal, defense guide) + **large HTML/PHP snapshots** (2 MiB default,

@@ -1,10 +1,11 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   fetchReport, fetchReportMarkdown, fetchReportSummary, generateReportSummary,
   fetchReportAIConfig, saveReportAIConfig, exportReportToWebhook,
   fetchNotifyConfig, saveNotifyConfig,
   type SecurityReport, type ReportCount, type ReportSummary, type ReportAIConfig, type NotifyConfig,
 } from '../lib/api'
+import { StatCard } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
 
 const SCHEDULE_PRESETS: { label: string; hours: number }[] = [
@@ -28,15 +29,6 @@ const WINDOWS: { label: string; hours: number }[] = [
   { label: '7d', hours: 168 },
   { label: '30d', hours: 720 },
 ]
-
-function StatCard({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
-  return (
-    <div className="card-print rounded-[12px] border border-border bg-surface p-4">
-      <div className="text-[11px] uppercase tracking-wider text-dim">{label}</div>
-      <div className={`mt-1 text-3xl font-semibold ${accent ?? 'text-fg'}`}>{value}</div>
-    </div>
-  )
-}
 
 function BarList({ title, rows }: { title: string; rows: ReportCount[] | null }) {
   const max = Math.max(1, ...(rows ?? []).map((r) => r.count))
@@ -215,7 +207,6 @@ export default function Report() {
       <style>{PRINT_CSS}</style>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Report</h1>
           <p className="mt-0.5 text-[12px] text-muted">
             Security summary
             {report && <span className="ml-1 text-dim">· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
@@ -461,8 +452,8 @@ export default function Report() {
       {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2">
-        <StatCard label="Total events" value={report?.total_events ?? '—'} />
-        <StatCard label="Total alerts" value={report?.total_alerts ?? '—'} accent="text-orange-300" />
+        <StatCard label="Total events" value={report?.total_events ?? '—'} className="card-print" />
+        <StatCard label="Total alerts" value={report?.total_alerts ?? '—'} accentClass="text-orange-300" className="card-print" />
       </section>
 
       <section className="grid gap-3 lg:grid-cols-2">

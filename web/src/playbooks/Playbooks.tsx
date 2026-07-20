@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   fetchPlaybooks, createPlaybook, updatePlaybook, deletePlaybook,
   type PlaybookInfo, type PlaybookSpec,
@@ -82,7 +82,6 @@ export default function Playbooks() {
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-6">
-        <h1 className="text-[16px] font-semibold tracking-tight text-fg">Playbooks</h1>
         <p className="mt-0.5 text-[12px] text-muted">
           Remediation playbooks: each detection label maps to the steps an analyst should take.
           The worker stamps the matching playbook onto every fired alert (visible on the alert's

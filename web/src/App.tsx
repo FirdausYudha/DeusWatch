@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Sidebar, { type View } from './components/Sidebar'
+import Topbar from './components/Topbar'
 import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
 import Snapshots from './snapshots/Snapshots'
@@ -20,6 +21,8 @@ export default function App() {
   const [checked, setChecked] = useState(false)
   const [view, setView] = useState<View>('dashboard')
   const [ticketPrefill, setTicketPrefill] = useState<NewTicketInput | null>(null)
+  // Mobile nav drawer (the sidebar collapses below `lg`).
+  const [navOpen, setNavOpen] = useState(false)
 
   // Triggered from an alert ("Create ticket") — jump to Tickets with the form prefilled.
   const createTicketFrom = (prefill: NewTicketInput) => {
@@ -47,8 +50,19 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-fg">
-      <Sidebar me={me} view={view} onNavigate={setView} onLogout={() => setMe(null)} />
-      <main className="flex-1 overflow-y-auto">
+      <Sidebar
+        me={me}
+        view={view}
+        onNavigate={setView}
+        onLogout={() => setMe(null)}
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+      />
+      {/* Column so the topbar stays a fixed 60px band and only the page content scrolls
+          underneath it — the prototype's shell. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar view={view} onMenu={() => setNavOpen(true)} />
+        <main className="flex-1 overflow-y-auto">
         {view === 'agents' ? (
           <Agents me={me} />
         ) : view === 'snapshots' ? (
@@ -73,8 +87,9 @@ export default function App() {
           <Settings />
         ) : (
           <Dashboard onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
-        )}
-      </main>
+          )}
+        </main>
+      </div>
     </div>
   )
 }

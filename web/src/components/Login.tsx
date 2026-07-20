@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { login, register, fetchAuthConfig, TwoFactorRequired, type Me } from '../lib/api'
 
 type Mode = 'login' | 'register'

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, can, fetchSubscriptions, createSubscription, toggleSubscription, deleteSubscription, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig, type Subscription } from '../lib/api'
 import DocLink from '../components/DocLink'
@@ -454,7 +454,6 @@ export default function Settings() {
     <div className="mx-auto max-w-4xl px-6 py-5">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 gap-3">
         <div>
-          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Settings</h1>
           <p className="mt-0.5 text-[12px] text-muted">Account security</p>
         </div>
         <DocLink file="production.md" label="Production hardening" className="shrink-0" />

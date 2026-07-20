@@ -4,21 +4,18 @@
 import type { ReactNode } from 'react'
 
 // ── Page header ───────────────────────────────────────────────────────────────
+// The page's NAME lives in the Topbar (components/Topbar.tsx), so this renders only the parts a
+// page knows and the shell cannot: a live subtitle and page-specific actions.
 export function PageHeader({
-  title,
   subtitle,
   actions,
 }: {
-  title: string
   subtitle?: string
   actions?: ReactNode
 }) {
   return (
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-[16px] font-semibold tracking-tight text-fg">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-[12px] text-muted">{subtitle}</p>}
-      </div>
+      <div>{subtitle && <p className="text-[12px] text-muted">{subtitle}</p>}</div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   )
@@ -50,7 +47,7 @@ export function Card({
             {kicker && (
               <div className="text-[10px] font-medium uppercase tracking-wider text-dim">{kicker}</div>
             )}
-            {title && <div className="truncate text-[13px] font-semibold text-fg">{title}</div>}
+            {title && <div className="truncate text-[13.5px] font-bold text-fg">{title}</div>}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
@@ -61,23 +58,29 @@ export function Card({
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
+// StatCard is the headline-number tile: an uppercase label over a large value, sized to the
+// prototype (12px/600 label with 0.4px tracking, 26px/700 value).
+//
+// `accentClass` is a text-colour utility rather than a raw colour so a stat can carry meaning
+// (an alert count in amber) while still following the theme in both light and dark. It defaults
+// to plain foreground — a number is only coloured when the colour says something.
 export function StatCard({
   label,
   value,
   hint,
-  accent = 'var(--dw-accent)',
+  accentClass = 'text-fg',
+  className = '',
 }: {
   label: string
   value: ReactNode
   hint?: string
-  accent?: string
+  accentClass?: string
+  className?: string
 }) {
   return (
-    <div className="rounded-[12px] border border-border bg-surface p-4">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-dim">{label}</div>
-      <div className="mt-1.5 text-[26px] font-semibold leading-none" style={{ color: accent }}>
-        {value}
-      </div>
+    <div className={`rounded-[12px] border border-border bg-surface px-[18px] py-4 ${className}`}>
+      <div className="text-[12px] font-semibold uppercase tracking-[0.4px] text-dim">{label}</div>
+      <div className={`mt-1.5 text-[26px] font-bold leading-none ${accentClass}`}>{value}</div>
       {hint && <div className="mt-1.5 text-[11px] text-muted">{hint}</div>}
     </div>
   )

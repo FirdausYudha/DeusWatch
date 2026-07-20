@@ -1,4 +1,4 @@
-﻿import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner } from '../lib/api'
+import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner } from '../lib/api'
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
 // Categorical palette for donut segments, starting from the widget's chosen color.
@@ -11,8 +11,14 @@ function Empty() {
   return <p className="py-6 text-center text-[12.5px] text-dim">no data yet</p>
 }
 
+// Sized to match the StatCard tile (26px/700). tabular-nums keeps the digits on a fixed pitch so
+// a counter ticking up doesn't make the number jitter horizontally.
 export function StatWidget({ value, color }: { value: number; color: string }) {
-  return <div className="py-2 text-4xl font-semibold" style={{ color }}>{value.toLocaleString('en-US')}</div>
+  return (
+    <div className="py-2 text-[26px] font-bold tabular-nums leading-none" style={{ color }}>
+      {value.toLocaleString('en-US')}
+    </div>
+  )
 }
 
 export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }) {

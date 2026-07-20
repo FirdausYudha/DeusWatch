@@ -1,4 +1,4 @@
-﻿// DocLink renders a "See documentation" link to the feature's page in the GitHub docs, so each
+// DocLink renders a "See documentation" link to the feature's page in the GitHub docs, so each
 // feature in the UI points at how to set it up. `file` is a path under docs/ (e.g. "mikrotik.md").
 const DOC_BASE = 'https://github.com/FirdausYudha/DeusWatch/blob/main/docs/'
 

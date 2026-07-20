@@ -1,6 +1,5 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { logout, can, type Me } from '../lib/api'
-import { useTheme } from '../lib/theme'
 import SupportModal from './SupportModal'
 
 export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'integrations' | 'users' | 'settings'
@@ -57,14 +56,18 @@ export default function Sidebar({
   view,
   onNavigate,
   onLogout,
+  open = false,
+  onClose,
 }: {
   me: Me
   view: View
   onNavigate: (v: View) => void
   onLogout: () => void
+  /** Mobile only: whether the slide-over nav is showing. Ignored from `lg` up. */
+  open?: boolean
+  onClose?: () => void
 }) {
   const [showSupport, setShowSupport] = useState(false)
-  const [theme, toggleTheme] = useTheme()
 
   const handleLogout = async () => {
     await logout()
@@ -74,7 +77,22 @@ export default function Sidebar({
   const initials = me.username.slice(0, 2).toUpperCase()
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[232px] shrink-0 flex-col border-r border-border bg-surface">
+    <>
+      {/* Below `lg` the 232px rail would eat most of a phone screen, so it becomes a slide-over
+          with a dimmed backdrop. From `lg` up it is the ordinary sticky rail and the backdrop and
+          transform never apply. */}
+      {open && (
+        <div
+          onClick={onClose}
+          aria-hidden="true"
+          className="fixed inset-0 z-20 bg-slate-950/60 lg:hidden"
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 flex h-screen w-[232px] shrink-0 flex-col border-r border-border bg-surface transition-transform lg:sticky lg:top-0 lg:translate-x-0 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
       {/* Brand */}
       <div className="flex h-[60px] items-center gap-2.5 px-[18px]">
         <img src="/deuswatch-eye.png" alt="" aria-hidden="true" className="h-7 w-auto shrink-0" />
@@ -90,7 +108,7 @@ export default function Sidebar({
             <button
               key={n.id}
               data-view={n.view}
-              onClick={() => n.view && onNavigate(n.view)}
+              onClick={() => { if (n.view) { onNavigate(n.view); onClose?.() } }}
               className={`flex w-full items-center gap-[11px] rounded-[8px] px-3 py-[9px] text-left text-[13.5px] font-medium transition-colors ${
                 active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
               }`}
@@ -124,51 +142,19 @@ export default function Sidebar({
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-[8px] border border-border px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
-          >
-            {theme === 'dark' ? (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
-                  <path
-                    d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                Light
-              </>
-            ) : (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                Dark
-              </>
-            )}
-          </button>
-          <button
-            onClick={() => setShowSupport(true)}
-            title="Support DeusWatch"
-            className="rounded-[8px] border border-border px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-surface-2 hover:text-critical"
-          >
-            ♥
-          </button>
-        </div>
+        {/* Theme now lives in the Topbar (one control, next to the content it affects), so
+            the footer keeps only Support. */}
+        <button
+          onClick={() => setShowSupport(true)}
+          title="Support DeusWatch"
+          className="flex items-center justify-center gap-1.5 rounded-[8px] border border-border px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-surface-2 hover:text-critical"
+        >
+          <span aria-hidden="true">♥</span> Support DeusWatch
+        </button>
       </div>
 
       {showSupport && <SupportModal onClose={() => setShowSupport(false)} />}
-    </aside>
+      </aside>
+    </>
   )
 }

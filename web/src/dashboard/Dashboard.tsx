@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, Fragment, type ReactNode } from 'react'
+import { useEffect, useState, Fragment, type ReactNode } from 'react'
 import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData, fetchLayout, saveLayout,
   fetchStorageStatus, requestFimRestore,
@@ -388,7 +388,6 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <PageHeader
-        title="Dashboard"
         subtitle="Situational awareness & search"
         actions={
           <>
@@ -440,8 +439,11 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
         </div>
       )}
 
-      {/* Customizable widget grid */}
-      <section className="mb-8 grid gap-3 lg:grid-cols-2">
+      {/* Customizable widget grid.
+          Three columns on wide screens so a "wide" widget spans two of them — the prototype's
+          2fr/1fr pairing (a chart beside its breakdown) — while a normal widget is a third.
+          Two columns at medium width, one on mobile, so nothing is squeezed below ~300px. */}
+      <section className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {widgets.map((w) => (
           <div
             key={w.id}
@@ -451,7 +453,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
             onDragLeave={() => setOverId((o) => (o === w.id ? null : o))}
             onDrop={(e) => { e.preventDefault(); if (dragId) reorder(dragId, w.id); clearDrag() }}
             onDragEnd={clearDrag}
-            className={`rounded-[12px] border bg-surface p-4 transition-all ${w.wide ? 'lg:col-span-2' : ''} ${
+            className={`rounded-[12px] border bg-surface p-4 transition-all ${w.wide ? 'sm:col-span-2' : ''} ${
               overId === w.id ? 'border-accent ring-2 ring-accent/40' : 'border-border'
             } ${dragId === w.id ? 'opacity-40' : ''}`}
           >
@@ -496,7 +498,7 @@ export default function Dashboard({ onCreateTicket }: { onCreateTicket?: (t: New
           </div>
         ))}
         {widgets.length === 0 && (
-          <p className="lg:col-span-2 rounded-[12px] border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-dim">
+          <p className="sm:col-span-2 lg:col-span-3 rounded-[12px] border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-dim">
             No widgets. Click “Customize” to add some.
           </p>
         )}

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   fetchUsers,
   createUser,
@@ -189,7 +189,6 @@ export default function Users({ me }: { me: Me }) {
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-8">
-        <h1 className="text-[16px] font-semibold tracking-tight text-fg">Users &amp; Access</h1>
         <p className="mt-0.5 text-[12px] text-muted">
           Manage accounts, roles, and per-user permissions (granular RBAC)
         </p>

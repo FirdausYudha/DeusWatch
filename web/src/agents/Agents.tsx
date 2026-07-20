@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   fetchAgents,
   createEnrollToken,
@@ -82,7 +82,6 @@ export default function Agents({ me }: { me: Me }) {
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Agents</h1>
           <p className="mt-0.5 text-[12px] text-muted">Registered agents, heartbeat status &amp; centrally-pushed config</p>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             <DocLink file="new-log-source.md" label="Add a log source" />

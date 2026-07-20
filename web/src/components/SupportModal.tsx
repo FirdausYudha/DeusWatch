@@ -1,4 +1,4 @@
-﻿import { QRCodeSVG } from 'qrcode.react'
+import { QRCodeSVG } from 'qrcode.react'
 
 // Support / donation modal. Saweria is wired now; Ko-fi can be added later once a
 // slug is available (leave KOFI_PAGE empty to hide its button).

@@ -100,6 +100,14 @@ body,
   height: 100%;
 }
 
+/* The canvas colour is set on <html>, not only on <body>. When the root has no background of its
+   own the body's is propagated to the canvas, and the body then behaves as if it had none — which
+   left overscroll areas painting the previous theme's colour. Setting it here makes the theme
+   authoritative for the whole canvas. */
+html {
+  background: var(--dw-bg);
+}
+
 body {
   margin: 0;
   background: var(--dw-bg);

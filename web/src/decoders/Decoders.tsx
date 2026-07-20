@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   fetchDecoders, createDecoder, updateDecoder, deleteDecoder,
   fetchDecoderSamples, testDecoder,
@@ -100,7 +100,6 @@ export default function Decoders() {
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-6">
-        <h1 className="text-[16px] font-semibold tracking-tight text-fg">Decoders</h1>
         <p className="mt-0.5 text-[12px] text-muted">
           Data-driven log parsing for sources without a built-in decoder. A regex extracts fields
           from a dataset's raw lines; the gateway live-reloads changes. Built-ins for sshd/web/fim/

@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="color-scheme" content="dark light">
+<style>
+@keyframes dw-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes dw-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif; }
+* { box-sizing:border-box; }
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-thumb { background:#33415580; border-radius:8px; }
+</style>
+</helmet>
+
+<div style="display:flex;min-height:100vh;background:{{c.bg}};color:{{c.text}};transition:background .2s,color .2s">
+
+<div style="width:232px;flex:none;background:{{c.surface}};border-right:1px solid {{c.border}};display:flex;flex-direction:column;position:sticky;top:0;height:100vh">
+  <div style="display:flex;align-items:center;gap:10px;padding:20px 18px;height:60px;box-sizing:border-box">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2 L21 6 V12 C21 17 17 21 12 22 C7 21 3 17 3 12 V6 Z" stroke="#6366f1" stroke-width="2" stroke-linejoin="round"/><path d="M8.5 12 L11 14.5 L16 9" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span style="font-weight:700;font-size:15px;letter-spacing:.2px">DeusWatch</span>
+  </div>
+
+  <div style="flex:1;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:2px">
+    <sc-for list="{{ navItems }}" as="item" hint-placeholder-count="8">
+      <div onClick="{{ item.onClick }}" style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:13.5px;font-weight:500" style-hover="{{ item.hoverStyle }}">
+        <span style="width:18px;height:18px;flex:none;display:flex;align-items:center;justify-content:center;color:{{ item.iconColor }}" dangerouslySetInnerHTML="{{ item.iconHtml }}"></span>
+        <span style="color:{{ item.textColor }}">{{ item.label }}</span>
+        <sc-if value="{{ item.active }}" hint-placeholder-val="{{ false }}">
+          <span style="margin-left:auto;width:5px;height:5px;border-radius:50%;background:#6366f1"></span>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="padding:12px;border-top:1px solid {{c.border}};display:flex;flex-direction:column;gap:8px">
+    <div onClick="{{ toggleTour }}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;color:{{c.textMuted}};border:1px dashed {{c.border}}">
+      <span style="font-size:14px">◔</span> Take the 2-min tour
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px">
+      <div style="width:30px;height:30px;border-radius:50%;background:#6366f1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none">AR</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">a.rahman</div>
+        <div style="font-size:11px;color:{{c.textFaint}}">SOC Analyst</div>
+      </div>
+      <div title="Log out" style="cursor:pointer;color:{{c.textFaint}};font-size:15px">⏻</div>
+    </div>
+  </div>
+</div>
+
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+  <div style="height:60px;flex:none;display:flex;align-items:center;gap:16px;padding:0 24px;border-bottom:1px solid {{c.border}};background:{{c.surface}};position:sticky;top:0;z-index:5">
+    <div style="font-size:16px;font-weight:700">{{ pageTitle }}</div>
+    <div style="font-size:12.5px;color:{{c.textFaint}}">{{ pageSubtitle }}</div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+      <sc-if value="{{ showRange }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;background:{{c.surfaceAlt}};border:1px solid {{c.border}};border-radius:8px;padding:3px">
+          <sc-for list="{{ ranges }}" as="r" hint-placeholder-count="3">
+            <div onClick="{{ r.onClick }}" style="{{ r.style }}">{{ r.label }}</div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <div onClick="{{ toggleTheme }}" title="Toggle theme" style="width:32px;height:32px;border-radius:8px;border:1px solid {{c.border}};display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:{{c.textMuted}}">{{ themeIcon }}</div>
+    </div>
+  </div>
+
+  <div style="flex:1;padding:24px;overflow-y:auto">
+
+    <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:18px">
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+          <sc-for list="{{ statCards }}" as="s" hint-placeholder-count="4">
+            <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+              <div style="font-size:12px;color:{{c.textFaint}};font-weight:600;text-transform:uppercase;letter-spacing:.4px">{{ s.label }}</div>
+              <div style="font-size:26px;font-weight:700;margin-top:6px">{{ s.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:18px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div style="font-size:13.5px;font-weight:700">Events over time</div>
+              <a href="#" onClick="{{ noop }}" style="font-size:11.5px;color:{{c.textFaint}};text-decoration:none">See documentation ↗</a>
+            </div>
+            <svg viewBox="0 0 400 120" style="width:100%;height:120px;display:block" preserveAspectRatio="none">
+              <polyline points="{{ eventsLinePoints }}" fill="none" stroke="#6366f1" stroke-width="2.5"/>
+              <polygon points="{{ eventsAreaPoints }}" fill="#6366f122"/>
+            </svg>
+          </div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:18px">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:12px">Severity breakdown</div>
+            <div style="display:flex;align-items:center;gap:16px">
+              <svg width="100" height="100" viewBox="0 0 32 32" style="flex:none;transform:rotate(-90deg)">
+                <sc-for list="{{ severityArcs }}" as="a" hint-placeholder-count="5">
+                  <circle cx="16" cy="16" r="14" fill="none" stroke="{{ a.color }}" stroke-width="4" stroke-dasharray="{{ a.dash }}" stroke-dashoffset="{{ a.offset }}"/>
+                </sc-for>
+              </svg>
+              <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+                <sc-for list="{{ severityBreakdown }}" as="sv" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:7px;font-size:12px">
+                    <span style="width:8px;height:8px;border-radius:2px;background:{{ sv.color }};flex:none"></span>
+                    <span style="color:{{c.textMuted}};flex:1">{{ sv.label }}</span>
+                    <span style="font-weight:700">{{ sv.value }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:10px">Top source IPs</div>
+            <sc-for list="{{ topIPs }}" as="ip" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid {{c.border}};font-size:12.5px">
+                <span style="font-family:ui-monospace,monospace">{{ ip.ip }}</span>
+                <span style="display:flex;align-items:center;gap:8px">
+                  <span style="color:{{c.textFaint}}">{{ ip.country }}</span>
+                  <span style="background:{{ip.bandColor}}22;color:{{ip.bandColor}};border:1px solid {{ip.bandColor}}55;border-radius:999px;padding:2px 8px;font-weight:700;font-size:11px">{{ ip.count }}</span>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:10px">Top rules</div>
+            <sc-for list="{{ topRules }}" as="ru" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid {{c.border}};font-size:12.5px">
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ru.name }}</span>
+                <span style="background:{{ru.severityColor}}22;color:{{ru.severityColor}};border:1px solid {{ru.severityColor}}55;border-radius:999px;padding:2px 8px;font-weight:700;font-size:11px;flex:none">{{ ru.hits }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+              <div style="font-size:13.5px;font-weight:700">Top MITRE ATT&CK techniques</div>
+              <span title="MITRE ATT&CK is a public catalog of real attacker behaviors, grouped by tactic (goal) and technique (method). Matching alerts to it tells you what stage of an attack you're seeing." style="cursor:help;width:14px;height:14px;border-radius:50%;background:{{c.surfaceAlt}};color:{{c.textFaint}};font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none">?</span>
+            </div>
+            <sc-for list="{{ topMitre }}" as="m" hint-placeholder-count="4">
+              <div style="padding:7px 0;border-bottom:1px solid {{c.border}};font-size:12.5px">
+                <div style="display:flex;justify-content:space-between">
+                  <span style="font-family:ui-monospace,monospace;font-weight:700;color:#8b5cf6">{{ m.id }}</span>
+                  <span style="font-weight:700">{{ m.hits }}</span>
+                </div>
+                <div style="color:{{c.textFaint}};font-size:11.5px">{{ m.name }} · {{ m.tactic }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:10px">Top risky IPs <span style="font-weight:400;color:{{c.textFaint}};font-size:11.5px">— composite score 0–100</span></div>
+            <sc-for list="{{ riskyIPs }}" as="rk" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid {{c.border}}">
+                <span style="font-family:ui-monospace,monospace;font-size:12.5px;width:130px">{{ rk.ip }}</span>
+                <div style="flex:1;height:6px;background:{{c.surfaceAlt}};border-radius:4px;overflow:hidden">
+                  <div style="height:100%;width:{{ rk.pct }}%;background:{{ rk.bandColor }}"></div>
+                </div>
+                <span style="font-size:12px;font-weight:700;color:{{ rk.bandColor }};width:26px;text-align:right">{{ rk.score }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+              <div style="font-size:13.5px;font-weight:700">Suspicious IPs</div>
+              <span title="Low-and-slow reconnaissance watchlist: IPs that spread requests thin across many hosts or fail quietly over days, instead of loud brute-forcing." style="cursor:help;width:14px;height:14px;border-radius:50%;background:{{c.surfaceAlt}};color:{{c.textFaint}};font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none">?</span>
+            </div>
+            <sc-for list="{{ suspiciousIPs }}" as="su" hint-placeholder-count="2">
+              <div style="padding:8px 0;border-bottom:1px solid {{c.border}};font-size:12.5px">
+                <div style="font-family:ui-monospace,monospace;font-weight:700">{{ su.ip }}</div>
+                <div style="color:{{c.textFaint}};font-size:11.5px;margin-top:2px">{{ su.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:0;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid {{c.border}}">
+            <div style="font-size:13.5px;font-weight:700">Events &amp; alerts</div>
+            <div style="display:flex;gap:8px">
+              <input placeholder="Search source IP, rule, agent…" style="background:{{c.surfaceAlt}};border:1px solid {{c.border}};color:{{c.text}};border-radius:8px;padding:7px 12px;font-size:12.5px;width:260px;outline:none"/>
+              <div style="background:{{c.surfaceAlt}};border:1px solid {{c.border}};border-radius:8px;padding:7px 12px;font-size:12.5px;color:{{c.textMuted}};cursor:pointer">Filters</div>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead>
+              <tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase;letter-spacing:.3px">
+                <th style="padding:9px 18px;font-weight:600">Time</th>
+                <th style="padding:9px 10px;font-weight:600">Severity</th>
+                <th style="padding:9px 10px;font-weight:600">Rule</th>
+                <th style="padding:9px 10px;font-weight:600">Source IP</th>
+                <th style="padding:9px 10px;font-weight:600">Agent</th>
+                <th style="padding:9px 10px;font-weight:600">MITRE</th>
+                <th style="padding:9px 10px;font-weight:600">Score</th>
+                <th style="padding:9px 10px;font-weight:600">LLM verdict</th>
+                <th style="padding:9px 18px;font-weight:600">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ eventsTable }}" as="ev" hint-placeholder-count="6">
+                <tr style="border-top:1px solid {{c.border}}">
+                  <td style="padding:9px 18px;color:{{c.textFaint}};font-family:ui-monospace,monospace">{{ ev.time }}</td>
+                  <td style="padding:9px 10px"><span style="background:{{ev.severityColor}}22;color:{{ev.severityColor}};border:1px solid {{ev.severityColor}}55;border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;text-transform:capitalize">{{ ev.severity }}</span></td>
+                  <td style="padding:9px 10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ev.rule }}</td>
+                  <td style="padding:9px 10px;font-family:ui-monospace,monospace">{{ ev.ip }}</td>
+                  <td style="padding:9px 10px;color:{{c.textMuted}}">{{ ev.agent }}</td>
+                  <td style="padding:9px 10px;font-family:ui-monospace,monospace;color:#8b5cf6">{{ ev.mitre }}</td>
+                  <td style="padding:9px 10px;font-weight:700;color:{{ev.bandColor}}">{{ ev.score }}</td>
+                  <td style="padding:9px 10px"><span style="background:{{ev.llmColor}}22;color:{{ev.llmColor}};border:1px solid {{ev.llmColor}}55;border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;text-transform:capitalize">{{ ev.llm }}</span></td>
+                  <td style="padding:9px 18px;color:{{c.textMuted}}">{{ ev.action }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isResponse }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <div style="display:flex;gap:12px;align-items:flex-start;background:#f59e0b14;border:1px solid #f59e0b40;border-radius:12px;padding:14px 16px">
+          <span style="font-size:16px">⚠</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#f59e0b">Nothing is currently wired to enforce a ban</div>
+            <div style="font-size:12.5px;color:{{c.textMuted}};margin-top:2px">Rows below are labelled <b>Dangerous IP</b>, not "Blocked" — DeusWatch does not claim an action it hasn't performed. <a href="#" onClick="{{ noop }}" style="color:#f59e0b">Connect a firewall bouncer ↗</a></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;border-bottom:1px solid {{c.border}}">
+          <div onClick="{{ setResponseByIP }}" style="{{ tabByIPStyle }}">By IP</div>
+          <div onClick="{{ setResponseEvents }}" style="{{ tabEventsStyle }}">Events</div>
+          <div style="margin-left:auto;display:flex;gap:8px;padding-bottom:8px">
+            <div onClick="{{ openWhitelist }}" style="{{ ghostBtn }}">IP whitelist</div>
+            <div onClick="{{ openBlocklist }}" style="{{ ghostBtn }}">Blocklist feed</div>
+            <div onClick="{{ openBanPolicy }}" style="{{ ghostBtn }}">Ban policy</div>
+          </div>
+        </div>
+
+        <sc-if value="{{ showByIP }}" hint-placeholder-val="{{ true }}">
+        <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid {{c.border}}">
+            <div style="font-size:13px;font-weight:700">Dangerous IPs — offenders aggregated</div>
+            <div style="display:flex;gap:8px">
+              <div style="{{ smallBtnMuted }}">Approve selected</div>
+              <div style="{{ smallBtnMuted }}">Dismiss selected</div>
+            </div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
+              <th style="padding:9px 18px"><input type="checkbox"/></th>
+              <th style="padding:9px 10px">IP</th>
+              <th style="padding:9px 10px">Count</th>
+              <th style="padding:9px 10px">Pending</th>
+              <th style="padding:9px 10px">Score / band</th>
+              <th style="padding:9px 10px">Status</th>
+              <th style="padding:9px 10px">Ban duration</th>
+              <th style="padding:9px 18px">Actions</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ responseByIP }}" as="r" hint-placeholder-count="4">
+                <tr style="border-top:1px solid {{c.border}}">
+                  <td style="padding:9px 18px"><input type="checkbox"/></td>
+                  <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-weight:600">{{ r.ip }}</td>
+                  <td style="padding:9px 10px">{{ r.count }}</td>
+                  <td style="padding:9px 10px;color:#f59e0b;font-weight:700">{{ r.pending }}</td>
+                  <td style="padding:9px 10px"><span style="color:{{r.bandColor}};font-weight:700">{{ r.score }}</span> <span style="color:{{c.textFaint}}">/ {{ r.band }}</span></td>
+                  <td style="padding:9px 10px"><span style="background:{{r.statusColor}}22;color:{{r.statusColor}};border:1px solid {{r.statusColor}}55;border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;text-transform:capitalize">{{ r.status }}</span></td>
+                  <td style="padding:9px 10px;color:{{c.textMuted}}">{{ r.duration }}</td>
+                  <td style="padding:9px 18px;display:flex;gap:6px">
+                    <span style="{{ linkGood }}">Approve</span><span style="{{ linkMuted }}">Dismiss</span><span style="{{ linkInfo }}">Unban</span>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ showEvents }}" hint-placeholder-val="{{ false }}">
+        <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid {{c.border}};font-size:13px;font-weight:700">Individual response events</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
+              <th style="padding:9px 18px">Time</th><th style="padding:9px 10px">Target</th><th style="padding:9px 10px">Entity</th>
+              <th style="padding:9px 10px">Action</th><th style="padding:9px 10px">Status</th><th style="padding:9px 18px">By</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ responseEvents }}" as="e" hint-placeholder-count="4">
+                <tr style="border-top:1px solid {{c.border}}">
+                  <td style="padding:9px 18px;color:{{c.textFaint}};font-family:ui-monospace,monospace">{{ e.time }}</td>
+                  <td style="padding:9px 10px;font-family:ui-monospace,monospace">{{ e.ip }}</td>
+                  <td style="padding:9px 10px;color:{{c.textMuted}}">{{ e.entity }}</td>
+                  <td style="padding:9px 10px">{{ e.action }}</td>
+                  <td style="padding:9px 10px"><span style="background:{{e.statusColor}}22;color:{{e.statusColor}};border:1px solid {{e.statusColor}}55;border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;text-transform:capitalize">{{ e.status }}</span></td>
+                  <td style="padding:9px 18px;color:{{c.textMuted}}">{{ e.by }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        </sc-if>
+
+        <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px">
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px">Network containment</div>
+            <sc-for list="{{ containedHosts }}" as="h" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid {{c.border}};font-size:12.5px">
+                <div style="flex:1">
+                  <div style="font-weight:600">{{ h.host }} <span style="color:{{c.textFaint}};font-weight:400">({{ h.ip }})</span></div>
+                  <div style="color:{{c.textFaint}};font-size:11.5px">{{ h.reason }}</div>
+                </div>
+                <span style="background:{{h.statusColor}}22;color:{{h.statusColor}};border:1px solid {{h.statusColor}}55;border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;text-transform:capitalize">{{ h.status }}</span>
+                <sc-if value="{{ h.auto }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;color:{{c.textFaint}};border:1px solid {{c.border}};border-radius:6px;padding:1px 6px">auto</span></sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+              <div style="font-size:13px;font-weight:700">Decision table</div>
+              <span title="How DeusWatch decides what to do automatically for each kind of alert entity." style="cursor:help;width:14px;height:14px;border-radius:50%;background:{{c.surfaceAlt}};color:{{c.textFaint}};font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700">?</span>
+            </div>
+            <sc-for list="{{ decisionTable }}" as="d" hint-placeholder-count="4">
+              <div style="padding:8px 0;border-bottom:1px solid {{c.border}};font-size:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <span style="font-family:ui-monospace,monospace">{{ d.entity }} → {{ d.action }}</span>
+                  <span style="background:{{d.enforcementColor}}22;color:{{d.enforcementColor}};border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:700">{{ d.enforcement }}</span>
+                </div>
+                <div style="color:{{c.textFaint}};margin-top:2px">{{ d.rationale }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSnapshots }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:#f43f5e14;border:1px solid #f43f5e40;border-radius:12px;padding:12px 16px;display:flex;gap:10px;align-items:center">
+          <span>🛟</span>
+          <div style="font-size:12.5px;color:{{c.textMuted}}"><b style="color:#f43f5e">Ransomware recovery:</b> pick a point in time below and restore every watched file on this agent to that moment.</div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <input type="datetime-local" style="background:{{c.surfaceAlt}};border:1px solid {{c.border}};color:{{c.text}};border-radius:7px;padding:6px 10px;font-size:12px"/>
+            <div style="{{ dangerBtn }}">Restore all files to this time</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:start">
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
+            <div style="padding:12px 14px;border-bottom:1px solid {{c.border}};font-size:12.5px;font-weight:700">Watched files</div>
+            <sc-for list="{{ watchedFiles }}" as="f" hint-placeholder-count="3">
+              <div onClick="{{ f.onClick }}" style="{{ f.rowStyle }}">
+                <div style="font-family:ui-monospace,monospace;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.path }}</div>
+                <div style="font-size:11px;color:{{c.textFaint}};margin-top:2px">{{ f.versions }} versions · {{ f.agent }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <div style="font-size:13px;font-weight:700">Version timeline — {{ selectedFilePath }}</div>
+                <div style="display:flex;gap:8px">
+                  <div style="{{ ghostBtn }}">Snapshot now</div>
+                  <div style="{{ warnBtn }}">Quarantine file</div>
+                </div>
+              </div>
+              <sc-for list="{{ fileVersions }}" as="v" hint-placeholder-count="4">
+                <div style="border-top:1px solid {{c.border}}">
+                  <div onClick="{{ v.onClick }}" style="display:flex;align-items:center;gap:12px;padding:10px 2px;cursor:pointer;font-size:12.5px">
+                    <span style="width:8px;height:8px;border-radius:50%;background:{{v.changeTypeColor}};flex:none"></span>
+                    <span style="font-family:ui-monospace,monospace;color:{{c.textMuted}}">{{ v.time }}</span>
+                    <span style="background:{{v.changeTypeColor}}22;color:{{v.changeTypeColor}};border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;text-transform:capitalize">{{ v.changeType }}</span>
+                    <span style="color:{{c.textFaint}}">{{ v.trigger }}</span>
+                    <span title="Where the file content is stored" style="background:{{v.storageColor}}18;color:{{v.storageColor}};border:1px solid {{v.storageColor}}44;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:700">{{ v.storage }}</span>
+                    <span style="color:{{c.textFaint}}">{{ v.size }}</span>
+                    <span style="font-family:ui-monospace,monospace;color:{{c.textFaint}};font-size:11px">{{ v.sha }}</span>
+                    <span style="margin-left:auto;color:#6366f1;font-weight:700">{{ v.diffLabel }}</span>
+                  </div>
+                  <sc-if value="{{ v.open }}" hint-placeholder-val="{{ false }}">
+                    <div style="background:{{c.bg}};border:1px solid {{c.border}};border-radius:8px;padding:12px;margin:0 2px 12px;font-family:ui-monospace,monospace;font-size:12px">
+                      <sc-for list="{{ diffLines }}" as="dl" hint-placeholder-count="5">
+                        <div style="{{ dl.style }}">{{ dl.text }}</div>
+                      </sc-for>
+                      <div style="margin-top:10px;display:flex;gap:8px">
+                        <div style="{{ primaryBtn }}">Restore this version</div>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
+              <div style="font-size:13px;font-weight:700;margin-bottom:8px">Recent actions</div>
+              <div style="font-size:12px;color:{{c.textMuted}};font-family:ui-monospace,monospace">quarantined /etc/passwd → /var/lib/deuswatch/quarantine/edge-gw-01/passwd.2026-07-19</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isAgents }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;justify-content:flex-end">
+          <div onClick="{{ openEnroll }}" style="{{ primaryBtn }}">+ Enroll agent</div>
+        </div>
+        <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
+              <th style="padding:10px 18px">Agent</th><th style="padding:10px 10px">OS</th><th style="padding:10px 10px">Status</th>
+              <th style="padding:10px 10px">Last seen</th><th style="padding:10px 10px">Config</th><th style="padding:10px 18px">Actions</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ agents }}" as="a" hint-placeholder-count="5">
+                <tr style="border-top:1px solid {{c.border}}">
+                  <td style="padding:10px 18px;font-weight:600">{{ a.name }}</td>
+                  <td style="padding:10px 10px;color:{{c.textMuted}}">{{ a.os }}</td>
+                  <td style="padding:10px 10px"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:{{a.statusColor}}"></span><span style="text-transform:capitalize;color:{{a.statusColor}};font-weight:700">{{ a.status }}</span></span></td>
+                  <td style="padding:10px 10px;color:{{c.textFaint}}">{{ a.lastSeen }}</td>
+                  <td style="padding:10px 10px;color:{{c.textMuted}}">{{ a.version }}</td>
+                  <td style="padding:10px 18px;display:flex;gap:10px">
+                    <span onClick="{{ goSnapshots }}" style="{{ linkInfo }}">Snapshots</span><span style="{{ linkMuted }}">Config</span><span style="{{ linkDanger }}">Revoke</span>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isRules }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;gap:8px;border-bottom:1px solid {{c.border}}">
+          <div onClick="{{ setRulesRules }}" style="{{ rulesTabStyle }}">Rules</div>
+          <div onClick="{{ setRulesDecoders }}" style="{{ decodersTabStyle }}">Decoders</div>
+          <div onClick="{{ setRulesPlaybooks }}" style="{{ playbooksTabStyle }}">Playbooks</div>
+        </div>
+
+        <sc-if value="{{ showRulesTab }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#38bdf814;border:1px solid #38bdf840;border-radius:10px;padding:10px 14px;font-size:12px;color:{{c.textMuted}}">Only Sigma-format rule packs install with one click here. Other engines (OWASP CRS, ET Open, YARA) run as sensors — DeusWatch just ingests their output.</div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+              <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
+                <th style="padding:10px 18px">Rule</th><th style="padding:10px 10px">Severity</th><th style="padding:10px 10px">MITRE</th><th style="padding:10px 10px">Category</th><th style="padding:10px 18px">Enabled</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ rulesList }}" as="r" hint-placeholder-count="4">
+                  <tr style="border-top:1px solid {{c.border}}">
+                    <td style="padding:10px 18px;font-weight:600">{{ r.name }}</td>
+                    <td style="padding:10px 10px"><span style="background:{{r.severityColor}}22;color:{{r.severityColor}};border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;text-transform:capitalize">{{ r.severity }}</span></td>
+                    <td style="padding:10px 10px;font-family:ui-monospace,monospace;color:#8b5cf6">{{ r.mitre }}</td>
+                    <td style="padding:10px 10px;color:{{c.textMuted}}">{{ r.category }}</td>
+                    <td style="padding:10px 18px">{{ r.enabledLabel }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showDecodersTab }}" hint-placeholder-val="{{ false }}">
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+              <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
+                <th style="padding:10px 18px">Decoder</th><th style="padding:10px 10px">Matches</th><th style="padding:10px 18px">Fields extracted</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ decodersList }}" as="dd" hint-placeholder-count="3">
+                  <tr style="border-top:1px solid {{c.border}}">
+                    <td style="padding:10px 18px;font-family:ui-monospace,monospace;font-weight:600">{{ dd.name }}</td>
+                    <td style="padding:10px 10px;color:{{c.textMuted}}">{{ dd.match }}</td>
+                    <td style="padding:10px 18px">{{ dd.fields }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showPlaybooksTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+            <sc-for list="{{ playbooksList }}" as="p" hint-placeholder-count="3">
+              <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px">
+                <div style="font-size:12px;color:{{c.textFaint}};font-family:ui-monospace,monospace">{{ p.label }}</div>
+                <div style="font-size:13.5px;font-weight:700;margin-top:4px">{{ p.title }}</div>
+                <div style="font-size:12px;color:{{c.textMuted}};margin-top:6px">{{ p.steps }} steps · attached to matching alerts</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isIntegrations }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <sc-for list="{{ integrationCategories }}" as="cat" hint-placeholder-count="5">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:{{c.textFaint}};text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">{{ cat.name }}</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+              <sc-for list="{{ cat.items }}" as="it" hint-placeholder-count="3">
+                <div onClick="{{ it.onClick }}" style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px;cursor:pointer">
+                  <div style="display:flex;align-items:center;justify-content:space-between">
+                    <div style="font-size:13.5px;font-weight:700">{{ it.name }}</div>
+                    <span style="{{ it.badgeStyle }}">{{ it.badgeLabel }}</span>
+                  </div>
+                  <div style="font-size:12px;color:{{c.textMuted}};margin-top:6px">{{ it.desc }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isReport }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:center;gap:12px;background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:14px 18px">
+          <div style="font-size:12.5px;color:{{c.textMuted}}">Period</div>
+          <div style="{{ ghostBtn }}">7 days</div><div style="{{ ghostBtn }}">30 days</div>
+          <input type="date" style="background:{{c.surfaceAlt}};border:1px solid {{c.border}};color:{{c.text}};border-radius:7px;padding:6px 10px;font-size:12px"/>
+          <span style="color:{{c.textFaint}}">→</span>
+          <input type="date" style="background:{{c.surfaceAlt}};border:1px solid {{c.border}};color:{{c.text}};border-radius:7px;padding:6px 10px;font-size:12px"/>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <div style="{{ ghostBtn }}">Download PDF</div>
+            <div style="{{ primaryBtn }}">Generate AI summary</div>
+          </div>
+        </div>
+
+        <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:18px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="width:16px;height:16px;border-radius:4px;background:#6366f122;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6366f1">✦</span>
+            <div style="font-size:13px;font-weight:700">AI executive summary</div>
+            <span style="font-size:11px;color:{{c.textFaint}}">— {{ reportRange }}</span>
+          </div>
+          <p style="font-size:13px;line-height:1.7;color:{{c.textMuted}};margin:0">
+            Between {{ reportRange }}, DeusWatch processed <b style="color:{{c.text}}">2.4M events</b> and raised
+            <b style="color:{{c.text}}">18,204 alerts</b>, including <b style="color:#f43f5e">42 critical</b> findings.
+            The dominant pattern was repeated <b style="color:{{c.text}}">SSH brute-force attempts</b> from
+            <b style="color:{{c.text}}">185.220.101.42</b>, mapped to MITRE <b style="color:#8b5cf6">T1110 — Brute Force</b>.
+            One host showed file-encryption behavior consistent with ransomware and was contained pending review.
+          </p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px">
+            <div style="font-size:12px;color:{{c.textFaint}};text-transform:uppercase;font-weight:600">Top rule</div>
+            <div style="font-size:14px;font-weight:700;margin-top:6px">SSH Brute Force Attempt</div>
+          </div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px">
+            <div style="font-size:12px;color:{{c.textFaint}};text-transform:uppercase;font-weight:600">Top IP</div>
+            <div style="font-size:14px;font-weight:700;margin-top:6px;font-family:ui-monospace,monospace">185.220.101.42</div>
+          </div>
+          <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px">
+            <div style="font-size:12px;color:{{c.textFaint}};text-transform:uppercase;font-weight:600">Top technique</div>
+            <div style="font-size:14px;font-weight:700;margin-top:6px">T1110 — Brute Force</div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:190px 1fr;gap:20px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <sc-for list="{{ settingsNav }}" as="sn" hint-placeholder-count="7">
+            <div onClick="{{ sn.onClick }}" style="{{ sn.style }}">{{ sn.label }}</div>
+          </sc-for>
+        </div>
+        <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:22px">
+
+          <sc-if value="{{ showAccountTab }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:14px;font-weight:700;margin-bottom:14px">Account</div>
+            <div style="display:flex;flex-direction:column;gap:10px;max-width:340px">
+              <input placeholder="Current password" type="password" style="{{ inputStyle }}"/>
+              <input placeholder="New password" type="password" style="{{ inputStyle }}"/>
+              <div style="{{ primaryBtn }};width:fit-content">Update password</div>
+            </div>
+            <div style="margin-top:22px;padding-top:18px;border-top:1px solid {{c.border}}">
+              <div style="font-size:13px;font-weight:700;margin-bottom:8px">Two-factor authentication (TOTP)</div>
+              <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:10px">Status: <span style="color:#10b981;font-weight:700">Enabled</span></div>
+              <div style="{{ ghostBtn }};width:fit-content">Disable 2FA</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showScoringTab }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:14px;font-weight:700;margin-bottom:14px">Threat-scoring weights</div>
+            <sc-for list="{{ scoringWeights }}" as="w" hint-placeholder-count="5">
+              <div style="margin-bottom:14px">
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px">
+                  <span style="color:{{c.textMuted}}">{{ w.label }}</span><span style="font-weight:700">{{ w.pct }}%</span>
+                </div>
+                <div style="height:6px;background:{{c.surfaceAlt}};border-radius:4px"><div style="height:100%;width:{{ w.pct }}%;background:#6366f1;border-radius:4px"></div></div>
+              </div>
+            </sc-for>
+          </sc-if>
+
+          <sc-if value="{{ showStorageTab }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:14px;font-weight:700;margin-bottom:14px">Log storage lifecycle</div>
+            <div style="display:flex;flex-direction:column;gap:12px;max-width:360px;font-size:12.5px">
+              <div style="display:flex;justify-content:space-between"><span style="color:{{c.textMuted}}">Retention</span><b>90 days</b></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:{{c.textMuted}}">Compress after</span><b>14 days</b></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:{{c.textMuted}}">Current DB size</span><b>41.2 GB / 200 GB</b></div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showSubscriptionsTab }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div style="font-size:14px;font-weight:700">Log subscriptions (API)</div>
+              <div style="{{ primaryBtn }}">+ New subscriber</div>
+            </div>
+            <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:14px">Sell or share rich, structured logs with a scoped API key. The key is shown once — store it safely.</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+              <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
+                <th style="padding:8px 0">Name</th><th style="padding:8px 10px">Scopes</th><th style="padding:8px 10px">Requests</th><th style="padding:8px 10px">Last used</th><th style="padding:8px 0">Status</th>
+              </tr></thead>
+              <tbody>
+                <tr style="border-top:1px solid {{c.border}}"><td style="padding:8px 0;font-weight:600">partner-siem</td><td style="padding:8px 10px;color:{{c.textMuted}}">events, indicators</td><td style="padding:8px 10px">18,204</td><td style="padding:8px 10px;color:{{c.textFaint}}">2m ago</td><td style="padding:8px 0;color:#10b981;font-weight:700">Enabled</td></tr>
+              </tbody>
+            </table>
+          </sc-if>
+
+          <sc-if value="{{ showProfileTab }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:14px;font-weight:700;margin-bottom:14px">Config profile</div>
+            <div style="display:flex;gap:10px">
+              <div style="{{ ghostBtn }}">Export config</div>
+              <div style="{{ ghostBtn }}">Import config</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showUpdateTab }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:14px;font-weight:700;margin-bottom:10px">Software update</div>
+            <div style="font-size:12.5px;color:{{c.textMuted}}">Current version <b style="color:{{c.text}}">v1.18.0</b> — up to date. This check is read-only and never installs an update automatically.</div>
+          </sc-if>
+
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+
+<sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeModal }}" style="position:fixed;inset:0;background:#00000088;display:flex;align-items:center;justify-content:center;z-index:60;padding:24px">
+    <div onClick="{{ stop }}" style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:14px;width:{{ modalWidth }};max-width:92vw;max-height:88vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid {{c.border}}">
+        <div style="font-size:14.5px;font-weight:700">{{ modalTitle }}</div>
+        <span onClick="{{ closeModal }}" style="cursor:pointer;color:{{c.textFaint}};font-size:16px">✕</span>
+      </div>
+      <div style="padding:20px;overflow-y:auto;flex:1">
+
+        <sc-if value="{{ isEnrollModal }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:14px">Generate a one-time token, then run the installer on the target host. The agent appears in the fleet list once it checks in.</div>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <div style="{{ osChipActive }}">Linux</div><div style="{{ osChip }}">Windows</div><div style="{{ osChip }}">macOS</div>
+          </div>
+          <div style="background:{{c.bg}};border:1px solid {{c.border}};border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:12px;color:#10b981;word-break:break-all">curl -sSL https://deuswatch.local/install.sh | sudo bash -s -- --token dw_9f2a...c81e</div>
+          <div style="{{ primaryBtn }};margin-top:14px;width:fit-content">Copy command</div>
+        </sc-if>
+
+        <sc-if value="{{ isBanPolicyModal }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:12px;font-size:12.5px">
+            <div style="color:{{c.textMuted}}">Progressive ban durations, applied in order for repeat offenders.</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <sc-for list="{{ banDurations }}" as="bd" hint-placeholder-count="5">
+                <div style="background:{{c.surfaceAlt}};border:1px solid {{c.border}};border-radius:7px;padding:6px 12px;font-weight:700">{{ bd }}</div>
+              </sc-for>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input type="checkbox" checked/> Auto-approve recommended bans</label>
+            <div style="{{ primaryBtn }};width:fit-content;margin-top:8px">Save policy</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isWhitelistModal }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:12px">IPs and CIDRs here are never banned, and can start a trusted admin session (so their file changes are logged as authorized_change, not flagged as ransomware).</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <input placeholder="10.0.0.0/24" style="{{ inputStyle }};flex:1"/>
+            <div style="{{ primaryBtn }}">Add</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-family:ui-monospace,monospace;font-size:12.5px">
+            <div style="display:flex;justify-content:space-between;padding:8px 10px;background:{{c.surfaceAlt}};border-radius:7px"><span>10.0.0.0/16 — office network</span><span style="cursor:pointer;color:{{c.textFaint}}">✕</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 10px;background:{{c.surfaceAlt}};border-radius:7px"><span>203.0.113.9 — CI runner</span><span style="cursor:pointer;color:{{c.textFaint}}">✕</span></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isBlocklistModal }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:12px">Give this URL to an external firewall (Palo Alto EDL, OPNsense, pfSense) to auto-pull the active ban list.</div>
+          <div style="background:{{c.bg}};border:1px solid {{c.border}};border-radius:8px;padding:12px;font-family:ui-monospace,monospace;font-size:11.5px;color:{{c.textMuted}};word-break:break-all">https://deuswatch.local/api/blocklist/feed?token=bl_7c1e...92ad</div>
+          <div style="{{ ghostBtn }};margin-top:12px;width:fit-content">Regenerate token</div>
+        </sc-if>
+
+        <sc-if value="{{ isConnectorModal }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:14px">Configure <b style="color:{{c.text}}">{{ connectorName }}</b>. Secrets are write-only and shown masked once saved.</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <input placeholder="API key" type="password" style="{{ inputStyle }}"/>
+            <input placeholder="Cache window (minutes)" style="{{ inputStyle }}"/>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="checkbox" checked/> Enabled</label>
+            <div style="{{ primaryBtn }};width:fit-content">Save connector</div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ tourOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeTourBackdrop }}" style="position:fixed;inset:0;background:#00000088;display:flex;align-items:center;justify-content:center;z-index:50">
+    <div onClick="{{ stop }}" style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:14px;padding:26px;width:420px;max-width:90vw">
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">Welcome to DeusWatch 👋</div>
+      <div style="font-size:13px;color:{{c.textMuted}};line-height:1.6;margin-bottom:16px">
+        This is your all-in-one security console. Start on <b>Dashboard</b> to see what's happening,
+        check <b>Response</b> when something needs a decision, and use <b>Snapshots</b> if a file was
+        changed and you need to see exactly what happened — or undo it.
+      </div>
+      <div onClick="{{ closeTour }}" style="display:inline-flex;background:#6366f1;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Got it</div>
+    </div>
+  </div>
+</sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { page: 'dashboard', theme: 'dark', tourOpen: false, range: '7d', data: null, responseTab: 'byip', modal: null,
+    rulesTab: 'rules', settingsTab: 'account', selectedFile: 0, openVersion: null };
+
+  async componentDidMount() {
+    const m = await import('./deuswatch-data.js');
+    this.setState({ data: m });
+  }
+
+  setPage = (p) => this.setState({ page: p });
+  toggleTheme = () => this.setState(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' }));
+  setRange = (r) => this.setState({ range: r });
+  setResponseByIP = () => this.setState({ responseTab: 'byip' });
+  setResponseEvents = () => this.setState({ responseTab: 'events' });
+  openWhitelist = () => this.setState({ modal: 'whitelist' });
+  openBlocklist = () => this.setState({ modal: 'blocklist' });
+  openBanPolicy = () => this.setState({ modal: 'banpolicy' });
+  openEnroll = () => this.setState({ modal: 'enroll' });
+  openConnector = (name) => this.setState({ modal: 'connector:' + name });
+  closeModal = () => this.setState({ modal: null });
+  selectFile = (i) => this.setState({ selectedFile: i, openVersion: null });
+  toggleVersion = (i) => this.setState(s => ({ openVersion: s.openVersion === i ? null : i }));
+  goSnapshots = () => this.setState({ page: 'snapshots' });
+  setRulesRules = () => this.setState({ rulesTab: 'rules' });
+  setRulesDecoders = () => this.setState({ rulesTab: 'decoders' });
+  setRulesPlaybooks = () => this.setState({ rulesTab: 'playbooks' });
+  setSettingsTab = (t) => this.setState({ settingsTab: t });
+  toggleTour = () => this.setState({ tourOpen: true });
+  closeTour = () => this.setState({ tourOpen: false });
+  closeTourBackdrop = () => this.setState({ tourOpen: false });
+  noop = (e) => { if (e && e.preventDefault) e.preventDefault(); };
+  stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
+
+  colors() {
+    const dark = { bg:'#020617', surface:'#0f172a', surfaceAlt:'#1e293b', border:'#334155', text:'#e2e8f0', textMuted:'#94a3b8', textFaint:'#64748b' };
+    const light = { bg:'#f8fafc', surface:'#ffffff', surfaceAlt:'#f1f5f9', border:'#e2e8f0', text:'#0f172a', textMuted:'#475569', textFaint:'#64748b' };
+    return this.state.theme === 'dark' ? dark : light;
+  }
+
+  colorFor(kind, value) {
+    const maps = {
+      severity: { critical:'#f43f5e', high:'#fb923c', medium:'#f59e0b', low:'#38bdf8', info:'#64748b' },
+      band: { critical:'#f43f5e', high:'#fb923c', medium:'#f59e0b', low:'#38bdf8' },
+      status: { recommended:'#f59e0b', approved:'#38bdf8', executed:'#10b981', dismissed:'#64748b', unbanned:'#8b5cf6', failed:'#f43f5e', contained:'#10b981', released:'#64748b' },
+      health: { online:'#10b981', degraded:'#f59e0b', disconnected:'#f43f5e', stale:'#64748b', revoked:'#8b5cf6' },
+      llm: { benign:'#10b981', suspicious:'#f59e0b', malicious:'#f43f5e', 'not-analyzed':'#64748b' },
+      enforcement: { auto:'#10b981', 'alert-only':'#64748b' },
+      storage: { agent:'#8b5cf6', manager:'#38bdf8' },
+      changeType: { created:'#10b981', modified:'#f59e0b', deleted:'#f43f5e', restored:'#38bdf8', encrypted:'#f43f5e', quarantined:'#8b5cf6' }
+    };
+    return (maps[kind] && maps[kind][value]) || '#64748b';
+  }
+
+  decorate(rows, mapping) {
+    return rows.map(r => {
+      const extra = {};
+      for (const field in mapping) extra[field + 'Color'] = this.colorFor(mapping[field], r[field]);
+      return Object.assign({}, r, extra);
+    });
+  }
+
+  navIcon(name) {
+    const icons = {
+      dashboard: '<svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="1" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="10" y="1" width="7" height="7" rx="1.5" fill="currentColor" opacity=".4"/><rect x="1" y="10" width="7" height="7" rx="1.5" fill="currentColor" opacity=".4"/><rect x="10" y="10" width="7" height="7" rx="1.5" fill="currentColor"/></svg>',
+      response: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 9.2 L7.8 11.5 L12.5 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      snapshots: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="4" rx="1" fill="currentColor" opacity=".35"/><rect x="2" y="7" width="14" height="4" rx="1" fill="currentColor" opacity=".65"/><rect x="2" y="12" width="14" height="4" rx="1" fill="currentColor"/></svg>',
+      agents: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="6.5" cy="9" r="1.4" fill="currentColor"/><circle cx="11.5" cy="9" r="1.4" fill="currentColor"/></svg>',
+      rules: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 4.5H15M3 9H15M3 13.5H10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+      integrations: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="5" cy="9" r="3" stroke="currentColor" stroke-width="1.6"/><circle cx="13" cy="9" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M8 9H10" stroke="currentColor" stroke-width="1.6"/></svg>',
+      report: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="3" y="1.5" width="12" height="15" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M6 6H12M6 9.5H12M6 13H9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+      settings: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M9 1.5V4M9 14V16.5M16.5 9H14M4 9H1.5M14.5 3.5L12.8 5.2M5.2 12.8L3.5 14.5M14.5 14.5L12.8 12.8M5.2 5.2L3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+    };
+    return { __html: icons[name] || '' };
+  }
+
+  modalVals(c) {
+    const m = this.state.modal;
+    const titles = { enroll: 'Enroll a new agent', banpolicy: 'Ban policy', whitelist: 'IP whitelist', blocklist: 'Blocklist feed' };
+    const isConnector = !!(m && m.startsWith('connector:'));
+    return {
+      modalOpen: !!m, closeModal: this.closeModal,
+      modalTitle: isConnector ? 'Configure connector' : (titles[m] || ''),
+      modalWidth: m === 'enroll' ? '520px' : '460px',
+      isEnrollModal: m === 'enroll', isBanPolicyModal: m === 'banpolicy',
+      isWhitelistModal: m === 'whitelist', isBlocklistModal: m === 'blocklist',
+      isConnectorModal: isConnector, connectorName: isConnector ? m.split(':')[1] : '',
+      osChipActive: { background:'#6366f1', color:'#fff', padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' },
+      osChip: { background:c.surfaceAlt, color:c.textMuted, padding:'6px 14px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' },
+      banDurations: ['10m','30m','1h','24h','permanent']
+    };
+  }
+
+  renderVals() {
+    const c = this.colors();
+    const d = this.state.data;
+    const page = this.state.page;
+    const navDefs = [
+      ['dashboard','Dashboard'], ['response','Response'], ['snapshots','Snapshots'],
+      ['agents','Agents'], ['rules','Rules'], ['integrations','Integrations'],
+      ['report','Report'], ['settings','Settings']
+    ];
+    const navItems = navDefs.map(([key,label]) => {
+      const active = page === key;
+      return {
+        label, active,
+        onClick: () => this.setPage(key),
+        iconHtml: this.navIcon(key),
+        iconColor: active ? '#6366f1' : c.textFaint,
+        textColor: active ? c.text : c.textMuted,
+        hoverStyle: { background: c.surfaceAlt }
+      };
+    });
+
+    const titles = {
+      dashboard: ['Dashboard','Situational awareness & search'],
+      response: ['Response','Approve, dismiss and contain threats'],
+      snapshots: ['Snapshots','File integrity timeline & forensic recovery'],
+      agents: ['Agents','Fleet health & endpoint enrollment'],
+      rules: ['Rules','Detection content: rules, decoders, playbooks'],
+      integrations: ['Integrations','Threat intel, reputation & enforcement connectors'],
+      report: ['Report','Executive summary & posture'],
+      settings: ['Settings','Account, scoring & platform configuration']
+    };
+
+    let mid = {};
+    if (d) {
+      mid = {
+        statCards: [
+          { label: 'Total events', value: d.stats.totalEvents },
+          { label: 'Total alerts', value: d.stats.totalAlerts },
+          { label: 'Alerts (24h)', value: d.stats.alerts24h },
+          { label: 'Storage used', value: d.stats.dbSize }
+        ],
+        severityBreakdown: d.severityBreakdown,
+        severityArcs: (() => {
+          const total = d.severityBreakdown.reduce((a,b)=>a+b.value,0);
+          const C = 2*Math.PI*14;
+          let acc = 0;
+          return d.severityBreakdown.map(sv => {
+            const frac = sv.value/total;
+            const dash = `${frac*C} ${C}`;
+            const offset = -acc*C;
+            acc += frac;
+            return { color: sv.color, dash, offset };
+          });
+        })(),
+        eventsLinePoints: d.eventsOverTime.map((v,i) => `${i*(400/(d.eventsOverTime.length-1))},${118-(v/80*110)}`).join(' '),
+        eventsAreaPoints: d.eventsOverTime.map((v,i) => `${i*(400/(d.eventsOverTime.length-1))},${118-(v/80*110)}`).join(' ') + ` 400,120 0,120`,
+        topIPs: this.decorate(d.topIPs, { band: 'band' }),
+        topRules: this.decorate(d.topRules, { severity: 'severity' }),
+        topMitre: d.topMitre,
+        riskyIPs: this.decorate(d.riskyIPs, { band: 'band' }).map(r => ({...r, pct: r.score})),
+        suspiciousIPs: d.suspiciousIPs,
+        eventsTable: this.decorate(d.eventsTable, { severity: 'severity', band: 'band', llm: 'llm' }),
+        responseByIP: this.decorate(d.responseByIP, { band: 'band', status: 'status' }),
+        responseEvents: this.decorate(d.responseEvents, { status: 'status' }),
+        containedHosts: this.decorate(d.containedHosts, { status: 'status' }),
+        decisionTable: this.decorate(d.decisionTable, { enforcement: 'enforcement' }),
+
+        watchedFiles: d.watchedFiles.map((f,i) => ({
+          ...f, onClick: () => this.selectFile(i),
+          rowStyle: { padding:'10px 14px', cursor:'pointer', borderTop: i>0 ? `1px solid ${c.border}` : 'none', background: this.state.selectedFile===i ? c.surfaceAlt : 'transparent' }
+        })),
+        selectedFilePath: d.watchedFiles[this.state.selectedFile].path,
+        fileVersions: this.decorate(d.fileVersions, { storage: 'storage', changeType: 'changeType' }).map((v,i) => ({
+          ...v, onClick: () => this.toggleVersion(i), open: this.state.openVersion === i,
+          diffLabel: this.state.openVersion === i ? 'Hide diff ▲' : 'Old vs new ▼'
+        })),
+        diffLines: d.diffLines.map(l => ({
+          text: l.text,
+          style: { padding:'2px 6px', borderRadius:'3px',
+            color: l.type==='add' ? '#10b981' : l.type==='del' ? '#f43f5e' : c.textMuted,
+            background: l.type==='add' ? '#10b98115' : l.type==='del' ? '#f43f5e15' : 'transparent' }
+        })),
+
+        agents: this.decorate(d.agents, { status: 'health' }),
+
+        rulesList: this.decorate(d.rulesList, { severity: 'severity' }).map(r => ({
+          ...r, enabledLabel: r.enabled ? '● On' : '○ Off'
+        })),
+        decodersList: d.decodersList,
+        playbooksList: d.playbooksList,
+
+        integrationCategories: d.integrationCategories.map(cat => ({
+          name: cat.name,
+          items: cat.items.map(it => ({
+            ...it, onClick: () => this.openConnector(it.name),
+            badgeLabel: it.enabled ? 'Enabled' : 'Off',
+            badgeStyle: { fontSize:'10.5px', fontWeight:700, padding:'2px 8px', borderRadius:'999px',
+              background: it.enabled ? '#10b98122' : c.surfaceAlt, color: it.enabled ? '#10b981' : c.textFaint }
+          }))
+        })),
+
+        reportRange: d.reportSummary.range
+      };
+    }
+
+    const primaryBtn = { background:'#6366f1', color:'#fff', padding:'8px 16px', borderRadius:'8px', fontSize:'12.5px', fontWeight:700, cursor:'pointer' };
+    const dangerBtn = { background:'#f43f5e', color:'#fff', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' };
+    const warnBtn = { background:'transparent', color:'#f59e0b', border:'1px solid #f59e0b55', padding:'6px 12px', borderRadius:'7px', fontSize:'12px', fontWeight:700, cursor:'pointer' };
+    const inputStyle = { background:c.surfaceAlt, border:`1px solid ${c.border}`, color:c.text, borderRadius:'8px', padding:'8px 12px', fontSize:'12.5px', outline:'none' };
+    const settingsDefs = [['account','Account'],['scoring','Threat scoring'],['storage','Log storage'],['subscriptions','API subscriptions'],['profile','Config profile'],['update','Software update']];
+    const settingsNav = settingsDefs.map(([key,label]) => ({
+      label, onClick: () => this.setSettingsTab(key),
+      style: { padding:'8px 12px', borderRadius:'7px', fontSize:'12.5px', fontWeight:600, cursor:'pointer',
+        background: this.state.settingsTab===key ? c.surfaceAlt : 'transparent',
+        color: this.state.settingsTab===key ? c.text : c.textMuted }
+    }));
+    const scoringWeights = [
+      { label:'AbuseIPDB confidence', pct:30 }, { label:'Rule fired-times', pct:25 },
+      { label:'OTX pulses', pct:15 }, { label:'Base severity', pct:20 }, { label:'ML anomaly', pct:10 }
+    ];
+
+    const ghostBtn = { padding:'6px 12px', borderRadius:'7px', border:`1px solid ${c.border}`, fontSize:'12px', fontWeight:600, cursor:'pointer', color:c.textMuted };
+    const smallBtnMuted = { padding:'5px 11px', borderRadius:'6px', background:c.surfaceAlt, border:`1px solid ${c.border}`, fontSize:'11.5px', fontWeight:600, cursor:'pointer', color:c.textMuted };
+    const tabStyle = (active) => ({ padding:'10px 4px', marginBottom:'-1px', fontSize:'13px', fontWeight:700, cursor:'pointer', color: active ? '#6366f1' : c.textFaint, borderBottom: active ? '2px solid #6366f1' : '2px solid transparent' });
+
+    return {
+      c, page, themeIcon: this.state.theme === 'dark' ? '☾' : '☀',
+      toggleTheme: this.toggleTheme, toggleTour: this.toggleTour,
+      closeTour: this.closeTour, closeTourBackdrop: this.closeTourBackdrop,
+      tourOpen: this.state.tourOpen, noop: this.noop, stop: this.stop,
+      navItems,
+      pageTitle: titles[page][0], pageSubtitle: titles[page][1],
+      isDashboard: page === 'dashboard' && !!d,
+      isResponse: page === 'response' && !!d,
+      isSnapshots: page === 'snapshots' && !!d,
+      isAgents: page === 'agents' && !!d,
+      isRules: page === 'rules' && !!d,
+      isIntegrations: page === 'integrations' && !!d,
+      isReport: page === 'report' && !!d,
+      isSettings: page === 'settings' && !!d,
+      isPlaceholderPage: !['dashboard','response','snapshots','agents','rules','integrations','report','settings'].includes(page) || !d,
+      showRange: page === 'dashboard',
+      primaryBtn, dangerBtn, warnBtn, inputStyle, settingsNav, scoringWeights,
+      openEnroll: this.openEnroll, goSnapshots: this.goSnapshots,
+      linkDanger: { color:'#f43f5e', fontWeight:700, cursor:'pointer', fontSize:'12px' },
+      setRulesRules: this.setRulesRules, setRulesDecoders: this.setRulesDecoders, setRulesPlaybooks: this.setRulesPlaybooks,
+      rulesTabStyle: { padding:'10px 4px', marginBottom:'-1px', fontSize:'13px', fontWeight:700, cursor:'pointer', color: this.state.rulesTab==='rules' ? '#6366f1' : c.textFaint, borderBottom: this.state.rulesTab==='rules' ? '2px solid #6366f1' : '2px solid transparent' },
+      decodersTabStyle: { padding:'10px 4px', marginBottom:'-1px', fontSize:'13px', fontWeight:700, cursor:'pointer', color: this.state.rulesTab==='decoders' ? '#6366f1' : c.textFaint, borderBottom: this.state.rulesTab==='decoders' ? '2px solid #6366f1' : '2px solid transparent' },
+      playbooksTabStyle: { padding:'10px 4px', marginBottom:'-1px', fontSize:'13px', fontWeight:700, cursor:'pointer', color: this.state.rulesTab==='playbooks' ? '#6366f1' : c.textFaint, borderBottom: this.state.rulesTab==='playbooks' ? '2px solid #6366f1' : '2px solid transparent' },
+      showRulesTab: this.state.rulesTab === 'rules', showDecodersTab: this.state.rulesTab === 'decoders', showPlaybooksTab: this.state.rulesTab === 'playbooks',
+      showAccountTab: this.state.settingsTab === 'account', showScoringTab: this.state.settingsTab === 'scoring',
+      showStorageTab: this.state.settingsTab === 'storage', showSubscriptionsTab: this.state.settingsTab === 'subscriptions',
+      showProfileTab: this.state.settingsTab === 'profile', showUpdateTab: this.state.settingsTab === 'update',
+      ...this.modalVals(c),
+      setResponseByIP: this.setResponseByIP, setResponseEvents: this.setResponseEvents,
+      openWhitelist: this.openWhitelist, openBlocklist: this.openBlocklist, openBanPolicy: this.openBanPolicy,
+      ghostBtn: { padding:'6px 12px', borderRadius:'7px', border:`1px solid ${c.border}`, fontSize:'12px', fontWeight:600, cursor:'pointer', color:c.textMuted },
+      smallBtnMuted: { padding:'5px 11px', borderRadius:'6px', background:c.surfaceAlt, border:`1px solid ${c.border}`, fontSize:'11.5px', fontWeight:600, cursor:'pointer', color:c.textMuted },
+      tabByIPStyle: { padding:'10px 4px', marginBottom:'-1px', fontSize:'13px', fontWeight:700, cursor:'pointer', color: this.state.responseTab==='byip' ? '#6366f1' : c.textFaint, borderBottom: this.state.responseTab==='byip' ? '2px solid #6366f1' : '2px solid transparent' },
+      tabEventsStyle: { padding:'10px 4px', marginBottom:'-1px', fontSize:'13px', fontWeight:700, cursor:'pointer', color: this.state.responseTab==='events' ? '#6366f1' : c.textFaint, borderBottom: this.state.responseTab==='events' ? '2px solid #6366f1' : '2px solid transparent' },
+      showByIP: this.state.responseTab === 'byip',
+      showEvents: this.state.responseTab === 'events',
+      linkGood: { color:'#10b981', fontWeight:700, cursor:'pointer', fontSize:'12px' },
+      linkMuted: { color: c.textFaint, fontWeight:700, cursor:'pointer', fontSize:'12px' },
+      linkInfo: { color:'#38bdf8', fontWeight:700, cursor:'pointer', fontSize:'12px' },
+      ranges: ['24h','7d','30d'].map(r => ({
+        label: r, onClick: () => this.setRange(r),
+        style: { padding:'5px 12px', borderRadius:'6px', fontSize:'12px', fontWeight:600, cursor:'pointer', background: this.state.range===r?'#6366f1':'transparent', color: this.state.range===r?'#fff':c.textMuted }
+      })),
+      ...mid
+    };
+  }
+}
+
+</script>
+</body>
+</html>

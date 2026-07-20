@@ -28,7 +28,6 @@ export default function Snapshots({ me, initialAgent }: { me: Me; initialAgent?:
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <PageHeader
-        title="Snapshots"
         subtitle="File integrity timeline · diff, restore & ransomware recovery"
         actions={<DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" />}
       />

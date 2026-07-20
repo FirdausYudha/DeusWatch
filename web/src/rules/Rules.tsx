@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   fetchRules, createRule, updateRule, deleteRule,
   fetchRulePacks, toggleRulePack, installRulePack, uninstallRulePack,
@@ -128,7 +128,6 @@ export default function Rules() {
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Detection rules</h1>
           <p className="mt-0.5 text-[12px] text-muted">
             Sigma rules · {counts.enabled}/{counts.total} enabled · edits apply to the worker within ~30s
           </p>

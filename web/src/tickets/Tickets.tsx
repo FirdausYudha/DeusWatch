@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   fetchTickets,
   fetchTicket,
@@ -98,7 +98,6 @@ export default function Tickets({
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Tickets</h1>
           <p className="mt-0.5 text-[12px] text-muted">Tier-2 DFIR case management · open → in progress → resolved → closed</p>
         </div>
         {canManage && (

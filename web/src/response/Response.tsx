@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   fetchResponses,
   fetchOffenders,
@@ -191,7 +191,6 @@ export default function Response({ me }: { me: Me }) {
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[16px] font-semibold tracking-tight text-fg">Response</h1>
           <p className="mt-0.5 text-[12px] text-muted">
             Block recommendations &amp; approval · progressive ban
             {pending > 0 && <span className="ml-2 text-amber-300">{pending} awaiting approval</span>}
