@@ -1,14 +1,14 @@
 import { useEffect, useState, Fragment, type ReactNode } from 'react'
 import {
-  fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData, fetchLayout, saveLayout,
+  fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData,
   fetchStorageStatus, requestFimRestore,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
-  type DashboardData, type DashWidget, type WidgetKind, type DashRange, type EventSearch,
+  type DashboardData, type WidgetKind, type EventSearch,
   type StorageStatus,
 } from '../lib/api'
-import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, WIDGET_COLORS } from './widgets'
+import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget } from './widgets'
 import DocLink from '../components/DocLink'
-import { PageHeader, Button, Select } from '../components/ui'
+import { PageHeader } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
 import { localInput, type DashRangeState } from '../lib/range'
 
@@ -132,54 +132,49 @@ function alertToTicket(a: EventRow): NewTicketInput {
   }
 }
 
-// ── Widget layout catalog ──────────────────────────────────
-const uid = () => Math.random().toString(36).slice(2, 10)
-const STAT_SOURCES = ['total_events', 'total_alerts', 'alerts_24h']
+// ── Static dashboard layout ───────────────────────────────────────────────────
+// The dashboard is a FIXED, designed layout rather than a user-arranged one.
+//
+// Every row adds up to the full column count, which is the point: a free-form arrangement kept
+// stranding a 2-column panel beside an empty third, and a saved layout from an older grid made it
+// worse (a `wide` flag that meant "full width" in a 2-column grid means "two thirds" here, so old
+// layouts wrapped and left holes). A fixed layout cannot drift out of shape.
+type Panel = {
+  kind: WidgetKind
+  source: string
+  title: string
+  color: string
+  /** Columns this panel occupies on a wide screen. The grid is 3 columns. */
+  span: 1 | 2 | 3
+}
 
-const SOURCES: { source: string; label: string; kind: WidgetKind }[] = [
-  { source: 'total_events', label: 'Total events (stat)', kind: 'stat' },
-  { source: 'total_alerts', label: 'Total alerts (stat)', kind: 'stat' },
-  { source: 'alerts_24h', label: 'Alerts 24h (stat)', kind: 'stat' },
-  { source: 'timeline', label: 'Events over time (line)', kind: 'line' },
-  { source: 'severity', label: 'Severity breakdown', kind: 'bar' },
-  { source: 'source_ips', label: 'Top source IPs', kind: 'bar' },
-  { source: 'rules', label: 'Top rules', kind: 'bar' },
-  { source: 'techniques', label: 'Top MITRE techniques', kind: 'bar' },
-  { source: 'verdicts', label: 'LLM verdicts', kind: 'donut' },
-  { source: 'countries', label: 'Attack origins (map)', kind: 'map' },
-  { source: 'risky_ips', label: 'Top risky IPs (score)', kind: 'risk' },
-  { source: 'suspicious_ips', label: 'Suspicious IPs (recon watchlist)', kind: 'watch' },
-  { source: 'slow_scanners', label: 'Slow scanners (multi-day recon)', kind: 'slow' },
+const PANELS: Panel[] = [
+  // Headline numbers — one row of three.
+  { kind: 'stat', source: 'total_events', title: 'Total events', color: '#6366f1', span: 1 },
+  { kind: 'stat', source: 'total_alerts', title: 'Total alerts', color: '#fb923c', span: 1 },
+  { kind: 'stat', source: 'alerts_24h', title: 'Alerts (24h)', color: '#f43f5e', span: 1 },
+  // The prototype's 2fr/1fr pairing: a trend beside the breakdown that explains it.
+  { kind: 'line', source: 'timeline', title: 'Events over time', color: '#6366f1', span: 2 },
+  { kind: 'bar', source: 'severity', title: 'Severity breakdown', color: '#6366f1', span: 1 },
+  // Who is hitting us — three comparable lists side by side.
+  { kind: 'bar', source: 'source_ips', title: 'Top source IPs', color: '#38bdf8', span: 1 },
+  { kind: 'risk', source: 'risky_ips', title: 'Top risky IPs', color: '#f43f5e', span: 1 },
+  { kind: 'watch', source: 'suspicious_ips', title: 'Suspicious IPs (recon)', color: '#f59e0b', span: 1 },
+  // The slow-scanner table needs width for its columns; the donut is happy small.
+  { kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', span: 2 },
+  { kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', span: 1 },
+  // The map reads best full width.
+  { kind: 'map', source: 'countries', title: 'Attack origins', color: '#f43f5e', span: 3 },
 ]
 
-function kindsFor(source: string): WidgetKind[] {
-  if (STAT_SOURCES.includes(source)) return ['stat']
-  if (source === 'timeline') return ['line']
-  if (source === 'countries') return ['map', 'bar', 'donut', 'table']
-  if (source === 'risky_ips') return ['risk'] // score + band, not a plain count series
-  if (source === 'suspicious_ips') return ['watch']
-  if (source === 'slow_scanners') return ['slow'] // multi-day pattern, not a count series
-  return ['bar', 'donut', 'table']
+// A 2-column panel is full width at the 2-column breakpoint, two thirds at three columns.
+const SPAN_CLASS: Record<1 | 2 | 3, string> = {
+  1: '',
+  2: 'sm:col-span-2',
+  3: 'sm:col-span-2 lg:col-span-3',
 }
 
-function defaultWidgets(): DashWidget[] {
-  const mk = (w: Omit<DashWidget, 'id'>): DashWidget => ({ id: uid(), ...w })
-  return [
-    mk({ kind: 'stat', source: 'total_events', title: 'Total events', color: '#6366f1', wide: false }),
-    mk({ kind: 'stat', source: 'total_alerts', title: 'Total alerts', color: '#fb923c', wide: false }),
-    mk({ kind: 'stat', source: 'alerts_24h', title: 'Alerts (24h)', color: '#f43f5e', wide: false }),
-    mk({ kind: 'line', source: 'timeline', title: 'Events over time', color: '#6366f1', wide: true }),
-    mk({ kind: 'bar', source: 'severity', title: 'Severity breakdown', color: '#6366f1', wide: false }),
-    mk({ kind: 'bar', source: 'source_ips', title: 'Top source IPs', color: '#38bdf8', wide: false }),
-    mk({ kind: 'risk', source: 'risky_ips', title: 'Top risky IPs', color: '#f43f5e', wide: false }),
-    mk({ kind: 'watch', source: 'suspicious_ips', title: 'Suspicious IPs (recon)', color: '#f59e0b', wide: false }),
-    mk({ kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', wide: true }),
-    mk({ kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', wide: false }),
-    mk({ kind: 'map', source: 'countries', title: 'Attack origins', color: '#f43f5e', wide: true }),
-  ]
-}
-
-function WidgetBody({ w, data }: { w: DashWidget; data: DashboardData | null }) {
+function WidgetBody({ w, data }: { w: Panel; data: DashboardData | null }) {
   if (!data) return <p className="py-6 text-center text-[12.5px] text-dim">loading…</p>
   switch (w.kind) {
     case 'stat': {
@@ -216,22 +211,6 @@ export default function Dashboard({
   const [storage, setStorage] = useState<StorageStatus | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
-  const [widgets, setWidgets] = useState<DashWidget[]>(defaultWidgets())
-  const [edit, setEdit] = useState(false)
-  const [dirty, setDirty] = useState(false)
-  const [addSource, setAddSource] = useState('severity')
-  // Drag-and-drop reorder state: which widget is dragging, which is the drop target,
-  // and which one's grip handle armed the drag.
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [overId, setOverId] = useState<string | null>(null)
-  const [grip, setGrip] = useState<string | null>(null)
-
-  // Load the saved layout once.
-  useEffect(() => {
-    fetchLayout()
-      .then((l) => { if (l?.widgets?.length) setWidgets(l.widgets) })
-      .catch(() => {})
-  }, [])
 
   // Poll live data for the selected time range. Re-subscribes when the range
   // changes; a custom range with incomplete inputs simply skips the data fetch.
@@ -256,44 +235,6 @@ export default function Dashboard({
     return () => { active = false; clearInterval(id) }
   }, [range.preset, range.from, range.to])
 
-  const mutate = (fn: (ws: DashWidget[]) => DashWidget[]) => { setWidgets(fn); setDirty(true) }
-  const patch = (id: string, p: Partial<DashWidget>) => mutate((ws) => ws.map((w) => (w.id === id ? { ...w, ...p } : w)))
-  const remove = (id: string) => mutate((ws) => ws.filter((w) => w.id !== id))
-  const move = (id: string, dir: -1 | 1) =>
-    mutate((ws) => {
-      const i = ws.findIndex((w) => w.id === id)
-      const j = i + dir
-      if (i < 0 || j < 0 || j >= ws.length) return ws
-      const next = [...ws]
-      ;[next[i], next[j]] = [next[j], next[i]]
-      return next
-    })
-  // reorder moves the dragged widget to the drop target's position.
-  const reorder = (fromId: string, toId: string) =>
-    mutate((ws) => {
-      const from = ws.findIndex((w) => w.id === fromId)
-      const to = ws.findIndex((w) => w.id === toId)
-      if (from < 0 || to < 0 || from === to) return ws
-      const next = [...ws]
-      const [moved] = next.splice(from, 1)
-      next.splice(to, 0, moved)
-      return next
-    })
-  const clearDrag = () => { setDragId(null); setOverId(null); setGrip(null) }
-  const add = () => {
-    const meta = SOURCES.find((s) => s.source === addSource)!
-    mutate((ws) => [...ws, { id: uid(), kind: meta.kind, source: meta.source, title: meta.label.replace(/ \(.*\)$/, ''), color: '#6366f1', wide: meta.kind === 'line' || meta.kind === 'map' }])
-  }
-  const save = async () => {
-    try {
-      await saveLayout({ widgets })
-      setDirty(false)
-    } catch {
-      /* ignore */
-    }
-  }
-  const reset = () => { setWidgets(defaultWidgets()); setDirty(true) }
-
   const services: { name: string; sub: string; state: DotState; detail: string }[] = [
     { name: 'API Server', sub: 'Go · :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'checking…' },
     { name: 'PostgreSQL + TimescaleDB', sub: 'log storage', state: health ? depDot(health.postgres) : 'unknown', detail: health?.postgres ?? 'checking…' },
@@ -306,20 +247,6 @@ export default function Dashboard({
       <PageHeader
         actions={
           <>
-            {edit && (
-              <>
-                <Button onClick={reset}>Reset</Button>
-                <Button variant="primary" onClick={save} disabled={!dirty}>
-                  {dirty ? 'Save layout' : 'Saved'}
-                </Button>
-              </>
-            )}
-            <Button
-              onClick={() => setEdit((e) => !e)}
-              className={edit ? 'border-accent bg-accent-soft text-accent' : ''}
-            >
-              {edit ? 'Done' : '✎ Customize'}
-            </Button>
             <span
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium ${
                 allReady ? 'border-success/30 bg-success/10 text-success' : 'border-medium/30 bg-medium/10 text-medium'
@@ -333,88 +260,27 @@ export default function Dashboard({
       />
 
 
-      {edit && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[12px] border border-accent/30 bg-accent-soft px-4 py-3">
-          <span className="text-[11px] font-medium text-muted">Add widget:</span>
-          <Select value={addSource} onChange={(e) => setAddSource(e.target.value)}>
-            {SOURCES.map((s) => <option key={s.source} value={s.source}>{s.label}</option>)}
-          </Select>
-          <Button variant="primary" onClick={add}>+ Add</Button>
-          <span className="text-[11px] text-dim">· drag the ⠿ handle to reorder (or use ↑ ↓); swatches recolor, the type menu switches chart.</span>
-        </div>
-      )}
-
-      {/* Customizable widget grid.
-          Three columns on wide screens so a "wide" widget spans two of them — the prototype's
-          2fr/1fr pairing (a chart beside its breakdown) — while a normal widget is a third.
-          Two columns at medium width, one on mobile, so nothing is squeezed below ~300px. */}
-      <section className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {widgets.map((w) => (
+      {/* Fixed widget grid. Three columns on wide screens, two at medium, one on mobile.
+          `grid-auto-flow: dense` is a safety net for the narrower breakpoints, where a 2-column
+          panel can still leave a gap the following 1-column panel is able to backfill. */}
+      <section className="mb-8 grid gap-3 [grid-auto-flow:dense] sm:grid-cols-2 lg:grid-cols-3">
+        {PANELS.map((w) => (
           <div
-            key={w.id}
-            draggable={edit && grip === w.id}
-            onDragStart={(e) => { setDragId(w.id); e.dataTransfer.effectAllowed = 'move' }}
-            onDragOver={(e) => { if (edit && dragId && dragId !== w.id) { e.preventDefault(); setOverId(w.id) } }}
-            onDragLeave={() => setOverId((o) => (o === w.id ? null : o))}
-            onDrop={(e) => { e.preventDefault(); if (dragId) reorder(dragId, w.id); clearDrag() }}
-            onDragEnd={clearDrag}
-            className={`rounded-[12px] border bg-surface p-[18px] transition-all ${w.wide ? 'sm:col-span-2' : ''} ${
-              overId === w.id ? 'border-accent ring-2 ring-accent/40' : 'border-border'
-            } ${dragId === w.id ? 'opacity-40' : ''}`}
+            key={w.source + w.kind}
+            className={`rounded-[12px] border border-border bg-surface p-[18px] ${SPAN_CLASS[w.span]}`}
           >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                {edit && (
-                  <span
-                    onMouseDown={() => setGrip(w.id)}
-                    onMouseUp={() => setGrip(null)}
-                    className="cursor-grab select-none text-base leading-none text-dim hover:text-fg active:cursor-grabbing"
-                    title="Drag to reorder"
-                  >
-                    ⠿
-                  </span>
-                )}
-                {edit ? (
-                  <input value={w.title} onChange={(e) => patch(w.id, { title: e.target.value })} className="min-w-0 flex-1 rounded border border-border bg-surface-2 px-2 py-1 text-[11px] text-fg outline-none focus:border-accent" />
-                ) : (
-                  <h2
-                    className={
-                      w.kind === 'stat'
-                        ? 'text-[12px] font-semibold uppercase tracking-[0.4px] text-dim'
-                        : 'text-[13.5px] font-bold tracking-tight text-fg'
-                    }
-                  >
-                    {w.title}
-                  </h2>
-                )}
-              </div>
-              {edit && (
-                <div className="flex shrink-0 items-center gap-1">
-                  {kindsFor(w.source).length > 1 && (
-                    <select value={w.kind} onChange={(e) => patch(w.id, { kind: e.target.value as WidgetKind })} className="rounded border border-border bg-surface-2 px-1 py-0.5 text-[11px] text-fg outline-none">
-                      {kindsFor(w.source).map((k) => <option key={k} value={k}>{k}</option>)}
-                    </select>
-                  )}
-                  <div className="flex items-center gap-0.5">
-                    {WIDGET_COLORS.map((c) => (
-                      <button key={c} onClick={() => patch(w.id, { color: c })} title={c} className={`h-3.5 w-3.5 rounded-full ${w.color === c ? 'ring-2 ring-white/60' : ''}`} style={{ background: c }} />
-                    ))}
-                  </div>
-                  <button onClick={() => patch(w.id, { wide: !w.wide })} title="Toggle width" className={`rounded border px-1 text-[11px] ${w.wide ? 'border-accent text-accent' : 'border-border text-muted'}`}>↔</button>
-                  <button onClick={() => move(w.id, -1)} title="Move up" className="rounded border border-border px-1 text-[11px] text-muted hover:bg-surface-2">↑</button>
-                  <button onClick={() => move(w.id, 1)} title="Move down" className="rounded border border-border px-1 text-[11px] text-muted hover:bg-surface-2">↓</button>
-                  <button onClick={() => remove(w.id)} title="Remove" className="rounded border border-rose-900/60 px-1 text-[11px] text-rose-300 hover:bg-rose-500/10">✕</button>
-                </div>
-              )}
-            </div>
+            <h2
+              className={`mb-3 ${
+                w.kind === 'stat'
+                  ? 'text-[12px] font-semibold uppercase tracking-[0.4px] text-dim'
+                  : 'text-[13.5px] font-bold tracking-tight text-fg'
+              }`}
+            >
+              {w.title}
+            </h2>
             <WidgetBody w={w} data={data} />
           </div>
         ))}
-        {widgets.length === 0 && (
-          <p className="sm:col-span-2 lg:col-span-3 rounded-[12px] border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-dim">
-            No widgets. Click “Customize” to add some.
-          </p>
-        )}
       </section>
 
       {/* Searchable events & alerts — filter by IP / rule / MITRE / level / time */}

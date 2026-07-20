@@ -3,6 +3,21 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-20 (v2.0.0).
 
+**Dashboard made STATIC 2026-07-20 (post-v2.0.0, on `main`, unreleased).** The user's server showed a
+ragged dashboard: "Alerts (24h)", "LLM verdicts" and "Attack origins" each took two columns and left
+the third empty. Cause: their SAVED layout predates the 3-column grid -- `wide` meant "full width"
+in the old 2-column grid but means "two thirds" now, so those panels no longer fit the remaining
+slot, wrapped, and left holes. At the user's request ("statis aja gpp") the dashboard is now a
+FIXED, designed layout: a `PANELS` constant with an explicit 1/2/3-column span each, arranged so
+every row sums to the full width (3 stats / trend+breakdown / 3 lists / slow-scanners+donut / map),
+plus `grid-auto-flow: dense` as a safety net at narrower breakpoints.
+REMOVED with it: edit mode, drag-and-drop reorder, add/remove/recolor/retype widgets, and the
+saved-layout fetch/save. The `/api/dashboard/layout` endpoints and `fetchLayout`/`saveLayout`
+clients still exist, unused -- restoring customization means re-wiring the UI, not rebuilding the
+backend. Dashboard.tsx 804 -> 670 lines.
+VERIFIED by geometry at three widths: every row fills the grid exactly (desktop 1150px: 375/375/375,
+763+375, 375x3, 763+375, 1150), tablet 768px has 7 rows and zero holes, no horizontal overflow.
+
 **Dashboard polish 2026-07-20 (post-v2.0.0, on `main`, unreleased).** Moved the time-range picker
 into the Topbar as the prototype's segmented control (surface-2 track, 8px radius, 3px padding,
 active pill on the accent) keeping 1h/6h/24h/7d/30d/Custom. The range now lives in `lib/range.ts`
