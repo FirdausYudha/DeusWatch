@@ -482,6 +482,18 @@ func shortHash(h string) string {
 
 func runFileActions(ctx context.Context, snaps *agent.SnapshotStore, shipper *agent.Shipper, host string) {
 	qdir := getenv("QUARANTINE_DIR", agent.DefaultQuarantineDir())
+	// Kill-switch process control. procSrc is nil on platforms without verified introspection,
+	// which KillSwitch turns into an explicit failure rather than a silent skip.
+	procSrc := agent.NewProcSource()
+	// Business-critical processes this deployment must never kill, however strong the detection
+	// (an ERP, a database, a line-of-business service). DeusWatch cannot know these; the admin
+	// declares them. Comma-separated process names, e.g. KILL_PROTECTED=sapstartsrv,oracle
+	var protectedProcs []string
+	for _, p := range strings.Split(getenv("KILL_PROTECTED", ""), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			protectedProcs = append(protectedProcs, p)
+		}
+	}
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	for {
@@ -550,6 +562,31 @@ func runFileActions(ctx context.Context, snaps *agent.SnapshotStore, shipper *ag
 						}
 						log.Printf("agent: restored %s to version %s", a.Path, shortHash(a.VersionSHA256))
 					}
+				case "kill_process":
+					// The manager proposed this kill and a human (or KILL_SWITCH_AUTO) approved it,
+					// but the agent is the last line of defence and re-verifies independently: the
+					// live process must still match the identity captured at detection, and must not
+					// be protected. See internal/agent/killproc.go for the full policy.
+					outcome, why := agent.KillSwitch(
+						agent.KillTarget{PID: a.PID, WantExe: a.Path, WantName: a.ProcName, WantStart: a.ProcStart},
+						procSrc, os.Getpid(), os.Getppid(), protectedProcs)
+					// Only a genuine failure is reported as failed. A deliberate refusal is a
+					// completed decision, carried in the result so the UI can show WHY nothing was
+					// killed instead of implying containment.
+					if outcome == agent.KillFailed {
+						status = "failed"
+					}
+					result = string(outcome)
+					if why != "" {
+						result += ": " + why
+					}
+					c := agent.FIMChange{Path: a.Path, Action: "kill_" + string(outcome)}
+					if body, merr := json.Marshal(c); merr == nil {
+						_ = shipper.Send(ctx, []ingest.RawLog{{
+							Timestamp: time.Now(), Host: host, Dataset: "fim", Message: string(body),
+						}})
+					}
+					log.Printf("agent: kill-switch pid %d (%s): %s", a.PID, a.ProcName, result)
 				default:
 					status, result = "failed", "unknown action"
 				}

@@ -196,7 +196,13 @@ func main() {
 		log.Printf("worker: notifications disabled (set TELEGRAM_*/WEBHOOK_URL/SMTP_* to enable)")
 	}
 
-	onAlert := makeAlertHook(engine, containEngine, dispatcher)
+	// Kill-switch recommender. Like containment it is recommend-only unless explicitly opted in:
+	// KILL_SWITCH_AUTO=1 skips the human approval gate, and the agent's own guards still apply.
+	killAuto, _ := strconv.ParseBool(os.Getenv("KILL_SWITCH_AUTO"))
+	killer := respond.NewKillRecommender(st, killAuto)
+	log.Printf("worker: ransomware kill-switch active (auto=%v)", killAuto)
+
+	onAlert := makeAlertHook(engine, containEngine, killer, dispatcher)
 
 	// Remediation playbooks (design doc section 9): each alert is stamped with the
 	// remediation steps for its label before it is stored. Live-reloaded on UI edits.
@@ -324,8 +330,18 @@ func main() {
 // makeAlertHook combines the response engine, containment engine + notification dispatcher
 // into a single worker.AlertHook. containment is always evaluated (it self-gates on the rule's
 // mitigation_action), so the hook is never nil.
-func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, dispatcher *notify.Dispatcher) worker.AlertHook {
+func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, killer *respond.KillRecommender, dispatcher *notify.Dispatcher) worker.AlertHook {
 	return func(ctx context.Context, alert *ingest.Event) {
+		// Ransomware kill-switch: propose terminating the encrypting process. This only ever
+		// WRITES a recommendation - a human approves it (unless KILL_SWITCH_AUTO), and the agent
+		// re-verifies and can still refuse. Runs alongside containment rather than replacing it:
+		// containment stops the spread, the kill stops the encryption already under way.
+		if killed, err := killer.Evaluate(ctx, alert); err != nil {
+			log.Printf("worker: kill recommendation failed: %v", err)
+		} else if killed {
+			log.Printf("worker: kill-switch recommended for pid %d on %s (auto=%v)",
+				alert.Process.PID, alert.Agent.ID, killer.Auto())
+		}
 		// Route by the entity_type decision-table (internal/respond/decision.go): each entity the
 		// alert concerns is dispatched to the engine that owns its action. This is behaviour-
 		// preserving — the engines self-gate on exactly what respond.Entities classifies — but it

@@ -246,6 +246,13 @@ func main() {
 		mux.Handle("POST /api/fim/restore-version", protect(auth.PermApproveRemediation, fimRestoreVersionHandler(st)))
 		mux.Handle("POST /api/fim/bulk-restore", protect(auth.PermApproveRemediation, fimBulkRestoreHandler(st)))
 
+		// Ransomware kill-switch: viewing proposals is a dashboard right, but authorizing a
+		// process termination requires approve-remediation - the same bar as other destructive
+		// response actions.
+		mux.Handle("GET /api/kill-requests", protect(auth.PermViewDashboard, killListHandler(st)))
+		mux.Handle("POST /api/kill-requests/approve", protect(auth.PermApproveRemediation, killDecisionHandler(st, true)))
+		mux.Handle("POST /api/kill-requests/dismiss", protect(auth.PermApproveRemediation, killDecisionHandler(st, false)))
+
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
@@ -1681,6 +1688,57 @@ func fimActionsHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
+// ── Ransomware kill-switch (feature 3) ────────────────────────────────────────
+//
+// Killing a process is the most destructive action DeusWatch can take, so detections land as
+// inert RECOMMENDATIONS and a human with approve-remediation must promote them. Approval is the
+// manager-side gate only; the agent independently re-verifies process identity and protection
+// before it kills anything, and its refusal is final (internal/agent/killproc.go).
+
+// killListHandler (GET /api/kill-requests?pending=1&limit=) lists proposed/executed kills.
+func killListHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		pending := r.URL.Query().Get("pending") == "1"
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		reqs, err := st.ListKillRequests(r.Context(), pending, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"requests": reqs})
+	}
+}
+
+// killDecisionHandler (POST /api/kill-requests/{action}) approves or dismisses a recommendation.
+// Both are one-shot: they only affect a row still awaiting a decision, so a double-click or a
+// stale tab cannot re-fire a kill or overturn a recorded outcome.
+func killDecisionHandler(st *store.Store, approve bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID int64 `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID <= 0 {
+			http.Error(w, "id required", http.StatusBadRequest)
+			return
+		}
+		var err error
+		if approve {
+			err = st.ApproveKill(r.Context(), req.ID, currentUsername(r))
+		} else {
+			err = st.DismissKill(r.Context(), req.ID, currentUsername(r))
+		}
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "no pending kill recommendation with that id (already decided?)", http.StatusConflict)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // fimActionReq is the body for the on-demand file-action endpoints.
 type fimActionReq struct {
 	Agent string `json:"agent"`
@@ -1753,8 +1811,8 @@ func fimBulkRestoreHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Agent string `json:"agent"`
-			Path  string `json:"path"`   // optional directory subtree ("" = all watched files)
-			AsOf  string `json:"as_of"`  // RFC3339
+			Path  string `json:"path"`  // optional directory subtree ("" = all watched files)
+			AsOf  string `json:"as_of"` // RFC3339
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Agent) == "" {
 			http.Error(w, "agent and as_of required", http.StatusBadRequest)

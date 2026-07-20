@@ -117,8 +117,8 @@ type SnapshotMeta struct {
 	Path    string `json:"path"`
 	SHA256  string `json:"sha256"`
 	Size    int64  `json:"size"`
-	Trigger string `json:"trigger"`        // on_change | scheduled | manual
-	Diff    string `json:"diff,omitempty"` // unified diff vs the previous captured version
+	Trigger string `json:"trigger"`           // on_change | scheduled | manual
+	Diff    string `json:"diff,omitempty"`    // unified diff vs the previous captured version
 	Content string `json:"content,omitempty"` // present only for manager-side storage (Phase 5)
 }
 
@@ -126,9 +126,14 @@ type SnapshotMeta struct {
 type FileActionItem struct {
 	ID            int64  `json:"id"`
 	Path          string `json:"path"`
-	Action        string `json:"action"`                   // snapshot_now | quarantine | restore_version
+	Action        string `json:"action"`                   // snapshot_now | quarantine | restore_version | kill_process
 	VersionSHA256 string `json:"version_sha256,omitempty"` // target version for restore_version
 	Content       string `json:"content,omitempty"`        // manager-stored content for restore_version (Phase 5)
+	// kill_process only. These MUST survive the trip: the agent refuses to kill on a bare PID,
+	// so dropping the identity here would turn every kill into a refusal.
+	PID       int    `json:"pid,omitempty"`
+	ProcName  string `json:"proc_name,omitempty"`
+	ProcStart string `json:"proc_start,omitempty"`
 }
 
 // FileActionsFunc returns the pending actions for an agent (by CN), marking them delivered.

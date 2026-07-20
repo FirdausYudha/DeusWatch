@@ -87,3 +87,69 @@ For the files DeusWatch versions (see [ADR 0002](adr/0002-versioned-fim-snapshot
 2. Enable the ransomware detection rules (bundled) and tune the mass-change threshold.
 3. Decide on `CONTAINMENT_AUTO` (auto-isolate) vs analyst approval for your risk tolerance.
 4. Keep **immutable off-host backups** for full-system recovery.
+
+## Kill-switch: terminating the encrypting process
+
+Reverting files undoes damage; the kill-switch stops it continuing. When DeusWatch detects a
+process encrypting files, it can terminate that process — the most destructive action the
+platform takes, and therefore the most heavily gated.
+
+### How a kill is authorized
+
+Four gates in series. Each can only reduce what happens, and any one of them can stop it.
+
+1. **Evidence.** Only ransomware-class alerts qualify: a measured entropy jump
+   (`event.action: file_encrypted`), or a ransomware rule that explicitly authorized automated
+   response. Ordinary file changes never propose a kill.
+2. **Attribution.** The alert must name a process. On Linux that means **auditd who-data must be
+   enabled** — without it there is no PID, and DeusWatch proposes nothing rather than guessing.
+3. **Human approval.** Detection writes an inert *recommendation*. An analyst with
+   `approve_remediation` authorizes it on **Response → Ransomware kill-switch**. Setting
+   `KILL_SWITCH_AUTO=1` skips this gate; the rest still apply.
+4. **Agent re-verification.** The agent independently re-checks and may refuse. Its refusal is
+   final — the manager cannot override it.
+
+### Why the agent re-verifies (PID reuse)
+
+A PID is not a stable identity. Between detection and approval the target can exit and the OS can
+hand its PID to an unrelated process — Windows recycles aggressively. Killing on a PID alone would
+eventually kill something innocent.
+
+So the agent captures the process **start time** at detection, and refuses unless the live process
+still matches it (falling back to the executable path when no start time is available). A request
+carrying no identity at all is refused outright rather than executed hopefully.
+
+### What is never killed
+
+`init`/PID 1, session and login paths (`sshd`, `winlogon`, `lsass`, `csrss`, …), the container
+runtime, and the DeusWatch agent itself — even when the evidence is perfect. A false positive
+there turns a contained incident into an outage, or disables the responder.
+
+Add your own with `KILL_PROTECTED=sapstartsrv,oracle` on the agent (comma-separated process
+names). DeusWatch cannot know which processes are business-critical for you.
+
+`explorer.exe` is deliberately **not** protected: injection into the user shell is a real
+ransomware technique, so shielding it would defeat the feature. Losing a shell is recoverable.
+
+### Reading the outcome honestly
+
+`done` means the agent finished *deciding*, not that a process died. The result says what actually
+happened, and only `killed` means the process is gone:
+
+| Result | Meaning |
+| --- | --- |
+| `killed` | The process was terminated (verified — the agent re-read it afterwards). |
+| `skipped_protected` | Refused: protected process. **Still running.** |
+| `skipped_mismatch` | Refused: the PID no longer matches the detected process. **Still running.** |
+| `skipped_no_identity` | Refused: nothing to verify against. **Still running.** |
+| `skipped_gone` | The process had already exited. Nothing was killed. |
+| `failed` | The kill was attempted and did not work. **Still running.** |
+
+The UI colours only `killed` as success; every "still running" outcome is amber.
+
+### Limitations
+
+- **Linux only for automatic proposals**, because attribution needs auditd who-data. The kill
+  mechanism itself works on Windows, but without who-data nothing proposes a kill there yet.
+- Killing the process does **not** decrypt files. Pair it with point-in-time revert (above).
+- A process can spawn children; the kill-switch terminates the attributed PID, not a tree.

@@ -92,8 +92,8 @@ const maxHashBytes = 64 << 20 // 64 MiB
 
 // FIMChange is a single file-integrity change (the JSON payload of dataset "fim").
 type FIMChange struct {
-	Path   string `json:"path"`
-	Action string `json:"action"` // created | modified | deleted
+	Path    string  `json:"path"`
+	Action  string  `json:"action"` // created | modified | deleted
 	SHA256  string  `json:"sha256,omitempty"`
 	Size    int64   `json:"size,omitempty"`
 	Mode    string  `json:"mode,omitempty"`
@@ -104,8 +104,12 @@ type FIMChange struct {
 	Actor    string `json:"actor,omitempty"`     // process name (comm)
 	ActorExe string `json:"actor_exe,omitempty"` // process executable path
 	ActorPID int    `json:"actor_pid,omitempty"`
-	User     string `json:"user,omitempty"`    // login user (auid) or uid
-	Syscall  string `json:"syscall,omitempty"` // the syscall that changed the file
+	// ActorStart is the process start time captured at detection. It is the kill-switch's
+	// anti-PID-reuse evidence: by the time an operator approves a kill, the PID alone proves
+	// nothing, because the OS may have handed it to an unrelated process.
+	ActorStart string `json:"actor_start,omitempty"`
+	User       string `json:"user,omitempty"`    // login user (auid) or uid
+	Syscall    string `json:"syscall,omitempty"` // the syscall that changed the file
 }
 
 type fileState struct {
@@ -135,6 +139,7 @@ type FIMScanner struct {
 	primed   bool
 	snaps    *SnapshotStore // known-good copies for one-click restore (nil = disabled)
 	who      WhoDataSource  // who-data attribution (nil = disabled / non-Linux)
+	procs    ProcSource     // process introspection for actor start time (nil = unavailable)
 }
 
 // NewFIMScanner creates a scanner for the given roots (files or directories).
@@ -146,6 +151,14 @@ func NewFIMScanner(roots ...string) *FIMScanner {
 // persisted for restore. Returns the scanner for chaining.
 func (s *FIMScanner) WithSnapshots(store *SnapshotStore) *FIMScanner {
 	s.snaps = store
+	return s
+}
+
+// WithProcs attaches process introspection so who-data can also capture the actor's start time
+// at detection (the kill-switch's anti-PID-reuse evidence). Optional: without it, attribution
+// still works and the kill-switch falls back to matching the executable path.
+func (s *FIMScanner) WithProcs(p ProcSource) *FIMScanner {
+	s.procs = p
 	return s
 }
 
@@ -164,6 +177,16 @@ func (s *FIMScanner) attachWho(c *FIMChange) {
 	if who, ok := s.who.Lookup(c.Path); ok {
 		c.Actor, c.ActorExe, c.ActorPID = who.Actor, who.Exe, who.PID
 		c.User, c.Syscall = who.User, who.Syscall
+		// Capture the process start time NOW, while the culprit is (usually) still alive. This is
+		// the only moment it can be read reliably, and it is what lets the kill-switch tell the
+		// real target from an innocent process that inherited its PID later. Best-effort: a
+		// process that already exited simply yields no start time, and the kill-switch then falls
+		// back to the executable path.
+		if procs := s.procs; procs != nil && who.PID > 0 {
+			if live, found := procs.Lookup(who.PID); found {
+				c.ActorStart = live.Start
+			}
+		}
 	}
 }
 
@@ -368,7 +391,7 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	if len(roots) == 0 {
 		return fmt.Errorf("fim source %q: empty Path", s.Dataset)
 	}
-	scanner := NewFIMScanner(roots...).WithSnapshots(fimSnapshots).WithWhoData(fimWhoData)
+	scanner := NewFIMScanner(roots...).WithSnapshots(fimSnapshots).WithWhoData(fimWhoData).WithProcs(NewProcSource())
 	if _, err := scanner.Scan(); err != nil { // build the initial baseline
 		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}

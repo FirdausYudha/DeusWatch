@@ -439,24 +439,31 @@ func normalizeWindows(msg string, e *Event) bool {
 // into DCS file.* fields. action: created/modified/deleted.
 func normalizeFIM(msg string, e *Event) bool {
 	var c struct {
-		Path     string `json:"path"`
-		Action   string `json:"action"`
-		SHA256   string `json:"sha256"`
-		Mode     string `json:"mode"`
-		Diff     string `json:"diff"`
-		Actor    string `json:"actor"`
-		ActorExe string `json:"actor_exe"`
-		ActorPID int    `json:"actor_pid"`
-		User     string `json:"user"`
-		Syscall  string `json:"syscall"`
+		Path       string `json:"path"`
+		Action     string `json:"action"`
+		SHA256     string `json:"sha256"`
+		Mode       string `json:"mode"`
+		Diff       string `json:"diff"`
+		Actor      string `json:"actor"`
+		ActorExe   string `json:"actor_exe"`
+		ActorPID   int    `json:"actor_pid"`
+		ActorStart string `json:"actor_start"`
+		User       string `json:"user"`
+		Syscall    string `json:"syscall"`
 	}
 	if err := json.Unmarshal([]byte(msg), &c); err != nil || c.Path == "" || c.Action == "" {
 		return false
 	}
 	// Only the agent's FIM actions - keeps the label-agnostic JSON sniff in Normalize from
 	// swallowing other JSON logs that happen to have path/action fields.
-	switch c.Action {
-	case "created", "modified", "deleted", "restored", "encrypted":
+	switch {
+	case c.Action == "created", c.Action == "modified", c.Action == "deleted",
+		c.Action == "restored", c.Action == "encrypted",
+		// Operator/response actions the agent reports so they land in the event timeline as an
+		// audit trail. "quarantined" was previously dropped here, which silently cost the
+		// quarantine feature its record; kill_* carries the kill-switch outcome
+		// (kill_killed / kill_skipped_protected / kill_failed / ...).
+		c.Action == "quarantined", strings.HasPrefix(c.Action, "kill_"):
 	default:
 		return false
 	}
@@ -467,7 +474,7 @@ func normalizeFIM(msg string, e *Event) bool {
 	// Who-data (Linux/auditd): the process/user that changed the file. This is the
 	// differentiator over hash-only FIM — an alert can name the actor, not just the file.
 	if c.Actor != "" || c.ActorPID != 0 {
-		e.Process = &Process{Name: c.Actor, PID: c.ActorPID, CommandLine: c.ActorExe}
+		e.Process = &Process{Name: c.Actor, PID: c.ActorPID, CommandLine: c.ActorExe, Start: c.ActorStart}
 	}
 	if c.User != "" {
 		e.User = &User{Name: c.User}

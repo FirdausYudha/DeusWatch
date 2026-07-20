@@ -179,6 +179,10 @@ type Process struct {
 	Name        string `json:"name,omitempty"`
 	PID         int    `json:"pid,omitempty"`
 	CommandLine string `json:"command_line,omitempty"`
+	// Start is the process start time as an opaque platform token, captured by the agent at
+	// detection. It exists so a response action can tell this exact process from a later one
+	// that inherited its PID - a PID on its own is not a stable identity.
+	Start string `json:"start,omitempty"`
 }
 
 // Rule = rule.* (identity of the detection rule that fired).

@@ -21,6 +21,9 @@ import {
   approveContainment,
   dismissContainment,
   releaseContainment,
+  listKillRequests,
+  decideKill,
+  type KillRequest,
   can,
   type ResponseAction,
   type ResponseStatus,
@@ -209,6 +212,7 @@ export default function Response({ me }: { me: Me }) {
         </div>
       </header>
 
+      <KillSwitchPanel canApprove={canApprove} />
       <ContainmentPanel canApprove={canApprove} />
       <DecisionTablePanel />
       <BanPolicyEditor canManage={can(me, 'manage_settings')} />
@@ -1057,6 +1061,143 @@ function DecisionTablePanel() {
             <DocLink file="decision-table.md" label="About the decision table" />
           </div>
         </div>
+      )}
+    </section>
+  )
+}
+
+// killOutcomeTone maps an agent-reported outcome to a colour. Only an actual kill is green:
+// every "skipped_*" means the process is STILL RUNNING, and colouring those as success would be
+// the single most dangerous lie this UI could tell.
+function killOutcomeTone(result: string): string {
+  const r = (result || '').toLowerCase()
+  if (r.startsWith('killed')) return 'text-emerald-400'
+  if (r.startsWith('dismissed')) return 'text-dim'
+  if (r.startsWith('skipped_gone')) return 'text-dim'
+  return 'text-amber-300' // skipped_protected / skipped_mismatch / failed - nothing was killed
+}
+
+// KillSwitchPanel lists proposed and executed ransomware process terminations.
+//
+// Killing a process is the most destructive action DeusWatch takes, so detection only ever
+// PROPOSES one; an analyst with approve-remediation authorizes it here. Even after approval the
+// agent independently re-verifies that the live process is still the one detected (a PID may have
+// been recycled onto something innocent) and that it is not protected - and it may refuse. This
+// panel therefore reports what actually happened, never what was intended.
+function KillSwitchPanel({ canApprove }: { canApprove: boolean }) {
+  const [items, setItems] = useState<KillRequest[]>([])
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(0)
+
+  const load = () => {
+    listKillRequests(false, 50)
+      .then(setItems)
+      .catch((e) => setError((e as Error).message))
+  }
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 10_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const act = async (k: KillRequest, approve: boolean) => {
+    const what = `${k.proc_name || 'process'} (pid ${k.pid}) on ${k.agent_name}`
+    if (approve && !confirm(`Terminate ${what}?\n\nThis kills the process immediately. The agent will refuse if the PID no longer matches the detected process, or if it is a protected system process.`)) return
+    if (!approve && !confirm(`Dismiss the kill recommendation for ${what}?`)) return
+    setBusy(k.id)
+    setError('')
+    try {
+      await decideKill(k.id, approve)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(0)
+    }
+  }
+
+  const pending = items.filter((k) => k.status === 'recommended').length
+
+  return (
+    <section className="mb-6 overflow-hidden rounded-[12px] border border-border bg-surface">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+        <h2 className="text-[12.5px] font-semibold text-fg">Ransomware kill-switch</h2>
+        <p className="mt-0.5 text-[11px] text-dim">
+          Processes proposed for termination after encryption was detected.{' '}
+          {pending > 0 ? (
+            <span className="text-amber-300">{pending} awaiting approval</span>
+          ) : (
+            'Nothing awaiting approval.'
+          )}
+        </p>
+        </div>
+        <DocLink file="ransomware.md" className="shrink-0" />
+      </div>
+      {error && <p className="px-4 py-2 text-[12.5px] text-rose-400">{error}</p>}
+      {items.length === 0 && !error && (
+        <p className="px-4 py-3 text-[12px] text-dim">
+          No kill requests. A recommendation needs an attributed process, which on Linux requires
+          auditd who-data to be enabled.
+        </p>
+      )}
+      {items.length > 0 && (
+        <table className="w-full text-left text-sm">
+          <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
+            <tr>
+              <th className="px-4 py-2 font-medium">Process</th>
+              <th className="px-4 py-2 font-medium">Agent</th>
+              <th className="px-4 py-2 font-medium">Why</th>
+              <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((k) => (
+              <tr key={k.id} className="border-t border-border align-top">
+                <td className="px-4 py-2">
+                  <span className="font-medium text-fg">{k.proc_name || '—'}</span>
+                  <span className="text-dim"> pid {k.pid}</span>
+                  {k.exe && <div className="truncate text-[11px] text-dim" title={k.exe}>{k.exe}</div>}
+                </td>
+                <td className="px-4 py-2 text-muted">{k.agent_name}</td>
+                <td className="px-4 py-2 text-[11px] text-muted">{k.reason || '—'}</td>
+                <td className="px-4 py-2">
+                  {k.status === 'recommended' && <span className="text-amber-300">awaiting approval</span>}
+                  {(k.status === 'requested' || k.status === 'delivered') && (
+                    <span className="text-muted">approved, sent to agent</span>
+                  )}
+                  {(k.status === 'done' || k.status === 'failed') && (
+                    <span className={killOutcomeTone(k.result || '')}>{k.result || k.status}</span>
+                  )}
+                </td>
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  {k.status === 'recommended' && canApprove && (
+                    <>
+                      <button
+                        onClick={() => act(k, true)}
+                        disabled={busy === k.id}
+                        className="rounded-[6px] bg-rose-600 px-2 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        Kill process
+                      </button>
+                      <button
+                        onClick={() => act(k, false)}
+                        disabled={busy === k.id}
+                        className="ml-2 rounded-[6px] border border-border px-2 py-1 text-[11px] text-muted hover:opacity-90 disabled:opacity-50"
+                      >
+                        Dismiss
+                      </button>
+                    </>
+                  )}
+                  {k.status === 'recommended' && !canApprove && (
+                    <span className="text-[11px] text-dim">needs approve-remediation</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </section>
   )

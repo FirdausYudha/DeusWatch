@@ -100,9 +100,14 @@ func (s *Shipper) PostSnapshots(ctx context.Context, snaps []SnapshotMeta) error
 type FileActionItem struct {
 	ID            int64  `json:"id"`
 	Path          string `json:"path"`
-	Action        string `json:"action"`                   // snapshot_now | quarantine | restore_version
+	Action        string `json:"action"`                   // snapshot_now | quarantine | restore_version | kill_process
 	VersionSHA256 string `json:"version_sha256,omitempty"` // target version for restore_version
 	Content       string `json:"content,omitempty"`        // manager-stored content for restore_version
+	// kill_process only. Path carries the executable. The agent re-verifies this identity
+	// against the live process before terminating - see internal/agent/killproc.go.
+	PID       int    `json:"pid,omitempty"`
+	ProcName  string `json:"proc_name,omitempty"`
+	ProcStart string `json:"proc_start,omitempty"`
 }
 
 // FetchFileActions retrieves the actions the manager wants this agent to perform

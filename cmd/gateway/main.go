@@ -111,7 +111,10 @@ func main() {
 				}
 				out := make([]gateway.FileActionItem, len(acts))
 				for i, a := range acts {
-					item := gateway.FileActionItem{ID: a.ID, Path: a.Path, Action: a.Action, VersionSHA256: a.VersionSHA}
+					item := gateway.FileActionItem{
+						ID: a.ID, Path: a.Path, Action: a.Action, VersionSHA256: a.VersionSHA,
+						PID: a.PID, ProcName: a.ProcName, ProcStart: a.ProcStart,
+					}
 					// For a manager-stored version, ship the content so the agent can restore even
 					// if it no longer has the local blob (durability — survives host reprovision).
 					if a.Action == "restore_version" && a.VersionSHA != "" {

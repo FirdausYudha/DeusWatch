@@ -18,8 +18,8 @@ type FIMSnapshot struct {
 	Path       string    `json:"path"`
 	SHA256     string    `json:"sha256"`
 	Size       int64     `json:"size"`
-	Storage    string    `json:"storage"` // agent | manager
-	Trigger    string    `json:"trigger"` // on_change | scheduled | manual
+	Storage    string    `json:"storage"`        // agent | manager
+	Trigger    string    `json:"trigger"`        // on_change | scheduled | manual
 	Diff       string    `json:"diff,omitempty"` // unified diff vs the previous captured version
 	CapturedAt time.Time `json:"captured_at"`
 }
@@ -131,16 +131,21 @@ func (s *Store) SnapshotContent(ctx context.Context, agentName, path, sha256 str
 
 // FileAction is one on-demand operation queued for an agent (ADR 0002 Phase 3).
 type FileAction struct {
-	ID          int64      `json:"id"`
-	AgentName   string     `json:"agent_name"`
-	Path        string     `json:"path"`
-	Action      string     `json:"action"`                   // snapshot_now | quarantine | restore_version
-	VersionSHA  string     `json:"version_sha256,omitempty"` // target version for restore_version
-	Status      string     `json:"status"`                   // requested | delivered | done | failed
-	RequestedBy string     `json:"requested_by,omitempty"`
-	Result      string     `json:"result,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	ResultAt    *time.Time `json:"result_at,omitempty"`
+	ID          int64  `json:"id"`
+	AgentName   string `json:"agent_name"`
+	Path        string `json:"path"`
+	Action      string `json:"action"`                   // snapshot_now | quarantine | restore_version | kill_process
+	VersionSHA  string `json:"version_sha256,omitempty"` // target version for restore_version
+	Status      string `json:"status"`                   // recommended | requested | delivered | done | failed
+	RequestedBy string `json:"requested_by,omitempty"`
+	// kill_process only: the target process and the identity the agent re-verifies before
+	// killing, so a recycled PID is caught on the agent side (see internal/agent/killproc.go).
+	PID       int        `json:"pid,omitempty"`
+	ProcName  string     `json:"proc_name,omitempty"`
+	ProcStart string     `json:"proc_start,omitempty"`
+	Result    string     `json:"result,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	ResultAt  *time.Time `json:"result_at,omitempty"`
 }
 
 // RequestFileAction queues an action for an agent, de-duplicated against an identical
@@ -226,7 +231,8 @@ func (s *Store) PendingFileActions(ctx context.Context, agentName string) ([]Fil
 	rows, err := s.pool.Query(ctx, `
 		UPDATE agent_file_actions SET status='delivered', delivered_at=now()
 		WHERE id IN (SELECT id FROM agent_file_actions WHERE agent_name=$1 AND status='requested')
-		RETURNING id, agent_name, path, action, COALESCE(version_sha256,''), status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at`,
+		RETURNING id, agent_name, path, action, COALESCE(version_sha256,''), status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at,
+		          COALESCE(pid,0), COALESCE(proc_name,''), COALESCE(proc_start,'')`,
 		agentName)
 	if err != nil {
 		return nil, fmt.Errorf("store: pending file actions: %w", err)
@@ -235,7 +241,8 @@ func (s *Store) PendingFileActions(ctx context.Context, agentName string) ([]Fil
 	out := make([]FileAction, 0, 8)
 	for rows.Next() {
 		var a FileAction
-		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.VersionSHA, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.AgentName, &a.Path, &a.Action, &a.VersionSHA, &a.Status, &a.RequestedBy, &a.Result, &a.CreatedAt, &a.ResultAt,
+			&a.PID, &a.ProcName, &a.ProcStart); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

@@ -411,6 +411,40 @@ export async function fetchFileActions(agent: string, path: string): Promise<Fil
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return (await res.json()).actions ?? []
 }
+// ── Ransomware kill-switch ───────────────────────────────────────────────────
+// A kill is PROPOSED by detection and stays inert until approved here. The agent then
+// re-verifies the process identity and may still refuse, so `result` on a decided request is the
+// honest outcome (killed / skipped_protected / skipped_mismatch / ...), not a promise.
+export type KillRequest = {
+  id: number
+  agent_name: string
+  pid: number
+  proc_name?: string
+  exe?: string
+  proc_start?: string
+  status: 'recommended' | 'requested' | 'delivered' | 'done' | 'failed'
+  reason?: string
+  requested_by?: string
+  result?: string
+  created_at: string
+  result_at?: string
+}
+
+export async function listKillRequests(pendingOnly = false, limit = 50): Promise<KillRequest[]> {
+  const res = await authFetch(`/api/kill-requests?pending=${pendingOnly ? 1 : 0}&limit=${limit}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).requests ?? []
+}
+
+export async function decideKill(id: number, approve: boolean): Promise<void> {
+  const res = await authFetch(`/api/kill-requests/${approve ? 'approve' : 'dismiss'}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 export async function snapshotNow(agent: string, path: string): Promise<void> {
   const res = await authFetch('/api/fim/snapshot-now', {
     method: 'POST',
