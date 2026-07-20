@@ -308,6 +308,17 @@ React+Vite+Tailwind.
 agent ──mTLS──▶ gateway ──▶ NATS ──▶ worker(enrich+detect) ──▶ TimescaleDB ──▶ API ──▶ Web UI
 ```
 
+> **Ransomware kill-switch verified end-to-end** (2026-07-20, real Postgres + live API + browser).
+> Migration 000046 applied to a real database and its rollback validated in a rolled-back
+> transaction; all 15 store tests ran with **zero skips**; the approval gate proven live — an
+> unapproved recommendation is never deliverable (0 rows in `requested`), approving returns 204
+> and records *who*, and a second approve returns **409**; clicking "Kill process" in the UI was
+> confirmed in the DB as a real approval by `admin`. Colour honesty proven via computed styles:
+> only `killed` is emerald; `skipped_protected` and `skipped_mismatch` are amber, because those
+> mean the process is **still running**.
+> **Still pending:** a real agent executing an actual kill (needs a Linux agent with auditd
+> who-data); automatic proposals are Linux-only until who-data exists elsewhere.
+
 ## Done & verified
 
 | Area | Contents | Status |
