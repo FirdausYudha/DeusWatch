@@ -28,6 +28,27 @@ Every few minutes the worker aggregates the last **24 hours** (`SUSPICIOUS_WINDO
 widget. The score is **CTI-independent by design** — a quiet IP with no AbuseIPDB record can still
 top the list.
 
+### SSH pre-auth probes feed this, but are never alerts
+
+Lines like `banner exchange: Connection from … invalid format`, `Connection closed/reset by … [preauth]`,
+`Bad protocol version identification …`, and `Did not receive identification string from …` are SSH
+**reconnaissance** — a scanner touched the port without attempting a login. They carry the attacker
+IP but are **not** authentication failures.
+
+DeusWatch ingests them as `event.action = ssh_probe`, severity **Info**, with the source IP
+extracted **but no failure outcome**. The deliberate design (the enterprise tiered model):
+
+- **Individually they are telemetry, never alerts** — internet-facing SSH sees thousands daily, so
+  alerting per-probe would only cause alert fatigue.
+- **They still feed correlation** — because the IP is populated, a probe counts as a *contact* here
+  (and toward the composite score and the multi-day slow-scanner watchlist). A scanner that returns
+  often, or across many hosts/days, rises up the list on its own.
+- **They do NOT inflate the failure signal** — `ssh_probe` carries no `failure` outcome, so a
+  scanner that only probes stays distinguishable from one actually guessing passwords.
+
+The real fix for the underlying noise is attack-surface reduction (key-only auth, SSH behind a
+bastion/VPN, source-IP restrictions) — detection is the complement, not the substitute.
+
 **The AI executive summary** (Report) receives the watchlist too, so it can describe the pattern
 in words — e.g. *"203.0.113.9 touched 20 distinct login endpoints over 12 hours, almost all
 403 — credential-stuffing reconnaissance."*

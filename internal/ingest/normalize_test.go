@@ -102,6 +102,76 @@ func TestNormalizeSSHDInvalidUser(t *testing.T) {
 	}
 }
 
+// TestNormalizeSSHDProbe covers the pre-auth recon lines. The whole point is that they now yield a
+// source IP (so they feed scoring) while staying Info telemetry and NOT an auth failure — a scanner
+// must not be indistinguishable from a real password attempt.
+func TestNormalizeSSHDProbe(t *testing.T) {
+	cases := []struct {
+		name, msg, wantIP string
+		wantPort          uint16
+	}{
+		{
+			"banner exchange (the exact line the user saw)",
+			"2026-07-21T10:26:41.448041+07:00 dev-server-firdaus sshd[3938473]: banner exchange: Connection from 143.110.145.236 port 35264: invalid format",
+			"143.110.145.236", 35264,
+		},
+		{
+			"connection closed by authenticating user",
+			"Jul 21 03:00:00 host sshd[1]: Connection closed by authenticating user root 45.155.205.233 port 40222 [preauth]",
+			"45.155.205.233", 40222,
+		},
+		{
+			"connection reset preauth",
+			"host sshd[1]: Connection reset by 103.85.24.19 port 51001 [preauth]",
+			"103.85.24.19", 51001,
+		},
+		{
+			"bad protocol version (HTTP hitting the SSH port)",
+			"host sshd[1]: Bad protocol version identification 'GET / HTTP/1.1' from 61.177.173.12 port 45678",
+			"61.177.173.12", 45678,
+		},
+		{
+			"did not receive identification string",
+			"host sshd[1]: Did not receive identification string from 194.26.29.171 port 22",
+			"194.26.29.171", 22,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, ok := Normalize(RawLog{Dataset: "sshd", Message: tc.msg})
+			if !ok {
+				t.Fatalf("probe line not recognized: %q", tc.msg)
+			}
+			if e.Source == nil || e.Source.IP != tc.wantIP {
+				t.Fatalf("source IP not extracted: got %+v, want %s", e.Source, tc.wantIP)
+			}
+			if e.Source.Port != tc.wantPort {
+				t.Fatalf("port: got %d, want %d", e.Source.Port, tc.wantPort)
+			}
+			if e.Event.Category != "authentication" || e.Event.Action != "ssh_probe" {
+				t.Fatalf("wrong category/action: %+v", e.Event)
+			}
+			if e.Event.Severity != SeverityInfo {
+				t.Fatalf("a probe must stay Info telemetry, got severity %v", e.Event.Severity)
+			}
+			// Critical: a probe is NOT an auth failure — it must not carry a failure outcome, or it
+			// would be counted as a brute-force attempt by the suspicious-IP failure signal.
+			if e.Event.Outcome == "failure" {
+				t.Fatalf("a probe must not be recorded as an auth failure: %+v", e.Event)
+			}
+		})
+	}
+}
+
+// TestNormalizeSSHDProbeIgnoresGarbageIP guards the IP validation: a recon-shaped line whose
+// "address" isn't a real IP must not produce a bogus source (which would fail the inet insert).
+func TestNormalizeSSHDProbeIgnoresGarbageIP(t *testing.T) {
+	e, _ := Normalize(RawLog{Dataset: "sshd", Message: "host sshd[1]: Connection closed by not-an-ip port 22 [preauth]"})
+	if e.Source != nil {
+		t.Fatalf("a non-IP token must not become a source: %+v", e.Source)
+	}
+}
+
 func TestNormalizeSSHDAccepted(t *testing.T) {
 	e, ok := Normalize(RawLog{Dataset: "sshd", Message: "Accepted password for deploy from 10.0.0.5 port 22 ssh2"})
 	if !ok || e.Event.Outcome != "success" || e.User.Name != "deploy" {

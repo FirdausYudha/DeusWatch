@@ -3,6 +3,22 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-21 (v2.0.1).
 
+**SSH pre-auth recon now feeds scoring 2026-07-21 (post-v2.0.1, on `main`, unreleased).** The user
+noticed a `banner exchange: Connection from <ip> ... invalid format` event with an EMPTY source IP.
+Root cause: normalizeSSHD only extracted the IP from `Failed password`/`Accepted` lines, so pre-auth
+recon (banner exchange, Connection closed/reset by [preauth], Bad protocol version, Did not receive
+identification string) was ingested WITHOUT a source_ip and contributed nothing to scoring — a
+recon-only scanner was invisible. Fix (the enterprise tiered model): these lines now parse as
+event.action `ssh_probe`, severity Info, source IP extracted (validated with net.ParseIP), and
+crucially NO failure outcome. All three scoring engines (suspicious.go, slowscan.go, scores.go)
+count any event with a public source_ip, so just populating it feeds them — no new aggregation rule
+needed. Individually still telemetry, NEVER an alert (avoids alert fatigue); the correlation/threshold
+surfaces the real scanner. `ssh_probe` has no `failure` outcome so it doesn't inflate the suspicious
+"failures" signal (stays distinguishable from brute-force). Verified: unit tests incl. the user's
+exact line + garbage-IP guard; end-to-end against Postgres (5 probe events for 143.110.145.236 →
+suspicious agg lists it, contacts=5 failures=0 distinct_hours=5). docs/suspicious-ips.md updated.
+NOT yet released.
+
 **v2.0.1 2026-07-21 — new agents auto-seed OS default log sources.** Root cause of the user's
 "agent sends no logs": a fresh agent's config was EMPTY, and the agent only fell back to
 DefaultSources() IMPLICITLY inside the binary — the manager/UI showed no sources, so an admin who

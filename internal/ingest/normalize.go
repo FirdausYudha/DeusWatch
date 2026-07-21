@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"encoding/json"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -26,6 +27,23 @@ var (
 	reSSHFailed = regexp.MustCompile(`Failed (?:password|publickey) for (?:invalid user )?(\S+) from (\S+) port (\d+)`)
 	// "Accepted password for deploy from 10.0.0.5 port 22 ssh2"
 	reSSHAccepted = regexp.MustCompile(`Accepted \w+ for (\S+) from (\S+) port (\d+)`)
+
+	// Pre-auth SSH RECON lines: a client touched the port but never completed a login. These carry
+	// the attacker IP yet are NOT auth failures, so they were previously ingested WITHOUT a source
+	// IP and contributed nothing to scoring. We now extract the IP (as event.action "ssh_probe",
+	// severity Info — telemetry, never an alert) so it feeds the suspicious/slow-scanner/composite
+	// scoring, where volume across time/hosts is what actually surfaces a scanner. Each pattern's
+	// FIRST group is the IP; the second, when present, the port.
+	reSSHProbe = []*regexp.Regexp{
+		// "banner exchange: Connection from 1.2.3.4 port 5264: invalid format"
+		regexp.MustCompile(`Connection from (\S+) port (\d+)`),
+		// "Connection closed/reset by [invalid user x ][authenticating user root ]1.2.3.4 port 22 [preauth]"
+		regexp.MustCompile(`Connection (?:closed|reset) by (?:(?:invalid|authenticating) user \S+ )?(\S+) port (\d+)`),
+		// "Bad protocol version identification 'GET / HTTP/1.1' from 1.2.3.4 port 45678"
+		regexp.MustCompile(`Bad protocol version identification .* from (\S+) port (\d+)`),
+		// "Did not receive identification string from 1.2.3.4[ port 22]"
+		regexp.MustCompile(`Did not receive identification string from (\S+?)(?: port (\d+))?$`),
+	}
 
 	// Netfilter/UFW kernel log fields, e.g.:
 	//   "[UFW BLOCK] IN=eth0 OUT= MAC=.. SRC=1.2.3.4 DST=5.6.7.8 PROTO=TCP SPT=40000 DPT=23 .."
@@ -515,6 +533,28 @@ func normalizeSSHD(msg string, e *Event) bool {
 		e.Event.Severity = SeverityInfo
 		e.User = &User{Name: m[1]}
 		e.Source = endpoint(m[2], m[3])
+		return true
+	}
+	// Pre-auth recon: a probe/scan that carries the client IP but is not a login attempt. Extract
+	// the IP so it feeds scoring, but leave it as Info telemetry with NO outcome — it must not
+	// inflate the auth-FAILURE signal the way a real "Failed password" does.
+	for _, re := range reSSHProbe {
+		m := re.FindStringSubmatch(msg)
+		if m == nil {
+			continue
+		}
+		ip := m[1]
+		if net.ParseIP(ip) == nil {
+			continue // not a real IP (malformed line / hostname) — keep looking
+		}
+		port := ""
+		if len(m) > 2 {
+			port = m[2]
+		}
+		e.Event.Category = "authentication"
+		e.Event.Action = "ssh_probe"
+		e.Event.Severity = SeverityInfo
+		e.Source = endpoint(ip, port)
 		return true
 	}
 	return false
