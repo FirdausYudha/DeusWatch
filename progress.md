@@ -25,9 +25,10 @@ VERIFIED: parser unit tests (os-release, dpkg incl. source-only-when-differs, rp
 round-trip vs real Postgres (summary, source-filter finds libssl3 via 'openssl', wholesale replace
 drops nginx + updates version) — passed while Docker was up; migration 000047 applied to real PG;
 go vet clean; full builds linux+windows; tsc + vite build clean.
-NOT verified: the Inventory PAGE rendering with live data (Docker went down before a browser pass) —
-tsc/build only; verify on the server. Phase 2 (OVAL feed + matcher + findings) and Windows package
-collection are future phases.
+Inventory PAGE now verified in-browser against the real API+Postgres (2 seeded agents): nav item,
+OS/codename cards, agent switch (6→4 pkgs), and the package filter (`ssh` → only openssh-server,
+matched on name+source); no console errors. Phase 2 (OVAL feed + matcher + findings) and Windows
+package collection are future phases.
 
 **SSH pre-auth recon now feeds scoring 2026-07-21 (post-v2.0.1, on `main`, unreleased).** The user
 noticed a `banner exchange: Connection from <ip> ... invalid format` event with an EMPTY source IP.
