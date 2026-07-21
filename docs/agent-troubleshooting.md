@@ -117,10 +117,15 @@ falls back to **poll-only**: changes are still detected, just up to the scan int
 late instead of instantly. The tell in the log:
 
 ```bash
-journalctl -u deuswatch-agent | grep -i fsnotify
-#   real-time watch active (fsnotify) + safety poll   <- healthy
+journalctl -u deuswatch-agent | grep -i 'real-time'
+#   real-time watch active (fsnotify) + safety poll              <- healthy
 #   real-time watch UNAVAILABLE, falling back to poll-only ...   <- degraded
 ```
+
+> Grep for `real-time`, **not** `fsnotify` — the degraded line doesn't contain the word "fsnotify",
+> so grepping that would hide the very case you're looking for. And if this returns **nothing at
+> all**, the agent probably has no FIM source configured (the line only prints for a `fim` source) —
+> confirm with `journalctl -u deuswatch-agent | grep "source:"`.
 
 Raise the limits so real-time detection stays available (and other apps stop warning):
 
