@@ -246,6 +246,46 @@ func SnapshotHandler(fn SnapshotFunc, revoked RevokedFunc) http.HandlerFunc {
 	}
 }
 
+// InventoryFunc records an agent's reported software inventory. The body is the raw JSON so the
+// wiring can unmarshal it into the shared agent.Inventory type without this package importing it
+// (kept dependency-free like SnapshotMeta). nil = feed disabled.
+type InventoryFunc func(ctx context.Context, agentName string, body []byte) error
+
+// InventoryHandler receives an agent's software inventory (OS release + installed packages) over
+// mTLS and records it. Identity is the mTLS CN; a revoked agent gets 410 Gone.
+func InventoryHandler(fn InventoryFunc, revoked RevokedFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var certCN, certSerial string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			certCN = r.TLS.PeerCertificates[0].Subject.CommonName
+			certSerial = r.TLS.PeerCertificates[0].SerialNumber.String()
+		}
+		if revoked != nil && certCN != "" {
+			if rev, err := revoked(r.Context(), certCN, certSerial); err == nil && rev {
+				http.Error(w, "agent revoked", http.StatusGone)
+				return
+			}
+		}
+		// A package list can be large; allow a bigger body than the log-batch cap.
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 16<<20))
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusBadRequest)
+			return
+		}
+		if fn != nil && certCN != "" && len(body) > 0 {
+			if err := fn(r.Context(), certCN, body); err != nil {
+				http.Error(w, "record failed", http.StatusServiceUnavailable)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN) and records
 // the agent's self-reported health from the optional JSON body (degraded + detail, e.g.
 // "217 batches buffered"). A revoked agent gets HTTP 410 Gone — the signal for the

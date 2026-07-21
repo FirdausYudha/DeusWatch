@@ -518,6 +518,32 @@ export async function fetchAgents(): Promise<AgentInfo[]> {
   return res.json()
 }
 
+// ── Software inventory (Vulnerability Assessment, phase 1) ────────────────────
+export type InventorySummary = {
+  agent_name: string
+  os_id: string
+  os_version: string
+  os_codename: string
+  kernel: string
+  arch: string
+  pkg_manager: string
+  pkg_count: number
+  updated_at: string
+}
+export type Package = { name: string; version: string; arch?: string; source?: string }
+
+export async function fetchInventory(): Promise<InventorySummary[]> {
+  const res = await authFetch('/api/inventory')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).agents ?? []
+}
+
+export async function fetchAgentPackages(agent: string, q = ''): Promise<Package[]> {
+  const res = await authFetch(`/api/inventory/packages?agent=${encodeURIComponent(agent)}&q=${encodeURIComponent(q)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).packages ?? []
+}
+
 // Log-storage health for the dashboard (PostgreSQL + TimescaleDB).
 export type StorageStatus = {
   reachable: boolean

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"deuswatch/internal/agent"
 	"deuswatch/internal/bus"
 	"deuswatch/internal/decoders"
 	"deuswatch/internal/enroll"
@@ -64,6 +66,7 @@ func main() {
 	var snapshotFunc gateway.SnapshotFunc
 	var fileActionsFunc gateway.FileActionsFunc
 	var fileActionResultFunc gateway.FileActionResultFunc
+	var inventoryFunc gateway.InventoryFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		if st, err := store.Connect(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
@@ -127,6 +130,15 @@ func main() {
 				return out, nil
 			}
 			fileActionResultFunc = st.SetFileActionResult
+			// Software inventory (VA phase 1): unmarshal the agent's report and replace its stored
+			// inventory. Unmarshalling here keeps the gateway package free of the agent import.
+			inventoryFunc = func(ctx context.Context, cn string, body []byte) error {
+				var inv agent.Inventory
+				if err := json.Unmarshal(body, &inv); err != nil {
+					return err
+				}
+				return st.ReplaceInventory(ctx, cn, inv)
+			}
 			// Agent-side auto-block: only feed the blocklist when the admin has enabled an
 			// nftables_agent integration; the IPs are the active response-engine blocks.
 			rs := respond.NewStore(st.Pool())
@@ -180,6 +192,7 @@ func main() {
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))
 	mux.HandleFunc("GET /v1/restore", gateway.RestoreHandler(restoreFunc))
 	mux.HandleFunc("POST /v1/snapshots", gateway.SnapshotHandler(snapshotFunc, revoked))
+	mux.HandleFunc("POST /v1/inventory", gateway.InventoryHandler(inventoryFunc, revoked))
 	mux.HandleFunc("GET /v1/file-actions", gateway.FileActionsHandler(fileActionsFunc, revoked))
 	mux.HandleFunc("POST /v1/file-actions/result", gateway.FileActionResultHandler(fileActionResultFunc, revoked))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {

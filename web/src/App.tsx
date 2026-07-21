@@ -3,6 +3,7 @@ import Sidebar, { type View } from './components/Sidebar'
 import Topbar from './components/Topbar'
 import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
+import Inventory from './inventory/Inventory'
 import Snapshots from './snapshots/Snapshots'
 import Response from './response/Response'
 import Report from './report/Report'
@@ -68,6 +69,8 @@ export default function App() {
         <main className="flex-1 overflow-y-auto">
         {view === 'agents' ? (
           <Agents me={me} />
+        ) : view === 'inventory' ? (
+          <Inventory me={me} />
         ) : view === 'snapshots' ? (
           <Snapshots me={me} />
         ) : view === 'response' ? (

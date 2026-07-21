@@ -3,6 +3,32 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-21 (v2.0.1).
 
+**VA phase 1 — software inventory 2026-07-21 (post-v2.0.1, on `main`, UNRELEASED).** User asked for a
+Vulnerability Assessment feature (Wazuh-style). Decided (user's call): build in phases, start with
+INVENTORY (self-contained, no CVE feed yet); feed source for phase 2 = **vendor OVAL (Ubuntu USN /
+Debian)**. Phase 1 delivered end to end:
+- Agent: internal/agent/inventory.go — CollectInventory() reads /etc/os-release + uname + dpkg-query
+  (Debian/Ubuntu) or rpm (RHEL). Captures name/version/arch/SOURCE package + OS id/version/CODENAME
+  (all the fields OVAL matching needs in phase 2). runInventory loop in cmd/agent: ~20s after start
+  then every 12h (INVENTORY_INTERVAL; INVENTORY=0 disables). Pure parsers factored out + unit-tested.
+- Transport: shipper.PostInventory -> gateway POST /v1/inventory (InventoryHandler, mTLS CN identity,
+  16MiB body cap; passes raw body so the gateway pkg stays free of the agent import) -> cmd/gateway
+  unmarshals into agent.Inventory -> store.ReplaceInventory.
+- Store: migration 000047 (agent_os_inventory 1-row-per-agent + agent_packages many, PK
+  agent,name,arch, source index). ReplaceInventory does a transactional WHOLESALE replace (removed
+  package vanishes — critical so phase 2 doesn't flag uninstalled pkgs) via CopyFrom with PK de-dup.
+  ListInventorySummaries + GetAgentPackages(filter on name OR source).
+- API: GET /api/inventory (fleet summary) + GET /api/inventory/packages?agent=&q= (view_dashboard).
+- UI: new **Inventory** nav item + web/src/inventory/Inventory.tsx (fleet cards left, searchable
+  package table right). Sidebar View/NAV/ICON, Topbar PAGE_META, App routing. docs/inventory.md + DocLink.
+VERIFIED: parser unit tests (os-release, dpkg incl. source-only-when-differs, rpm, srcRPM); store
+round-trip vs real Postgres (summary, source-filter finds libssl3 via 'openssl', wholesale replace
+drops nginx + updates version) — passed while Docker was up; migration 000047 applied to real PG;
+go vet clean; full builds linux+windows; tsc + vite build clean.
+NOT verified: the Inventory PAGE rendering with live data (Docker went down before a browser pass) —
+tsc/build only; verify on the server. Phase 2 (OVAL feed + matcher + findings) and Windows package
+collection are future phases.
+
 **SSH pre-auth recon now feeds scoring 2026-07-21 (post-v2.0.1, on `main`, unreleased).** The user
 noticed a `banner exchange: Connection from <ip> ... invalid format` event with an EMPTY source IP.
 Root cause: normalizeSSHD only extracted the IP from `Failed password`/`Accepted` lines, so pre-auth

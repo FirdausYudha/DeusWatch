@@ -96,6 +96,32 @@ func (s *Shipper) PostSnapshots(ctx context.Context, snaps []SnapshotMeta) error
 	return nil
 }
 
+// PostInventory ships the host's software inventory (OS release + installed packages) to the
+// manager. A revoked agent gets ErrRevoked.
+func (s *Shipper) PostInventory(ctx context.Context, inv Inventory) error {
+	body, err := json.Marshal(inv)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/inventory", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("agent: post inventory: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusGone {
+		return ErrRevoked
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("agent: inventory rejected (status %d)", resp.StatusCode)
+	}
+	return nil
+}
+
 // FileActionItem is one manager-requested on-demand file operation (ADR 0002 Phase 3).
 type FileActionItem struct {
 	ID            int64  `json:"id"`

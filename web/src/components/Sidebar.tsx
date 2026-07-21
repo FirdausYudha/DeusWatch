@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { logout, can, type Me } from '../lib/api'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'integrations' | 'users' | 'settings'
+export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'integrations' | 'users' | 'settings'
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { id: 'tickets', label: 'Tickets', view: 'tickets', perm: 'view_tickets' },
   { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
   { id: 'agents', label: 'Agents', view: 'agents', perm: 'view_dashboard' },
+  { id: 'inventory', label: 'Inventory', view: 'inventory', perm: 'view_dashboard' },
   { id: 'rules', label: 'Rules', view: 'rules', perm: 'manage_rules' },
   { id: 'decoders', label: 'Decoders', view: 'decoders', perm: 'manage_rules' },
   { id: 'playbooks', label: 'Playbooks', view: 'playbooks', perm: 'manage_rules' },
@@ -29,6 +30,7 @@ const ICONS: Record<string, string> = {
   tickets: 'M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM12 6v12',
   report: 'M6 2h8l5 5v15H6zM14 2v5h5M9 13h7M9 17h7',
   agents: 'M3 5h18v6H3zM3 13h18v6H3zM7 8h.01M7 16h.01',
+  inventory: 'M21 8V19a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8M3 8l2-4h14l2 4zM3 8h18M12 4v16',
   rules: 'M4 6h10M4 12h10M4 18h10M17 5l2 2 3-3M17 17l2 2 3-3',
   decoders: 'M3 4h18l-7 8v7l-4 2v-9z',
   playbooks: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM18 7h2v13H8',

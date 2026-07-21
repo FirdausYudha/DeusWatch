@@ -154,6 +154,11 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	}
 	// On-demand FIM file actions (snapshot_now / quarantine / restore_version) from the UI.
 	go runFileActions(ctx, snapStore, shipper, host)
+	// Software inventory (Vulnerability Assessment): report installed packages + OS release
+	// periodically. On by default; INVENTORY=0 disables it.
+	if os.Getenv("INVENTORY") != "0" {
+		go runInventory(ctx, shipper)
+	}
 	// Host network containment (opt-in via AGENT_CONTAINMENT=1): poll the manager's isolation
 	// directive and firewall the host off from the LAN (except the manager) when told to.
 	if containmentEnabled(os.Getenv("AGENT_CONTAINMENT")) {
@@ -235,6 +240,42 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 			}
 		case <-ticker.C:
 			flush()
+		}
+	}
+}
+
+// runInventory reports the host's software inventory (installed packages + OS release) shortly
+// after startup and then on a slow interval — inventory changes rarely, so the default is 12h
+// (INVENTORY_INTERVAL overrides, Go duration). A collect/ship failure is logged and retried next
+// tick; it never blocks the agent.
+func runInventory(ctx context.Context, shipper *agent.Shipper) {
+	interval := 12 * time.Hour
+	if d, err := time.ParseDuration(os.Getenv("INVENTORY_INTERVAL")); err == nil && d > 0 {
+		interval = d
+	}
+	report := func() {
+		inv := agent.CollectInventory(ctx)
+		if err := shipper.PostInventory(ctx, inv); err != nil {
+			log.Printf("agent: inventory report failed: %v", err)
+			return
+		}
+		log.Printf("agent: inventory reported (%s %s, %d packages)", inv.OSID, inv.OSVersion, len(inv.Packages))
+	}
+	// A short delay so it doesn't contend with the rest of startup, then the first report.
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(20 * time.Second):
+	}
+	report()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			report()
 		}
 	}
 }

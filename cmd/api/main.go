@@ -238,6 +238,11 @@ func main() {
 		mux.Handle("DELETE /api/subscriptions/{id}", protect(auth.PermManageIntegrations, subscriptionDeleteHandler(st)))
 
 		// Versioned FIM snapshots (ADR 0002): browse the dated version timeline of watched files.
+		// Software inventory (Vulnerability Assessment, phase 1): the fleet's OS/package summary,
+		// and one agent's package list. Read-only, dashboard-level.
+		mux.Handle("GET /api/inventory", protect(auth.PermViewDashboard, inventorySummaryHandler(st)))
+		mux.Handle("GET /api/inventory/packages", protect(auth.PermViewDashboard, inventoryPackagesHandler(st)))
+
 		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
 		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))
 		mux.Handle("GET /api/fim/actions", protect(auth.PermViewDashboard, fimActionsHandler(st)))
@@ -1736,6 +1741,36 @@ func killDecisionHandler(st *store.Store, approve bool) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// inventorySummaryHandler (GET /api/inventory) returns every agent's OS/package headline.
+func inventorySummaryHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows, err := st.ListInventorySummaries(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"agents": rows})
+	}
+}
+
+// inventoryPackagesHandler (GET /api/inventory/packages?agent=&q=) returns one agent's installed
+// packages, optionally filtered by a package/source substring.
+func inventoryPackagesHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentName := strings.TrimSpace(r.URL.Query().Get("agent"))
+		if agentName == "" {
+			http.Error(w, "agent required", http.StatusBadRequest)
+			return
+		}
+		pkgs, err := st.GetAgentPackages(r.Context(), agentName, strings.TrimSpace(r.URL.Query().Get("q")))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"packages": pkgs})
 	}
 }
 
