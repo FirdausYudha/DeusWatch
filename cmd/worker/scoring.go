@@ -11,6 +11,7 @@ import (
 	"deuswatch/internal/respond"
 	"deuswatch/internal/score"
 	"deuswatch/internal/store"
+	"deuswatch/internal/vuln"
 )
 
 // runIPScorer periodically recomputes the composite threat score per source IP over
@@ -148,5 +149,100 @@ func runSuspiciousScorer(ctx context.Context, st *store.Store) {
 		case <-t.C:
 			run()
 		}
+	}
+}
+
+// runVulnScanner is the Vulnerability Assessment feed+match loop (phase 2). Periodically it fetches
+// the vendor advisory feeds (Ubuntu USN / Debian) for the distro releases the fleet actually runs,
+// caches them, and re-matches every agent's inventory against them to produce CVE findings.
+//
+// Feeds need the internet; matching does not. A fetch failure is logged and the cached advisories
+// (and thus the last findings) are kept — the feature degrades to "last known" rather than going
+// blank, in keeping with the offline design. Disabled with VULN_SCAN=0. Default cadence 12h
+// (VULN_SCAN_INTERVAL), matched hourly against inventory even without a fresh feed.
+func runVulnScanner(ctx context.Context, st *store.Store) {
+	if v, _ := strconv.ParseBool(os.Getenv("VULN_SCAN")); os.Getenv("VULN_SCAN") != "" && !v {
+		log.Printf("worker: vulnerability assessment disabled (VULN_SCAN=0)")
+		return
+	}
+	feedInterval := durEnv("VULN_SCAN_INTERVAL", 12*time.Hour)
+	log.Printf("worker: vulnerability assessment active (feed refresh every %s)", feedInterval)
+
+	// refreshFeeds pulls advisories for whatever distro releases are present in the fleet, then
+	// re-matches everyone. Bounded time — the Debian feed is large.
+	refreshFeeds := func() {
+		fc, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer cancel()
+
+		// Which (feed source -> release codenames) does the fleet actually need?
+		want, err := st.DistroReleasesInUse(fc)
+		if err != nil {
+			log.Printf("worker: vuln: read fleet distros: %v", err)
+			return
+		}
+		if len(want) == 0 {
+			return // no inventory yet
+		}
+		for source, releases := range want {
+			keep := map[string]bool{}
+			for _, r := range releases {
+				keep[r] = true
+			}
+			var advs []vuln.Advisory
+			var ferr error
+			switch source {
+			case "usn":
+				advs, ferr = vuln.FetchUSN(fc, nil, keep)
+			case "debian":
+				advs, ferr = vuln.FetchDebian(fc, nil, keep)
+			default:
+				continue
+			}
+			if ferr != nil {
+				log.Printf("worker: vuln: fetch %s feed failed (keeping cached): %v", source, ferr)
+				continue
+			}
+			if err := st.ReplaceAdvisories(fc, source, advs); err != nil {
+				log.Printf("worker: vuln: cache %s advisories: %v", source, err)
+				continue
+			}
+			log.Printf("worker: vuln: %s feed refreshed (%d advisories for %v)", source, len(advs), releases)
+		}
+		rematch(fc, st)
+	}
+
+	feedT := time.NewTicker(feedInterval)
+	defer feedT.Stop()
+	// Re-match hourly even without a fresh feed, so a new agent's inventory is evaluated against
+	// the cached advisories promptly rather than waiting for the next feed pull.
+	matchT := time.NewTicker(time.Hour)
+	defer matchT.Stop()
+	first := time.NewTimer(60 * time.Second)
+	defer first.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-first.C:
+			refreshFeeds()
+		case <-feedT.C:
+			refreshFeeds()
+		case <-matchT.C:
+			mc, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			rematch(mc, st)
+			cancel()
+		}
+	}
+}
+
+// rematch re-evaluates every agent's inventory against the cached advisories.
+func rematch(ctx context.Context, st *store.Store) {
+	n, err := st.RematchAll(ctx)
+	if err != nil {
+		log.Printf("worker: vuln: rematch: %v", err)
+		return
+	}
+	if n > 0 {
+		log.Printf("worker: vuln: re-matched %d agent(s) against cached advisories", n)
 	}
 }

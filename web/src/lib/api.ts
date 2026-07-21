@@ -544,6 +544,43 @@ export async function fetchAgentPackages(agent: string, q = ''): Promise<Package
   return (await res.json()).packages ?? []
 }
 
+// ── Vulnerability Assessment (phase 2) ───────────────────────────────────────
+export type VulnSummary = {
+  agent_name: string
+  critical: number
+  high: number
+  medium: number
+  low: number
+  total: number
+  updated_at: string
+}
+export type VulnFinding = {
+  cve: string
+  package: string
+  installed_version: string
+  fixed_version: string
+  severity: string
+  source: string
+}
+export type VulnOverview = {
+  agents: VulnSummary[]
+  advisory_total: number
+  advisory_by_release: Record<string, number>
+}
+
+export async function fetchVulnerabilities(): Promise<VulnOverview> {
+  const res = await authFetch('/api/vulnerabilities')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  const j = await res.json()
+  return { agents: j.agents ?? [], advisory_total: j.advisory_total ?? 0, advisory_by_release: j.advisory_by_release ?? {} }
+}
+
+export async function fetchAgentVulnerabilities(agent: string): Promise<VulnFinding[]> {
+  const res = await authFetch(`/api/vulnerabilities/agent?agent=${encodeURIComponent(agent)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).vulnerabilities ?? []
+}
+
 // Log-storage health for the dashboard (PostgreSQL + TimescaleDB).
 export type StorageStatus = {
   reachable: boolean

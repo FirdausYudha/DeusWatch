@@ -1,7 +1,42 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-21 (v2.0.1).
+> Last updated: 2026-07-21 (v2.1.0).
+
+**v2.1.0 2026-07-21 — Vulnerability Assessment (phases 1+2) RELEASED.** Full VA: agents report a
+software inventory (phase 1, already on main) and the manager matches it against vendor advisories
+to produce CVE findings (phase 2, this).
+- internal/vuln: pure, fully-tested core. CompareVersions = a faithful dpkg version comparator
+  (epoch, '~' pre-releases, numeric segments; ported from dpkg version.c) — THE correctness
+  linchpin. Match() joins installed packages (by SOURCE package) against advisories scoped to the
+  distro codename; a finding = installed strictly-older-than-fixed, or advisory with no fix yet;
+  de-duped per (source pkg, CVE). Feed parsers: ParseUSN (Ubuntu notices.json — schema confirmed
+  live via WebFetch; one advisory per release×source-pkg×CVE; NO per-CVE severity in USN → unknown)
+  and ParseDebian (security-tracker JSON — resolved→fixed_version, open→no-fix, "0"→skip, urgency→
+  severity). Fetchers paginate USN / download Debian, scoped to only the releases the fleet runs.
+- Chose the vendor JSON feeds (USN API + Debian tracker) over raw OVAL XML: same authority/accuracy
+  (fixed-version follows distro backports), far simpler parse. Honors the user's "vendor USN/Debian".
+- Store (migration 000048): advisories + agent_vulnerabilities. ReplaceAdvisories (wholesale per
+  source), RematchAgent (load inventory+codename → query advisories for the agent's source pkgs in
+  its release → vuln.Match → replace findings), RematchAll, DistroReleasesInUse (feed→codenames the
+  fleet needs), ListVulnSummaries (per-agent sev counts, worst-first), AgentVulnerabilities.
+- Worker: runVulnScanner — fetch feeds for fleet distros every 12h (VULN_SCAN_INTERVAL; VULN_SCAN=0
+  off), rematch hourly. Offline-safe: fetch fail keeps cached advisories/findings, never blanks.
+- API: GET /api/vulnerabilities (fleet + advisory stats), /api/vulnerabilities/agent?agent=.
+- UI: the Inventory page now leads with vulnerabilities — sev badges on agent cards, a
+  Vulnerabilities|Packages tab, findings table (CVE link source-aware, installed→fixed, "no fix
+  yet"). docs/vulnerability-assessment.md.
+VERIFIED: vuln core unit tests (dpkg compare incl. real security pairs + antisymmetry; matcher
+incl. dedup/release-scope/no-fix; USN+Debian parsers); store round-trip vs real Postgres (match,
+release scoping, summary, and PATCHING clears the finding); down-migration 000048 valid in a
+rolled-back txn; API endpoints via curl (fleet summary sorted worst-first + per-agent findings);
+UI in-browser against real API (sev badges, findings table, no-fix-yet, source-aware CVE links, tab
+switch); go vet clean, full suite green, builds linux+windows, tsc+vite clean.
+HONEST LIMITS: Ubuntu findings have no severity (USN feed lacks per-CVE priority) → "unknown";
+Debian/Ubuntu only (RHEL OVAL + Windows are later); package-version match, not exploitability; live
+feed fetch needs internet on the manager and hasn't been run against the REAL USN/Debian endpoints
+from here (parsers verified vs confirmed schemas + synthetic payloads) — first real pull to confirm
+on the server (the UI shows advisory counts per release, so a loaded feed is immediately visible).
 
 **VA phase 1 — software inventory 2026-07-21 (post-v2.0.1, on `main`, UNRELEASED).** User asked for a
 Vulnerability Assessment feature (Wazuh-style). Decided (user's call): build in phases, start with

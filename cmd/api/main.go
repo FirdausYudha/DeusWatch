@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.0.1"
+const version = "2.1.0"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.
@@ -242,6 +242,8 @@ func main() {
 		// and one agent's package list. Read-only, dashboard-level.
 		mux.Handle("GET /api/inventory", protect(auth.PermViewDashboard, inventorySummaryHandler(st)))
 		mux.Handle("GET /api/inventory/packages", protect(auth.PermViewDashboard, inventoryPackagesHandler(st)))
+		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
+		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 
 		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
 		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))
@@ -1741,6 +1743,45 @@ func killDecisionHandler(st *store.Store, approve bool) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// vulnSummaryHandler (GET /api/vulnerabilities) returns per-agent severity counts + the loaded
+// advisory stats, so the UI can show both the findings and whether the feed is populated.
+func vulnSummaryHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sums, err := st.ListVulnSummaries(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		total, byRelease, err := st.AdvisoryStats(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"agents":              sums,
+			"advisory_total":      total,
+			"advisory_by_release": byRelease,
+		})
+	}
+}
+
+// vulnAgentHandler (GET /api/vulnerabilities/agent?agent=) returns one agent's CVE findings.
+func vulnAgentHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentName := strings.TrimSpace(r.URL.Query().Get("agent"))
+		if agentName == "" {
+			http.Error(w, "agent required", http.StatusBadRequest)
+			return
+		}
+		vulns, err := st.AgentVulnerabilities(r.Context(), agentName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"vulnerabilities": vulns})
 	}
 }
 
