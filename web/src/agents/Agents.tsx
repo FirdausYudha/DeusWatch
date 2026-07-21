@@ -85,6 +85,7 @@ export default function Agents({ me }: { me: Me }) {
           <p className="mt-0.5 text-[12px] text-muted">Registered agents, heartbeat status &amp; centrally-pushed config</p>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             <DocLink file="new-log-source.md" label="Add a log source" />
+            <DocLink file="agent-troubleshooting.md" label="Troubleshooting" />
             <DocLink file="whodata.md" label="FIM who-data" />
             <DocLink file="modsecurity.md" label="ModSecurity / WAF" />
             <DocLink file="syslog.md" label="Syslog (agentless)" />

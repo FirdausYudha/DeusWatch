@@ -3,6 +3,30 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-20 (v2.0.0).
 
+**Agent log-tailer rotation/retry fix + inotify visibility 2026-07-20 (post-v2.0.0, on `main`, unreleased).**
+Diagnosed live from the user's server: their Linux agent showed "no logs", but the real cause was a
+FIM-ONLY pushed config (v11 = single source `fim /var/www/html`), which REPLACES the default log
+sources entirely (cmd/agent/main.go:128) — so auth.log/nginx/ufw were never tailed. auth.log was
+actively growing (80 failed SSH logins/2 days from real internet IPs, e.g. 8.213.151.148 x44), i.e.
+the network was NOT quiet, DeusWatch just wasn't watching it. Heartbeat (30s, separate path) kept the
+agent green regardless — documented that gotcha.
+FIXED two real latent bugs in internal/agent/tail.go that would have bitten them the moment they add
+a `sshd`/`web` file source: (a) NO ROTATION FOLLOWING — the tailer opened the file once and held the
+inode, so after logrotate's rename+create it sat at EOF forever until an agent restart; (b) NO RETRY
+on a missing/failed file — a source whose file didn't exist at start died permanently. FollowFile now
+drains the old file, detects rotation by inode identity (os.SameFile) and reopens the new file from
+the top, detects copytruncate (same inode, size < read offset) and re-reads, and waits for a missing
+file to appear instead of erroring. A file that APPEARS fresh is read from the start even when
+tailing "from end" (no history to skip) — so ufw.log switched on later doesn't lose its first entries.
+Tests: tail_test.go (rotation [linux-only, Windows can't rename an open handle — skipped], truncate,
+missing-then-appears, tail-from-end). (b) VISIBILITY: fim.go now logs poll-only fallback loudly with
+the detection-latency and, when the error is the kernel inotify limit (isInotifyLimit: EMFILE/ENFILE/
+ENOSPC), names the sysctl fix. New docs/agent-troubleshooting.md (agent-online-but-no-logs, network
+quiet vs DeusWatch-not-looking, inotify limits, rotation) + DocLink on the Agents page. Answered the
+user's friend's "Inotify Instance Capacity Low" on Debian Trixie: safe, DeusWatch uses ONE instance
+per FIM source (not the cause), degrades to poll-only, raise fs.inotify.max_user_instances. NOT YET
+pushed/released (user hops machines; they decide release).
+
 **Dashboard made STATIC 2026-07-20 (post-v2.0.0, on `main`, unreleased).** The user's server showed a
 ragged dashboard: "Alerts (24h)", "LLM verdicts" and "Attack origins" each took two columns and left
 the third empty. Cause: their SAVED layout predates the 3-column grid -- `wide` meant "full width"

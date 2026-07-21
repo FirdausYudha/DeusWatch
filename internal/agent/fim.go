@@ -478,7 +478,15 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	realtime := false
 	if os.Getenv("FIM_REALTIME") != "0" {
 		if closeWatcher, err := startFIMWatcher(ctx, roots, 500*time.Millisecond, trigger); err != nil {
-			log.Printf("agent: fim %q: real-time watch unavailable, polling only: %v", s.Dataset, err)
+			// Poll-only still detects changes, just up to a minute late instead of instantly — so a
+			// ransomware burst is caught slower. The usual cause is the kernel's inotify limit
+			// (EMFILE / "too many open files"), which is a host tuning issue, not an agent bug, so
+			// name the fix rather than leaving a bare error.
+			log.Printf("agent: fim %q: real-time watch UNAVAILABLE, falling back to poll-only (changes detected up to %v late): %v",
+				s.Dataset, s.scanInterval(fimScanInterval), err)
+			if isInotifyLimit(err) {
+				log.Printf("agent: fim %q: this looks like the kernel inotify limit — raise fs.inotify.max_user_instances / max_user_watches (see docs/agent-troubleshooting.md)", s.Dataset)
+			}
 		} else {
 			defer closeWatcher()
 			realtime = true
