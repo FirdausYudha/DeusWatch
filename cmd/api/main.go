@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.0.0"
+const version = "2.0.1"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.

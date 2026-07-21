@@ -98,22 +98,40 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 		return nil, fmt.Errorf("enroll: issue cert: %w", err)
 	}
 
+	// Seed the agent with the sensible default sources for its OS, so a freshly-enrolled host is
+	// already watching the right logs (SSH/syslog/firewall/web on Linux; the Event Log on Windows)
+	// AND those sources are visible and editable in the UI from the start. Previously a new agent
+	// had an empty config and only fell back to defaults IMPLICITLY inside the agent binary — the
+	// manager showed no sources, so an admin who then configured e.g. a FIM watch would replace the
+	// invisible defaults without realizing, and the host would silently stop watching its logs.
+	// An unknown OS yields nil, which we store as NULL (no seeding) so the agent's own runtime
+	// defaults still apply.
+	seededConfig := nilIfEmpty("")
+	if srcs := agent.DefaultSourcesFor(os); len(srcs) > 0 {
+		if b, merr := json.Marshal(agent.Config{Version: 1, Sources: srcs}); merr == nil {
+			seededConfig = string(b)
+		}
+	}
+
 	// A REVOKED agent's name may be re-used: enrollment takes over the old row
 	// (new certificate serial, un-revoked, health reset) so a re-deployed host can
 	// keep its name. The row must survive revocation rather than be deleted - the
 	// old mTLS cert stays cryptographically valid until it expires, and the gateway's
 	// serial check against this row is what keeps it locked out. An ACTIVE agent's
 	// name stays taken (the DO UPDATE is gated on agents.revoked -> no row -> error).
+	// config is only seeded when the row has none — re-enrolling a host that an admin
+	// already customized must never wipe that customization (COALESCE keeps the existing one).
 	var agentID string
 	err = tx.QueryRow(ctx,
-		`INSERT INTO agents (name, os, cert_serial) VALUES ($1,$2,$3)
+		`INSERT INTO agents (name, os, cert_serial, config) VALUES ($1,$2,$3,$4)
 		 ON CONFLICT (name) DO UPDATE SET
 		     os = EXCLUDED.os, cert_serial = EXCLUDED.cert_serial, revoked = false,
 		     enrolled_at = now(), last_seen_at = NULL,
-		     status = 'unknown', health_degraded = false, health_detail = ''
+		     status = 'unknown', health_degraded = false, health_detail = '',
+		     config = COALESCE(agents.config, EXCLUDED.config)
 		 WHERE agents.revoked
 		 RETURNING id`,
-		name, nilIfEmpty(os), serial).Scan(&agentID)
+		name, nilIfEmpty(os), serial, seededConfig).Scan(&agentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("enroll: name %q is taken by an active agent (revoke it first to re-use the name)", name)
 	}

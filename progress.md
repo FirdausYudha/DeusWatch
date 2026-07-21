@@ -1,7 +1,27 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-20 (v2.0.0).
+> Last updated: 2026-07-21 (v2.0.1).
+
+**v2.0.1 2026-07-21 — new agents auto-seed OS default log sources.** Root cause of the user's
+"agent sends no logs": a fresh agent's config was EMPTY, and the agent only fell back to
+DefaultSources() IMPLICITLY inside the binary — the manager/UI showed no sources, so an admin who
+then added e.g. a FIM watch replaced the invisible defaults and the host silently stopped watching
+auth.log/nginx/ufw. Fix: enrollment now SEEDS the agent's config (v1) with the OS-appropriate
+defaults, so a new host watches SSH/syslog/firewall/web (Linux) or Security/System event logs
+(Windows) out of the box AND those sources are visible/editable in the UI immediately.
+Implementation: new build-tag-INDEPENDENT agent.DefaultSourcesFor(goos) (the manager may run a
+different OS than the agent it enrolls — the old per-OS build-tagged DefaultSources() couldn't be
+used manager-side); consolidated defaults_{linux,windows,other}.go into one defaults.go. Enroll()
+seeds config on the INSERT; re-enrollment uses config = COALESCE(agents.config, EXCLUDED.config) so
+a customized config is NEVER wiped by a re-deploy (only a NULL config is backfilled). Agent sends
+os=runtime.GOOS on enroll, so the seed maps exactly. Tests: agent.DefaultSourcesFor (pure, runs
+anywhere) + enroll seeding vs Postgres (linux→sshd, windows→security-not-sshd, unknown→no-seed,
+custom-config-survives-re-enroll). NOTE: this only affects NEWLY enrolled agents; the user's
+EXISTING dev-server-firdaus (config v11, FIM-only) is deliberately untouched — they still add sshd
+via the UI (or revoke+re-enroll, which preserves FIM-only, so UI-add is the path).
+Released bundles everything since v2.0.0: static dashboard, favicon fix, tailer rotation/retry fix,
+inotify fallback visibility + agent-troubleshooting docs, and this seeding.
 
 **Agent log-tailer rotation/retry fix + inotify visibility 2026-07-20 (post-v2.0.0, on `main`, unreleased).**
 Diagnosed live from the user's server: their Linux agent showed "no logs", but the real cause was a

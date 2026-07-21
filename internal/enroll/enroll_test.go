@@ -3,6 +3,7 @@ package enroll
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"deuswatch/internal/agent"
 	"deuswatch/internal/mtls"
 )
 
@@ -135,4 +137,114 @@ func TestEnrollFlow(t *testing.T) {
 		t.Fatal("the superseded (revoked-era) cert must STAY rejected after the name is re-used")
 	}
 	t.Logf("OK: enroll -> unique cert CN=%s; single-use token; revoke; name re-use with serial pinning", name)
+}
+
+// TestEnrollSeedsDefaultSources is the v2.0.1 behaviour: a freshly-enrolled agent must already
+// carry the OS-appropriate default sources (so it watches its logs out of the box and the UI shows
+// them), and a re-enrollment must never wipe an admin's customization.
+func TestEnrollSeedsDefaultSources(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	pool, err := pgxpool.New(ctx, dsn())
+	if err != nil {
+		t.Skipf("Postgres unavailable: %v", err)
+	}
+	defer pool.Close()
+	if err := pool.Ping(ctx); err != nil {
+		t.Skipf("Postgres unavailable: %v", err)
+	}
+
+	dir := t.TempDir()
+	if _, err := mtls.GenerateBundle(mtls.Options{Dir: dir, ValidFor: time.Hour}); err != nil {
+		t.Fatalf("GenerateBundle: %v", err)
+	}
+	ca, err := mtls.LoadCA(dir)
+	if err != nil {
+		t.Fatalf("LoadCA: %v", err)
+	}
+	s := NewStore(pool, ca)
+	defer pool.Exec(ctx, `DELETE FROM agents WHERE name LIKE 'seedtest-%'`)
+	defer pool.Exec(ctx, `DELETE FROM agent_enroll_tokens WHERE created_by='seedtest'`)
+
+	enroll := func(t *testing.T, name, os string) {
+		t.Helper()
+		raw, _, err := s.CreateToken(ctx, "seedtest")
+		if err != nil {
+			t.Fatalf("CreateToken: %v", err)
+		}
+		if _, err := s.Enroll(ctx, raw, name, os); err != nil {
+			t.Fatalf("Enroll: %v", err)
+		}
+	}
+	sourcesOf := func(t *testing.T, name string) []string {
+		t.Helper()
+		raw, err := s.GetConfigByName(ctx, name)
+		if err != nil {
+			t.Fatalf("GetConfigByName: %v", err)
+		}
+		if raw == nil {
+			return nil
+		}
+		var cfg agent.Config
+		if err := json.Unmarshal(raw, &cfg); err != nil {
+			t.Fatalf("unmarshal config: %v", err)
+		}
+		var out []string
+		for _, src := range cfg.Sources {
+			out = append(out, src.Dataset)
+		}
+		return out
+	}
+	has := func(list []string, want string) bool {
+		for _, v := range list {
+			if v == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Linux agent: seeded with the SSH/syslog/firewall/web defaults.
+	lname := fmt.Sprintf("seedtest-linux-%d", time.Now().UnixNano())
+	enroll(t, lname, "linux")
+	lds := sourcesOf(t, lname)
+	if !has(lds, "sshd") {
+		t.Fatalf("a fresh linux agent must be seeded with the sshd source; got %v", lds)
+	}
+
+	// Windows agent: seeded with the Event Log channels, not the Linux files.
+	wname := fmt.Sprintf("seedtest-win-%d", time.Now().UnixNano())
+	enroll(t, wname, "windows")
+	wds := sourcesOf(t, wname)
+	if !has(wds, "windows-security") {
+		t.Fatalf("a fresh windows agent must be seeded with the Security event log; got %v", wds)
+	}
+	if has(wds, "sshd") {
+		t.Fatalf("a windows agent must not get linux sources; got %v", wds)
+	}
+
+	// Unknown OS: no seed (agent falls back to its own runtime defaults).
+	uname := fmt.Sprintf("seedtest-unknown-%d", time.Now().UnixNano())
+	enroll(t, uname, "plan9")
+	if ds := sourcesOf(t, uname); ds != nil {
+		t.Fatalf("an unknown OS must not be seeded; got %v", ds)
+	}
+
+	// Customization survives re-enrollment: set a custom config, revoke, re-enroll → preserved.
+	var id string
+	if err := pool.QueryRow(ctx, `SELECT id FROM agents WHERE name=$1`, lname).Scan(&id); err != nil {
+		t.Fatalf("lookup id: %v", err)
+	}
+	if _, err := s.SetConfig(ctx, id, []agent.Source{{Dataset: "custom-only", Type: "file", Path: "/tmp/x.log"}}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+	if err := s.Revoke(ctx, id); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	enroll(t, lname, "linux") // re-deploy the same host name
+	after := sourcesOf(t, lname)
+	if !has(after, "custom-only") || has(after, "sshd") {
+		t.Fatalf("re-enrollment must preserve the admin's customized config, not re-seed defaults; got %v", after)
+	}
 }
