@@ -90,6 +90,10 @@ For the files DeusWatch versions (see [ADR 0002](adr/0002-versioned-fim-snapshot
 
 ## Kill-switch: terminating the encrypting process
 
+> Want to **demonstrate** this end to end? See [kill-switch-demo.md](kill-switch-demo.md) for a
+> step-by-step playbook with a benign simulation.
+
+
 Reverting files undoes damage; the kill-switch stops it continuing. When DeusWatch detects a
 process encrypting files, it can terminate that process — the most destructive action the
 platform takes, and therefore the most heavily gated.
