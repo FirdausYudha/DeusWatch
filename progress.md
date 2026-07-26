@@ -1,7 +1,25 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-21 (v2.1.0).
+> Last updated: 2026-07-21 (v2.1.1).
+
+**v2.1.1 2026-07-21 — VA feed-fetch fixes (found by live-testing the real endpoints).** Two real
+bugs the phase-2 core tests couldn't catch (they used synthetic payloads):
+- FetchUSN used limit=500; the Ubuntu notices API rejects anything over 20 with HTTP 422, so the
+  feed would NEVER load. Fixed to limit=20 (the confirmed max), with the server-side ?release=<rel>
+  filter so pagination is scoped (jammy ~2.4k notices, not the full ~11k), plus per-page retry so
+  one blip doesn't abort a cold-start fetch. refreshFeeds context raised 10m→30m (a single Ubuntu
+  release is ~120 sequential pages / a few minutes).
+- Cold-start timing gap: feeds were fetched only at +60s and every 12h; the hourly tick only
+  re-matched. If an agent's first inventory arrived after the +60s fetch (normal, since the agent
+  is rebuilt separately), advisories stayed dark up to 12h. Added fleetNeedsFeed(): the hourly tick
+  now fetches off-cycle when the fleet has a release with zero cached advisories, so cold-start
+  self-heals within ~1h.
+Live-verified against the REAL Ubuntu API: schema matches the parser exactly (cves_ids /
+release_packages{codename:[{name,version,is_source}]} / total_results); a real jammy page parses
+into real advisories (CVE + source pkg + fixed version). NOTE: full jammy fetch is ~120 pages /
+~3+ min — works but slow; the bulk usn-db bz2 dump would be one request (future optimization,
+unverified schema). RELEASED.
 
 **v2.1.0 2026-07-21 — Vulnerability Assessment (phases 1+2) RELEASED.** Full VA: agents report a
 software inventory (phase 1, already on main) and the manager matches it against vendor advisories

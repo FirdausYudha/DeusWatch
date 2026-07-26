@@ -171,7 +171,9 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 	// refreshFeeds pulls advisories for whatever distro releases are present in the fleet, then
 	// re-matches everyone. Bounded time — the Debian feed is large.
 	refreshFeeds := func() {
-		fc, cancel := context.WithTimeout(ctx, 10*time.Minute)
+		// Generous: the USN notices API caps pages at 20, so a single Ubuntu release is ~120
+		// sequential requests (a few minutes); a multi-release fleet adds up.
+		fc, cancel := context.WithTimeout(ctx, 30*time.Minute)
 		defer cancel()
 
 		// Which (feed source -> release codenames) does the fleet actually need?
@@ -228,11 +230,43 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 		case <-feedT.C:
 			refreshFeeds()
 		case <-matchT.C:
-			mc, cancel := context.WithTimeout(ctx, 5*time.Minute)
-			rematch(mc, st)
-			cancel()
+			// Cold-start / new-distro catch-up: if an agent reported a distro release AFTER the
+			// last feed pull, its advisories aren't cached yet and a bare re-match would find
+			// nothing. Fetch now rather than waiting up to the 12h feed cycle.
+			if fleetNeedsFeed(ctx, st) {
+				log.Printf("worker: vuln: a fleet release has no cached advisories yet — fetching off-cycle")
+				refreshFeeds()
+			} else {
+				mc, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				rematch(mc, st)
+				cancel()
+			}
 		}
 	}
+}
+
+// fleetNeedsFeed reports whether the fleet runs a distro release for which no advisories are cached
+// yet — the cold-start case where an agent's inventory arrived after the last feed pull. It keeps a
+// fresh setup from sitting blank until the next scheduled 12h refresh.
+func fleetNeedsFeed(ctx context.Context, st *store.Store) bool {
+	fc, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	want, err := st.DistroReleasesInUse(fc)
+	if err != nil || len(want) == 0 {
+		return false
+	}
+	_, byRelease, err := st.AdvisoryStats(fc)
+	if err != nil {
+		return false
+	}
+	for _, releases := range want {
+		for _, r := range releases {
+			if byRelease[r] == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // rematch re-evaluates every agent's inventory against the cached advisories.

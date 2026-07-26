@@ -70,24 +70,32 @@ func ParseUSN(data []byte, keep map[string]bool) ([]Advisory, int, error) {
 	return out, page.Total, nil
 }
 
-// FetchUSN paginates the Ubuntu notices API and returns advisories for the given releases. It walks
-// pages of `limit` until every notice is seen.
+// usnMaxLimit is the largest page the notices API accepts — it returns HTTP 422 for anything above
+// 20 (confirmed against the live API). Pagination is therefore many small pages, so we fetch each
+// release with the server-side release filter to keep the page count down (jammy is ~2.4k notices,
+// not the full ~11k).
+const usnMaxLimit = 20
+
+// FetchUSN returns Ubuntu advisories for the given releases. It paginates the notices API per
+// release (with the ?release= filter) and retries a failed page a few times, so a single blip does
+// not abort a whole cold-start fetch.
 func FetchUSN(ctx context.Context, client *http.Client, keep map[string]bool) ([]Advisory, error) {
-	const limit = 500
 	var all []Advisory
-	for offset := 0; ; offset += limit {
-		url := fmt.Sprintf("%s?limit=%d&offset=%d", usnAPIURL, limit, offset)
-		body, err := httpGet(ctx, client, url)
-		if err != nil {
-			return nil, err
-		}
-		advs, total, err := ParseUSN(body, keep)
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, advs...)
-		if offset+limit >= total || total == 0 {
-			break
+	for rel := range keep {
+		for offset := 0; ; offset += usnMaxLimit {
+			url := fmt.Sprintf("%s?release=%s&limit=%d&offset=%d", usnAPIURL, rel, usnMaxLimit, offset)
+			body, err := httpGetRetry(ctx, client, url, 3)
+			if err != nil {
+				return nil, err
+			}
+			advs, total, err := ParseUSN(body, keep)
+			if err != nil {
+				return nil, err
+			}
+			all = append(all, advs...)
+			if offset+usnMaxLimit >= total || total == 0 {
+				break
+			}
 		}
 	}
 	return all, nil
@@ -167,6 +175,28 @@ func FeedForDistro(osID string) string {
 	default:
 		return ""
 	}
+}
+
+// httpGetRetry wraps httpGet with a few attempts and a short backoff, for the paginated USN fetch
+// where one transient failure shouldn't lose the whole run. It gives up immediately if the context
+// is done.
+func httpGetRetry(ctx context.Context, client *http.Client, url string, attempts int) ([]byte, error) {
+	var err error
+	for i := 0; i < attempts; i++ {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		var body []byte
+		if body, err = httpGet(ctx, client, url); err == nil {
+			return body, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Duration(i+1) * time.Second):
+		}
+	}
+	return nil, err
 }
 
 func httpGet(ctx context.Context, client *http.Client, url string) ([]byte, error) {
