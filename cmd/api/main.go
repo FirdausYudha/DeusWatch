@@ -293,6 +293,19 @@ func main() {
 		mux.Handle("POST /api/subscriptions/{id}/toggle", protect(auth.PermManageIntegrations, subscriptionToggleHandler(st)))
 		mux.Handle("DELETE /api/subscriptions/{id}", protect(auth.PermManageIntegrations, subscriptionDeleteHandler(st)))
 
+		// Multi-tenancy admin (Phase 4). Listing tenants + one's own workspaces is view-level so the
+		// workspace switcher and the enrollment tenant picker work for every operator; mutations are
+		// gated by manage_tenants / manage_workspaces.
+		mux.Handle("GET /api/tenants", protect(auth.PermViewDashboard, tenantsListHandler(st)))
+		mux.Handle("POST /api/tenants", protect(auth.PermManageTenants, tenantCreateHandler(st)))
+		mux.Handle("GET /api/workspaces", protect(auth.PermViewDashboard, myWorkspacesHandler(st)))
+		mux.Handle("GET /api/admin/workspaces", protect(auth.PermManageWorkspaces, workspacesAdminListHandler(st)))
+		mux.Handle("POST /api/admin/workspaces", protect(auth.PermManageWorkspaces, workspaceCreateHandler(st)))
+		mux.Handle("GET /api/admin/workspaces/{id}/tenants", protect(auth.PermManageWorkspaces, workspaceTenantsHandler(st)))
+		mux.Handle("PUT /api/admin/workspaces/{id}/tenants", protect(auth.PermManageWorkspaces, workspaceTenantsHandler(st)))
+		mux.Handle("GET /api/admin/workspaces/{id}/members", protect(auth.PermManageWorkspaces, workspaceMembersHandler(st)))
+		mux.Handle("PUT /api/admin/workspaces/{id}/members", protect(auth.PermManageWorkspaces, workspaceMembersHandler(st)))
+
 		// Versioned FIM snapshots (ADR 0002): browse the dated version timeline of watched files.
 		// Software inventory (Vulnerability Assessment, phase 1): the fleet's OS/package summary,
 		// and one agent's package list. Read-only, dashboard-level.
