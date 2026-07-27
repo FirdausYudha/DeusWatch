@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"deuswatch/internal/tenancy"
 )
 
 // Valid statuses in workflow order.
@@ -45,6 +48,26 @@ type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
+// queryer is the subset of DB operations tickets uses; both *pgxpool.Pool and pgx.Tx satisfy it.
+type queryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+// q runs ticket queries inside the request's scoped transaction when present (so RLS on the tickets
+// table filters to the caller's tenants), else on the raw pool. Ticket routes are all session-scoped
+// (protect → withScope), so a scope is always present in practice; the pool fallback keeps direct
+// callers working. NOTE: ticket creation currently stamps the Default tenant (no active-tenant
+// context at create time); when non-Default tenants create tickets, the create path must stamp the
+// active workspace's tenant so RLS WITH CHECK accepts it.
+func (s *Store) q(ctx context.Context) queryer {
+	if tx, ok := tenancy.TxFrom(ctx); ok {
+		return tx
+	}
+	return s.pool
+}
+
 // host(source_ip) returns the bare address as text (no /32) and scans into *string
 // (pgx won't scan inet directly into *string).
 const cols = `id, title, description, severity, status, assignee, created_by, host(source_ip), rule_id, created_at, updated_at, resolved_at, closed_at`
@@ -76,7 +99,7 @@ func (s *Store) Create(ctx context.Context, createdBy string, n NewTicket) (*Tic
 	if n.Severity < 0 || n.Severity > 4 {
 		n.Severity = 2
 	}
-	row := s.pool.QueryRow(ctx,
+	row := s.q(ctx).QueryRow(ctx,
 		`INSERT INTO tickets (title, description, severity, assignee, created_by, source_ip, rule_id)
 		 VALUES ($1,$2,$3,$4,$5,$6::inet,$7) RETURNING `+cols,
 		n.Title, n.Description, n.Severity, nilIfEmpty(n.Assignee), createdBy,
@@ -96,7 +119,7 @@ func (s *Store) List(ctx context.Context, status string, limit int) ([]Ticket, e
 		args = append(args, status)
 	}
 	q += fmt.Sprintf(` ORDER BY created_at DESC LIMIT %d`, limit)
-	rows, err := s.pool.Query(ctx, q, args...)
+	rows, err := s.q(ctx).Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("tickets: list: %w", err)
 	}
@@ -114,11 +137,11 @@ func (s *Store) List(ctx context.Context, status string, limit int) ([]Ticket, e
 
 // Get returns one ticket with its comments.
 func (s *Store) Get(ctx context.Context, id string) (*Ticket, []Comment, error) {
-	t, err := scanTicket(s.pool.QueryRow(ctx, `SELECT `+cols+` FROM tickets WHERE id=$1`, id))
+	t, err := scanTicket(s.q(ctx).QueryRow(ctx, `SELECT `+cols+` FROM tickets WHERE id=$1`, id))
 	if err != nil {
 		return nil, nil, fmt.Errorf("tickets: not found: %w", err)
 	}
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT id, author, body, created_at FROM ticket_comments WHERE ticket_id=$1 ORDER BY created_at`, id)
 	if err != nil {
 		return nil, nil, err
@@ -186,7 +209,7 @@ func (s *Store) Update(ctx context.Context, id string, f UpdateFields) (*Ticket,
 			closedAt = nil
 		}
 	}
-	row := s.pool.QueryRow(ctx,
+	row := s.q(ctx).QueryRow(ctx,
 		`UPDATE tickets SET title=$1, description=$2, severity=$3, status=$4, assignee=$5,
 		 resolved_at=$6, closed_at=$7, updated_at=now() WHERE id=$8 RETURNING `+cols,
 		cur.Title, cur.Description, cur.Severity, cur.Status, cur.Assignee, resolvedAt, closedAt, id)
@@ -199,13 +222,13 @@ func (s *Store) AddComment(ctx context.Context, ticketID, author, body string) (
 		return nil, fmt.Errorf("tickets: comment body is required")
 	}
 	var c Comment
-	if err := s.pool.QueryRow(ctx,
+	if err := s.q(ctx).QueryRow(ctx,
 		`INSERT INTO ticket_comments (ticket_id, author, body) VALUES ($1,$2,$3)
 		 RETURNING id, author, body, created_at`, ticketID, author, body).
 		Scan(&c.ID, &c.Author, &c.Body, &c.CreatedAt); err != nil {
 		return nil, fmt.Errorf("tickets: add comment: %w", err)
 	}
-	_, _ = s.pool.Exec(ctx, `UPDATE tickets SET updated_at=now() WHERE id=$1`, ticketID)
+	_, _ = s.q(ctx).Exec(ctx, `UPDATE tickets SET updated_at=now() WHERE id=$1`, ticketID)
 	return &c, nil
 }
 

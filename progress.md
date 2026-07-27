@@ -1,7 +1,35 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 4 landed, UNRELEASED).
+> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 5 landed — feature COMPLETE, UNRELEASED).
+
+**Multi-tenancy Phase 5 2026-07-27 (on `main`, UNRELEASED). Hardening — sibling tables + docs.**
+Brings the deferred sibling-store tables under isolation and documents the deploy model.
+- **Shared scope tx**: the request's scoped transaction moved from a store-private key to
+  `internal/tenancy/scope.go` (`WithTx`/`TxFrom`), so sibling stores that own their own pools run in
+  the SAME scoped tx as the store. `store.WithTenantScope` now calls `tenancy.WithTx`; `store.q`,
+  `enroll.q`, `tickets.q` all read `tenancy.TxFrom`.
+- **enroll + tickets refactored** to `s.q(ctx)` (10 + 7 sites). Migration `000054` FORCEs RLS on
+  `agents`, `agent_enroll_tokens`, `tickets` with the standard fail-closed policy. `AssertRLSEnforced`
+  now covers all 13 tables. The public `/api/enroll` handler is wrapped in the `sys` super-admin scope
+  (the enrolling agent's tenant comes from the token); gateway enroll paths bypass via
+  ConnectSuperadmin; session agent routes (list/config/revoke) now filter to the caller's tenants.
+- **respond (response_actions/containment_actions) left GLOBAL by design** — bans/blocklist/containment
+  are a fleet-wide security control, not per-tenant telemetry (documented, not a TODO). `ticket_comments`
+  has no tenant_id (reached only via an RLS-gated ticket); ticket CREATE stamps Default (no active-tenant
+  context at create) — both documented follow-ups.
+- **`docs/multi-tenancy.md`**: the deploy doc (RLS + events security-barrier view + the `deuswatch_app`
+  restricted role + SET LOCAL ROLE + boot gate; the two-role model API-vs-worker/gateway; what's global
+  in v1; how to operate). In-app "See documentation" DocLinks added to the Tenants + Workspaces pages.
+- VERIFIED: migration 000054 applies; new `TestAgentsAndTicketsIsolation` proves agents+tickets filter
+  per-scope / fail-closed / super-admin-all; full `go test ./...` (33 pkgs) + `go vet` + `tsc` +
+  `vite build` clean; API boots with "tenant isolation (RLS) verified on all scoped tables" (now 13
+  tables); live — ticket create (201) + list (200) through the forced table + scoped tx. Agent-route
+  live test needs dev mTLS certs (enrollment is CA-gated; skipped) — path is the same mechanism as
+  tickets + covered by the store isolation test. MULTI-TENANCY IS FEATURE-COMPLETE (phases 0-5). User
+  controls the version bump/release.
+
+
 
 **Multi-tenancy Phase 4 2026-07-27 (on `main`, UNRELEASED). Frontend + admin API.**
 Makes multi-tenancy usable in the UI. Two commits: 4a backend, 4b frontend.

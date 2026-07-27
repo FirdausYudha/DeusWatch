@@ -12,6 +12,7 @@ import {
   type Tenant,
   type UserInfo,
 } from '../lib/api'
+import DocLink from '../components/DocLink'
 
 // Workspaces admin (manage_workspaces). A workspace is a team: it grants access to one+ tenants
 // (many-to-many) and holds user memberships. A user's effective tenant scope is the union across the
@@ -42,7 +43,12 @@ export default function Workspaces() {
   }
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-5 p-4 sm:p-6 lg:grid-cols-[280px_1fr]">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6">
+     <div className="mb-4 flex items-center justify-between">
+       <p className="text-[12.5px] text-dim">A workspace grants a team access to one or more tenants.</p>
+       <DocLink file="multi-tenancy.md" />
+     </div>
+     <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
       {/* List + create */}
       <div>
         <form onSubmit={create} className="mb-4 flex gap-2">
@@ -87,6 +93,7 @@ export default function Workspaces() {
           </div>
         )}
       </div>
+     </div>
     </div>
   )
 }

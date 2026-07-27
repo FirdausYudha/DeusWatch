@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"deuswatch/internal/ingest"
-
-	"github.com/jackc/pgx/v5"
+	"deuswatch/internal/tenancy"
 )
 
 // TestRLSTenantIsolation is the end-to-end proof of Phase-2c enforcement: with migration 000050
@@ -35,7 +34,7 @@ func TestRLSTenantIsolation(t *testing.T) {
 	cleanup := func() {
 		// suspicious_ips is RLS-forced, so its rows are only reachable under a super-admin scope.
 		_ = st.WithTenantScope(ctx, nil, true, func(sctx context.Context) error {
-			tx := sctx.Value(scopeCtxKey{}).(pgx.Tx)
+			tx, _ := tenancy.TxFrom(sctx)
 			_, _ = tx.Exec(sctx, `DELETE FROM suspicious_ips WHERE ip = ANY($1::inet[])`, []string{ipA, ipB})
 			return nil
 		})
@@ -63,7 +62,7 @@ func TestRLSTenantIsolation(t *testing.T) {
 	// Seed one suspicious IP per tenant. The table is forced, so writes run inside a super-admin
 	// scope; the explicit tenant_id is what the isolation policy filters on.
 	if err := st.WithTenantScope(ctx, nil, true, func(sctx context.Context) error {
-		tx := sctx.Value(scopeCtxKey{}).(pgx.Tx)
+		tx, _ := tenancy.TxFrom(sctx)
 		for _, row := range []struct{ ip, ten string }{{ipA, tenA}, {ipB, tenB}} {
 			if _, err := tx.Exec(sctx,
 				`INSERT INTO suspicious_ips (ip, tenant_id) VALUES ($1::inet, $2)`, row.ip, row.ten); err != nil {
@@ -79,7 +78,7 @@ func TestRLSTenantIsolation(t *testing.T) {
 	visibleIPs := func(tenantIDs []string, superadmin bool) map[string]bool {
 		out := map[string]bool{}
 		if err := st.WithTenantScope(ctx, tenantIDs, superadmin, func(sctx context.Context) error {
-			tx := sctx.Value(scopeCtxKey{}).(pgx.Tx)
+			tx, _ := tenancy.TxFrom(sctx)
 			rows, err := tx.Query(sctx,
 				`SELECT host(ip) FROM suspicious_ips WHERE ip = ANY($1::inet[])`, []string{ipA, ipB})
 			if err != nil {
@@ -138,7 +137,7 @@ func TestEventsViewIsolation(t *testing.T) {
 	var tenA, tenB string
 	cleanup := func() {
 		_ = st.WithTenantScope(ctx, nil, true, func(sctx context.Context) error {
-			tx := sctx.Value(scopeCtxKey{}).(pgx.Tx)
+			tx, _ := tenancy.TxFrom(sctx)
 			_, _ = tx.Exec(sctx, `DELETE FROM events WHERE event_dataset=$1`, ds)
 			return nil
 		})
@@ -192,7 +191,7 @@ func TestEventsViewIsolation(t *testing.T) {
 	visibleAgents := func(tenantIDs []string, superadmin bool) map[string]bool {
 		out := map[string]bool{}
 		if err := st.WithTenantScope(ctx, tenantIDs, superadmin, func(sctx context.Context) error {
-			tx := sctx.Value(scopeCtxKey{}).(pgx.Tx)
+			tx, _ := tenancy.TxFrom(sctx)
 			rows, err := tx.Query(sctx, `SELECT DISTINCT agent_id FROM events WHERE event_dataset=$1`, ds)
 			if err != nil {
 				return err

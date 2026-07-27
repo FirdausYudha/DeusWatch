@@ -254,7 +254,10 @@ func main() {
 			log.Printf("api: CA not loaded — enrollment disabled: %v", err)
 		} else {
 			enrollStore := enroll.NewStore(st.Pool(), ca)
-			mux.HandleFunc("/api/enroll", enrollStore.EnrollHandler()) // PUBLIC (uses a token)
+			// PUBLIC (the enrollment token is the credential). It writes agents + claims a token, both
+			// now RLS-forced, so it runs inside a super-admin scope — the enrolling agent's tenant comes
+			// from the token, and the row is stamped with it regardless of any caller scope.
+			mux.HandleFunc("/api/enroll", sys(enrollStore.EnrollHandler()))
 			mux.Handle("/api/agents/tokens", protect(auth.PermManageAgents, enrollStore.TokenHandler()))
 			mux.Handle("/api/agents", protect(auth.PermViewDashboard, enrollStore.AgentsHandler()))
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))

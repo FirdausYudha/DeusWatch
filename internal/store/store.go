@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/tenancy"
 )
 
 // Store holds the Postgres connection pool.
@@ -29,13 +30,12 @@ type Queryer interface {
 	Begin(context.Context) (pgx.Tx, error)
 }
 
-type scopeCtxKey struct{}
-
 // q returns the scoped transaction carried in ctx (opened by WithTenantScope) if one is present,
 // otherwise the raw pool. Every store data method routes through this so tenant scoping is applied
-// transparently without changing method signatures or callers.
+// transparently without changing method signatures or callers. The scope tx lives in the shared
+// tenancy package key so sibling stores (enroll, tickets) run in the SAME scoped transaction.
 func (s *Store) q(ctx context.Context) Queryer {
-	if tx, ok := ctx.Value(scopeCtxKey{}).(pgx.Tx); ok {
+	if tx, ok := tenancy.TxFrom(ctx); ok {
 		return tx
 	}
 	return s.pool
@@ -78,7 +78,7 @@ func (s *Store) WithTenantScope(ctx context.Context, tenantIDs []string, superad
 			return fmt.Errorf("store: assume app role: %w", err)
 		}
 	}
-	if err := fn(context.WithValue(ctx, scopeCtxKey{}, tx)); err != nil {
+	if err := fn(tenancy.WithTx(ctx, tx)); err != nil {
 		return err
 	}
 	committed = true
@@ -138,6 +138,8 @@ var rlsForcedTables = []string{
 	"fim_snapshots", "agent_file_actions", "file_restores",
 	"agent_os_inventory", "agent_packages", "agent_vulnerabilities",
 	"ip_scores", "suspicious_ips", "slow_scanners", "ip_anomaly",
+	// Phase 5 (migration 000054): sibling-store tables now scoped via the shared tenancy tx.
+	"agents", "agent_enroll_tokens", "tickets",
 }
 
 // AssertRLSEnforced verifies that every tenant-scoped table actually has ROW LEVEL SECURITY both

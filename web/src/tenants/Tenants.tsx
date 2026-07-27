@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchTenants, createTenant, type Tenant } from '../lib/api'
+import DocLink from '../components/DocLink'
 
 // Tenants admin (manage_tenants). A tenant is the data-isolation boundary: agents and all their
 // telemetry belong to exactly one tenant, and Postgres RLS keeps them separate. Creating a tenant
@@ -34,6 +35,10 @@ export default function Tenants() {
 
   return (
     <div className="mx-auto max-w-3xl p-4 sm:p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-[12.5px] text-dim">A tenant is a data-isolation boundary — agents and their telemetry belong to one tenant.</p>
+        <DocLink file="multi-tenancy.md" />
+      </div>
       <form onSubmit={submit} className="mb-6 flex flex-wrap items-end gap-2.5">
         <div className="flex-1 min-w-[220px]">
           <label className="mb-1 block text-[12px] font-medium text-dim">New tenant</label>

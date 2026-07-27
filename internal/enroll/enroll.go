@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"deuswatch/internal/agent"
@@ -39,6 +40,25 @@ func NewStore(pool *pgxpool.Pool, ca *mtls.CA) *Store {
 	return &Store{pool: pool, ca: ca}
 }
 
+// queryer is the subset of DB operations enroll uses; both *pgxpool.Pool and pgx.Tx satisfy it.
+type queryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Begin(context.Context) (pgx.Tx, error)
+}
+
+// q runs enroll's queries inside the request's scoped transaction when one is present (so RLS on the
+// agents / agent_enroll_tokens tables filters to the caller's tenants), else on the raw pool. The
+// gateway's enroll store connects with the super-admin pool (ConnectSuperadmin), so its agent auth /
+// heartbeat / config paths bypass RLS; the public enrollment handler runs inside a super-admin scope.
+func (s *Store) q(ctx context.Context) queryer {
+	if tx, ok := tenancy.TxFrom(ctx); ok {
+		return tx
+	}
+	return s.pool
+}
+
 func hashToken(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
@@ -57,7 +77,7 @@ func (s *Store) CreateToken(ctx context.Context, createdBy, tenantID string) (ra
 	}
 	raw = hex.EncodeToString(b)
 	expires = time.Now().Add(TokenTTL)
-	_, err = s.pool.Exec(ctx,
+	_, err = s.q(ctx).Exec(ctx,
 		`INSERT INTO agent_enroll_tokens (token_hash, created_by, expires_at, tenant_id) VALUES ($1,$2,$3,$4)`,
 		hashToken(raw), createdBy, expires, tenantID)
 	if err != nil {
@@ -81,7 +101,7 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 	if name == "" {
 		return nil, fmt.Errorf("enroll: agent name is required")
 	}
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.q(ctx).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +197,7 @@ type AgentInfo struct {
 }
 
 func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, status, health_detail, config
 		 FROM agents ORDER BY enrolled_at DESC`)
 	if err != nil {
@@ -207,7 +227,7 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 
 // Revoke marks an agent as revoked (the gateway will reject its connection).
 func (s *Store) Revoke(ctx context.Context, id string) error {
-	ct, err := s.pool.Exec(ctx, `UPDATE agents SET revoked = true WHERE id = $1`, id)
+	ct, err := s.q(ctx).Exec(ctx, `UPDATE agents SET revoked = true WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("enroll: revoke: %w", err)
 	}
@@ -225,7 +245,7 @@ func (s *Store) Revoke(ctx context.Context, id string) error {
 func (s *Store) IsRevoked(ctx context.Context, name, certSerial string) (bool, error) {
 	var revoked bool
 	var storedSerial *string
-	err := s.pool.QueryRow(ctx, `SELECT revoked, cert_serial FROM agents WHERE name = $1`, name).
+	err := s.q(ctx).QueryRow(ctx, `SELECT revoked, cert_serial FROM agents WHERE name = $1`, name).
 		Scan(&revoked, &storedSerial)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil // agent not registered (e.g. old/shared cert) — don't block here
@@ -246,7 +266,7 @@ func (s *Store) IsRevoked(ctx context.Context, name, certSerial string) (bool, e
 
 // MarkSeen updates the agent's last_seen_at (used by heartbeat / ingest).
 func (s *Store) MarkSeen(ctx context.Context, name string) error {
-	_, err := s.pool.Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
+	_, err := s.q(ctx).Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
 	return err
 }
 
@@ -254,7 +274,7 @@ func (s *Store) MarkSeen(ctx context.Context, name string) error {
 // heartbeat body (degraded = e.g. the offline buffer is piling up). The worker's
 // health checker folds this into the agent's status.
 func (s *Store) MarkHealth(ctx context.Context, name string, degraded bool, detail string) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3 WHERE name = $1`,
 		name, degraded, detail)
 	return err
@@ -264,7 +284,7 @@ func (s *Store) MarkHealth(ctx context.Context, name string, degraded bool, deta
 // version. Returns the new version.
 func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source) (int, error) {
 	var raw *string
-	err := s.pool.QueryRow(ctx, `SELECT config FROM agents WHERE id = $1`, id).Scan(&raw)
+	err := s.q(ctx).QueryRow(ctx, `SELECT config FROM agents WHERE id = $1`, id).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("enroll: agent not found")
 	}
@@ -280,7 +300,7 @@ func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source
 	if err != nil {
 		return 0, err
 	}
-	if _, err := s.pool.Exec(ctx, `UPDATE agents SET config = $1 WHERE id = $2`, b, id); err != nil {
+	if _, err := s.q(ctx).Exec(ctx, `UPDATE agents SET config = $1 WHERE id = $2`, b, id); err != nil {
 		return 0, fmt.Errorf("enroll: store config: %w", err)
 	}
 	return cfg.Version, nil
@@ -290,7 +310,7 @@ func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source
 // yet set or the agent is revoked).
 func (s *Store) GetConfigByName(ctx context.Context, name string) ([]byte, error) {
 	var raw *string
-	err := s.pool.QueryRow(ctx, `SELECT config FROM agents WHERE name = $1 AND NOT revoked`, name).Scan(&raw)
+	err := s.q(ctx).QueryRow(ctx, `SELECT config FROM agents WHERE name = $1 AND NOT revoked`, name).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) || raw == nil {
 		return nil, nil
 	}
