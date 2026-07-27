@@ -11,6 +11,7 @@ import {
   fetchWhitelist,
   addWhitelist,
   deleteWhitelist,
+  banIP,
   fetchBlocklistConfig,
   regenerateBlocklistToken,
   fetchEnforcement,
@@ -78,6 +79,8 @@ export default function Response({ me }: { me: Me }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
+  const [banIpInput, setBanIpInput] = useState('')
+  const [banMins, setBanMins] = useState('')
 
   const load = () => {
     if (view === 'ip') {
@@ -128,6 +131,25 @@ export default function Response({ me }: { me: Me }) {
       load()
     } catch (e) {
       setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // manualBan adds an IP to the ban list on demand (admin action), then refreshes the list.
+  const manualBan = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const ip = banIpInput.trim()
+    if (!ip) return
+    setBusy('manual-ban')
+    setError('')
+    try {
+      await banIP(ip, banMins ? parseInt(banMins, 10) : 0)
+      setBanIpInput('')
+      setBanMins('')
+      load()
+    } catch (err) {
+      setError((err as Error).message)
     } finally {
       setBusy('')
     }
@@ -216,6 +238,37 @@ export default function Response({ me }: { me: Me }) {
       <DecisionTablePanel />
       <BanPolicyEditor canManage={can(me, 'manage_settings')} />
       <WhitelistEditor canManage={can(me, 'manage_settings')} />
+      {can(me, 'execute_block') && (
+        <div className="mt-4 rounded-[10px] border border-border bg-surface p-4">
+          <div className="mb-2 text-[13px] font-semibold text-fg">Ban an IP</div>
+          <p className="mb-3 text-[12px] text-dim">
+            Add an IP to the ban list now. Leave the minutes blank to use the progressive-ban ladder.
+            Whitelisted IPs are refused.
+          </p>
+          <form onSubmit={manualBan} className="flex flex-wrap items-center gap-2">
+            <input
+              value={banIpInput}
+              onChange={(e) => setBanIpInput(e.target.value)}
+              placeholder="e.g. 203.0.113.10"
+              className="min-w-[180px] flex-1 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13px] text-fg outline-none focus:border-accent"
+            />
+            <input
+              value={banMins}
+              onChange={(e) => setBanMins(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="minutes"
+              inputMode="numeric"
+              className="w-[110px] rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13px] text-fg outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              disabled={busy === 'manual-ban' || !banIpInput.trim()}
+              className="rounded-[8px] bg-critical px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {busy === 'manual-ban' ? 'Banning…' : 'Ban IP'}
+            </button>
+          </form>
+        </div>
+      )}
       <BlocklistFeedPanel canManage={can(me, 'manage_settings')} />
 
       {view === 'events' && (

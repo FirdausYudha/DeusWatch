@@ -2,8 +2,10 @@ package respond
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -136,6 +138,74 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 		if err := e.execute(ctx, a, "auto"); err != nil {
 			log.Printf("respond: auto-execute %s failed: %v", a.SourceIP, err)
 		}
+	}
+	return a, nil
+}
+
+// BanIP manually blocks an IP on an admin's explicit request (no alert). It creates a block action
+// and executes it immediately via the responder, recording the admin as the decider for the audit
+// trail. The duration is the caller's choice, or the progressive ladder for the IP's offense count
+// when dur <= 0. A whitelisted IP is refused (the whitelist is the stronger "never ban" guarantee —
+// remove it there first), and an IP that already has an open/active block is refused (dedup).
+func (e *Engine) BanIP(ctx context.Context, ip string, dur time.Duration, by string) (*Action, error) {
+	ip = strings.TrimSpace(ip)
+	if net.ParseIP(ip) == nil {
+		return nil, fmt.Errorf("%q is not a valid IP address", ip)
+	}
+	if e.responder == nil {
+		return nil, errNoResponder
+	}
+	e.mu.RLock()
+	policy := e.policy
+	wl := e.whitelist
+	e.mu.RUnlock()
+
+	if ipInNets(ip, wl) {
+		return nil, fmt.Errorf("%s is whitelisted — remove it from the IP whitelist before banning it", ip)
+	}
+	if open, err := e.store.HasOpenAction(ctx, ip); err != nil {
+		return nil, err
+	} else if open {
+		return nil, fmt.Errorf("%s already has an open block action", ip)
+	}
+
+	var since time.Time
+	if policy.Window > 0 {
+		since = time.Now().Add(-policy.Window)
+	}
+	prior, err := e.store.Offenses(ctx, ip, since)
+	if err != nil {
+		return nil, err
+	}
+	offense := prior + 1
+	if dur <= 0 {
+		dur = policy.Duration(offense)
+	}
+
+	a := &Action{
+		SourceIP:     ip,
+		ActionType:   "block",
+		Reason:       "Manually banned by " + by,
+		BanSeconds:   int(dur.Seconds()),
+		OffenseCount: offense,
+		Source:       "manual",
+		Status:       StatusRecommended,
+	}
+	id, err := e.store.Insert(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	a.ID = id
+	// Record the admin's decision, then apply the block (mirrors Approve's execute path).
+	if err := e.store.SetStatus(ctx, id, StatusApproved, by); err != nil {
+		return nil, err
+	}
+	if err := e.execute(ctx, a, by); err != nil {
+		return a, err
+	}
+	// Return the persisted row so the caller sees the final status / executed_at / responder.
+	if final, gerr := e.store.Get(ctx, id); gerr == nil {
+		return final, nil
 	}
 	return a, nil
 }

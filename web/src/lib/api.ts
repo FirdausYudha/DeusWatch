@@ -990,6 +990,17 @@ export async function saveBanPolicy(p: BanPolicy): Promise<BanPolicy> {
   return res.json()
 }
 
+// Manually add an IP to the ban list (admin action). minutes=0 uses the progressive-ban ladder.
+// Whitelisted IPs are refused by the server.
+export async function banIP(ip: string, minutes = 0): Promise<void> {
+  const res = await authFetch('/api/responses/ban', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip, minutes }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // IP whitelist: trusted IPs/CIDRs the response engine never bans.
 export type WhitelistEntry = { id: string; cidr: string; note: string; created_at: string }
 

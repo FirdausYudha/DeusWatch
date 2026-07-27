@@ -408,6 +408,7 @@ func main() {
 		mux.Handle("/api/responses", protect(auth.PermViewDashboard, responsesHandler(respStore)))
 		mux.Handle("GET /api/responses/offenders", protect(auth.PermViewDashboard, offendersHandler(respStore)))
 		mux.Handle("POST /api/responses/dismiss-ip", protect(auth.PermApproveRemediation, dismissIPHandler(respStore)))
+		mux.Handle("POST /api/responses/ban", protect(auth.PermExecuteBlock, banIPHandler(respEngine, respStore)))
 		mux.Handle("POST /api/responses/{id}/approve", protect(auth.PermApproveRemediation, approveResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/dismiss", protect(auth.PermApproveRemediation, dismissResponseHandler(respEngine)))
 		mux.Handle("POST /api/responses/{id}/unban", protect(auth.PermApproveRemediation, unbanResponseHandler(respEngine)))
@@ -2303,6 +2304,39 @@ func approveResponseHandler(e *respond.Engine) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "approved", "id": id})
+	}
+}
+
+// banIPHandler (POST /api/responses/ban) manually adds an IP to the ban list on an admin's explicit
+// request. Body: {"ip":"1.2.3.4","minutes":60} — minutes omitted/0 uses the progressive-ban ladder.
+// The API's engine doesn't live-reload, so refresh the whitelist + ban policy from the DB per call:
+// this guarantees a just-whitelisted IP is still refused and the configured ladder is used.
+func banIPHandler(e *respond.Engine, s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			IP      string `json:"ip"`
+			Minutes int    `json:"minutes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if nets, err := s.WhitelistNets(r.Context()); err == nil {
+			e.SetWhitelist(nets)
+		}
+		if p, err := s.LoadPolicy(r.Context()); err == nil {
+			e.SetPolicy(p)
+		}
+		var dur time.Duration
+		if req.Minutes > 0 {
+			dur = time.Duration(req.Minutes) * time.Minute
+		}
+		a, err := e.BanIP(r.Context(), req.IP, dur, currentUsername(r))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, a)
 	}
 }
 
