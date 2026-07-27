@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"deuswatch/internal/tenancy"
 )
 
 // isUniqueViolation reports whether err is a Postgres unique-constraint violation (SQLSTATE 23505),
@@ -16,6 +18,13 @@ import (
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// isForeignKeyViolation reports whether err is a Postgres FK violation (SQLSTATE 23503) — e.g.
+// deleting a tenant that still has agents (agents.tenant_id RESTRICTs the delete).
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }
 
 // Tenant is a data-isolation boundary: agents and all their telemetry belong to exactly one tenant.
@@ -142,6 +151,44 @@ func (s *Store) CreateWorkspace(ctx context.Context, name string) (Workspace, er
 		return Workspace{}, fmt.Errorf("store: create workspace: %w", err)
 	}
 	return w, nil
+}
+
+// DeleteTenant removes a tenant. The Default tenant is protected. workspace_tenants mappings cascade
+// away, but agents / enrollment tokens RESTRICT the delete (agents.tenant_id FK) — a tenant that
+// still owns agents can't be deleted until they're revoked or re-homed, surfaced as a friendly error.
+// Denormalized telemetry (events, scores, …) is left as-is; it simply becomes unreachable once no
+// workspace maps the tenant.
+func (s *Store) DeleteTenant(ctx context.Context, id string) error {
+	if id == tenancy.DefaultTenantID {
+		return fmt.Errorf("the Default tenant cannot be deleted")
+	}
+	ct, err := s.q(ctx).Exec(ctx, `DELETE FROM tenants WHERE id = $1::uuid`, id)
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return fmt.Errorf("this tenant still has agents or enrollment tokens — revoke or re-home them first")
+		}
+		return fmt.Errorf("store: delete tenant: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("tenant not found")
+	}
+	return nil
+}
+
+// DeleteWorkspace removes a workspace. The Default workspace is protected. Its member and tenant
+// mappings cascade away; no telemetry references a workspace, so this is always safe.
+func (s *Store) DeleteWorkspace(ctx context.Context, id string) error {
+	if id == tenancy.DefaultWorkspaceID {
+		return fmt.Errorf("the Default workspace cannot be deleted")
+	}
+	ct, err := s.q(ctx).Exec(ctx, `DELETE FROM workspaces WHERE id = $1::uuid`, id)
+	if err != nil {
+		return fmt.Errorf("store: delete workspace: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("workspace not found")
+	}
+	return nil
 }
 
 // ListWorkspaceTenants returns the tenant IDs granted to a workspace (the M2M mapping).

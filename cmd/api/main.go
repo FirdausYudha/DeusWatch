@@ -301,9 +301,11 @@ func main() {
 		// gated by manage_tenants / manage_workspaces.
 		mux.Handle("GET /api/tenants", protect(auth.PermViewDashboard, tenantsListHandler(st)))
 		mux.Handle("POST /api/tenants", protect(auth.PermManageTenants, tenantCreateHandler(st)))
+		mux.Handle("DELETE /api/tenants/{id}", protect(auth.PermManageTenants, tenantDeleteHandler(st)))
 		mux.Handle("GET /api/workspaces", protect(auth.PermViewDashboard, myWorkspacesHandler(st)))
 		mux.Handle("GET /api/admin/workspaces", protect(auth.PermManageWorkspaces, workspacesAdminListHandler(st)))
 		mux.Handle("POST /api/admin/workspaces", protect(auth.PermManageWorkspaces, workspaceCreateHandler(st)))
+		mux.Handle("DELETE /api/admin/workspaces/{id}", protect(auth.PermManageWorkspaces, workspaceDeleteHandler(st)))
 		mux.Handle("GET /api/admin/workspaces/{id}/tenants", protect(auth.PermManageWorkspaces, workspaceTenantsHandler(st)))
 		mux.Handle("PUT /api/admin/workspaces/{id}/tenants", protect(auth.PermManageWorkspaces, workspaceTenantsHandler(st)))
 		mux.Handle("GET /api/admin/workspaces/{id}/members", protect(auth.PermManageWorkspaces, workspaceMembersHandler(st)))

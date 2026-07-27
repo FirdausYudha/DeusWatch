@@ -6,3 +6,7 @@ package tenancy
 // Existing single-tenant data, and any write path not yet made tenant-aware, resolve to it.
 // MUST stay in sync with migrations/000049_multitenancy.up.sql.
 const DefaultTenantID = "00000000-0000-0000-0000-000000000001"
+
+// DefaultWorkspaceID is the fixed sentinel UUID of the "Default" workspace seeded by migration 000049
+// (mapped to the Default tenant, with every user a member). MUST stay in sync with that migration.
+const DefaultWorkspaceID = "00000000-0000-0000-0000-000000000002"

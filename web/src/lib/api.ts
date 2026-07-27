@@ -365,6 +365,11 @@ export async function createTenant(name: string): Promise<Tenant> {
   return res.json()
 }
 
+export async function deleteTenant(id: string): Promise<void> {
+  const res = await authFetch(`/api/tenants/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 // The workspaces the signed-in user belongs to (drives the switcher).
 export async function fetchMyWorkspaces(): Promise<Workspace[]> {
   const res = await authFetch('/api/workspaces')
@@ -386,6 +391,11 @@ export async function createWorkspace(name: string): Promise<Workspace> {
   })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
+}
+
+export async function deleteWorkspace(id: string): Promise<void> {
+  const res = await authFetch(`/api/admin/workspaces/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 export async function fetchWorkspaceTenants(id: string): Promise<string[]> {

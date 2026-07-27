@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchTenants, createTenant, type Tenant } from '../lib/api'
+import { fetchTenants, createTenant, deleteTenant, type Tenant } from '../lib/api'
 import DocLink from '../components/DocLink'
 
 // Tenants admin (manage_tenants). A tenant is the data-isolation boundary: agents and all their
@@ -16,6 +16,17 @@ export default function Tenants() {
   useEffect(() => {
     load()
   }, [])
+
+  const remove = async (t: Tenant) => {
+    if (!confirm(`Delete tenant “${t.name}”? Its telemetry becomes unreachable. This cannot be undone.`)) return
+    setErr(null)
+    try {
+      await deleteTenant(t.id)
+      await load()
+    } catch (e: any) {
+      setErr(String(e.message ?? e))
+    }
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,6 +78,7 @@ export default function Tenants() {
               <th className="px-4 py-2.5 font-medium">Name</th>
               <th className="px-4 py-2.5 font-medium">Slug</th>
               <th className="px-4 py-2.5 font-medium">Created</th>
+              <th className="px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
@@ -75,11 +87,21 @@ export default function Tenants() {
                 <td className="px-4 py-2.5 font-medium text-fg">{t.name}</td>
                 <td className="px-4 py-2.5 font-mono text-[12px] text-muted">{t.slug}</td>
                 <td className="px-4 py-2.5 text-dim">{new Date(t.created_at).toLocaleDateString()}</td>
+                <td className="px-4 py-2.5 text-right">
+                  {t.slug !== 'default' && (
+                    <button
+                      onClick={() => remove(t)}
+                      className="rounded-[7px] border border-border px-2 py-1 text-[11.5px] text-muted transition-colors hover:border-critical/50 hover:bg-critical/10 hover:text-critical"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {tenants.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-dim">No tenants yet.</td>
+                <td colSpan={4} className="px-4 py-6 text-center text-dim">No tenants yet.</td>
               </tr>
             )}
           </tbody>

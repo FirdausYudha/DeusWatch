@@ -46,6 +46,18 @@ func tenantCreateHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
+// tenantDeleteHandler (DELETE /api/tenants/{id}) removes a tenant (manage_tenants). 409 if it still
+// has agents, 400 for the protected Default tenant.
+func tenantDeleteHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := st.DeleteTenant(r.Context(), r.PathValue("id")); err != nil {
+			http.Error(w, err.Error(), statusForDelete(err))
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // myWorkspacesHandler (GET /api/workspaces) lists the workspaces the CURRENT user belongs to — this
 // drives the workspace switcher (the X-Workspace-ID the client then sends narrows their tenant scope).
 func myWorkspacesHandler(st *store.Store) http.HandlerFunc {
@@ -92,6 +104,18 @@ func workspaceCreateHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusCreated, ws)
+	}
+}
+
+// workspaceDeleteHandler (DELETE /api/admin/workspaces/{id}) removes a workspace (manage_workspaces).
+// 400 for the protected Default workspace.
+func workspaceDeleteHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := st.DeleteWorkspace(r.Context(), r.PathValue("id")); err != nil {
+			http.Error(w, err.Error(), statusForDelete(err))
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
@@ -167,6 +191,22 @@ func statusForCreate(err error) int {
 		return http.StatusConflict
 	case strings.Contains(msg, "is required"):
 		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// statusForDelete maps a delete error to 409 (still referenced), 400 (protected/invalid), 404 (not
+// found) — anything else is 500.
+func statusForDelete(err error) int {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "still has"):
+		return http.StatusConflict
+	case strings.Contains(msg, "cannot be deleted"):
+		return http.StatusBadRequest
+	case strings.Contains(msg, "not found"):
+		return http.StatusNotFound
 	default:
 		return http.StatusInternalServerError
 	}

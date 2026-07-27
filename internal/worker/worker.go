@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"sync"
 	"time"
 
 	"deuswatch/internal/bus"
@@ -33,6 +34,32 @@ type EventSink interface {
 	InsertEvent(ctx context.Context, e *ingest.Event) error
 }
 
+// futureSkewGrace is how far ahead of server time an event may be before we treat its timestamp as a
+// clock error and clamp it. Small enough to catch a wrong timezone (hours off), large enough to
+// tolerate normal NTP jitter and in-flight buffering.
+const futureSkewGrace = 2 * time.Minute
+
+var (
+	lastSkewWarn   time.Time
+	lastSkewWarnMu sync.Mutex
+)
+
+// warnFutureSkew logs a throttled warning (at most once per minute) that an agent is stamping events
+// in the future, naming the agent and the skew so the operator can fix that host's clock/timezone.
+func warnFutureSkew(e *ingest.Event, now time.Time) {
+	lastSkewWarnMu.Lock()
+	defer lastSkewWarnMu.Unlock()
+	if now.Sub(lastSkewWarn) < time.Minute {
+		return
+	}
+	lastSkewWarn = now
+	agent := ""
+	if e.Agent != nil {
+		agent = e.Agent.ID
+	}
+	log.Printf("worker: agent %q stamped an event %s in the future — clamping to server time; fix that host's clock/timezone (NTP)", agent, e.Timestamp.Sub(now).Round(time.Second))
+}
+
 // Handler returns a bus.Handler for the logs.normalized subject: enrich the event
 // (if an enricher is set), persist it, run the detectors, persist any fired alerts,
 // then call onAlert for each alert. enricher & onAlert may be nil.
@@ -43,8 +70,20 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 			log.Printf("worker: dropped corrupt message: %v", err)
 			return nil // poison message: do not redeliver
 		}
+		// Event time comes from the AGENT's clock. Guard the two ways it can be unusable:
+		//   * zero  → fall back to server time.
+		//   * far in the FUTURE → an agent whose clock/timezone runs ahead (a classic VM/NTP
+		//     misconfig — e.g. the RTC holds local time but the OS assumes UTC) stamps events in the
+		//     future, where the dashboard's `time <= now()` upper bound HIDES them until the wall
+		//     clock catches up (hours later). Clamp to server time so they surface immediately, and
+		//     warn (throttled) so the operator fixes the agent's clock. Past-skew is left alone —
+		//     those events still appear (just at the wrong past time).
+		now := time.Now()
 		if e.Timestamp.IsZero() {
-			e.Timestamp = time.Now()
+			e.Timestamp = now
+		} else if e.Timestamp.After(now.Add(futureSkewGrace)) {
+			warnFutureSkew(&e, now)
+			e.Timestamp = now
 		}
 
 		ic, cancel := context.WithTimeout(ctx, 5*time.Second)

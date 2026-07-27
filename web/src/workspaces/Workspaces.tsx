@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   fetchAllWorkspaces,
   createWorkspace,
+  deleteWorkspace,
   fetchTenants,
   fetchWorkspaceTenants,
   setWorkspaceTenants,
@@ -27,6 +28,18 @@ export default function Workspaces() {
   useEffect(() => {
     load()
   }, [])
+
+  const remove = async (w: Workspace) => {
+    if (!confirm(`Delete workspace “${w.name}”? Members and tenant grants are removed. This cannot be undone.`)) return
+    setErr(null)
+    try {
+      await deleteWorkspace(w.id)
+      if (selected?.id === w.id) setSelected(null)
+      await load()
+    } catch (e: any) {
+      setErr(String(e.message ?? e))
+    }
+  }
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,15 +82,26 @@ export default function Workspaces() {
         {err && <div className="mb-3 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[12px] text-critical">{err}</div>}
         <div className="flex flex-col gap-1">
           {workspaces.map((w) => (
-            <button
-              key={w.id}
-              onClick={() => setSelected(w)}
-              className={`rounded-[8px] px-3 py-2 text-left text-[13.5px] transition-colors ${
-                selected?.id === w.id ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
-              }`}
-            >
-              {w.name}
-            </button>
+            <div key={w.id} className="group flex items-center gap-1">
+              <button
+                onClick={() => setSelected(w)}
+                className={`flex-1 rounded-[8px] px-3 py-2 text-left text-[13.5px] transition-colors ${
+                  selected?.id === w.id ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
+                }`}
+              >
+                {w.name}
+              </button>
+              {w.slug !== 'default' && (
+                <button
+                  onClick={() => remove(w)}
+                  title="Delete workspace"
+                  aria-label={`Delete ${w.name}`}
+                  className="rounded-[7px] border border-transparent px-2 py-1.5 text-[11.5px] text-dim opacity-0 transition-all hover:border-critical/50 hover:bg-critical/10 hover:text-critical group-hover:opacity-100"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           ))}
           {workspaces.length === 0 && <div className="px-3 py-4 text-[12.5px] text-dim">No workspaces yet.</div>}
         </div>
