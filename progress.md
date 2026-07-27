@@ -3,6 +3,22 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-21 (v2.1.1).
 
+**Multi-tenancy Phase 0 2026-07-27 (on `main`, UNRELEASED, mid-feature).** Approved plan:
+~/.claude/plans/buatkan-rencana-jangan-ada-mossy-moth.md. Model: Tenant = data-isolation boundary
+(agents/telemetry belong to a tenant); User -> Workspace -> Tenant (M2M workspace_tenants); full
+isolation via Postgres RLS (fail-closed) coming in Phase 2. Phase 0 = additive schema + backfill,
+NON-breaking: migration 000049 creates tenants/workspaces/workspace_tenants/workspace_members, seeds
+a Default tenant (sentinel 00000000-...-0001) + Default workspace (...-0002) mapped together, makes
+every existing user a member, and adds `tenant_id uuid NOT NULL DEFAULT <default>` to 16 scoped
+tables (agents+enroll_tokens with FK; events + agent-keyed + IP-derived + tickets without FK to
+avoid hypertable/large-table lock issues). The DEFAULT is what keeps every current write path
+working untouched until later phases make writers tenant-aware. VERIFIED vs real Postgres: migrate
+up clean; 4 tables + seed + mapping + all-users-members + tenant_id on all 16 tables confirmed;
+down-migration valid in a rolled-back txn; store/auth/enroll tests re-run fresh (-count=1) pass,
+proving inserts without tenant_id still work via DEFAULT; go vet clean. NEXT: Phase 1 (enroll tokens
+tenant-scoped; agents.tenant_id set at enroll; InsertEvent stamps events.tenant_id via agent->tenant
+cache).
+
 **v2.1.1 2026-07-21 — VA feed-fetch fixes (found by live-testing the real endpoints).** Two real
 bugs the phase-2 core tests couldn't catch (they used synthetic payloads):
 - FetchUSN used limit=500; the Ubuntu notices API rejects anything over 20 with HTTP 422, so the
