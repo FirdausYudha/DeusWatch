@@ -96,7 +96,10 @@ func TestPipelineEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	st, err := store.Connect(ctx, envOr("STORE_DSN", "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable"))
+	// The worker runs with the RLS super-admin bypass in production (store.ConnectSuperadmin); mirror
+	// that here so event reads through the tenant-isolating events view (migration 000052) are not
+	// fail-closed to zero rows.
+	st, err := store.ConnectSuperadmin(ctx, envOr("STORE_DSN", "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable"))
 	if err != nil {
 		t.Skipf("Postgres unavailable: %v", err)
 	}

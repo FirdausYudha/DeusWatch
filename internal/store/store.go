@@ -130,9 +130,10 @@ func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
 // owned by sibling packages that lack scope plumbing (respond → response_actions/containment_actions,
 // tickets → tickets, enroll → agents) are intentionally excluded until those packages are scoped.
 //
-// `events` is also excluded: TimescaleDB 2.17 makes columnar compression and RLS mutually exclusive,
-// and events depends on compression. Its isolation mechanism is a separate follow-up (see migration
-// 000050 header); until then events stays scoped at the application layer via s.q(ctx).
+// `events` is excluded from this list because it cannot carry RLS: TimescaleDB 2.17 makes columnar
+// compression and RLS mutually exclusive, and events depends on compression. It is isolated instead by
+// a security-barrier VIEW over the events_data hypertable (migration 000052), verified separately in
+// AssertRLSEnforced.
 var rlsForcedTables = []string{
 	"fim_snapshots", "agent_file_actions", "file_restores",
 	"agent_os_inventory", "agent_packages", "agent_vulnerabilities",
@@ -188,6 +189,34 @@ func (s *Store) AssertRLSEnforced(ctx context.Context) error {
 	}
 	if rolsuper || rolbypass {
 		return fmt.Errorf("store: role deuswatch_app can bypass RLS (superuser=%v bypassrls=%v) — tenant isolation would be silently disabled", rolsuper, rolbypass)
+	}
+	// events cannot carry RLS (compression conflict); it is isolated by a security-barrier VIEW over
+	// the events_data hypertable (migration 000052). Verify `events` is a view AND that the barrier is
+	// on — a plain view would still let a leaky function read filtered-out rows, and a bare table
+	// (pre-000052) would not be isolated at all.
+	var relkind string
+	var reloptions []string
+	if err := s.pool.QueryRow(ctx, `
+		SELECT c.relkind::text, coalesce(c.reloptions, '{}')
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = 'public' AND c.relname = 'events'`).Scan(&relkind, &reloptions); err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("store: relation 'events' not found — cannot verify isolation; is the schema migrated?")
+		}
+		return fmt.Errorf("store: check events view: %w", err)
+	}
+	if relkind != "v" {
+		return fmt.Errorf("store: 'events' is not a view (relkind=%q) — apply migration 000052; events is not tenant-isolated", relkind)
+	}
+	hasBarrier := false
+	for _, o := range reloptions {
+		if o == "security_barrier=true" {
+			hasBarrier = true
+		}
+	}
+	if !hasBarrier {
+		return fmt.Errorf("store: 'events' view is missing security_barrier — its tenant filter could be bypassed by a leaky function")
 	}
 	return nil
 }

@@ -23,14 +23,20 @@ default privileges.
 - **Boot gate:** `store.AssertRLSEnforced` verifies every scoped table is RLS enabled+FORCED AND that
   `deuswatch_app` is non-super/non-bypass; the API `log.Fatal`s otherwise (skip only with
   `DEUSWATCH_SKIP_RLS_CHECK=1` for a deliberate pre-000050 rollback).
-- **`events` is DELIBERATELY EXCLUDED — open decision.** TimescaleDB 2.17 makes columnar compression
-  and RLS **mutually exclusive** ("compression cannot be used on table with row security"), and events
-  depends on compression for ~90% storage savings. Until resolved, events stays isolated only at the
-  APPLICATION layer via the scoped store path. **DECISION NEEDED (pick one for a follow-up migration):**
-  (a) security-barrier VIEW over a renamed `events_data` hypertable (keeps compression + DB-enforced
-  isolation, most work + small query-plan risk — RECOMMENDED); (b) drop compression on events, use real
-  RLS like the other 10 (simplest; loses storage savings, retention still caps at 30d); (c) leave
-  app-layer only (weakest — violates "don't trust handlers" for the crown-jewel table).
+- **`events` isolation — RESOLVED via option (a), migration `000052_events_rls_view`.** TimescaleDB
+  2.17 makes compression and RLS mutually exclusive, so events cannot carry RLS. Instead the compressed
+  hypertable was renamed `events_data` (its compression + retention policy jobs reference it by id, so
+  they followed the rename) and a `security_barrier` VIEW named `events` fronts it with the SAME
+  fail-closed filter (`current_is_superadmin() OR tenant_id = ANY(current_tenant_ids())`) + `WITH CHECK
+  OPTION`. All existing `FROM events` reads and `INSERT/UPDATE events` writes flow through the view
+  unchanged (auto-updatable single-table view; no `ON CONFLICT`/`COPY` into events, verified). Base-table
+  access runs as the view owner while the filter uses the CALLER's GUCs, so isolation tracks the request
+  scope; chunk exclusion on `time` survives (time comparisons are leakproof, pushed past the barrier).
+  FOOTGUN: events is now a VIEW — future migrations that change the events schema MUST alter
+  `events_data` then `CREATE OR REPLACE VIEW events ...`. Boot gate (AssertRLSEnforced) now also asserts
+  events is a view with security_barrier on. New `TestEventsViewIsolation` proves scope-A-only /
+  fail-closed / super-admin-all through the view; test TRUNCATEs + the worker pipeline test retargeted to
+  `events_data` / ConnectSuperadmin. Full `go test ./...` (33 pkgs) green; API boots + verifies.
 - The 2b KNOWN-TODO (enroll own-pool) is **moot for 2c**: `agents` is not force-scoped (gateway/enroll
   critical path), so enroll keeps working unchanged. `response_actions`/`containment_actions` (respond
   pkg) and `tickets` (tickets pkg) are likewise deferred to Phase 5 (their packages need the scope

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"deuswatch/internal/ingest"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -113,5 +115,113 @@ func TestRLSTenantIsolation(t *testing.T) {
 	}
 	if v := visibleIPs(nil, true); !(v[ipA] && v[ipB]) {
 		t.Fatalf("super-admin must see all tenants, got %v", v)
+	}
+}
+
+// TestEventsViewIsolation proves the events crown-jewel path: the security-barrier view over the
+// events_data hypertable (migration 000052) isolates events by tenant even though events itself cannot
+// carry RLS (TimescaleDB compression conflict). Same guarantees as the RLS tables: a scope sees only
+// its tenant's events, an unscoped path is fail-closed, and super-admin spans all tenants.
+func TestEventsViewIsolation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	st, err := Connect(ctx, dsn()) // regular owner pool — scoped reads drop to deuswatch_app
+	if err != nil {
+		t.Skipf("Postgres unavailable — skipping: %v", err)
+	}
+	defer st.Close()
+	if aerr := st.AssertRLSEnforced(ctx); aerr != nil {
+		t.Skipf("isolation not enforced (apply migrations 000050-000052): %v", aerr)
+	}
+
+	const agentA, agentB, ds = "iso-ev-a", "iso-ev-b", "isoevents"
+	var tenA, tenB string
+	cleanup := func() {
+		_ = st.WithTenantScope(ctx, nil, true, func(sctx context.Context) error {
+			tx := sctx.Value(scopeCtxKey{}).(pgx.Tx)
+			_, _ = tx.Exec(sctx, `DELETE FROM events WHERE event_dataset=$1`, ds)
+			return nil
+		})
+		_, _ = st.pool.Exec(ctx, `DELETE FROM agents WHERE name = ANY($1)`, []string{agentA, agentB})
+		for _, tn := range []string{tenA, tenB} {
+			if tn != "" {
+				_, _ = st.pool.Exec(ctx, `DELETE FROM tenants WHERE id=$1`, tn)
+			}
+		}
+	}
+	cleanup()
+	defer cleanup()
+
+	mkTenant := func(name string) string {
+		var id string
+		if err := st.pool.QueryRow(ctx,
+			`INSERT INTO tenants (name, slug) VALUES ($1, $1||'-'||substr(gen_random_uuid()::text,1,8)) RETURNING id`,
+			name).Scan(&id); err != nil {
+			t.Fatalf("create tenant %s: %v", name, err)
+		}
+		return id
+	}
+	tenA = mkTenant("EvA")
+	tenB = mkTenant("EvB")
+	for _, a := range []struct{ name, ten string }{{agentA, tenA}, {agentB, tenB}} {
+		if _, err := st.pool.Exec(ctx,
+			`INSERT INTO agents (name, cert_serial, tenant_id) VALUES ($1, $1||'-serial', $2)`,
+			a.name, a.ten); err != nil {
+			t.Fatalf("create agent %s: %v", a.name, err)
+		}
+	}
+
+	// Seed via the real write path under a super-admin scope; InsertEvent stamps tenant from the agent
+	// and writes through the events view (WITH CHECK OPTION passes because super-admin).
+	if err := st.WithTenantScope(ctx, nil, true, func(sctx context.Context) error {
+		for _, name := range []string{agentA, agentB} {
+			e := &ingest.Event{Timestamp: time.Now()}
+			e.Event.Category = "test"
+			e.Event.Action = "x"
+			e.Event.Dataset = ds
+			e.Agent = &ingest.Agent{ID: name}
+			if err := st.InsertEvent(sctx, e); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("seed events: %v", err)
+	}
+
+	visibleAgents := func(tenantIDs []string, superadmin bool) map[string]bool {
+		out := map[string]bool{}
+		if err := st.WithTenantScope(ctx, tenantIDs, superadmin, func(sctx context.Context) error {
+			tx := sctx.Value(scopeCtxKey{}).(pgx.Tx)
+			rows, err := tx.Query(sctx, `SELECT DISTINCT agent_id FROM events WHERE event_dataset=$1`, ds)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var a string
+				if err := rows.Scan(&a); err != nil {
+					return err
+				}
+				out[a] = true
+			}
+			return rows.Err()
+		}); err != nil {
+			t.Fatalf("scoped read: %v", err)
+		}
+		return out
+	}
+
+	if v := visibleAgents([]string{tenA}, false); !(len(v) == 1 && v[agentA]) {
+		t.Fatalf("events scope {A} must see only %s, got %v", agentA, v)
+	}
+	if v := visibleAgents([]string{tenB}, false); !(len(v) == 1 && v[agentB]) {
+		t.Fatalf("events scope {B} must see only %s, got %v", agentB, v)
+	}
+	if v := visibleAgents(nil, false); len(v) != 0 {
+		t.Fatalf("events empty scope must be fail-closed (0 rows), got %v", v)
+	}
+	if v := visibleAgents(nil, true); !(v[agentA] && v[agentB]) {
+		t.Fatalf("events super-admin must see all tenants, got %v", v)
 	}
 }

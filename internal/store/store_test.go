@@ -28,7 +28,7 @@ func TestInsertAndCount(t *testing.T) {
 	}
 	defer st.Close()
 
-	if _, err := st.pool.Exec(ctx, "TRUNCATE events"); err != nil {
+	if _, err := st.pool.Exec(ctx, "TRUNCATE events_data"); err != nil {
 		t.Fatalf("initial truncate: %v", err)
 	}
 
@@ -79,5 +79,5 @@ func TestInsertAndCount(t *testing.T) {
 	}
 	t.Logf("OK: 2 events stored in the hypertable, 1 labeled bruteforce")
 
-	_, _ = st.pool.Exec(ctx, "TRUNCATE events")
+	_, _ = st.pool.Exec(ctx, "TRUNCATE events_data")
 }
