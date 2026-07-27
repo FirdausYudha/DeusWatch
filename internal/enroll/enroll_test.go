@@ -52,7 +52,7 @@ func TestEnrollFlow(t *testing.T) {
 	defer pool.Exec(ctx, `DELETE FROM agents WHERE name LIKE 'test-agent-%'`)
 	defer pool.Exec(ctx, `DELETE FROM agent_enroll_tokens WHERE created_by='test'`)
 
-	raw, _, err := s.CreateToken(ctx, "test")
+	raw, _, err := s.CreateToken(ctx, "test", "")
 	if err != nil {
 		t.Fatalf("CreateToken: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestEnrollFlow(t *testing.T) {
 	}
 
 	// Re-enrolling a name that is taken by an ACTIVE agent must fail.
-	raw2, _, err := s.CreateToken(ctx, "test")
+	raw2, _, err := s.CreateToken(ctx, "test", "")
 	if err != nil {
 		t.Fatalf("CreateToken: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestEnrollFlow(t *testing.T) {
 	// A REVOKED name may be re-used: enrollment takes over the row (same id,
 	// un-revoked, new certificate) and the superseded cert's serial stays dead.
 	oldSerial := cert.SerialNumber.String()
-	raw3, _, err := s.CreateToken(ctx, "test")
+	raw3, _, err := s.CreateToken(ctx, "test", "")
 	if err != nil {
 		t.Fatalf("CreateToken: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestEnrollSeedsDefaultSources(t *testing.T) {
 
 	enroll := func(t *testing.T, name, os string) {
 		t.Helper()
-		raw, _, err := s.CreateToken(ctx, "seedtest")
+		raw, _, err := s.CreateToken(ctx, "seedtest", "")
 		if err != nil {
 			t.Fatalf("CreateToken: %v", err)
 		}
@@ -246,5 +246,75 @@ func TestEnrollSeedsDefaultSources(t *testing.T) {
 	after := sourcesOf(t, lname)
 	if !has(after, "custom-only") || has(after, "sshd") {
 		t.Fatalf("re-enrollment must preserve the admin's customized config, not re-seed defaults; got %v", after)
+	}
+}
+
+// TestEnrollAssignsTenant proves Phase-1 enrollment: an agent inherits the tenant of the token it
+// redeems. A default (empty-tenant) token lands in the Default tenant; a tenant-scoped token lands
+// in that tenant.
+func TestEnrollAssignsTenant(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn())
+	if err != nil {
+		t.Skipf("Postgres unavailable: %v", err)
+	}
+	defer pool.Close()
+	if err := pool.Ping(ctx); err != nil {
+		t.Skipf("Postgres unavailable: %v", err)
+	}
+	dir := t.TempDir()
+	if _, err := mtls.GenerateBundle(mtls.Options{Dir: dir, ValidFor: time.Hour}); err != nil {
+		t.Fatalf("GenerateBundle: %v", err)
+	}
+	ca, _ := mtls.LoadCA(dir)
+	s := NewStore(pool, ca)
+
+	var customTenant string
+	defer func() {
+		pool.Exec(ctx, `DELETE FROM agents WHERE name LIKE 'tentest-%'`)
+		pool.Exec(ctx, `DELETE FROM agent_enroll_tokens WHERE created_by='tentest'`)
+		if customTenant != "" {
+			pool.Exec(ctx, `DELETE FROM tenants WHERE id=$1`, customTenant)
+		}
+	}()
+
+	tenantOf := func(name string) string {
+		var tid string
+		if err := pool.QueryRow(ctx, `SELECT tenant_id::text FROM agents WHERE name=$1`, name).Scan(&tid); err != nil {
+			t.Fatalf("read agent tenant: %v", err)
+		}
+		return tid
+	}
+
+	// Default token → Default tenant.
+	raw, _, err := s.CreateToken(ctx, "tentest", "")
+	if err != nil {
+		t.Fatalf("CreateToken: %v", err)
+	}
+	dname := fmt.Sprintf("tentest-default-%d", time.Now().UnixNano())
+	if _, err := s.Enroll(ctx, raw, dname, "linux"); err != nil {
+		t.Fatalf("Enroll: %v", err)
+	}
+	if got := tenantOf(dname); got != "00000000-0000-0000-0000-000000000001" {
+		t.Fatalf("default-token agent must be in Default tenant, got %s", got)
+	}
+
+	// Tenant-scoped token → that tenant.
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO tenants (name, slug) VALUES ('Client A', 'client-a-'||substr(gen_random_uuid()::text,1,8)) RETURNING id`).
+		Scan(&customTenant); err != nil {
+		t.Fatalf("create tenant: %v", err)
+	}
+	raw2, _, err := s.CreateToken(ctx, "tentest", customTenant)
+	if err != nil {
+		t.Fatalf("CreateToken(tenant): %v", err)
+	}
+	cname := fmt.Sprintf("tentest-client-%d", time.Now().UnixNano())
+	if _, err := s.Enroll(ctx, raw2, cname, "linux"); err != nil {
+		t.Fatalf("Enroll(tenant): %v", err)
+	}
+	if got := tenantOf(cname); got != customTenant {
+		t.Fatalf("tenant-scoped-token agent must be in that tenant: got %s want %s", got, customTenant)
 	}
 }

@@ -3,6 +3,20 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-21 (v2.1.1).
 
+**Multi-tenancy Phase 1 2026-07-27 (on `main`, UNRELEASED).** Write-path tenant stamping (still no
+read enforcement). New `internal/tenancy` pkg holds `DefaultTenantID` (the 000049 sentinel; future
+home for the Phase-2 scope helpers). Enrollment is now tenant-scoped: `CreateToken(ctx, createdBy,
+tenantID)` stores `agent_enroll_tokens.tenant_id` (empty → Default); `Enroll` claims the token
+`RETURNING tenant_id` and writes it into the agents upsert (`agents.tenant_id`, and re-enroll re-homes
+via `tenant_id = EXCLUDED.tenant_id`). `TokenHandler` reads an optional `{tenant_id}` from the POST
+body (the enrollment UI picker comes in Phase 4). `store.InsertEvent` stamps `events.tenant_id` by
+folding a `COALESCE((SELECT tenant_id FROM agents WHERE name=$agentCN), '<default>')` into the same
+INSERT — one indexed lookup, no extra round-trip, unknown agent → Default (never dropped). VERIFIED
+vs real Postgres (fresh -count=1): event from a known agent inherits its tenant, unknown agent →
+Default; default-token enroll → Default tenant, tenant-scoped-token enroll → that tenant; worker +
+ingest tests still green; go vet + build clean. NEXT: Phase 2 (the big one) — RLS fail-closed +
+scoped store transaction (WithTenantScope/Queryer) + WithScope middleware + non-owner DB role.
+
 **Multi-tenancy Phase 0 2026-07-27 (on `main`, UNRELEASED, mid-feature).** Approved plan:
 ~/.claude/plans/buatkan-rencana-jangan-ada-mossy-moth.md. Model: Tenant = data-isolation boundary
 (agents/telemetry belong to a tenant); User -> Workspace -> Tenant (M2M workspace_tenants); full

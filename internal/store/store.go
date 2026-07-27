@@ -53,7 +53,8 @@ INSERT INTO events (
 	dw_remediation_action, dw_remediation_source, dw_remediation_status,
 	file_diff,
 	process_name, process_pid,
-	http_method, http_uri, http_status, http_host
+	http_method, http_uri, http_status, http_host,
+	tenant_id
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -71,7 +72,11 @@ INSERT INTO events (
 	$42, $43, $44,
 	$45,
 	$46, $47,
-	$48, $49, $50, $51
+	$48, $49, $50, $51,
+	-- Stamp the tenant from the producing agent (agent_id = $13 = the cert CN / agent name).
+	-- An unknown/unmapped agent falls back to the Default tenant so an event is never dropped.
+	-- Sentinel must match migration 000049 (tenancy.DefaultTenantID).
+	COALESCE((SELECT a.tenant_id FROM agents a WHERE a.name = $13), '00000000-0000-0000-0000-000000000001'::uuid)
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are

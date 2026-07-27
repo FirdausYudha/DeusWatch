@@ -21,7 +21,13 @@ func (s *Store) TokenHandler() http.HandlerFunc {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		raw, expires, err := s.CreateToken(r.Context(), "admin")
+		// Optional tenant for the token; empty body / omitted → Default tenant. The tenant picker
+		// in the enrollment UI (later phase) sends tenant_id here.
+		var req struct {
+			TenantID string `json:"tenant_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req) // body is optional
+		raw, expires, err := s.CreateToken(r.Context(), "admin", req.TenantID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -18,6 +18,7 @@ import (
 
 	"deuswatch/internal/agent"
 	"deuswatch/internal/mtls"
+	"deuswatch/internal/tenancy"
 )
 
 // Default TTLs.
@@ -43,9 +44,13 @@ func hashToken(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// CreateToken creates a single-use enrollment token. Returns the RAW token
-// (only the hash is stored).
-func (s *Store) CreateToken(ctx context.Context, createdBy string) (raw string, expires time.Time, err error) {
+// CreateToken creates a single-use enrollment token scoped to a tenant: the agent that redeems it
+// is registered into that tenant. An empty tenantID falls back to the Default tenant, so existing
+// callers keep enrolling into Default. Returns the RAW token (only the hash is stored).
+func (s *Store) CreateToken(ctx context.Context, createdBy, tenantID string) (raw string, expires time.Time, err error) {
+	if tenantID == "" {
+		tenantID = tenancy.DefaultTenantID
+	}
 	b := make([]byte, 24)
 	if _, err = rand.Read(b); err != nil {
 		return "", time.Time{}, err
@@ -53,8 +58,8 @@ func (s *Store) CreateToken(ctx context.Context, createdBy string) (raw string, 
 	raw = hex.EncodeToString(b)
 	expires = time.Now().Add(TokenTTL)
 	_, err = s.pool.Exec(ctx,
-		`INSERT INTO agent_enroll_tokens (token_hash, created_by, expires_at) VALUES ($1,$2,$3)`,
-		hashToken(raw), createdBy, expires)
+		`INSERT INTO agent_enroll_tokens (token_hash, created_by, expires_at, tenant_id) VALUES ($1,$2,$3,$4)`,
+		hashToken(raw), createdBy, expires, tenantID)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("enroll: store token: %w", err)
 	}
@@ -82,15 +87,18 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 	}
 	defer tx.Rollback(ctx)
 
-	// Claim the token: only if unused & not expired.
-	ct, err := tx.Exec(ctx,
+	// Claim the token (single-use) and read the tenant it enrolls into. No matching row (used,
+	// expired, or unknown) → ErrToken.
+	var tokenTenantID string
+	err = tx.QueryRow(ctx,
 		`UPDATE agent_enroll_tokens SET used_at = now()
-		 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`, hashToken(rawToken))
+		 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+		 RETURNING COALESCE(tenant_id::text, $2)`, hashToken(rawToken), tenancy.DefaultTenantID).Scan(&tokenTenantID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrToken
+	}
 	if err != nil {
 		return nil, fmt.Errorf("enroll: claim token: %w", err)
-	}
-	if ct.RowsAffected() != 1 {
-		return nil, ErrToken
 	}
 
 	certPEM, keyPEM, serial, err := s.ca.IssueClient(name, ClientTTL)
@@ -121,17 +129,21 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 	// name stays taken (the DO UPDATE is gated on agents.revoked -> no row -> error).
 	// config is only seeded when the row has none — re-enrolling a host that an admin
 	// already customized must never wipe that customization (COALESCE keeps the existing one).
+	// The agent inherits the token's tenant. On a revoked-name re-enroll, the new token's tenant is
+	// authoritative (a host may be re-homed to a different tenant); past events keep the tenant they
+	// were stamped with.
 	var agentID string
 	err = tx.QueryRow(ctx,
-		`INSERT INTO agents (name, os, cert_serial, config) VALUES ($1,$2,$3,$4)
+		`INSERT INTO agents (name, os, cert_serial, config, tenant_id) VALUES ($1,$2,$3,$4,$5)
 		 ON CONFLICT (name) DO UPDATE SET
 		     os = EXCLUDED.os, cert_serial = EXCLUDED.cert_serial, revoked = false,
 		     enrolled_at = now(), last_seen_at = NULL,
 		     status = 'unknown', health_degraded = false, health_detail = '',
-		     config = COALESCE(agents.config, EXCLUDED.config)
+		     config = COALESCE(agents.config, EXCLUDED.config),
+		     tenant_id = EXCLUDED.tenant_id
 		 WHERE agents.revoked
 		 RETURNING id`,
-		name, nilIfEmpty(os), serial, seededConfig).Scan(&agentID)
+		name, nilIfEmpty(os), serial, seededConfig, tokenTenantID).Scan(&agentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("enroll: name %q is taken by an active agent (revoke it first to re-use the name)", name)
 	}
