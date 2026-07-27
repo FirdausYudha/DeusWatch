@@ -1,7 +1,33 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 2c landed, UNRELEASED).
+> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 3 landed, UNRELEASED).
+
+**Multi-tenancy Phase 3 2026-07-27 (on `main`, UNRELEASED). Worker computes per-tenant.**
+The IP-derived scorers were the last cross-tenant LEAK: they grouped `GROUP BY source_ip` over the
+super-admin events view (all tenants) and `count(DISTINCT agent_id)` blended one tenant's agents into
+another's fan-out score. Migration `000053_per_tenant_ip_tables` swaps the PK of ip_scores /
+suspicious_ips / slow_scanners / ip_anomaly from `(ip)` → `(tenant_id, ip)` (non-destructive: all
+existing rows are Default so `(tenant_id, ip)` is already unique). The scorers now:
+- `RefreshIPScores` (scores.go): `SELECT e.tenant_id, host(source_ip) … GROUP BY e.tenant_id,
+  e.source_ip`, anomaly join narrowed to `an.tenant_id = e.tenant_id`, upsert `ON CONFLICT
+  (tenant_id, ip)`.
+- `RefreshSuspiciousIPs` (suspicious.go) + `RefreshSlowScanners` (slowscan.go): tenant_id added to
+  SELECT + `GROUP BY tenant_id, source_ip` and to the replace-insert.
+- `SetIPAnomalies` (mlbridge.go): the external ML batch is tenant-blind, so anomalies are written under
+  `tenancy.DefaultTenantID` and fold into Default-tenant scores (per-tenant ML attribution = future,
+  needs a tenant-carrying ML credential).
+Result struct gains an unexported `TenantID` (json:"-"); public reads (TopIPScores etc.) are unchanged
+and stay RLS-scoped. KNOWN/deferred: response machinery (scenario ban / blocklist / containment) is
+still GLOBAL per-IP — `cmd/worker/scoring.go` may call `engine.Recommend` once per (tenant,ip) but the
+engine dedups per IP; tenant-scoped bans wait on Phase 5 (respond pkg own-pool refactor). Note the
+scoring is now genuinely per-tenant, so an IP just under the ban threshold in two tenants no longer
+sums across them — more correct, identical for the current single-(Default)-tenant deployment.
+VERIFIED: migration 000053 applies; new `TestPerTenantScoringNoBlend` proves the SAME IP hitting 2
+agents in tenant A + 1 agent in tenant B yields two independent ip_scores rows with fan-out 2 and 1
+(not a blended 3); existing scorer tests (SlowScanner, CrossAgentFanOut, InsertAndCount) still green;
+full `go test ./...` (33 pkgs) + `go vet` clean. NEXT: Phase 4 (frontend workspace switcher +
+Tenants/Workspaces admin + enroll tenant picker); Phase 5 (scope agents/respond/tickets, deploy docs).
 
 **Multi-tenancy Phase 2c 2026-07-27 (on `main`, UNRELEASED). RLS ENFORCEMENT IS NOW LIVE.**
 The isolation flip. Migration `000050_rls`: `current_tenant_ids()` (parses the `deuswatch.tenant_ids`

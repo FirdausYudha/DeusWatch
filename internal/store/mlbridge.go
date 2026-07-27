@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"deuswatch/internal/tenancy"
 )
 
 // IPFeature is the per-IP feature vector an external ML batch (e.g. an Isolation Forest) consumes
@@ -85,6 +87,11 @@ type IPAnomaly struct {
 
 // SetIPAnomalies upserts anomaly scores written back by the ML batch. The composite scorer folds
 // these in on its next run (subject to the UI-tunable anomaly weight).
+//
+// The external ML batch is tenant-blind (it sees only an IP and a score), so anomalies are written
+// under the Default tenant and fold into Default-tenant scores (RefreshIPScores joins ip_anomaly
+// within the same tenant). Per-tenant anomaly attribution is future work once the ML feed carries a
+// tenant/workspace credential.
 func (s *Store) SetIPAnomalies(ctx context.Context, entries []IPAnomaly) (int, error) {
 	n := 0
 	for _, e := range entries {
@@ -96,8 +103,9 @@ func (s *Store) SetIPAnomalies(ctx context.Context, entries []IPAnomaly) (int, e
 			a = 100
 		}
 		if _, err := s.q(ctx).Exec(ctx,
-			`INSERT INTO ip_anomaly (ip, anomaly, updated_at) VALUES ($1::inet, $2, now())
-			 ON CONFLICT (ip) DO UPDATE SET anomaly = $2, updated_at = now()`, e.IP, a); err != nil {
+			`INSERT INTO ip_anomaly (tenant_id, ip, anomaly, updated_at) VALUES ($1::uuid, $2::inet, $3, now())
+			 ON CONFLICT (tenant_id, ip) DO UPDATE SET anomaly = $3, updated_at = now()`,
+			tenancy.DefaultTenantID, e.IP, a); err != nil {
 			return n, fmt.Errorf("store: set anomaly %s: %w", e.IP, err)
 		}
 		n++

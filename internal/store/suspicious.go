@@ -20,6 +20,7 @@ type SuspiciousIP struct {
 	Band          string    `json:"band"`
 	FirstSeen     time.Time `json:"first_seen"`
 	LastSeen      time.Time `json:"last_seen"`
+	TenantID      string    `json:"-"` // owning tenant (Phase 3); not exposed — reads are RLS-scoped
 }
 
 // suspiciousAggSQL computes the behavioral signals per EXTERNAL source IP over the window.
@@ -34,7 +35,8 @@ type SuspiciousIP struct {
 // "touches us a lot" false positives, and the feature targets EXTERNAL recon. A minimum contact
 // count keeps one-off noise out of the table.
 const suspiciousAggSQL = `
-SELECT host(source_ip)                                                       AS ip,
+SELECT tenant_id::text                                                       AS tenant_id,
+       host(source_ip)                                                       AS ip,
        count(*)                                                              AS contacts,
        GREATEST(
          count(DISTINCT http_uri)        FILTER (WHERE COALESCE(http_uri,'') <> ''),
@@ -52,7 +54,7 @@ WHERE source_ip IS NOT NULL
   AND time > now() - $1::interval
   AND NOT (source_ip <<= '10.0.0.0/8'::inet OR source_ip <<= '172.16.0.0/12'::inet
         OR source_ip <<= '192.168.0.0/16'::inet OR source_ip <<= '127.0.0.0/8'::inet)
-GROUP BY source_ip
+GROUP BY tenant_id, source_ip
 HAVING count(*) >= 3`
 
 // RefreshSuspiciousIPs recomputes the watchlist over `window` and replaces the table. Rows are
@@ -68,7 +70,7 @@ func (s *Store) RefreshSuspiciousIPs(ctx context.Context, window time.Duration, 
 	var out []SuspiciousIP
 	for rows.Next() {
 		var r SuspiciousIP
-		if err := rows.Scan(&r.IP, &r.Contacts, &r.FanOut, &r.DistinctHours, &r.Failures,
+		if err := rows.Scan(&r.TenantID, &r.IP, &r.Contacts, &r.FanOut, &r.DistinctHours, &r.Failures,
 			&r.FirstSeen, &r.LastSeen); err != nil {
 			return nil, err
 		}
@@ -94,9 +96,9 @@ func (s *Store) RefreshSuspiciousIPs(ctx context.Context, window time.Duration, 
 	for _, r := range out {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO suspicious_ips
-			  (ip, contacts, fanout, distinct_hours, failures, score, band, first_seen, last_seen, updated_at)
-			VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9, now())`,
-			r.IP, r.Contacts, r.FanOut, r.DistinctHours, r.Failures, r.Score, r.Band, r.FirstSeen, r.LastSeen); err != nil {
+			  (tenant_id, ip, contacts, fanout, distinct_hours, failures, score, band, first_seen, last_seen, updated_at)
+			VALUES ($1::uuid,$2::inet,$3,$4,$5,$6,$7,$8,$9,$10, now())`,
+			r.TenantID, r.IP, r.Contacts, r.FanOut, r.DistinctHours, r.Failures, r.Score, r.Band, r.FirstSeen, r.LastSeen); err != nil {
 			return out, fmt.Errorf("store: suspicious insert: %w", err)
 		}
 	}

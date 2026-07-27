@@ -22,6 +22,7 @@ type SlowScanner struct {
 	FirstSeen  *time.Time `json:"first_seen,omitempty"`
 	LastSeen   *time.Time `json:"last_seen,omitempty"`
 	UpdatedAt  time.Time  `json:"updated_at"`
+	TenantID   string     `json:"-"` // owning tenant (Phase 3); not exposed — reads are RLS-scoped
 }
 
 // RefreshSlowScanners recomputes the slow-scanner watchlist over a multi-day window and replaces
@@ -30,7 +31,8 @@ type SlowScanner struct {
 // separate days qualify, so the list stays short and meaningful.
 func (s *Store) RefreshSlowScanners(ctx context.Context, window time.Duration, w score.SlowScanWeights) ([]SlowScanner, error) {
 	rows, err := s.q(ctx).Query(ctx, `
-		SELECT host(source_ip)                                          AS ip,
+		SELECT tenant_id::text                                          AS tenant_id,
+		       host(source_ip)                                          AS ip,
 		       count(DISTINCT date_trunc('day', time))                  AS active_days,
 		       GREATEST(0, EXTRACT(DAY FROM (max(time) - min(time))))::int AS span_days,
 		       count(*)                                                 AS events,
@@ -48,7 +50,7 @@ func (s *Store) RefreshSlowScanners(ctx context.Context, window time.Duration, w
 		        OR source_ip <<= '172.16.0.0/12'
 		        OR source_ip <<= '192.168.0.0/16'
 		        OR source_ip <<= '127.0.0.0/8')
-		GROUP BY source_ip`, fmt.Sprintf("%d seconds", int(window.Seconds())))
+		GROUP BY tenant_id, source_ip`, fmt.Sprintf("%d seconds", int(window.Seconds())))
 	if err != nil {
 		return nil, fmt.Errorf("store: slow-scan query: %w", err)
 	}
@@ -57,7 +59,7 @@ func (s *Store) RefreshSlowScanners(ctx context.Context, window time.Duration, w
 	var out []SlowScanner
 	for rows.Next() {
 		var r SlowScanner
-		if err := rows.Scan(&r.IP, &r.ActiveDays, &r.SpanDays, &r.Events, &r.Targets, &r.Agents,
+		if err := rows.Scan(&r.TenantID, &r.IP, &r.ActiveDays, &r.SpanDays, &r.Events, &r.Targets, &r.Agents,
 			&r.FirstSeen, &r.LastSeen); err != nil {
 			return nil, err
 		}
@@ -81,14 +83,14 @@ func (s *Store) RefreshSlowScanners(ctx context.Context, window time.Duration, w
 	}
 	for _, r := range out {
 		if _, err := s.q(ctx).Exec(ctx, `
-			INSERT INTO slow_scanners (ip, score, band, active_days, span_days, events, targets, agents, first_seen, last_seen, updated_at)
-			VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
-			ON CONFLICT (ip) DO UPDATE SET
+			INSERT INTO slow_scanners (tenant_id, ip, score, band, active_days, span_days, events, targets, agents, first_seen, last_seen, updated_at)
+			VALUES ($1::uuid,$2::inet,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
+			ON CONFLICT (tenant_id, ip) DO UPDATE SET
 			  score=EXCLUDED.score, band=EXCLUDED.band, active_days=EXCLUDED.active_days,
 			  span_days=EXCLUDED.span_days, events=EXCLUDED.events, targets=EXCLUDED.targets,
 			  agents=EXCLUDED.agents, first_seen=EXCLUDED.first_seen, last_seen=EXCLUDED.last_seen,
 			  updated_at=now()`,
-			r.IP, r.Score, r.Band, r.ActiveDays, r.SpanDays, r.Events, r.Targets, r.Agents,
+			r.TenantID, r.IP, r.Score, r.Band, r.ActiveDays, r.SpanDays, r.Events, r.Targets, r.Agents,
 			r.FirstSeen, r.LastSeen); err != nil {
 			return nil, fmt.Errorf("store: slow-scan upsert: %w", err)
 		}
