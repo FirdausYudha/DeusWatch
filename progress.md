@@ -3,6 +3,28 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-07-21 (v2.1.1).
 
+**Multi-tenancy Phase 2a+2b 2026-07-27 (on `main`, UNRELEASED, still no RLS enforcement).**
+2a: scoped-transaction plumbing in the store — `Queryer` iface (pool & pgx.Tx both satisfy), `s.q(ctx)`
+(scoped Tx from ctx else pool), and `WithTenantScope(ctx, tenantIDs, superadmin, fn)` opening a tx with
+transaction-LOCAL GUCs `deuswatch.tenant_ids`/`deuswatch.superadmin`. Swept all 105 `s.pool.<m>` call
+sites across 20 store files to `s.q(ctx).<m>` (only WithTenantScope's Begin + Close keep the raw pool).
+2b: `manage_tenants` (platform super-admin) + `manage_workspaces` perms added to rbac (admin auto-gets
+both via allPermissionsMap). `store.ResolveUserScope(ctx, userID, workspaceID)` = union of tenants
+across the user's workspaces (workspace_members⋈workspace_tenants), optionally narrowed to one
+workspace the user is a MEMBER of (a forged X-Workspace-ID can't widen). New `withScope` middleware in
+cmd/api chained into `protect` (Middleware→RequirePermission→withScope→handler): resolves the user's
+tenants, reads optional X-Workspace-ID, runs the handler inside WithTenantScope (superadmin =
+Can(manage_tenants)). Both non-breaking (no RLS forced yet → q(ctx) still effectively the pool).
+VERIFIED: go vet + build clean; store/auth/enroll/worker tests fresh pass; ResolveUserScope unit test
+(union / member-narrowing / non-member-yields-nothing / no-workspace-empty); live API on :9082 — login
++ /api/me + /api/vulnerabilities + /api/dashboard all 200 through the per-request scoped tx; permissions
+catalog now includes manage_tenants + manage_workspaces.
+KNOWN 2c TODO: the enroll package uses its OWN pool (not s.q(ctx)), so enroll's agent reads/writes
+won't be scoped — must be handled in 2c (route agent reads via store, or share the scope ctx key via
+the tenancy pkg) BEFORE forcing RLS, or agent listing returns 0 rows for non-superadmins. NEXT: 2c —
+migration 000050 RLS FORCE + fail-closed policies + worker/enroll super-admin scoping + boot assertion
++ two-tenant isolation tests.
+
 **Multi-tenancy Phase 1 2026-07-27 (on `main`, UNRELEASED).** Write-path tenant stamping (still no
 read enforcement). New `internal/tenancy` pkg holds `DefaultTenantID` (the 000049 sentinel; future
 home for the Phase-2 scope helpers). Enrollment is now tenant-scoped: `CreateToken(ctx, createdBy,

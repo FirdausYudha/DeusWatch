@@ -28,6 +28,11 @@ const (
 	PermManageIntegrations Permission = "manage_integrations"
 	PermManageUsers        Permission = "manage_users"
 	PermManageSettings     Permission = "manage_settings"
+	// Multi-tenancy administration. manage_tenants marks the PLATFORM super-admin: they see across
+	// all tenants (the RLS super-admin bypass) and manage the tenant list. manage_workspaces
+	// controls workspace membership and the workspace↔tenant mapping.
+	PermManageWorkspaces Permission = "manage_workspaces"
+	PermManageTenants    Permission = "manage_tenants"
 )
 
 // PermissionInfo describes a permission for the per-user RBAC checklist in the UI.
@@ -50,6 +55,8 @@ var AllPermissions = []PermissionInfo{
 	{PermManageIntegrations, "Manage integrations", "Administration"},
 	{PermManageUsers, "Manage users & RBAC", "Administration"},
 	{PermManageSettings, "Manage settings", "Administration"},
+	{PermManageWorkspaces, "Manage workspaces & members", "Administration"},
+	{PermManageTenants, "Manage tenants (platform super-admin)", "Administration"},
 }
 
 var validPermission = func() map[Permission]bool {

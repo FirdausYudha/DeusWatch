@@ -176,9 +176,37 @@ func main() {
 			log.Printf("api: self-registration disabled (set REGISTRATION_ENABLED=1 to enable)")
 		}
 
-		// Protected: requires a valid session + permission.
+		// withScope opens the request's tenant scope: it resolves the user's accessible tenants
+		// (union across their workspaces, optionally narrowed by the X-Workspace-ID header) and runs
+		// the handler inside a store transaction carrying that scope, so Postgres RLS (enabled in a
+		// later migration) filters every query. A platform super-admin (manage_tenants) gets the
+		// bypass. Until RLS is forced this is a no-op on behaviour beyond wrapping each request in a
+		// transaction. Only tenant-data handlers need it; auth-only routes below skip it.
+		withScope := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				u, ok := auth.UserFrom(r.Context())
+				if !ok {
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				}
+				tenantIDs, err := st.ResolveUserScope(r.Context(), u.ID, r.Header.Get("X-Workspace-ID"))
+				if err != nil {
+					http.Error(w, "scope resolution failed", http.StatusInternalServerError)
+					return
+				}
+				if serr := st.WithTenantScope(r.Context(), tenantIDs, u.Can(auth.PermManageTenants),
+					func(sctx context.Context) error {
+						next.ServeHTTP(w, r.WithContext(sctx))
+						return nil
+					}); serr != nil {
+					log.Printf("api: request scope transaction failed: %v", serr)
+				}
+			})
+		}
+
+		// Protected: requires a valid session + permission, then runs inside the tenant scope.
 		protect := func(p auth.Permission, h http.HandlerFunc) http.Handler {
-			return authStore.Middleware(auth.RequirePermission(p, h))
+			return authStore.Middleware(auth.RequirePermission(p, withScope(h)))
 		}
 		mux.Handle("/api/me", authStore.Middleware(authStore.MeHandler()))
 		mux.Handle("/api/me/password", authStore.Middleware(authStore.ChangePasswordHandler()))
