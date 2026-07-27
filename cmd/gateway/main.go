@@ -68,7 +68,10 @@ func main() {
 	var fileActionResultFunc gateway.FileActionResultFunc
 	var inventoryFunc gateway.InventoryFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
-		if st, err := store.Connect(ctx, dsn); err != nil {
+		// The gateway serves every agent regardless of tenant (mTLS CN auth, config, revocation,
+		// heartbeat, FIM snapshots, file-action results), so it connects with the RLS super-admin
+		// bypass — it must see/write across all tenants' agent data.
+		if st, err := store.ConnectSuperadmin(ctx, dsn); err != nil {
 			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
 		} else {
 			defer st.Close()

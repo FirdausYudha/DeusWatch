@@ -63,6 +63,14 @@ func applyOne(ctx context.Context, pool *pgxpool.Pool, version, sqlText string) 
 	}
 	defer tx.Rollback(ctx)
 
+	// Run every migration with the RLS super-admin bypass, LOCAL to this transaction (auto-reset on
+	// commit/rollback, so it never leaks to other borrowers of a shared pool). Migration 000050
+	// FORCEs row-level security — which applies even to the table owner — so without this a future
+	// data migration that touches a tenant-scoped table would be silently row-filtered. DDL is not
+	// row-filtered, so this is a no-op for pure-schema migrations and correct insurance for data ones.
+	if _, err := tx.Exec(ctx, `SET LOCAL deuswatch.superadmin = '1'`); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, sqlText); err != nil {
 		return err
 	}

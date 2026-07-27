@@ -12,7 +12,7 @@ import (
 func TestFIMSnapshots(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn())
+	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
 		t.Skipf("Postgres unavailable — skipping: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestFIMSnapshots(t *testing.T) {
 func TestManagerStoredSnapshotContent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn())
+	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
 		t.Skipf("Postgres unavailable — skipping: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestManagerStoredSnapshotContent(t *testing.T) {
 func TestFileActions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn())
+	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
 		t.Skipf("Postgres unavailable — skipping: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestFileActions(t *testing.T) {
 func TestBulkRestoreVersions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn())
+	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
 		t.Skipf("Postgres unavailable — skipping: %v", err)
 	}

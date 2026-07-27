@@ -14,7 +14,7 @@ import (
 func TestInventoryRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn())
+	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
 		t.Skipf("Postgres unavailable — skipping: %v", err)
 	}

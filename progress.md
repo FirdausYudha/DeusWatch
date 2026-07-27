@@ -1,7 +1,46 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-21 (v2.1.1).
+> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 2c landed, UNRELEASED).
+
+**Multi-tenancy Phase 2c 2026-07-27 (on `main`, UNRELEASED). RLS ENFORCEMENT IS NOW LIVE.**
+The isolation flip. Migration `000050_rls`: `current_tenant_ids()` (parses the `deuswatch.tenant_ids`
+CSV GUC → uuid[], empty when unset) + `current_is_superadmin()` (the `deuswatch.superadmin` GUC), then
+`ENABLE + FORCE ROW LEVEL SECURITY` and a fail-closed policy `USING/WITH CHECK (current_is_superadmin()
+OR tenant_id = ANY(current_tenant_ids()))` on **10 store-owned tables** (fim_snapshots,
+agent_file_actions, file_restores, agent_os_inventory, agent_packages, agent_vulnerabilities, ip_scores,
+suspicious_ips, slow_scanners, ip_anomaly). Migration `000051_app_role`: a restricted role
+`deuswatch_app` (NOSUPERUSER NOBYPASSRLS NOLOGIN) with plain DML grants on all tables/sequences +
+default privileges.
+- **The superuser footgun (the crux):** the app connects as `deuswatch`, which is a SUPERUSER
+  (+BYPASSRLS) — superusers ignore RLS even with FORCE. So `WithTenantScope` now does `SET LOCAL ROLE
+  deuswatch_app` for every NON-super-admin scope (tx-local, auto-reverts), dropping scoped request
+  reads to a role the DB actually constrains. Super-admin scopes keep the privileged role.
+- **Trusted processes bypass cleanly:** `store.ConnectSuperadmin` (pool AfterConnect `SET
+  deuswatch.superadmin='1'`) now used by cmd/worker + cmd/gateway. Migrate runner sets `SET LOCAL
+  deuswatch.superadmin='1'` per migration tx. API non-session feeds (`/api/ml/*`, `/api/subscribe/*`)
+  wrapped in a new `sys` super-admin scope (the ingest webhook only publishes to NATS, no DB → no scope).
+- **Boot gate:** `store.AssertRLSEnforced` verifies every scoped table is RLS enabled+FORCED AND that
+  `deuswatch_app` is non-super/non-bypass; the API `log.Fatal`s otherwise (skip only with
+  `DEUSWATCH_SKIP_RLS_CHECK=1` for a deliberate pre-000050 rollback).
+- **`events` is DELIBERATELY EXCLUDED — open decision.** TimescaleDB 2.17 makes columnar compression
+  and RLS **mutually exclusive** ("compression cannot be used on table with row security"), and events
+  depends on compression for ~90% storage savings. Until resolved, events stays isolated only at the
+  APPLICATION layer via the scoped store path. **DECISION NEEDED (pick one for a follow-up migration):**
+  (a) security-barrier VIEW over a renamed `events_data` hypertable (keeps compression + DB-enforced
+  isolation, most work + small query-plan risk — RECOMMENDED); (b) drop compression on events, use real
+  RLS like the other 10 (simplest; loses storage savings, retention still caps at 30d); (c) leave
+  app-layer only (weakest — violates "don't trust handlers" for the crown-jewel table).
+- The 2b KNOWN-TODO (enroll own-pool) is **moot for 2c**: `agents` is not force-scoped (gateway/enroll
+  critical path), so enroll keeps working unchanged. `response_actions`/`containment_actions` (respond
+  pkg) and `tickets` (tickets pkg) are likewise deferred to Phase 5 (their packages need the scope
+  refactor before their tables can be forced).
+- VERIFIED: migrations 000050+000051 apply on real PG (TimescaleDB 2.17.2); new `TestRLSTenantIsolation`
+  (suspicious_ips, non-super pool) proves scope-A-sees-only-A, union-sees-both, empty-scope→0 rows
+  (fail-closed), super-admin→all; full `go test ./...` green; API boots and logs "tenant isolation (RLS)
+  verified on all scoped tables"; `deuswatch_app` confirmed able to read the events hypertable chunks +
+  all tables with no permission-denied. NEXT: resolve the events decision; Phase 3 (worker per-tenant
+  GROUP BY / PK(tenant_id,ip)); Phase 4 (frontend switcher + Tenants/Workspaces admin + enroll picker).
 
 **Multi-tenancy Phase 2a+2b 2026-07-27 (on `main`, UNRELEASED, still no RLS enforcement).**
 2a: scoped-transaction plumbing in the store — `Queryer` iface (pool & pgx.Tx both satisfy), `s.q(ctx)`

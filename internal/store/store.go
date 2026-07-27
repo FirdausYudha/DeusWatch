@@ -68,6 +68,16 @@ func (s *Store) WithTenantScope(ctx context.Context, tenantIDs []string, superad
 		strings.Join(tenantIDs, ","), super); err != nil {
 		return fmt.Errorf("store: set scope: %w", err)
 	}
+	// For a non-super-admin scope, drop to the restricted deuswatch_app role for the rest of this
+	// transaction (migration 000051). RLS is ignored for superusers/BYPASSRLS roles, and the app
+	// connects as a superuser bootstrap role — so without assuming a constrained role, scoped reads
+	// would silently bypass isolation. SET LOCAL reverts automatically on commit/rollback. Super-admin
+	// scopes (worker, gateway, platform admin, system feeds) intentionally keep the privileged role.
+	if !superadmin {
+		if _, err := tx.Exec(ctx, `SET LOCAL ROLE deuswatch_app`); err != nil {
+			return fmt.Errorf("store: assume app role: %w", err)
+		}
+	}
 	if err := fn(context.WithValue(ctx, scopeCtxKey{}, tx)); err != nil {
 		return err
 	}
@@ -86,6 +96,100 @@ func Connect(ctx context.Context, dsn string) (*Store, error) {
 		return nil, fmt.Errorf("store: ping: %w", err)
 	}
 	return &Store{pool: pool}, nil
+}
+
+// ConnectSuperadmin is Connect for trusted system processes (worker, gateway) that legitimately span
+// every tenant. Each pooled connection is opened with the RLS super-admin bypass set at the session
+// level, so all their queries see and write across tenants without wrapping every call in a scope.
+// The super-admin GUC means "spans all tenants", NOT "may merge them" — tenant-partitioning SQL
+// (e.g. worker scorers GROUP BY tenant_id) is still required to avoid cross-tenant blending.
+// The API process must NOT use this: it connects with Connect and scopes each request transaction.
+func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("store: parse dsn: %w", err)
+	}
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, `SET deuswatch.superadmin = '1'`)
+		return err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("store: create pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("store: ping: %w", err)
+	}
+	return &Store{pool: pool}, nil
+}
+
+// rlsForcedTables are the tenant-scoped data tables that migration 000050 puts under FORCE ROW LEVEL
+// SECURITY. All are reached exclusively through this store's s.q(ctx) plumbing, so a scoped request
+// transaction filters them and an unscoped path (empty GUC) sees zero rows — fail-closed. Tables
+// owned by sibling packages that lack scope plumbing (respond → response_actions/containment_actions,
+// tickets → tickets, enroll → agents) are intentionally excluded until those packages are scoped.
+//
+// `events` is also excluded: TimescaleDB 2.17 makes columnar compression and RLS mutually exclusive,
+// and events depends on compression. Its isolation mechanism is a separate follow-up (see migration
+// 000050 header); until then events stays scoped at the application layer via s.q(ctx).
+var rlsForcedTables = []string{
+	"fim_snapshots", "agent_file_actions", "file_restores",
+	"agent_os_inventory", "agent_packages", "agent_vulnerabilities",
+	"ip_scores", "suspicious_ips", "slow_scanners", "ip_anomaly",
+}
+
+// AssertRLSEnforced verifies that every tenant-scoped table actually has ROW LEVEL SECURITY both
+// ENABLED and FORCED. The API connects as the table owner, for whom RLS is ignored unless FORCEd —
+// so a half-applied or missing migration 000050 would mean the store's scoped reads silently return
+// unfiltered, cross-tenant rows. This is the "silent total leak" footgun; the API calls this at boot
+// and refuses to start if isolation is not actually in force.
+func (s *Store) AssertRLSEnforced(ctx context.Context) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = 'public' AND c.relname = ANY($1)`, rlsForcedTables)
+	if err != nil {
+		return fmt.Errorf("store: check RLS: %w", err)
+	}
+	defer rows.Close()
+	seen := make(map[string]bool, len(rlsForcedTables))
+	for rows.Next() {
+		var name string
+		var enabled, forced bool
+		if err := rows.Scan(&name, &enabled, &forced); err != nil {
+			return err
+		}
+		if !enabled || !forced {
+			return fmt.Errorf("store: table %q does not have RLS enabled+forced (enabled=%v forced=%v) — tenant isolation is NOT active; apply migration 000050", name, enabled, forced)
+		}
+		seen[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, t := range rlsForcedTables {
+		if !seen[t] {
+			return fmt.Errorf("store: tenant-scoped table %q not found — cannot verify RLS; is the schema migrated?", t)
+		}
+	}
+	// The restricted role that scoped request transactions assume (migration 000051) must exist and
+	// must NOT be able to bypass RLS — a SUPERUSER or BYPASSRLS role would render every policy above
+	// inert (the "silent total leak" footgun). Refuse to run if it is missing or over-privileged.
+	var rolsuper, rolbypass bool
+	if err := s.pool.QueryRow(ctx,
+		`SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = 'deuswatch_app'`).
+		Scan(&rolsuper, &rolbypass); err != nil {
+		if err == pgx.ErrNoRows {
+			return fmt.Errorf("store: role deuswatch_app is missing — apply migration 000051; scoped reads cannot be isolated without it")
+		}
+		return fmt.Errorf("store: check app role: %w", err)
+	}
+	if rolsuper || rolbypass {
+		return fmt.Errorf("store: role deuswatch_app can bypass RLS (superuser=%v bypassrls=%v) — tenant isolation would be silently disabled", rolsuper, rolbypass)
+	}
+	return nil
 }
 
 // Close closes the pool.

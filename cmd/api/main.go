@@ -92,6 +92,20 @@ func main() {
 				}
 				cancel()
 			}
+			// Fail-closed boot gate for tenant isolation. The API connects as the table owner, for
+			// whom RLS is ignored unless FORCEd — so if migration 000050 is missing or half-applied,
+			// every scoped read would silently return unfiltered, cross-tenant rows. Refuse to start
+			// rather than run with isolation off. (Set DEUSWATCH_SKIP_RLS_CHECK=1 only for a
+			// deliberate pre-000050 rollback.)
+			if skip, _ := strconv.ParseBool(getenv("DEUSWATCH_SKIP_RLS_CHECK", "0")); !skip {
+				actx, acancel := context.WithTimeout(context.Background(), 10*time.Second)
+				if aerr := st.AssertRLSEnforced(actx); aerr != nil {
+					acancel()
+					log.Fatalf("api: %v", aerr)
+				}
+				acancel()
+				log.Printf("api: tenant isolation (RLS) verified on all scoped tables")
+			}
 		}
 	}
 
@@ -208,6 +222,20 @@ func main() {
 		protect := func(p auth.Permission, h http.HandlerFunc) http.Handler {
 			return authStore.Middleware(auth.RequirePermission(p, withScope(h)))
 		}
+		// sys wraps a non-session system endpoint (token-authed integration feeds — the ML bridge and
+		// subscription pull) in a super-admin scope so its store reads/writes bypass RLS. These feeds
+		// legitimately span all tenants today; per-credential tenant scoping is future work. Without
+		// this they would hit the unscoped fail-closed path and return zero rows once RLS is forced.
+		sys := func(h http.HandlerFunc) http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {
+				if serr := st.WithTenantScope(r.Context(), nil, true, func(sctx context.Context) error {
+					h(w, r.WithContext(sctx))
+					return nil
+				}); serr != nil {
+					log.Printf("api: system scope transaction failed: %v", serr)
+				}
+			}
+		}
 		mux.Handle("/api/me", authStore.Middleware(authStore.MeHandler()))
 		mux.Handle("/api/me/password", authStore.Middleware(authStore.ChangePasswordHandler()))
 		mux.Handle("/api/logout", authStore.Middleware(authStore.LogoutHandler()))
@@ -252,14 +280,14 @@ func main() {
 		// Forest) to pull per-IP features and write anomaly_score back. Token-based (like the
 		// ingest webhook) so a cron/Python job can call it without a UI session. Off (404) unless
 		// ML_API_TOKEN is set.
-		mux.HandleFunc("GET /api/ml/ip-features", mlFeaturesHandler(st))
-		mux.HandleFunc("POST /api/ml/anomaly", mlAnomalyHandler(st))
+		mux.HandleFunc("GET /api/ml/ip-features", sys(mlFeaturesHandler(st)))
+		mux.HandleFunc("POST /api/ml/anomaly", sys(mlAnomalyHandler(st)))
 
 		// Subscription API (the sellable rich-log product): external subscribers PULL enriched
 		// events / threat indicators with a per-subscriber API key (no UI session). Admins manage
 		// the keys under manage_integrations. See internal/store/subscriptions.go + docs.
-		mux.HandleFunc("GET /api/subscribe/events", subscribeEventsHandler(st))
-		mux.HandleFunc("GET /api/subscribe/indicators", subscribeIndicatorsHandler(st))
+		mux.HandleFunc("GET /api/subscribe/events", sys(subscribeEventsHandler(st)))
+		mux.HandleFunc("GET /api/subscribe/indicators", sys(subscribeIndicatorsHandler(st)))
 		mux.Handle("GET /api/subscriptions", protect(auth.PermManageIntegrations, subscriptionsListHandler(st)))
 		mux.Handle("POST /api/subscriptions", protect(auth.PermManageIntegrations, subscriptionCreateHandler(st)))
 		mux.Handle("POST /api/subscriptions/{id}/toggle", protect(auth.PermManageIntegrations, subscriptionToggleHandler(st)))

@@ -51,7 +51,10 @@ func main() {
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 
-	st, err := store.Connect(ctx, dsn)
+	// The worker spans all tenants (it scores, aggregates, reports, and inserts events across the
+	// whole deployment), so it connects with the RLS super-admin bypass. Its tenant-partitioning SQL
+	// (Phase 3) still keeps tenants from being blended.
+	st, err := store.ConnectSuperadmin(ctx, dsn)
 	if err != nil {
 		log.Fatalf("worker: store: %v", err)
 	}
