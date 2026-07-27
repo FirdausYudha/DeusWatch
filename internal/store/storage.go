@@ -38,13 +38,13 @@ func (s *Store) StorageStatus(ctx context.Context, budgetBytes int64) StorageSta
 		st.Host = cfg.ConnConfig.Host
 	}
 
-	if err := s.pool.QueryRow(ctx,
+	if err := s.q(ctx).QueryRow(ctx,
 		`SELECT pg_database_size(current_database()), pg_size_pretty(pg_database_size(current_database()))`).
 		Scan(&st.DBSizeBytes, &st.DBSizePretty); err != nil {
 		return st // Reachable stays false
 	}
 	st.Reachable = true
-	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&st.EventsCount)
+	_ = s.q(ctx).QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&st.EventsCount)
 	if budgetBytes > 0 {
 		st.UsedPercent = int(st.DBSizeBytes * 100 / budgetBytes)
 	}
@@ -54,7 +54,7 @@ func (s *Store) StorageStatus(ctx context.Context, budgetBytes int64) StorageSta
 	st.CompressionDays = tsPolicyDays(ctx, s.pool, "policy_compression", "compress_after")
 
 	// Streaming replication standbys (requires the connecting role to see pg_stat_replication).
-	if rows, err := s.pool.Query(ctx, `SELECT client_addr, state FROM pg_stat_replication`); err == nil {
+	if rows, err := s.q(ctx).Query(ctx, `SELECT client_addr, state FROM pg_stat_replication`); err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var addr, state *string
@@ -83,19 +83,19 @@ func (s *Store) StorageStatus(ctx context.Context, budgetBytes int64) StorageSta
 // compressionDays so data is compressed before it is dropped.
 func (s *Store) SetLifecycle(ctx context.Context, retentionDays, compressionDays int) error {
 	if compressionDays > 0 {
-		if _, err := s.pool.Exec(ctx, `SELECT remove_compression_policy('events', if_exists => true)`); err != nil {
+		if _, err := s.q(ctx).Exec(ctx, `SELECT remove_compression_policy('events', if_exists => true)`); err != nil {
 			return fmt.Errorf("store: remove compression policy: %w", err)
 		}
-		if _, err := s.pool.Exec(ctx,
+		if _, err := s.q(ctx).Exec(ctx,
 			`SELECT add_compression_policy('events', compress_after => make_interval(days => $1))`, compressionDays); err != nil {
 			return fmt.Errorf("store: set compression policy: %w", err)
 		}
 	}
 	if retentionDays > 0 {
-		if _, err := s.pool.Exec(ctx, `SELECT remove_retention_policy('events', if_exists => true)`); err != nil {
+		if _, err := s.q(ctx).Exec(ctx, `SELECT remove_retention_policy('events', if_exists => true)`); err != nil {
 			return fmt.Errorf("store: remove retention policy: %w", err)
 		}
-		if _, err := s.pool.Exec(ctx,
+		if _, err := s.q(ctx).Exec(ctx,
 			`SELECT add_retention_policy('events', drop_after => make_interval(days => $1))`, retentionDays); err != nil {
 			return fmt.Errorf("store: set retention policy: %w", err)
 		}

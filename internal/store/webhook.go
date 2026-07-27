@@ -13,7 +13,7 @@ import (
 // effect immediately without a restart.
 func (s *Store) WebhookToken(ctx context.Context) (string, error) {
 	var tok string
-	err := s.pool.QueryRow(ctx, `SELECT token FROM ingest_webhook WHERE id = 1`).Scan(&tok)
+	err := s.q(ctx).QueryRow(ctx, `SELECT token FROM ingest_webhook WHERE id = 1`).Scan(&tok)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}
@@ -25,7 +25,7 @@ func (s *Store) WebhookToken(ctx context.Context) (string, error) {
 
 // SetWebhookToken upserts the inbound ingest-webhook token ("" disables the endpoint).
 func (s *Store) SetWebhookToken(ctx context.Context, token string) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO ingest_webhook (id, token, updated_at) VALUES (1, $1, now())
 		 ON CONFLICT (id) DO UPDATE SET token = $1, updated_at = now()`, token)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *Store) SeedWebhookTokenFromEnv(ctx context.Context, envToken string) er
 // GetCursor returns the persisted resume cursor for a named pull source ("" = none yet).
 func (s *Store) GetCursor(ctx context.Context, name string) (string, error) {
 	var cur string
-	err := s.pool.QueryRow(ctx, `SELECT cursor FROM ingest_cursor WHERE name = $1`, name).Scan(&cur)
+	err := s.q(ctx).QueryRow(ctx, `SELECT cursor FROM ingest_cursor WHERE name = $1`, name).Scan(&cur)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}
@@ -63,7 +63,7 @@ func (s *Store) GetCursor(ctx context.Context, name string) (string, error) {
 
 // SetCursor upserts the resume cursor for a named pull source.
 func (s *Store) SetCursor(ctx context.Context, name, cursor string) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO ingest_cursor (name, cursor, updated_at) VALUES ($1, $2, now())
 		 ON CONFLICT (name) DO UPDATE SET cursor = $2, updated_at = now()`, name, cursor)
 	if err != nil {

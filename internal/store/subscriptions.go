@@ -62,7 +62,7 @@ func (s *Store) CreateSubscription(ctx context.Context, name string, scopes []st
 		return Subscription{}, "", err
 	}
 	var sub Subscription
-	err = s.pool.QueryRow(ctx, `
+	err = s.q(ctx).QueryRow(ctx, `
 		INSERT INTO subscriptions (name, token_hash, scopes, min_severity)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, name, scopes, min_severity, enabled, created_at, last_used_at, request_count`,
@@ -76,7 +76,7 @@ func (s *Store) CreateSubscription(ctx context.Context, name string, scopes []st
 
 // ListSubscriptions returns all subscribers, newest first (no secrets).
 func (s *Store) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT id, name, scopes, min_severity, enabled, created_at, last_used_at, request_count
 		FROM subscriptions ORDER BY created_at DESC`)
 	if err != nil {
@@ -97,7 +97,7 @@ func (s *Store) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
 
 // SetSubscriptionEnabled enables/disables a subscriber (a disabled key is rejected at auth).
 func (s *Store) SetSubscriptionEnabled(ctx context.Context, id string, enabled bool) error {
-	ct, err := s.pool.Exec(ctx, `UPDATE subscriptions SET enabled = $2 WHERE id = $1`, id, enabled)
+	ct, err := s.q(ctx).Exec(ctx, `UPDATE subscriptions SET enabled = $2 WHERE id = $1`, id, enabled)
 	if err != nil {
 		return fmt.Errorf("store: set subscription enabled: %w", err)
 	}
@@ -109,7 +109,7 @@ func (s *Store) SetSubscriptionEnabled(ctx context.Context, id string, enabled b
 
 // DeleteSubscription removes a subscriber permanently.
 func (s *Store) DeleteSubscription(ctx context.Context, id string) error {
-	ct, err := s.pool.Exec(ctx, `DELETE FROM subscriptions WHERE id = $1`, id)
+	ct, err := s.q(ctx).Exec(ctx, `DELETE FROM subscriptions WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("store: delete subscription: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *Store) AuthenticateSubscription(ctx context.Context, presentedKey strin
 		return nil, ErrNotFound
 	}
 	var sub Subscription
-	err := s.pool.QueryRow(ctx, `
+	err := s.q(ctx).QueryRow(ctx, `
 		UPDATE subscriptions
 		SET last_used_at = now(), request_count = request_count + 1
 		WHERE token_hash = $1 AND enabled = true
@@ -178,7 +178,7 @@ func (s *Store) SubscriptionEvents(ctx context.Context, cursor string, minSev in
 	}
 	settleCutoff := time.Now().Add(-lag)
 
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT id::text, `+selectCols+`
 		FROM events
 		WHERE time <= $1
@@ -237,7 +237,7 @@ func (s *Store) SubscriptionIndicators(ctx context.Context, minScore, limit int)
 	if minScore < 0 {
 		minScore = 0
 	}
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT host(ip), score, band, fired_times, abuse, otx, max_sev, updated_at
 		 FROM ip_scores WHERE score >= $1 ORDER BY score DESC, updated_at DESC LIMIT $2`, minScore, limit)
 	if err != nil {

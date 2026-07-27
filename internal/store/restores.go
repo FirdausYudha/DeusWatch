@@ -12,7 +12,7 @@ func (s *Store) RequestRestore(ctx context.Context, agentName, path, requestedBy
 	if agentName == "" || path == "" {
 		return fmt.Errorf("store: restore needs agent and path")
 	}
-	_, err := s.pool.Exec(ctx, `
+	_, err := s.q(ctx).Exec(ctx, `
 		INSERT INTO file_restores (agent_name, path, requested_by)
 		SELECT $1, $2, $3
 		WHERE NOT EXISTS (
@@ -27,7 +27,7 @@ func (s *Store) RequestRestore(ctx context.Context, agentName, path, requestedBy
 // PendingRestores returns the file paths the agent should restore, and marks them delivered
 // (one-shot) so the agent applies each request once. Called by the gateway's restore feed.
 func (s *Store) PendingRestores(ctx context.Context, agentName string) ([]string, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		UPDATE file_restores SET status='delivered', delivered_at=now()
 		WHERE id IN (SELECT id FROM file_restores WHERE agent_name=$1 AND status='requested')
 		RETURNING path`, agentName)

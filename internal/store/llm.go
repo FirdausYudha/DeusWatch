@@ -27,7 +27,7 @@ func (s *Store) AlertsForLLM(ctx context.Context, limit int) ([]LLMAlert, error)
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT id::text, time, COALESCE(rule_name,''), COALESCE(event_severity,0),
 		       COALESCE(host(source_ip),''), COALESCE(threat_technique_id,''),
 		       COALESCE(threat_tactic_name,''), COALESCE(dw_label,''),
@@ -56,7 +56,7 @@ func (s *Store) AlertsForLLM(ctx context.Context, limit int) ([]LLMAlert, error)
 
 // SetLLMVerdict stores the LLM verdict + summary for one alert.
 func (s *Store) SetLLMVerdict(ctx context.Context, id, verdict, summary string) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`UPDATE events SET dw_llm_verdict = $2, dw_llm_summary = $3, dw_llm_analyzed_at = now()
 		 WHERE id = $1`, id, verdict, strOrNil(summary))
 	if err != nil {

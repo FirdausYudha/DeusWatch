@@ -19,7 +19,7 @@ func (s *Store) ReplaceAdvisories(ctx context.Context, source string, advs []vul
 	if source == "" {
 		return fmt.Errorf("store: advisories need a source")
 	}
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.q(ctx).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (s *Store) ReplaceAdvisories(ctx context.Context, source string, advs []vul
 // AdvisoryStats reports how many advisories are cached, per release — for the UI/health so an
 // operator can see the feed is loaded and for which releases.
 func (s *Store) AdvisoryStats(ctx context.Context) (total int, byRelease map[string]int, err error) {
-	rows, err := s.pool.Query(ctx, `SELECT release, count(*) FROM advisories GROUP BY release`)
+	rows, err := s.q(ctx).Query(ctx, `SELECT release, count(*) FROM advisories GROUP BY release`)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -81,7 +81,7 @@ func (s *Store) AdvisoryStats(ctx context.Context) (total int, byRelease map[str
 // inventory or codename yields 0 (nothing to match against) without error.
 func (s *Store) RematchAgent(ctx context.Context, agentName string) (int, error) {
 	var codename string
-	err := s.pool.QueryRow(ctx,
+	err := s.q(ctx).QueryRow(ctx,
 		`SELECT COALESCE(os_codename,'') FROM agent_os_inventory WHERE agent_name=$1`, agentName).Scan(&codename)
 	if err == pgx.ErrNoRows || codename == "" {
 		return 0, s.replaceFindings(ctx, agentName, nil) // clear stale findings, nothing to match
@@ -91,7 +91,7 @@ func (s *Store) RematchAgent(ctx context.Context, agentName string) (int, error)
 	}
 
 	// Load the agent's packages.
-	prows, err := s.pool.Query(ctx,
+	prows, err := s.q(ctx).Query(ctx,
 		`SELECT name, version, COALESCE(source,'') FROM agent_packages WHERE agent_name=$1`, agentName)
 	if err != nil {
 		return 0, fmt.Errorf("store: rematch packages: %w", err)
@@ -125,7 +125,7 @@ func (s *Store) RematchAgent(ctx context.Context, agentName string) (int, error)
 	for n := range names {
 		srcList = append(srcList, n)
 	}
-	arows, err := s.pool.Query(ctx, `
+	arows, err := s.q(ctx).Query(ctx, `
 		SELECT source, cve, package, COALESCE(fixed_version,''), COALESCE(severity,'')
 		FROM advisories WHERE release=$1 AND package = ANY($2)`, codename, srcList)
 	if err != nil {
@@ -155,7 +155,7 @@ func (s *Store) RematchAgent(ctx context.Context, agentName string) (int, error)
 
 // replaceFindings swaps an agent's findings wholesale inside a transaction.
 func (s *Store) replaceFindings(ctx context.Context, agentName string, findings []vuln.Finding) error {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.q(ctx).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (s *Store) replaceFindings(ctx context.Context, agentName string, findings 
 // RematchAll recomputes findings for every agent that has an inventory. Returns how many agents were
 // matched. Used after a feed refresh.
 func (s *Store) RematchAll(ctx context.Context) (int, error) {
-	rows, err := s.pool.Query(ctx, `SELECT agent_name FROM agent_os_inventory`)
+	rows, err := s.q(ctx).Query(ctx, `SELECT agent_name FROM agent_os_inventory`)
 	if err != nil {
 		return 0, err
 	}
@@ -226,7 +226,7 @@ type VulnSummary struct {
 // ListVulnSummaries returns per-agent severity counts (agents with inventory but no findings appear
 // with zeros), worst-affected first.
 func (s *Store) ListVulnSummaries(ctx context.Context) ([]VulnSummary, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT oi.agent_name,
 		  count(*) FILTER (WHERE v.severity='critical'),
 		  count(*) FILTER (WHERE v.severity='high'),
@@ -278,7 +278,7 @@ type AgentVulnerability struct {
 
 // AgentVulnerabilities returns an agent's findings, worst severity first.
 func (s *Store) AgentVulnerabilities(ctx context.Context, agentName string) ([]AgentVulnerability, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT cve, package, COALESCE(installed_version,''), COALESCE(fixed_version,''),
 		       COALESCE(severity,''), COALESCE(source,'')
 		FROM agent_vulnerabilities WHERE agent_name=$1
@@ -304,7 +304,7 @@ func (s *Store) AgentVulnerabilities(ctx context.Context, agentName string) ([]A
 // codenames the fleet is actually running — so the feed ingester only pulls advisories for
 // releases we have agents on. Distros with no supported feed (or no codename) are skipped.
 func (s *Store) DistroReleasesInUse(ctx context.Context) (map[string][]string, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT DISTINCT COALESCE(os_id,''), COALESCE(os_codename,'')
 		FROM agent_os_inventory WHERE COALESCE(os_codename,'') <> ''`)
 	if err != nil {

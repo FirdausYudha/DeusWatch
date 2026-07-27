@@ -26,7 +26,7 @@ type IPScore struct {
 // and upserts ip_scores. IPs not seen in the window are pruned so stale scores fade out.
 // Returns the scored rows (highest first) so a caller can drive a scenario ban.
 func (s *Store) RefreshIPScores(ctx context.Context, window time.Duration, w score.Weights) ([]IPScore, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT host(e.source_ip)                                AS ip,
 		       count(*)                                         AS fired_times,
 		       COALESCE(max(e.dw_enrichment_abuse_confidence),0) AS abuse,
@@ -65,7 +65,7 @@ func (s *Store) RefreshIPScores(ctx context.Context, window time.Duration, w sco
 		batch = append(batch, []any{r.IP, r.Score, r.Band, r.FiredTimes, r.Abuse, r.OTX, r.MaxSev, r.Anomaly, r.Agents})
 	}
 	for _, b := range batch {
-		if _, err := s.pool.Exec(ctx, `
+		if _, err := s.q(ctx).Exec(ctx, `
 			INSERT INTO ip_scores (ip, score, band, fired_times, abuse, otx, max_sev, anomaly, agents, updated_at)
 			VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9, now())
 			ON CONFLICT (ip) DO UPDATE SET
@@ -77,7 +77,7 @@ func (s *Store) RefreshIPScores(ctx context.Context, window time.Duration, w sco
 		}
 	}
 	// Prune scores older than 2x the window (IP no longer active).
-	_, _ = s.pool.Exec(ctx, `DELETE FROM ip_scores WHERE updated_at < now() - $1::interval`,
+	_, _ = s.q(ctx).Exec(ctx, `DELETE FROM ip_scores WHERE updated_at < now() - $1::interval`,
 		fmt.Sprintf("%d seconds", int(2*window.Seconds())))
 	return out, nil
 }
@@ -88,7 +88,7 @@ func (s *Store) IPScoresFor(ctx context.Context, ips []string) (map[string]IPSco
 	if len(ips) == 0 {
 		return out, nil
 	}
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT host(ip), score, band FROM ip_scores WHERE host(ip) = ANY($1)`, ips)
 	if err != nil {
 		return nil, fmt.Errorf("store: scores for: %w", err)
@@ -109,7 +109,7 @@ func (s *Store) TopIPScores(ctx context.Context, limit int) ([]IPScore, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT host(ip), score, band, fired_times, abuse, otx, max_sev, COALESCE(agents,0), updated_at
 		 FROM ip_scores ORDER BY score DESC, updated_at DESC LIMIT $1`, limit)
 	if err != nil {

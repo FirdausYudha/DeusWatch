@@ -11,7 +11,7 @@ import (
 // AgentHealthRows returns the health snapshot of every non-revoked agent for the
 // worker's self-monitoring checker (design doc section 13).
 func (s *Store) AgentHealthRows(ctx context.Context) ([]selfhealth.AgentHealth, error) {
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT id, name, COALESCE(os,''), last_seen_at, status, health_degraded, health_detail
 		 FROM agents WHERE NOT revoked`)
 	if err != nil {
@@ -31,14 +31,14 @@ func (s *Store) AgentHealthRows(ctx context.Context) ([]selfhealth.AgentHealth, 
 
 // SetAgentStatus persists a status computed by the health checker.
 func (s *Store) SetAgentStatus(ctx context.Context, id, status string) error {
-	_, err := s.pool.Exec(ctx, `UPDATE agents SET status = $2 WHERE id = $1`, id, status)
+	_, err := s.q(ctx).Exec(ctx, `UPDATE agents SET status = $2 WHERE id = $1`, id, status)
 	return err
 }
 
 // OldestEventChunk returns the oldest events-hypertable chunk's end time and the total
 // chunk count (nil end when the hypertable has no chunks / TimescaleDB is absent).
 func (s *Store) OldestEventChunk(ctx context.Context) (end *time.Time, count int, err error) {
-	err = s.pool.QueryRow(ctx,
+	err = s.q(ctx).QueryRow(ctx,
 		`SELECT min(range_end), count(*) FROM timescaledb_information.chunks
 		 WHERE hypertable_name = 'events'`).Scan(&end, &count)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *Store) OldestEventChunk(ctx context.Context) (end *time.Time, count int
 // chunk drop - no row-by-row delete) and returns how many were dropped. Used by the
 // disk-watermark janitor; retention policies handle the normal aging path.
 func (s *Store) DropEventChunksBefore(ctx context.Context, before time.Time) (int, error) {
-	rows, err := s.pool.Query(ctx, `SELECT drop_chunks('events', older_than => $1::timestamptz)`, before)
+	rows, err := s.q(ctx).Query(ctx, `SELECT drop_chunks('events', older_than => $1::timestamptz)`, before)
 	if err != nil {
 		return 0, fmt.Errorf("store: drop chunks: %w", err)
 	}

@@ -22,7 +22,7 @@ type ReportSummary struct {
 
 // SaveReportSummary stores a generated summary.
 func (s *Store) SaveReportSummary(ctx context.Context, periodHours int, summary, model string) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO report_summaries (period_hours, summary, model) VALUES ($1,$2,$3)`,
 		periodHours, summary, model)
 	if err != nil {
@@ -34,7 +34,7 @@ func (s *Store) SaveReportSummary(ctx context.Context, periodHours int, summary,
 // LatestReportSummary returns the most recent stored summary (ok=false if none).
 func (s *Store) LatestReportSummary(ctx context.Context) (ReportSummary, bool, error) {
 	var rs ReportSummary
-	err := s.pool.QueryRow(ctx,
+	err := s.q(ctx).QueryRow(ctx,
 		`SELECT summary, model, period_hours, generated_at FROM report_summaries ORDER BY generated_at DESC LIMIT 1`).
 		Scan(&rs.Summary, &rs.Model, &rs.PeriodHours, &rs.GeneratedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -57,7 +57,7 @@ type NotifyConfig struct {
 // LoadNotifyConfig reads the notification config (defaults: severity medium, delivery off).
 func (s *Store) LoadNotifyConfig(ctx context.Context) (NotifyConfig, error) {
 	c := NotifyConfig{MinSeverity: 2, ReportPeriodHours: 24}
-	err := s.pool.QueryRow(ctx,
+	err := s.q(ctx).QueryRow(ctx,
 		`SELECT min_severity, report_interval_hours, report_period_hours, report_last_sent_at
 		 FROM notify_config WHERE id = 1`).
 		Scan(&c.MinSeverity, &c.ReportIntervalHours, &c.ReportPeriodHours, &c.ReportLastSentAt)
@@ -81,7 +81,7 @@ func (s *Store) SaveNotifyConfig(ctx context.Context, c NotifyConfig) error {
 	if c.MinSeverity > 4 {
 		c.MinSeverity = 4
 	}
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO notify_config (id, min_severity, report_interval_hours, report_period_hours) VALUES (1,$1,$2,$3)
 		 ON CONFLICT (id) DO UPDATE SET min_severity=$1, report_interval_hours=$2, report_period_hours=$3, updated_at=now()`,
 		c.MinSeverity, c.ReportIntervalHours, c.ReportPeriodHours)
@@ -93,7 +93,7 @@ func (s *Store) SaveNotifyConfig(ctx context.Context, c NotifyConfig) error {
 
 // MarkReportDelivered records that a scheduled report was just sent.
 func (s *Store) MarkReportDelivered(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO notify_config (id, report_last_sent_at) VALUES (1, now())
 		 ON CONFLICT (id) DO UPDATE SET report_last_sent_at = now()`)
 	if err != nil {
@@ -115,7 +115,7 @@ type ReportAIConfig struct {
 // LoadReportAIConfig reads the schedule (defaults: disabled, 24h window, drifting interval).
 func (s *Store) LoadReportAIConfig(ctx context.Context) (ReportAIConfig, error) {
 	c := ReportAIConfig{IntervalHours: 0, PeriodHours: 24, AtHour: -1}
-	err := s.pool.QueryRow(ctx,
+	err := s.q(ctx).QueryRow(ctx,
 		`SELECT interval_hours, period_hours, COALESCE(summary_prompt,''), COALESCE(at_hour,-1)
 		 FROM report_ai_config WHERE id = 1`).
 		Scan(&c.IntervalHours, &c.PeriodHours, &c.SummaryPrompt, &c.AtHour)
@@ -142,7 +142,7 @@ func (s *Store) SaveReportAIConfig(ctx context.Context, c ReportAIConfig) error 
 	if c.AtHour < 0 || c.AtHour > 23 {
 		c.AtHour = -1 // anything outside 0..23 means "no fixed hour"
 	}
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO report_ai_config (id, interval_hours, period_hours, summary_prompt, at_hour) VALUES (1,$1,$2,$3,$4)
 		 ON CONFLICT (id) DO UPDATE SET interval_hours=$1, period_hours=$2, summary_prompt=$3, at_hour=$4, updated_at=now()`,
 		c.IntervalHours, c.PeriodHours, c.SummaryPrompt, c.AtHour)
@@ -184,11 +184,11 @@ func (s *Store) buildReportRange(ctx context.Context, since, until time.Time) (r
 		WindowHours: int(until.Sub(since).Hours() + 0.5),
 	}
 
-	if err := s.pool.QueryRow(ctx,
+	if err := s.q(ctx).QueryRow(ctx,
 		`SELECT count(*) FROM events WHERE time >= $1 AND time < $2`, since, until).Scan(&r.TotalEvents); err != nil {
 		return r, fmt.Errorf("store: report total: %w", err)
 	}
-	if err := s.pool.QueryRow(ctx,
+	if err := s.q(ctx).QueryRow(ctx,
 		`SELECT count(*) FROM events WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL`, since, until).Scan(&r.TotalAlerts); err != nil {
 		return r, fmt.Errorf("store: report alerts: %w", err)
 	}
@@ -242,7 +242,7 @@ func (s *Store) buildReportRange(ctx context.Context, since, until time.Time) (r
 }
 
 func (s *Store) severityCounts(ctx context.Context, since, until time.Time) ([]report.Count, error) {
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT event_severity, count(*) FROM events
 		 WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL AND event_severity IS NOT NULL
 		 GROUP BY event_severity ORDER BY event_severity DESC`, since, until)
@@ -263,7 +263,7 @@ func (s *Store) severityCounts(ctx context.Context, since, until time.Time) ([]r
 }
 
 func (s *Store) topCounts(ctx context.Context, query string, since, until time.Time) ([]report.Count, error) {
-	rows, err := s.pool.Query(ctx, query, since, until)
+	rows, err := s.q(ctx).Query(ctx, query, since, until)
 	if err != nil {
 		return nil, fmt.Errorf("store: report agg: %w", err)
 	}

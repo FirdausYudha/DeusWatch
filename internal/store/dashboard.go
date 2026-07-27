@@ -60,7 +60,7 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (Dashboar
 		{`SELECT count(*) FROM events WHERE dw_label IS NOT NULL`, &d.TotalAlerts},
 		{`SELECT count(*) FROM events WHERE dw_label IS NOT NULL AND time > now() - interval '24 hours'`, &d.Alerts24h},
 	} {
-		if err := s.pool.QueryRow(ctx, q.sql).Scan(q.dest); err != nil {
+		if err := s.q(ctx).QueryRow(ctx, q.sql).Scan(q.dest); err != nil {
 			return d, fmt.Errorf("store: dashboard counters: %w", err)
 		}
 	}
@@ -113,7 +113,7 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (Dashboar
 }
 
 func (s *Store) dashSeverity(ctx context.Context, since, until time.Time) ([]Count, error) {
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT event_severity, count(*) FROM events
 		 WHERE time >= $1 AND time <= $2 AND event_severity IS NOT NULL
 		 GROUP BY event_severity ORDER BY event_severity DESC`, since, until)
@@ -134,7 +134,7 @@ func (s *Store) dashSeverity(ctx context.Context, since, until time.Time) ([]Cou
 }
 
 func (s *Store) dashCounts(ctx context.Context, query string, since, until time.Time) ([]Count, error) {
-	rows, err := s.pool.Query(ctx, query, since, until)
+	rows, err := s.q(ctx).Query(ctx, query, since, until)
 	if err != nil {
 		return nil, fmt.Errorf("store: dashboard series: %w", err)
 	}
@@ -172,7 +172,7 @@ func bucketFor(span time.Duration) string {
 // even when activity is sparse or confined to a single bucket.
 func (s *Store) dashTimeline(ctx context.Context, since, until time.Time) ([]TimePoint, error) {
 	bucket := bucketFor(until.Sub(since))
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT g AS bucket, COALESCE(e.cnt, 0)
 		 FROM generate_series(time_bucket($3::interval, $1), time_bucket($3::interval, $2), $3::interval) AS g
 		 LEFT JOIN (
@@ -198,7 +198,7 @@ func (s *Store) dashTimeline(ctx context.Context, since, until time.Time) ([]Tim
 // GetDashboardLayout returns the stored layout JSON for a user (nil if none).
 func (s *Store) GetDashboardLayout(ctx context.Context, userID string) ([]byte, error) {
 	var raw []byte
-	err := s.pool.QueryRow(ctx, `SELECT layout FROM user_dashboards WHERE user_id=$1`, userID).Scan(&raw)
+	err := s.q(ctx).QueryRow(ctx, `SELECT layout FROM user_dashboards WHERE user_id=$1`, userID).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -210,7 +210,7 @@ func (s *Store) GetDashboardLayout(ctx context.Context, userID string) ([]byte, 
 
 // SaveDashboardLayout upserts a user's dashboard layout JSON.
 func (s *Store) SaveDashboardLayout(ctx context.Context, userID string, layout []byte) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO user_dashboards (user_id, layout) VALUES ($1,$2)
 		 ON CONFLICT (user_id) DO UPDATE SET layout=$2, updated_at=now()`, userID, layout)
 	if err != nil {

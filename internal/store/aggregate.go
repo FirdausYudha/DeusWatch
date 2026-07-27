@@ -11,7 +11,7 @@ import (
 // detect.AggExecutor. The query always returns columns (grp, n, last_seen); the
 // arguments are already parameterized (the compiler never interpolates literals).
 func (s *Store) QueryAgg(ctx context.Context, query string, args []any) ([]detect.AggGroup, error) {
-	rows, err := s.pool.Query(ctx, query, args...)
+	rows, err := s.q(ctx).Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: aggregation query: %w", err)
 	}

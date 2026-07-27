@@ -29,7 +29,7 @@ type SlowScanner struct {
 // to each other all day, which is not reconnaissance), and only IPs that came back on enough
 // separate days qualify, so the list stays short and meaningful.
 func (s *Store) RefreshSlowScanners(ctx context.Context, window time.Duration, w score.SlowScanWeights) ([]SlowScanner, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT host(source_ip)                                          AS ip,
 		       count(DISTINCT date_trunc('day', time))                  AS active_days,
 		       GREATEST(0, EXTRACT(DAY FROM (max(time) - min(time))))::int AS span_days,
@@ -76,11 +76,11 @@ func (s *Store) RefreshSlowScanners(ctx context.Context, window time.Duration, w
 	}
 
 	// Replace the watchlist: a source that stopped coming back should drop off.
-	if _, err := s.pool.Exec(ctx, `DELETE FROM slow_scanners`); err != nil {
+	if _, err := s.q(ctx).Exec(ctx, `DELETE FROM slow_scanners`); err != nil {
 		return nil, fmt.Errorf("store: slow-scan clear: %w", err)
 	}
 	for _, r := range out {
-		if _, err := s.pool.Exec(ctx, `
+		if _, err := s.q(ctx).Exec(ctx, `
 			INSERT INTO slow_scanners (ip, score, band, active_days, span_days, events, targets, agents, first_seen, last_seen, updated_at)
 			VALUES ($1::inet,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
 			ON CONFLICT (ip) DO UPDATE SET
@@ -101,7 +101,7 @@ func (s *Store) TopSlowScanners(ctx context.Context, limit int) ([]SlowScanner, 
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT host(ip), score, band, active_days, span_days, events, targets, agents,
 		       first_seen, last_seen, updated_at
 		FROM slow_scanners ORDER BY score DESC, active_days DESC LIMIT $1`, limit)

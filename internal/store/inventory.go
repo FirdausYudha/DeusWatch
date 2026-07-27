@@ -32,7 +32,7 @@ func (s *Store) ReplaceInventory(ctx context.Context, agentName string, inv agen
 	if agentName == "" {
 		return fmt.Errorf("store: inventory needs an agent name")
 	}
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.q(ctx).Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("store: inventory begin: %w", err)
 	}
@@ -87,7 +87,7 @@ func (s *Store) ReplaceInventory(ctx context.Context, agentName string, inv agen
 
 // ListInventorySummaries returns every agent's OS/package headline, newest report first.
 func (s *Store) ListInventorySummaries(ctx context.Context) ([]InventorySummary, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT agent_name, COALESCE(os_id,''), COALESCE(os_version,''), COALESCE(os_codename,''),
 		       COALESCE(kernel,''), COALESCE(arch,''), COALESCE(pkg_manager,''), pkg_count, updated_at
 		FROM agent_os_inventory ORDER BY updated_at DESC`)
@@ -110,7 +110,7 @@ func (s *Store) ListInventorySummaries(ctx context.Context) ([]InventorySummary,
 // GetAgentPackages returns one agent's installed packages (alphabetical), optionally filtered by a
 // case-insensitive substring of the package or source name.
 func (s *Store) GetAgentPackages(ctx context.Context, agentName, filter string) ([]agent.Package, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT name, version, COALESCE(arch,''), COALESCE(source,'')
 		FROM agent_packages
 		WHERE agent_name=$1

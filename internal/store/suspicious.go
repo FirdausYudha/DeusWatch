@@ -59,7 +59,7 @@ HAVING count(*) >= 3`
 // pruned by the full replace, so an IP that goes quiet drops off. Returns the rows (highest
 // score first is not guaranteed here; the caller/query orders).
 func (s *Store) RefreshSuspiciousIPs(ctx context.Context, window time.Duration, w score.SuspicionWeights) ([]SuspiciousIP, error) {
-	rows, err := s.pool.Query(ctx, suspiciousAggSQL, fmt.Sprintf("%d seconds", int(window.Seconds())))
+	rows, err := s.q(ctx).Query(ctx, suspiciousAggSQL, fmt.Sprintf("%d seconds", int(window.Seconds())))
 	if err != nil {
 		return nil, fmt.Errorf("store: suspicious query: %w", err)
 	}
@@ -83,7 +83,7 @@ func (s *Store) RefreshSuspiciousIPs(ctx context.Context, window time.Duration, 
 	}
 
 	// Full replace inside a transaction: the watchlist always reflects the current window.
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.q(ctx).Begin(ctx)
 	if err != nil {
 		return out, err
 	}
@@ -108,7 +108,7 @@ func (s *Store) TopSuspiciousIPs(ctx context.Context, limit int) ([]SuspiciousIP
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT host(ip), contacts, fanout, distinct_hours, failures, score, band, first_seen, last_seen
 		 FROM suspicious_ips ORDER BY score DESC, contacts DESC LIMIT $1`, limit)
 	if err != nil {

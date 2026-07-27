@@ -45,7 +45,7 @@ func (s *Store) RecordSnapshot(ctx context.Context, snap FIMSnapshot, content []
 		snap.Trigger = "on_change"
 	}
 	var latest string
-	err = s.pool.QueryRow(ctx,
+	err = s.q(ctx).QueryRow(ctx,
 		`SELECT sha256 FROM fim_snapshots WHERE agent_name=$1 AND path=$2 ORDER BY captured_at DESC LIMIT 1`,
 		snap.AgentName, snap.Path).Scan(&latest)
 	if err == nil && latest == snap.SHA256 {
@@ -55,7 +55,7 @@ func (s *Store) RecordSnapshot(ctx context.Context, snap FIMSnapshot, content []
 	if snap.Diff != "" {
 		diff = &snap.Diff
 	}
-	if _, err := s.pool.Exec(ctx,
+	if _, err := s.q(ctx).Exec(ctx,
 		`INSERT INTO fim_snapshots (agent_name, path, sha256, size, storage, trigger, diff, content)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		snap.AgentName, snap.Path, snap.SHA256, snap.Size, snap.Storage, snap.Trigger, diff, content); err != nil {
@@ -66,7 +66,7 @@ func (s *Store) RecordSnapshot(ctx context.Context, snap FIMSnapshot, content []
 
 // ListSnapshotPaths returns the watched files that have snapshots for an agent, newest first.
 func (s *Store) ListSnapshotPaths(ctx context.Context, agentName string) ([]FIMSnapshotPath, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT path, count(*) AS versions, max(captured_at) AS latest
 		FROM fim_snapshots WHERE agent_name=$1
 		GROUP BY path ORDER BY latest DESC`, agentName)
@@ -90,7 +90,7 @@ func (s *Store) ListSnapshots(ctx context.Context, agentName, path string, limit
 	if limit <= 0 || limit > 500 {
 		limit = 200
 	}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT id, agent_name, path, sha256, size, storage, trigger, COALESCE(diff,''), captured_at
 		FROM fim_snapshots WHERE agent_name=$1 AND path=$2
 		ORDER BY captured_at DESC LIMIT $3`, agentName, path, limit)
@@ -114,7 +114,7 @@ func (s *Store) ListSnapshots(ctx context.Context, agentName, path string, limit
 // ok=false when the version isn't found or its content wasn't kept on the manager.
 func (s *Store) SnapshotContent(ctx context.Context, agentName, path, sha256 string) ([]byte, bool, error) {
 	var content []byte
-	err := s.pool.QueryRow(ctx,
+	err := s.q(ctx).QueryRow(ctx,
 		`SELECT content FROM fim_snapshots
 		 WHERE agent_name=$1 AND path=$2 AND sha256=$3 AND content IS NOT NULL
 		 ORDER BY captured_at DESC LIMIT 1`, agentName, path, sha256).Scan(&content)
@@ -157,7 +157,7 @@ func (s *Store) RequestFileAction(ctx context.Context, agentName, path, action, 
 	if action != "snapshot_now" && action != "quarantine" {
 		return fmt.Errorf("store: unknown file action %q", action)
 	}
-	_, err := s.pool.Exec(ctx, `
+	_, err := s.q(ctx).Exec(ctx, `
 		INSERT INTO agent_file_actions (agent_name, path, action, requested_by)
 		SELECT $1, $2, $3, $4
 		WHERE NOT EXISTS (
@@ -176,7 +176,7 @@ func (s *Store) RequestRestoreVersion(ctx context.Context, agentName, path, vers
 	if agentName == "" || path == "" || len(versionSHA) != 64 {
 		return fmt.Errorf("store: restore-version needs agent, path and a 64-char sha256")
 	}
-	_, err := s.pool.Exec(ctx, `
+	_, err := s.q(ctx).Exec(ctx, `
 		INSERT INTO agent_file_actions (agent_name, path, action, version_sha256, requested_by)
 		SELECT $1, $2, 'restore_version', $3, $4
 		WHERE NOT EXISTS (
@@ -206,7 +206,7 @@ func (s *Store) BulkRestoreVersions(ctx context.Context, agentName, pathPrefix s
 		pathCond = "(fs.path = $4 OR fs.path LIKE $4 || '/%')"
 		args = append(args, p)
 	}
-	ct, err := s.pool.Exec(ctx, `
+	ct, err := s.q(ctx).Exec(ctx, `
 		INSERT INTO agent_file_actions (agent_name, path, action, version_sha256, requested_by)
 		SELECT latest.agent_name, latest.path, 'restore_version', latest.sha256, $3
 		FROM (
@@ -228,7 +228,7 @@ func (s *Store) BulkRestoreVersions(ctx context.Context, agentName, pathPrefix s
 
 // PendingFileActions returns an agent's requested actions and marks them delivered (one-shot).
 func (s *Store) PendingFileActions(ctx context.Context, agentName string) ([]FileAction, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		UPDATE agent_file_actions SET status='delivered', delivered_at=now()
 		WHERE id IN (SELECT id FROM agent_file_actions WHERE agent_name=$1 AND status='requested')
 		RETURNING id, agent_name, path, action, COALESCE(version_sha256,''), status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at,
@@ -255,7 +255,7 @@ func (s *Store) SetFileActionResult(ctx context.Context, id int64, status, resul
 	if status != "done" && status != "failed" {
 		return fmt.Errorf("store: bad action status %q", status)
 	}
-	_, err := s.pool.Exec(ctx,
+	_, err := s.q(ctx).Exec(ctx,
 		`UPDATE agent_file_actions SET status=$2, result=$3, result_at=now() WHERE id=$1`, id, status, result)
 	if err != nil {
 		return fmt.Errorf("store: set file action result: %w", err)
@@ -268,7 +268,7 @@ func (s *Store) ListFileActions(ctx context.Context, agentName, path string, lim
 	if limit <= 0 || limit > 100 {
 		limit = 25
 	}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT id, agent_name, path, action, COALESCE(version_sha256,''), status, COALESCE(requested_by,''), COALESCE(result,''), created_at, result_at
 		FROM agent_file_actions WHERE agent_name=$1 AND path=$2
 		ORDER BY created_at DESC LIMIT $3`, agentName, path, limit)
@@ -293,7 +293,7 @@ func (s *Store) PruneSnapshots(ctx context.Context, agentName, path string, keep
 	if keepVersions <= 0 {
 		return 0, nil
 	}
-	ct, err := s.pool.Exec(ctx, `
+	ct, err := s.q(ctx).Exec(ctx, `
 		DELETE FROM fim_snapshots
 		WHERE agent_name=$1 AND path=$2 AND id NOT IN (
 		  SELECT id FROM fim_snapshots WHERE agent_name=$1 AND path=$2

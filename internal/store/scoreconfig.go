@@ -59,7 +59,7 @@ func envSecs(key string, def time.Duration) int {
 func (s *Store) LoadScoreConfig(ctx context.Context) (ScoreConfig, error) {
 	c := DefaultScoreConfig()
 	var raw []byte
-	err := s.pool.QueryRow(ctx, `SELECT config FROM score_config WHERE id = 1`).Scan(&raw)
+	err := s.q(ctx).QueryRow(ctx, `SELECT config FROM score_config WHERE id = 1`).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, nil
 	}
@@ -80,7 +80,7 @@ func (s *Store) SaveScoreConfig(ctx context.Context, c ScoreConfig) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx,
+	_, err = s.q(ctx).Exec(ctx,
 		`INSERT INTO score_config (id, config, updated_at) VALUES (1, $1, now())
 		 ON CONFLICT (id) DO UPDATE SET config = $1, updated_at = now()`, b)
 	if err != nil {

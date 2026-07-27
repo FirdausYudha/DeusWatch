@@ -134,7 +134,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 
 // RecentEvents returns the most recent events (live log stream).
 func (s *Store) RecentEvents(ctx context.Context, limit int) ([]EventRow, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+selectCols+` FROM events ORDER BY time DESC LIMIT $1`, limit)
+	rows, err := s.q(ctx).Query(ctx, `SELECT `+selectCols+` FROM events ORDER BY time DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: recent events: %w", err)
 	}
@@ -143,7 +143,7 @@ func (s *Store) RecentEvents(ctx context.Context, limit int) ([]EventRow, error)
 
 // RecentAlerts returns the most recent labeled events (alerts).
 func (s *Store) RecentAlerts(ctx context.Context, limit int) ([]EventRow, error) {
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.q(ctx).Query(ctx,
 		`SELECT `+selectCols+` FROM events WHERE dw_label IS NOT NULL ORDER BY time DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: recent alerts: %w", err)
@@ -160,7 +160,7 @@ type FileTarget struct {
 // QuarantineTargets returns distinct known-bad files (FIM hash reputation = known_bad)
 // seen recently. Agents self-filter by re-hashing the path locally, so this list is global.
 func (s *Store) QuarantineTargets(ctx context.Context) ([]FileTarget, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT DISTINCT file_path, file_hash_sha256 FROM events
 		WHERE dw_filehash_verdict = 'known_bad'
 		  AND file_path IS NOT NULL AND file_path <> ''
@@ -186,7 +186,7 @@ func (s *Store) QuarantineTargets(ctx context.Context) ([]FileTarget, error) {
 // that had a recent login from a whitelisted IP is an official change (deploy/content edit),
 // not an attack.
 func (s *Store) RecentAuthSuccessIPs(ctx context.Context, agentID string, since time.Time) ([]string, error) {
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT DISTINCT host(source_ip) FROM events
 		WHERE event_category = 'authentication' AND event_outcome = 'success'
 		  AND agent_id = $1 AND source_ip IS NOT NULL AND time >= $2`, agentID, since)
@@ -283,7 +283,7 @@ func (s *Store) SearchEvents(ctx context.Context, f EventFilter) ([]EventRow, er
 	args = append(args, f.Limit)
 	q += fmt.Sprintf(" ORDER BY time DESC LIMIT $%d", len(args))
 
-	rows, err := s.pool.Query(ctx, q, args...)
+	rows, err := s.q(ctx).Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: search events: %w", err)
 	}
@@ -312,19 +312,19 @@ type Stats struct {
 // Stats gathers the summary for the dashboard.
 func (s *Store) Stats(ctx context.Context) (Stats, error) {
 	var st Stats
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&st.TotalEvents); err != nil {
+	if err := s.q(ctx).QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&st.TotalEvents); err != nil {
 		return st, fmt.Errorf("store: stats total: %w", err)
 	}
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events WHERE dw_label IS NOT NULL`).Scan(&st.TotalAlerts); err != nil {
+	if err := s.q(ctx).QueryRow(ctx, `SELECT count(*) FROM events WHERE dw_label IS NOT NULL`).Scan(&st.TotalAlerts); err != nil {
 		return st, fmt.Errorf("store: stats alerts: %w", err)
 	}
-	if err := s.pool.QueryRow(ctx,
+	if err := s.q(ctx).QueryRow(ctx,
 		`SELECT count(*) FROM events WHERE dw_label IS NOT NULL AND time > now() - interval '24 hours'`).
 		Scan(&st.Alerts24h); err != nil {
 		return st, fmt.Errorf("store: stats alerts24h: %w", err)
 	}
 
-	ipRows, err := s.pool.Query(ctx,
+	ipRows, err := s.q(ctx).Query(ctx,
 		`SELECT host(source_ip), count(*) FROM events WHERE source_ip IS NOT NULL
 		 GROUP BY source_ip ORDER BY count(*) DESC LIMIT 5`)
 	if err != nil {
@@ -343,7 +343,7 @@ func (s *Store) Stats(ctx context.Context) (Stats, error) {
 		return st, err
 	}
 
-	sevRows, err := s.pool.Query(ctx,
+	sevRows, err := s.q(ctx).Query(ctx,
 		`SELECT event_severity, count(*) FROM events WHERE event_severity IS NOT NULL
 		 GROUP BY event_severity ORDER BY event_severity`)
 	if err != nil {

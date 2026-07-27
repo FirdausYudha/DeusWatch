@@ -56,7 +56,7 @@ func (s *Store) RecommendKill(ctx context.Context, agentName string, pid int, pr
 	}
 	// De-duplicate on the process IDENTITY, not just the pid: the same pid with a different start
 	// time is a different process and deserves its own row.
-	_, err := s.pool.Exec(ctx, `
+	_, err := s.q(ctx).Exec(ctx, `
 		INSERT INTO agent_file_actions
 		  (agent_name, path, action, status, pid, proc_name, proc_start, requested_by, result)
 		SELECT $1, $2, 'kill_process', $3, $4, $5, $6, $7, $8
@@ -76,7 +76,7 @@ func (s *Store) RecommendKill(ctx context.Context, agentName string, pid int, pr
 // promotes a row that is still 'recommended', so approving twice (or approving something the
 // agent already acted on) cannot re-fire a kill.
 func (s *Store) ApproveKill(ctx context.Context, id int64, approvedBy string) error {
-	ct, err := s.pool.Exec(ctx, `
+	ct, err := s.q(ctx).Exec(ctx, `
 		UPDATE agent_file_actions
 		SET status='requested', requested_by=$2
 		WHERE id=$1 AND action='kill_process' AND status='recommended'`, id, approvedBy)
@@ -92,7 +92,7 @@ func (s *Store) ApproveKill(ctx context.Context, id int64, approvedBy string) er
 // DismissKill rejects a recommendation the operator judged a false positive. Recorded rather than
 // deleted, so the audit trail shows the call was made and by whom.
 func (s *Store) DismissKill(ctx context.Context, id int64, by string) error {
-	ct, err := s.pool.Exec(ctx, `
+	ct, err := s.q(ctx).Exec(ctx, `
 		UPDATE agent_file_actions
 		SET status='done', result='dismissed by '||COALESCE(NULLIF($2,''),'operator'), result_at=now()
 		WHERE id=$1 AND action='kill_process' AND status='recommended'`, id, by)
@@ -115,7 +115,7 @@ func (s *Store) ListKillRequests(ctx context.Context, pendingOnly bool, limit in
 	if pendingOnly {
 		where = " AND status='recommended'"
 	}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 		SELECT id, agent_name, COALESCE(pid,0), COALESCE(proc_name,''), COALESCE(path,''),
 		       COALESCE(proc_start,''), status, COALESCE(requested_by,''), COALESCE(result,''),
 		       created_at, result_at

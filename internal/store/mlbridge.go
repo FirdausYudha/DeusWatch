@@ -29,7 +29,7 @@ func (s *Store) IPFeatures(ctx context.Context, window time.Duration, limit int)
 	if limit <= 0 || limit > 5000 {
 		limit = 1000
 	}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := s.q(ctx).Query(ctx, `
 WITH ev AS (
   SELECT host(source_ip) AS ip, time, http_uri, destination_port, event_outcome, event_action, http_status
   FROM events
@@ -95,7 +95,7 @@ func (s *Store) SetIPAnomalies(ctx context.Context, entries []IPAnomaly) (int, e
 		if a > 100 {
 			a = 100
 		}
-		if _, err := s.pool.Exec(ctx,
+		if _, err := s.q(ctx).Exec(ctx,
 			`INSERT INTO ip_anomaly (ip, anomaly, updated_at) VALUES ($1::inet, $2, now())
 			 ON CONFLICT (ip) DO UPDATE SET anomaly = $2, updated_at = now()`, e.IP, a); err != nil {
 			return n, fmt.Errorf("store: set anomaly %s: %w", e.IP, err)
@@ -103,6 +103,6 @@ func (s *Store) SetIPAnomalies(ctx context.Context, entries []IPAnomaly) (int, e
 		n++
 	}
 	// Age out stale anomaly scores (ML no longer reports them) after a day.
-	_, _ = s.pool.Exec(ctx, `DELETE FROM ip_anomaly WHERE updated_at < now() - interval '24 hours'`)
+	_, _ = s.q(ctx).Exec(ctx, `DELETE FROM ip_anomaly WHERE updated_at < now() - interval '24 hours'`)
 	return n, nil
 }

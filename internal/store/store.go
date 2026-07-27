@@ -5,7 +5,10 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"deuswatch/internal/ingest"
@@ -14,6 +17,62 @@ import (
 // Store holds the Postgres connection pool.
 type Store struct {
 	pool *pgxpool.Pool
+}
+
+// Queryer is the subset of database operations the store's methods use. Both *pgxpool.Pool and
+// pgx.Tx satisfy it, so a method runs either unscoped (directly on the pool) or scoped (inside a
+// tenant transaction opened by WithTenantScope). Methods use s.q(ctx) instead of s.pool directly.
+type Queryer interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Begin(context.Context) (pgx.Tx, error)
+}
+
+type scopeCtxKey struct{}
+
+// q returns the scoped transaction carried in ctx (opened by WithTenantScope) if one is present,
+// otherwise the raw pool. Every store data method routes through this so tenant scoping is applied
+// transparently without changing method signatures or callers.
+func (s *Store) q(ctx context.Context) Queryer {
+	if tx, ok := ctx.Value(scopeCtxKey{}).(pgx.Tx); ok {
+		return tx
+	}
+	return s.pool
+}
+
+// WithTenantScope runs fn inside a transaction whose session GUCs carry the tenant scope, so
+// Postgres RLS (enabled in migration 000050) filters every query to these tenants. `set_config(...,
+// true)` makes the GUCs transaction-LOCAL, auto-reset on commit/rollback — no leakage across pooled
+// connections. superadmin=true (worker / platform admin) sets the bypass GUC; its SQL must still be
+// tenant-aware. fn receives a ctx carrying the transaction; store methods called with it run scoped.
+// The handler signals its own errors (HTTP status), so a nil return commits — partial writes on a
+// mid-handler failure are no worse than today's autocommit-per-call behaviour.
+func (s *Store) WithTenantScope(ctx context.Context, tenantIDs []string, superadmin bool, fn func(context.Context) error) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("store: begin scope: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+	super := "0"
+	if superadmin {
+		super = "1"
+	}
+	if _, err := tx.Exec(ctx,
+		`SELECT set_config('deuswatch.tenant_ids', $1, true), set_config('deuswatch.superadmin', $2, true)`,
+		strings.Join(tenantIDs, ","), super); err != nil {
+		return fmt.Errorf("store: set scope: %w", err)
+	}
+	if err := fn(context.WithValue(ctx, scopeCtxKey{}, tx)); err != nil {
+		return err
+	}
+	committed = true
+	return tx.Commit(ctx)
 }
 
 // Connect opens a pool to dsn and verifies connectivity.
@@ -178,7 +237,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	}
 	dwEscalatedBy = strOrNil(e.DeusWatch.Severity.EscalatedBy)
 
-	_, err := s.pool.Exec(ctx, insertEventSQL,
+	_, err := s.q(ctx).Exec(ctx, insertEventSQL,
 		e.Timestamp, strOrNil(e.Event.Category), strOrNil(e.Event.Action),
 		strOrNil(e.Event.Outcome), int16(e.Event.Severity),
 		strOrNil(e.Event.Dataset), strOrNil(e.Event.Original),
@@ -209,7 +268,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 // CountEvents returns the number of rows in the events table.
 func (s *Store) CountEvents(ctx context.Context) (int64, error) {
 	var n int64
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&n); err != nil {
+	if err := s.q(ctx).QueryRow(ctx, `SELECT count(*) FROM events`).Scan(&n); err != nil {
 		return 0, fmt.Errorf("store: count events: %w", err)
 	}
 	return n, nil
@@ -218,7 +277,7 @@ func (s *Store) CountEvents(ctx context.Context) (int64, error) {
 // CountByLabel counts events with a given deuswatch.label (e.g. "bruteforce").
 func (s *Store) CountByLabel(ctx context.Context, label string) (int64, error) {
 	var n int64
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events WHERE dw_label = $1`, label).Scan(&n)
+	err := s.q(ctx).QueryRow(ctx, `SELECT count(*) FROM events WHERE dw_label = $1`, label).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("store: count by label: %w", err)
 	}
@@ -228,7 +287,7 @@ func (s *Store) CountByLabel(ctx context.Context, label string) (int64, error) {
 // CountBySourceIP counts events from a given source IP.
 func (s *Store) CountBySourceIP(ctx context.Context, ip string) (int64, error) {
 	var n int64
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM events WHERE source_ip = $1::inet`, ip).Scan(&n)
+	err := s.q(ctx).QueryRow(ctx, `SELECT count(*) FROM events WHERE source_ip = $1::inet`, ip).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("store: count by source ip: %w", err)
 	}
@@ -238,7 +297,7 @@ func (s *Store) CountBySourceIP(ctx context.Context, ip string) (int64, error) {
 // CountByLabelAndSourceIP counts events with a given label from a given source IP.
 func (s *Store) CountByLabelAndSourceIP(ctx context.Context, label, ip string) (int64, error) {
 	var n int64
-	err := s.pool.QueryRow(ctx,
+	err := s.q(ctx).QueryRow(ctx,
 		`SELECT count(*) FROM events WHERE dw_label = $1 AND source_ip = $2::inet`, label, ip).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("store: count by label and source ip: %w", err)
