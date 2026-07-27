@@ -182,8 +182,20 @@ export const SEVERITY: Record<number, { label: string; cls: string }> = {
 // ── Auth (session token) ──────────────────────────────────
 
 const TOKEN_KEY = 'deuswatch_token'
+const WORKSPACE_KEY = 'deuswatch_workspace' // active workspace id — narrows the tenant scope server-side
 
 export type Me = { username: string; role: string; twofa_enabled?: boolean; permissions: string[] }
+
+// getActiveWorkspace / setActiveWorkspace persist the operator's chosen workspace. When set, every
+// authenticated request sends it as X-Workspace-ID, which the API uses to narrow the user's tenant
+// scope to that one workspace (empty = the union across all their workspaces).
+export function getActiveWorkspace(): string | null {
+  return localStorage.getItem(WORKSPACE_KEY)
+}
+export function setActiveWorkspace(id: string | null) {
+  if (id) localStorage.setItem(WORKSPACE_KEY, id)
+  else localStorage.removeItem(WORKSPACE_KEY)
+}
 
 // can reports whether the signed-in user holds a given permission (drives menu gating).
 export function can(me: Me | null, perm: string): boolean {
@@ -210,6 +222,8 @@ async function authFetch(url: string, init: RequestInit = {}): Promise<Response>
   const token = getToken()
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) }
   if (token) headers.Authorization = `Bearer ${token}`
+  const ws = getActiveWorkspace()
+  if (ws) headers['X-Workspace-ID'] = ws
   const res = await fetch(url, { ...init, headers, cache: 'no-store' })
   if (res.status === 401) clearToken()
   return res
@@ -327,6 +341,81 @@ export async function fetchUsers(): Promise<UserInfo[]> {
   const res = await authFetch('/api/users')
   if (!res.ok) throw new Error(`users: HTTP ${res.status}`)
   return res.json()
+}
+
+// ── Multi-tenancy (Phase 4) ───────────────────────────────
+
+export type Tenant = { id: string; name: string; slug: string; created_at: string }
+export type Workspace = { id: string; name: string; slug: string; created_at: string }
+export type WorkspaceMember = { user_id: string; username: string }
+
+export async function fetchTenants(): Promise<Tenant[]> {
+  const res = await authFetch('/api/tenants')
+  if (!res.ok) throw new Error(`tenants: HTTP ${res.status}`)
+  return (await res.json()).tenants ?? []
+}
+
+export async function createTenant(name: string): Promise<Tenant> {
+  const res = await authFetch('/api/tenants', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+// The workspaces the signed-in user belongs to (drives the switcher).
+export async function fetchMyWorkspaces(): Promise<Workspace[]> {
+  const res = await authFetch('/api/workspaces')
+  if (!res.ok) throw new Error(`workspaces: HTTP ${res.status}`)
+  return (await res.json()).workspaces ?? []
+}
+
+export async function fetchAllWorkspaces(): Promise<Workspace[]> {
+  const res = await authFetch('/api/admin/workspaces')
+  if (!res.ok) throw new Error(`workspaces: HTTP ${res.status}`)
+  return (await res.json()).workspaces ?? []
+}
+
+export async function createWorkspace(name: string): Promise<Workspace> {
+  const res = await authFetch('/api/admin/workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function fetchWorkspaceTenants(id: string): Promise<string[]> {
+  const res = await authFetch(`/api/admin/workspaces/${id}/tenants`)
+  if (!res.ok) throw new Error(`workspace tenants: HTTP ${res.status}`)
+  return (await res.json()).tenant_ids ?? []
+}
+
+export async function setWorkspaceTenants(id: string, tenantIDs: string[]): Promise<void> {
+  const res = await authFetch(`/api/admin/workspaces/${id}/tenants`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenant_ids: tenantIDs }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function fetchWorkspaceMembers(id: string): Promise<WorkspaceMember[]> {
+  const res = await authFetch(`/api/admin/workspaces/${id}/members`)
+  if (!res.ok) throw new Error(`workspace members: HTTP ${res.status}`)
+  return (await res.json()).members ?? []
+}
+
+export async function setWorkspaceMembers(id: string, userIDs: string[]): Promise<void> {
+  const res = await authFetch(`/api/admin/workspaces/${id}/members`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_ids: userIDs }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 // The permission catalog + per-role defaults used to render & prefill the RBAC checklist.
@@ -620,8 +709,14 @@ export async function fetchInstallInfo(): Promise<AgentInstallInfo> {
   return res.json()
 }
 
-export async function createEnrollToken(): Promise<{ token: string; expires_at: string }> {
-  const res = await authFetch('/api/agents/tokens', { method: 'POST' })
+// tenantID optionally binds the enrolling agent (and all its telemetry) to a specific tenant; empty
+// enrolls into the Default tenant.
+export async function createEnrollToken(tenantID?: string): Promise<{ token: string; expires_at: string }> {
+  const res = await authFetch('/api/agents/tokens', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenant_id: tenantID ?? '' }),
+  })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
 }

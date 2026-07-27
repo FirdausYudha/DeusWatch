@@ -13,6 +13,8 @@ import Decoders from './decoders/Decoders'
 import Playbooks from './playbooks/Playbooks'
 import Integrations from './integrations/Integrations'
 import Users from './users/Users'
+import Workspaces from './workspaces/Workspaces'
+import Tenants from './tenants/Tenants'
 import Settings from './settings/Settings'
 import Login from './components/Login'
 import { fetchMe, getToken, can, type Me, type NewTicketInput } from './lib/api'
@@ -89,6 +91,10 @@ export default function App() {
           <Integrations />
         ) : view === 'users' && can(me, 'manage_users') ? (
           <Users me={me} />
+        ) : view === 'workspaces' && can(me, 'manage_workspaces') ? (
+          <Workspaces />
+        ) : view === 'tenants' && can(me, 'manage_tenants') ? (
+          <Tenants />
         ) : view === 'settings' ? (
           <Settings />
         ) : (

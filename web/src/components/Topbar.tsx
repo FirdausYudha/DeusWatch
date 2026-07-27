@@ -1,6 +1,7 @@
 import type { View } from './Sidebar'
 import { useTheme } from '../lib/theme'
 import RangePicker from './RangePicker'
+import WorkspaceSwitcher from './WorkspaceSwitcher'
 import type { DashRangeState } from '../lib/range'
 
 // Topbar is the prototype's global 60px header: it names the page on the left and carries the
@@ -28,6 +29,8 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   playbooks: { title: 'Playbooks', subtitle: 'Automated response actions' },
   integrations: { title: 'Integrations', subtitle: 'Connected sources and enrichment' },
   users: { title: 'Users', subtitle: 'Accounts, roles and access' },
+  workspaces: { title: 'Workspaces', subtitle: 'Teams and their tenant access' },
+  tenants: { title: 'Tenants', subtitle: 'Data-isolation boundaries' },
   settings: { title: 'Settings', subtitle: 'Platform configuration' },
 }
 
@@ -62,6 +65,7 @@ export default function Topbar({
       <p className="hidden truncate text-[12.5px] text-dim sm:block">{meta.subtitle}</p>
 
       <div className="ml-auto flex items-center gap-2.5">
+        <WorkspaceSwitcher />
         {view === 'dashboard' && range && <RangePicker range={range} />}
         <button
           onClick={toggle}

@@ -1,7 +1,33 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 3 landed, UNRELEASED).
+> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 4 landed, UNRELEASED).
+
+**Multi-tenancy Phase 4 2026-07-27 (on `main`, UNRELEASED). Frontend + admin API.**
+Makes multi-tenancy usable in the UI. Two commits: 4a backend, 4b frontend.
+- 4a backend (`internal/store/tenancy_admin.go`, `cmd/api/tenancy_handlers.go`): List/CreateTenant,
+  List/ListUser/CreateWorkspace, List/SetWorkspaceTenants (M2M), List/SetWorkspaceMembers, Slugify,
+  isUniqueViolation. Routes: `GET /api/tenants` + `GET /api/workspaces` (view_dashboard, so the switcher
+  + enroll picker work for everyone), `POST /api/tenants` (manage_tenants), `GET/POST
+  /api/admin/workspaces` + `GET/PUT /api/admin/workspaces/{id}/tenants|members` (manage_workspaces).
+- 4b frontend: `authFetch` now injects `X-Workspace-ID` from localStorage (`getActiveWorkspace`);
+  `WorkspaceSwitcher` in the Topbar (shown only when the user has >1 workspace; changing it persists +
+  reloads so every page re-fetches under the new scope); new `Tenants` + `Workspaces` admin pages
+  (Sidebar nav + View union + App routing + PAGE_META, gated by manage_tenants / manage_workspaces);
+  the Agents enroll wizard gained a Tenant picker (shown when >1 tenant) that re-issues the token bound
+  to the chosen tenant.
+- IMPORTANT behavior: a platform super-admin (manage_tenants) always sees ALL tenants — withScope sets
+  superadmin=Can(manage_tenants), so the workspace switcher does NOT filter for them (by design). It
+  narrows only NON-super users to the union of the selected workspace's tenants.
+- VERIFIED: `TestTenancyAdminCRUD` (create tenant+workspace, map, add member, ResolveUserScope reaches
+  the tenant) green; `go vet` + `tsc --noEmit` + `vite build` clean; live in-browser — logged in,
+  created tenant "Contoso", created workspace "Blue Team", mapped it to Contoso + added admin member
+  (PUTs 204, confirmed persisted in DB), switcher appeared with Blue Team/Default and the X-Workspace-ID
+  is persisted + sent (verified /api/me 200). Test rows cleaned up afterward. NEXT: Phase 5 — scope the
+  sibling-package tables still deferred (agents via enroll, response_actions/containment_actions via
+  respond, tickets), tenant-scoped bans/blocklist, deploy docs for the restricted role + FORCE RLS.
+
+
 
 **Multi-tenancy Phase 3 2026-07-27 (on `main`, UNRELEASED). Worker computes per-tenant.**
 The IP-derived scorers were the last cross-tenant LEAK: they grouped `GROUP BY source_ip` over the

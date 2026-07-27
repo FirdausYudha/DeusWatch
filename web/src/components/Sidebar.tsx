@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { logout, can, type Me } from '../lib/api'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'integrations' | 'users' | 'settings'
+export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
@@ -19,6 +19,8 @@ const NAV: NavItem[] = [
   { id: 'playbooks', label: 'Playbooks', view: 'playbooks', perm: 'manage_rules' },
   { id: 'integrations', label: 'Integrations', view: 'integrations', perm: 'manage_integrations' },
   { id: 'users', label: 'Users', view: 'users', perm: 'manage_users' },
+  { id: 'workspaces', label: 'Workspaces', view: 'workspaces', perm: 'manage_workspaces' },
+  { id: 'tenants', label: 'Tenants', view: 'tenants', perm: 'manage_tenants' },
   { id: 'settings', label: 'Settings', view: 'settings', perm: 'manage_settings' },
 ]
 
@@ -36,6 +38,8 @@ const ICONS: Record<string, string> = {
   playbooks: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM18 7h2v13H8',
   integrations: 'M9 3v6M15 3v6M6 9h12v4a6 6 0 0 1-12 0zM12 19v3',
   users: 'M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6M21 20v-2a4 4 0 0 0-3-3.8M16 3.7a4 4 0 0 1 0 7.6',
+  workspaces: 'M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7M3 12l9 4 9-4',
+  tenants: 'M3 21h18M6 21V8l6-4 6 4v13M10 12h4M10 16h4',
   settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.3a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 4.6h.1A1.6 1.6 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.4 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z',
 }
 

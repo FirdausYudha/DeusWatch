@@ -3,12 +3,14 @@ import {
   fetchAgents,
   createEnrollToken,
   fetchInstallInfo,
+  fetchTenants,
   revokeAgent,
   setAgentConfig,
   agentOnline,
   can,
   type AgentInfo,
   type AgentSource,
+  type Tenant,
   type Me,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
@@ -282,6 +284,10 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   const [token, setToken] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Multi-tenancy: bind the enrolling agent (and all its telemetry) to a tenant. Only shown when
+  // more than one tenant exists; otherwise the agent enrolls into Default.
+  const [tenants, setTenants] = useState<Tenant[]>([])
+  const [tenantID, setTenantID] = useState('')
 
   // Learn the manager's host-published ports so the command points at the right ones even
   // when they're remapped in docker-compose (DEUSWATCH_API_PORT / DEUSWATCH_GATEWAY_PORT).
@@ -307,11 +313,11 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   // Firewall command to run once on the manager host (Windows) so agents can reach it.
   const managerFw = `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort ${apiPort},${gwPort}`
 
-  const gen = async () => {
+  const gen = async (tid = tenantID) => {
     setBusy(true)
     setError('')
     try {
-      const { token } = await createEnrollToken()
+      const { token } = await createEnrollToken(tid)
       setToken(token)
     } catch (e) {
       setError((e as Error).message)
@@ -323,6 +329,9 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   // Auto-generate a one-time token when the wizard opens, so the command is ready to copy.
   useEffect(() => {
     void gen()
+    fetchTenants()
+      .then(setTenants)
+      .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -364,6 +373,28 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
               className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
             />
           </label>
+          {tenants.length > 1 && (
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-muted">Tenant</span>
+              <select
+                value={tenantID}
+                onChange={(e) => {
+                  setTenantID(e.target.value)
+                  void gen(e.target.value) // re-issue the token bound to the chosen tenant
+                }}
+                className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+              >
+                <option value="">Default</option>
+                {tenants
+                  .filter((t) => t.slug !== 'default')
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
         </div>
 
         <div className="mt-5 space-y-4">
@@ -395,7 +426,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             Close
           </button>
           <button
-            onClick={gen}
+            onClick={() => gen()}
             disabled={busy}
             className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
