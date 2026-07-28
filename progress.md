@@ -1,17 +1,19 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-27 (RELEASED v2.3.0; + unreleased Suspicious-IPs widget tidy-up).
+> Last updated: 2026-07-28 (RELEASED v2.3.1 — Suspicious-IPs widget tidy-up).
 
-**Dashboard: Suspicious IPs (recon) widget tidy-up 2026-07-27 (on `main`, UNRELEASED).** User reported
+**v2.3.1 — Suspicious IPs (recon) widget tidy-up 2026-07-28 (RELEASED, tag `v2.3.1`).** User reported
 the widget looked cramped in its narrow (span-1) column: the one-line layout `[ip w-32][bar flex-1][score
 w-7][meta w-48 right]` squished the score bar and pushed a wide right-aligned meta block ("9h · 18
 failures") that read messily. Restructured `SuspiciousIPsWidget` (web/src/dashboard/widgets.tsx) to mirror
 its already-tidy sibling `SlowScannerWidget`: IP on the left, then a `min-w-0 flex-1` block with a compact
 LEFT-aligned meta line (**failures** bold · Nh seen · targets) ABOVE a full-width bar, then the score on the
-right. tsc + vite build clean. NOT visually screenshotted — Docker Desktop was down at commit time so the
-dev DB/dashboard couldn't be seeded; the change is a structural clone of the verified SlowScanner layout.
-Eyeball on next deploy; re-verify live if anything's off.
+right. tsc + vite build clean. VERIFIED live (after Docker came back): seeded 7 rows, dashboard renders IP +
+left-aligned meta (`18 failures · 9h seen · 4 targets`) above a full-width bar (113px track, 31% fill, band
+color) + score right — no longer squished. (Side note found while verifying: `TopSuspiciousIPs` scans
+first_seen/last_seen into non-pointer time.Time, so a row with NULL there errors and the dashboard silently
+drops the whole list; real scorer rows always set them, so not a live bug — just don't hand-seed those NULL.)
 
 **v2.3.0 — Manual "Ban an IP" 2026-07-27 (RELEASED, tag `v2.3.0`).** An admin can add an IP to the ban
 list on demand (not just via alerts). `engine.BanIP(ip, dur, by)` (internal/respond/engine.go): validates
