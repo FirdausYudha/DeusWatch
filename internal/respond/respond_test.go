@@ -72,6 +72,9 @@ func (f *fakeStore) Offenses(_ context.Context, _ string, _ time.Time) (int, err
 func (f *fakeStore) HasOpenAction(_ context.Context, _ string) (bool, error) {
 	return f.open, nil
 }
+func (f *fakeStore) AppendReason(_ context.Context, _, _ string) error {
+	return nil
+}
 func (f *fakeStore) Get(_ context.Context, id string) (*Action, error) {
 	a, ok := f.actions[id]
 	if !ok {

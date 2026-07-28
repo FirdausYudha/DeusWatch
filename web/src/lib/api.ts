@@ -86,6 +86,9 @@ export type EventRow = {
   dw_remediation_source: string
   threat_score: number
   threat_band: string
+  // INBOUND / OUTBOUND / LATERAL — attached by the API using the internal-tagged whitelist.
+  // "" when it couldn't be classified.
+  direction?: 'inbound' | 'outbound' | 'lateral' | ''
 }
 
 export type IPCount = { ip: string; count: number }
@@ -1001,8 +1004,11 @@ export async function banIP(ip: string, minutes = 0): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
-// IP whitelist: trusted IPs/CIDRs the response engine never bans.
-export type WhitelistEntry = { id: string; cidr: string; note: string; created_at: string }
+// IP whitelist: trusted IPs/CIDRs the response engine never bans. `kind` classifies the entry as
+// 'internal' (our network — counts as "our side" for the INBOUND/OUTBOUND/LATERAL direction tag) or
+// 'external' (a trusted third party — still never banned, but doesn't count as our side).
+export type WhitelistKind = 'internal' | 'external'
+export type WhitelistEntry = { id: string; cidr: string; note: string; kind: WhitelistKind; created_at: string }
 
 export async function fetchWhitelist(): Promise<WhitelistEntry[]> {
   const res = await authFetch('/api/whitelist')
@@ -1010,11 +1016,11 @@ export async function fetchWhitelist(): Promise<WhitelistEntry[]> {
   return res.json()
 }
 
-export async function addWhitelist(cidr: string, note: string): Promise<WhitelistEntry> {
+export async function addWhitelist(cidr: string, note: string, kind: WhitelistKind = 'internal'): Promise<WhitelistEntry> {
   const res = await authFetch('/api/whitelist', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cidr, note }),
+    body: JSON.stringify({ cidr, note, kind }),
   })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()

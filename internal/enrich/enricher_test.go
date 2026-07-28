@@ -20,8 +20,9 @@ func TestApplyEscalation(t *testing.T) {
 	ev.DeusWatch.Severity.Original = ev.Event.Severity // EnrichEvent captures this before escalation
 	applyIPIndicator(ev, Indicator{AbuseConfidence: 95, OTXPulseCount: 8, CountryISO: "RU", FeedName: "mock"}, DefaultEscalationRules())
 
-	if ev.Event.Severity != ingest.SeverityHigh { // low +1 (abuse) +1 (otx) = high
-		t.Fatalf("wrong escalated severity: %v (want high)", ev.Event.Severity)
+	// abuse=95 floors severity at high (community-verified malicious); otx=8 (>=5) adds +1 = critical.
+	if ev.Event.Severity != ingest.SeverityCritical {
+		t.Fatalf("wrong escalated severity: %v (want critical)", ev.Event.Severity)
 	}
 	if ev.DeusWatch.Severity.Original != ingest.SeverityLow {
 		t.Fatalf("original severity should be kept as low, got %v", ev.DeusWatch.Severity.Original)
@@ -43,6 +44,20 @@ func TestApplyEscalation(t *testing.T) {
 	}
 }
 
+// TestAbuse100OnInfoEventEscalatesToHigh guards the "why is severity low?" bug the operator hit:
+// an SSH-invalid-user event (severity=info=0) enriched with abuse_confidence=100 must NOT stay at
+// low. It should floor at high because the community has verified the IP as malicious.
+func TestAbuse100OnInfoEventEscalatesToHigh(t *testing.T) {
+	ev := &ingest.Event{
+		Event:  ingest.EventFields{Severity: ingest.SeverityInfo}, // fresh alert, no rule-side sev
+		Source: &ingest.Endpoint{IP: "160.119.71.211"},
+	}
+	applyIPIndicator(ev, Indicator{AbuseConfidence: 100, OTXPulseCount: 1}, DefaultEscalationRules())
+	if ev.Event.Severity < ingest.SeverityHigh {
+		t.Fatalf("abuse=100 must floor severity at high (community-verified), got %v", ev.Event.Severity)
+	}
+}
+
 func TestNoEscalationBenign(t *testing.T) {
 	ev := &ingest.Event{
 		Event:  ingest.EventFields{Severity: ingest.SeverityMedium},
@@ -61,8 +76,10 @@ func TestCustomEscalationThreshold(t *testing.T) {
 	}
 	// Stricter thresholds: abuse>=50 triggers escalation; otx>=100 does not.
 	applyIPIndicator(ev, Indicator{AbuseConfidence: 60, OTXPulseCount: 3}, EscalationRules{AbuseThreshold: 50, OTXThreshold: 100})
-	if ev.Event.Severity != ingest.SeverityMedium { // low +1 (abuse only)
-		t.Fatalf("wrong severity: %v (want medium)", ev.Event.Severity)
+	// abuse=60 falls in the >=threshold band → +2 severity steps; otx below its threshold contributes 0.
+	// low(1) + 2 = high(3).
+	if ev.Event.Severity != ingest.SeverityHigh {
+		t.Fatalf("wrong severity: %v (want high)", ev.Event.Severity)
 	}
 }
 

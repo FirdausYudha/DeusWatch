@@ -263,11 +263,14 @@ func main() {
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
 			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
 		}
-		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st)))
-		mux.Handle("GET /api/events/search", protect(auth.PermViewDashboard, searchEventsHandler(st)))
+		// Response store — declared early so the events/alerts/search handlers can read the internal
+		// whitelist for the INBOUND/OUTBOUND/LATERAL direction tag. Its engine is built later.
+		respStore := respond.NewStore(st.Pool())
+		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st, respStore)))
+		mux.Handle("GET /api/events/search", protect(auth.PermViewDashboard, searchEventsHandler(st, respStore)))
 		mux.Handle("POST /api/export/events", protect(auth.PermViewDashboard, exportEventsHandler(st)))
 		mux.Handle("POST /api/export/report", protect(auth.PermViewDashboard, exportReportHandler(st)))
-		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st)))
+		mux.Handle("/api/alerts", protect(auth.PermViewDashboard, alertsHandler(st, respStore)))
 		mux.Handle("/api/stats", protect(auth.PermViewDashboard, statsHandler(st)))
 		mux.Handle("/api/report", protect(auth.PermViewDashboard, reportHandler(st)))
 		mux.Handle("GET /api/report/summary", protect(auth.PermViewDashboard, reportSummaryGetHandler(st)))
@@ -357,8 +360,8 @@ func main() {
 		mux.Handle("PUT /api/dashboard/layout", protect(auth.PermViewDashboard, saveLayoutHandler(st)))
 
 		// Response engine: the block approval workflow (executed via the same responder
-		// as the worker — RESPONDER/RESPONSE_LIVE). See internal/respond.
-		respStore := respond.NewStore(st.Pool())
+		// as the worker — RESPONDER/RESPONSE_LIVE). See internal/respond. respStore was created
+		// earlier (needed by the events handlers for direction tagging).
 		respEngine := respond.NewEngine(respStore, respond.ResponderFromEnv(), respond.DefaultBanPolicy(), false)
 		// Blocklist feed (pull model): a token-gated, unauthenticated URL that serves the active
 		// banned IPs as a plaintext/JSON list, so any external firewall that fetches a dynamic
@@ -469,8 +472,8 @@ func main() {
 		mux.Handle("POST /api/tickets/{id}/comments", protect(auth.PermManageTickets, ticketStore.CommentHandler()))
 	} else {
 		// Without a DB: endpoints reply 503.
-		mux.HandleFunc("/api/events", eventsHandler(nil))
-		mux.HandleFunc("/api/alerts", alertsHandler(nil))
+		mux.HandleFunc("/api/events", eventsHandler(nil, nil))
+		mux.HandleFunc("/api/alerts", alertsHandler(nil, nil))
 		mux.HandleFunc("/api/stats", statsHandler(nil))
 	}
 
@@ -610,7 +613,21 @@ func readyzHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, map[string]any{"status": overall, "dependencies": deps})
 }
 
-func eventsHandler(st *store.Store) http.HandlerFunc {
+// attachDirection labels each row with INBOUND/OUTBOUND/LATERAL using the internal-tagged whitelist
+// (see internal/store/direction.go). Kept as a helper so the three event-returning handlers stay
+// consistent; a whitelist read failure is non-fatal and just leaves the tag empty.
+func attachDirection(ctx context.Context, rows []store.EventRow, rs *respond.Store) {
+	if len(rows) == 0 || rs == nil {
+		return
+	}
+	nets, err := rs.WhitelistInternalNets(ctx)
+	if err != nil {
+		return
+	}
+	store.AttachDirection(rows, nets)
+}
+
+func eventsHandler(st *store.Store, rs *respond.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if st == nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -621,6 +638,7 @@ func eventsHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		attachDirection(r.Context(), rows, rs)
 		writeJSON(w, http.StatusOK, rows)
 	}
 }
@@ -657,7 +675,7 @@ func parseEventFilter(r *http.Request) store.EventFilter {
 	return f
 }
 
-func searchEventsHandler(st *store.Store) http.HandlerFunc {
+func searchEventsHandler(st *store.Store, rs *respond.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if st == nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -669,6 +687,7 @@ func searchEventsHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		st.AttachScores(r.Context(), rows)
+		attachDirection(r.Context(), rows, rs)
 		writeJSON(w, http.StatusOK, rows)
 	}
 }
@@ -783,7 +802,7 @@ func fimRestoreHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
-func alertsHandler(st *store.Store) http.HandlerFunc {
+func alertsHandler(st *store.Store, rs *respond.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if st == nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -795,6 +814,7 @@ func alertsHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		st.AttachScores(r.Context(), rows)
+		attachDirection(r.Context(), rows, rs)
 		writeJSON(w, http.StatusOK, rows)
 	}
 }
@@ -1350,7 +1370,7 @@ func configImportHandler(st *store.Store) http.HandlerFunc {
 				WindowSecs  int   `json:"window_secs"`
 				AutoApprove bool  `json:"auto_approve"`
 			} `json:"ban_policy"`
-			Whitelist []struct{ CIDR, Note string } `json:"ip_whitelist"`
+			Whitelist []struct{ CIDR, Note, Kind string } `json:"ip_whitelist"`
 			ReportAI  *store.ReportAIConfig         `json:"report_ai_config"`
 			Notify    *store.NotifyConfig           `json:"notify_config"`
 			Rules     []struct {
@@ -1386,7 +1406,7 @@ func configImportHandler(st *store.Store) http.HandlerFunc {
 			}
 		}
 		for _, e := range b.Whitelist {
-			if _, err := rs.AddWhitelist(ctx, e.CIDR, e.Note); err == nil {
+			if _, err := rs.AddWhitelist(ctx, e.CIDR, e.Note, e.Kind); err == nil {
 				applied["ip_whitelist"]++
 			}
 		}
@@ -1606,6 +1626,7 @@ func whitelistAddHandler(s *respond.Store) http.HandlerFunc {
 		var req struct {
 			CIDR string `json:"cidr"`
 			Note string `json:"note"`
+			Kind string `json:"kind"` // "internal" (default) or "external"
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid body", http.StatusBadRequest)
@@ -1615,7 +1636,7 @@ func whitelistAddHandler(s *respond.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		e, err := s.AddWhitelist(r.Context(), req.CIDR, req.Note)
+		e, err := s.AddWhitelist(r.Context(), req.CIDR, req.Note, req.Kind)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

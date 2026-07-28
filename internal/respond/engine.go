@@ -18,6 +18,7 @@ type ActionStore interface {
 	Insert(ctx context.Context, a *Action) (string, error)
 	Offenses(ctx context.Context, ip string, since time.Time) (int, error)
 	HasOpenAction(ctx context.Context, ip string) (bool, error)
+	AppendReason(ctx context.Context, ip, reason string) error
 	Get(ctx context.Context, id string) (*Action, error)
 	SetStatus(ctx context.Context, id string, status Status, decidedBy string) error
 	SetExecuted(ctx context.Context, id, responder string, execErr error) error
@@ -94,11 +95,17 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 		return nil, nil
 	}
 
-	// Dedup: if the IP already has a pending recommendation or an active block,
-	// don't create another — a brute-force burst collapses to one open action.
+	// Dedup: if the IP already has a pending recommendation or an active block, don't create a new
+	// row — a brute-force burst collapses to one open action. BUT merge the new alert's reason into
+	// the existing action's REASON so the banlist row reflects every distinct rule that fired for
+	// that IP ("Failed SSH Login as root, SSH Login Attempt for Invalid User, WAF SQLi Block"),
+	// which is what an analyst needs to see when triaging.
 	if open, err := e.store.HasOpenAction(ctx, ev.Source.IP); err != nil {
 		return nil, err
 	} else if open {
+		if err := e.store.AppendReason(ctx, ev.Source.IP, reasonFor(ev)); err != nil {
+			log.Printf("respond: append reason %s: %v", ev.Source.IP, err)
+		}
 		return nil, nil
 	}
 

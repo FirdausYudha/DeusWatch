@@ -1,0 +1,1 @@
+ALTER TABLE ip_whitelist DROP COLUMN IF EXISTS kind;

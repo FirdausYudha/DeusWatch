@@ -211,13 +211,36 @@ func applyIPIndicator(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 		}
 	}
 
-	// Dynamic severity escalation (section 9); cumulative with any FIM bump.
+	// Dynamic severity escalation (section 9); cumulative with any FIM bump. Community reputation
+	// (AbuseIPDB, OTX) is COMMUNITY-VERIFIED intelligence: an IP the community has already agreed is
+	// malicious deserves a heavier bump than a single-rule hit. Otherwise a "SSH invalid user" event
+	// (severity=info, 0) enriched with abuse=100 escalates only to `low` — that's what the operator
+	// hit and the reason this ladder is aggressive:
+	//   * abuse ≥ 95         → FLOOR at high (community says: definitely malicious)
+	//   * abuse ≥ threshold  → +2 severity steps (was +1)
+	//   * abuse ≥ 75         → +1 severity step
+	//   * otx   ≥ 2·threshold → +2 severity steps
+	//   * otx   ≥ threshold  → +1 severity step
+	// Effect on the bug the operator reported: SSH-invalid-user (info=0) + abuse=100 → HIGH (not low).
 	esc := ev.Event.Severity
-	if abuse >= rules.AbuseThreshold {
-		esc++
+	switch {
+	case abuse >= 95:
+		if esc < ingest.SeverityHigh {
+			esc = ingest.SeverityHigh
+		}
+		addEscalationReason(ev, "abuse_confidence>=95 (community-verified malicious)")
+	case abuse >= rules.AbuseThreshold:
+		esc += 2
 		addEscalationReason(ev, "abuse_confidence>="+strconv.Itoa(rules.AbuseThreshold))
+	case abuse >= 75:
+		esc++
+		addEscalationReason(ev, "abuse_confidence>=75")
 	}
-	if otx >= rules.OTXThreshold {
+	switch {
+	case otx >= 2*rules.OTXThreshold:
+		esc += 2
+		addEscalationReason(ev, "otx_pulse_count>="+strconv.Itoa(2*rules.OTXThreshold))
+	case otx >= rules.OTXThreshold:
 		esc++
 		addEscalationReason(ev, "otx_pulse_count>="+strconv.Itoa(rules.OTXThreshold))
 	}

@@ -26,6 +26,21 @@ function SeverityBadge({ sev }: { sev: number }) {
   const m = SEVERITY[sev] ?? SEVERITY[0]
   return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${m.cls}`}>{m.label}</span>
 }
+// DirectionBadge tags an event's direction relative to our network. LATERAL is the highest-value
+// signal for a SOAR (attacker already past the perimeter), so it gets the sharpest color; INBOUND is
+// the typical external attack pattern; OUTBOUND flags a possibly-compromised internal host reaching
+// out (C2/exfil). Hidden when the API couldn't classify (empty).
+const DIRECTION_BADGE: Record<string, { label: string; cls: string; title: string }> = {
+  inbound: { label: 'INBOUND', cls: 'text-sky-300 bg-sky-500/15', title: 'External source hitting one of our hosts (typical attack pattern)' },
+  outbound: { label: 'OUTBOUND', cls: 'text-amber-300 bg-amber-500/15', title: 'Internal source reaching an external destination — possible C2 or data exfil' },
+  lateral: { label: 'LATERAL', cls: 'text-rose-300 bg-rose-500/15', title: 'Internal ↔ internal — attacker moving inside our network' },
+}
+function DirectionBadge({ d }: { d?: string }) {
+  if (!d) return null
+  const m = DIRECTION_BADGE[d]
+  if (!m) return null
+  return <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold tracking-wide ${m.cls}`} title={m.title}>{m.label}</span>
+}
 const VERDICT_BADGE: Record<string, string> = {
   malicious: 'text-rose-300 bg-rose-500/15',
   suspicious: 'text-amber-300 bg-amber-500/15',
@@ -561,7 +576,12 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                         </button>
                       ) : '—'}
                     </td>
-                    <td className="px-4 py-2 font-mono text-fg">{a.source_ip || '—'}</td>
+                    <td className="px-4 py-2 font-mono text-fg">
+                      <div className="flex items-center gap-1.5">
+                        <span>{a.source_ip || '—'}</span>
+                        <DirectionBadge d={a.direction} />
+                      </div>
+                    </td>
                     <td className="px-4 py-2 text-fg">
                       {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
                       {a.file_path && (

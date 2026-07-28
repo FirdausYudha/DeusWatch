@@ -885,6 +885,10 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
   const [entries, setEntries] = useState<WhitelistEntry[]>([])
   const [cidr, setCidr] = useState('')
   const [note, setNote] = useState('')
+  // Kind: 'internal' (our network — counts as our side for the direction classifier) or 'external'
+  // (a trusted third party — never banned, but not our side). Default: internal, the historical
+  // interpretation of the whitelist.
+  const [kind, setKind] = useState<'internal' | 'external'>('internal')
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -908,9 +912,10 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
     setBusy(true)
     setError('')
     try {
-      await addWhitelist(cidr.trim(), note.trim())
+      await addWhitelist(cidr.trim(), note.trim(), kind)
       setCidr('')
       setNote('')
+      setKind('internal')
       load()
     } catch (e) {
       setError((e as Error).message)
@@ -968,6 +973,15 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
                 placeholder="note (optional)"
                 className="min-w-0 flex-1 rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
               />
+              <select
+                value={kind}
+                onChange={(e) => setKind(e.target.value as 'internal' | 'external')}
+                title="Internal = our network (used to classify event direction). External = a trusted third party."
+                className="rounded-md border border-border bg-bg px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
+              >
+                <option value="internal">Internal</option>
+                <option value="external">External</option>
+              </select>
               <button
                 onClick={add}
                 disabled={busy || !cidr.trim()}
@@ -985,6 +999,7 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
               <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
                 <tr>
                   <th className="px-3 py-2 font-medium">IP / CIDR</th>
+                  <th className="px-3 py-2 font-medium">Kind</th>
                   <th className="px-3 py-2 font-medium">Note</th>
                   <th className="px-3 py-2 font-medium">Added</th>
                   {canManage && <th className="px-3 py-2 font-medium"></th>}
@@ -993,7 +1008,7 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
               <tbody className="divide-y divide-border bg-surface">
                 {entries.length === 0 && (
                   <tr>
-                    <td colSpan={canManage ? 4 : 3} className="px-3 py-6 text-center text-dim">
+                    <td colSpan={canManage ? 5 : 4} className="px-3 py-6 text-center text-dim">
                       No whitelisted IPs.
                     </td>
                   </tr>
@@ -1001,6 +1016,11 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
                 {entries.map((e) => (
                   <tr key={e.id} className="hover:bg-surface-2">
                     <td className="px-3 py-2 font-mono text-fg">{e.cidr}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide ${e.kind === 'external' ? 'text-amber-300 bg-amber-500/15' : 'text-sky-300 bg-sky-500/15'}`}>
+                        {e.kind === 'external' ? 'EXTERNAL' : 'INTERNAL'}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-muted">{e.note || '—'}</td>
                     <td className="px-3 py-2 text-dim">{new Date(e.created_at).toLocaleString('en-US')}</td>
                     {canManage && (

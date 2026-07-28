@@ -72,6 +72,39 @@ func (s *Store) DismissPendingForIP(ctx context.Context, ip, by string) (int, er
 // expired; ban_seconds = 0 = permanent). Used to dedup — one open action per IP —
 // so a brute-force burst doesn't pile up hundreds of identical rows. Once the ban
 // expires, the next event produces a fresh (escalated) recommendation.
+// AppendReason merges reason into the OPEN action's reason CSV for the given IP (case-insensitive
+// dedup, order preserved). When a brute-force burst triggers multiple different alerts on the same
+// IP the ban action collapses to one row for dedup — but its REASON column would only show the FIRST
+// alert's name, losing the picture. Appending yields e.g.
+// "Failed SSH Login as root, SSH Login Attempt for Invalid User, WAF SQLi Block". No-op when reason
+// is empty or already present. Only updates rows the HasOpenAction filter would call "open".
+func (s *Store) AppendReason(ctx context.Context, ip, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil
+	}
+	// Postgres-side dedup: split the existing reason on ", ", skip if the new one already lives
+	// there (case-insensitive), else append. Keeps the write to a single UPDATE.
+	_, err := s.pool.Exec(ctx, `
+		UPDATE response_actions
+		SET reason = CASE
+			WHEN reason IS NULL OR reason = '' THEN $2
+			WHEN lower($2) = ANY (SELECT lower(trim(x)) FROM unnest(string_to_array(reason, ', ')) x) THEN reason
+			ELSE reason || ', ' || $2
+		END
+		WHERE source_ip = $1::inet
+		  AND (
+		      status = 'recommended'
+		      OR (status IN ('approved','executed')
+		          AND (ban_seconds = 0
+		               OR COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds) > now()))
+		  )`, ip, reason)
+	if err != nil {
+		return fmt.Errorf("respond: append reason: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) HasOpenAction(ctx context.Context, ip string) (bool, error) {
 	var exists bool
 	err := s.pool.QueryRow(ctx, `

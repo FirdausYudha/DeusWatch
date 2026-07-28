@@ -16,9 +16,10 @@ type EventRow struct {
 	Action      string    `json:"event_action"`
 	Outcome     string    `json:"event_outcome"`
 	Severity    int       `json:"event_severity"`
-	Dataset     string    `json:"event_dataset"`
-	SourceIP    string    `json:"source_ip"`
-	HostName    string    `json:"host_name"`
+	Dataset       string `json:"event_dataset"`
+	SourceIP      string `json:"source_ip"`
+	DestinationIP string `json:"destination_ip"` // used by the direction classifier (LATERAL/OUTBOUND)
+	HostName      string `json:"host_name"`
 	UserName    string    `json:"user_name"`
 	AgentID     string    `json:"agent_id"` // the agent NAME (cert CN) that reported the event
 	RuleID      string    `json:"rule_id"`
@@ -57,6 +58,11 @@ type EventRow struct {
 	// Composite threat score for source_ip (attached by the API from ip_scores; 0 = none).
 	ThreatScore int    `json:"threat_score"`
 	ThreatBand  string `json:"threat_band"`
+	// Direction of the event relative to our network (attached by the API using the internal-tagged
+	// IP whitelist ∪ RFC1918 loopback). "inbound" = external hitting us (the common attack); "lateral"
+	// = internal ↔ internal (very concerning — attacker already inside); "outbound" = an internal
+	// source reaching an external destination (possible C2/exfil); empty when it can't be classified.
+	Direction string `json:"direction"`
 }
 
 // AttachScores fills ThreatScore/ThreatBand on each row from the current ip_scores, so the
@@ -90,7 +96,7 @@ const selectCols = `
 	time,
 	COALESCE(event_category,''), COALESCE(event_action,''), COALESCE(event_outcome,''),
 	COALESCE(event_severity,0), COALESCE(event_dataset,''),
-	COALESCE(host(source_ip),''), COALESCE(host_name,''), COALESCE(user_name,''),
+	COALESCE(host(source_ip),''), COALESCE(host(destination_ip),''), COALESCE(host_name,''), COALESCE(user_name,''),
 	COALESCE(rule_id,''), COALESCE(rule_name,''),
 	COALESCE(threat_technique_id,''), COALESCE(threat_tactic_name,''),
 	COALESCE(dw_label,''), COALESCE(event_original,''),
@@ -113,7 +119,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 		var e EventRow
 		if err := rows.Scan(
 			&e.Time, &e.Category, &e.Action, &e.Outcome, &e.Severity, &e.Dataset,
-			&e.SourceIP, &e.HostName, &e.UserName, &e.RuleID, &e.RuleName,
+			&e.SourceIP, &e.DestinationIP, &e.HostName, &e.UserName, &e.RuleID, &e.RuleName,
 			&e.TechniqueID, &e.TacticName, &e.Label, &e.Original,
 			&e.GeoCountry, &e.GeoCity, &e.FeedName,
 			&e.AbuseConfidence, &e.OTXPulseCount, &e.EnrichStatus, &e.EscalatedBy,
