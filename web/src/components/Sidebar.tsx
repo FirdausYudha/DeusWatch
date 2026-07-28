@@ -6,22 +6,47 @@ export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' 
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
-const NAV: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', view: 'dashboard', perm: 'view_dashboard' },
-  { id: 'response', label: 'Response', view: 'response', perm: 'approve_remediation' },
-  { id: 'snapshots', label: 'Snapshots', view: 'snapshots', perm: 'view_dashboard' },
-  { id: 'tickets', label: 'Tickets', view: 'tickets', perm: 'view_tickets' },
-  { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
-  { id: 'agents', label: 'Agents', view: 'agents', perm: 'view_dashboard' },
-  { id: 'inventory', label: 'Inventory', view: 'inventory', perm: 'view_dashboard' },
-  { id: 'rules', label: 'Rules', view: 'rules', perm: 'manage_rules' },
-  { id: 'decoders', label: 'Decoders', view: 'decoders', perm: 'manage_rules' },
-  { id: 'playbooks', label: 'Playbooks', view: 'playbooks', perm: 'manage_rules' },
-  { id: 'integrations', label: 'Integrations', view: 'integrations', perm: 'manage_integrations' },
-  { id: 'users', label: 'Users', view: 'users', perm: 'manage_users' },
-  { id: 'workspaces', label: 'Workspaces', view: 'workspaces', perm: 'manage_workspaces' },
-  { id: 'tenants', label: 'Tenants', view: 'tenants', perm: 'manage_tenants' },
-  { id: 'settings', label: 'Settings', view: 'settings', perm: 'manage_settings' },
+type NavGroup = {
+  group: string
+  items: NavItem[]
+}
+
+const NAV: NavGroup[] = [
+  {
+    group: 'Monitoring & Operations',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', view: 'dashboard', perm: 'view_dashboard' },
+      { id: 'response', label: 'Response', view: 'response', perm: 'approve_remediation' },
+      { id: 'tickets', label: 'Tickets', view: 'tickets', perm: 'view_tickets' },
+      { id: 'snapshots', label: 'Snapshots', view: 'snapshots', perm: 'view_dashboard' },
+      { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
+    ],
+  },
+  {
+    group: 'Asset & Endpoint Management',
+    items: [
+      { id: 'agents', label: 'Agents', view: 'agents', perm: 'view_dashboard' },
+      { id: 'inventory', label: 'Inventory', view: 'inventory', perm: 'view_dashboard' },
+    ],
+  },
+  {
+    group: 'Detection & Automation',
+    items: [
+      { id: 'rules', label: 'Rules', view: 'rules', perm: 'manage_rules' },
+      { id: 'decoders', label: 'Decoders', view: 'decoders', perm: 'manage_rules' },
+      { id: 'playbooks', label: 'Playbooks', view: 'playbooks', perm: 'manage_rules' },
+      { id: 'integrations', label: 'Integrations', view: 'integrations', perm: 'manage_integrations' },
+    ],
+  },
+  {
+    group: 'Administration & Access',
+    items: [
+      { id: 'users', label: 'Users', view: 'users', perm: 'manage_users' },
+      { id: 'workspaces', label: 'Workspaces', view: 'workspaces', perm: 'manage_workspaces' },
+      { id: 'tenants', label: 'Tenants', view: 'tenants', perm: 'manage_tenants' },
+      { id: 'settings', label: 'Settings', view: 'settings', perm: 'manage_settings' },
+    ],
+  },
 ]
 
 // Inline stroke icons (no icon package, no CDN — the app must run fully offline).
@@ -105,26 +130,39 @@ export default function Sidebar({
         <span className="text-[15px] font-bold tracking-tight text-fg">DeusWatch</span>
       </div>
 
-      {/* Nav */}
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 py-3">
-        {NAV.map((n) => {
-          if (n.perm && !can(me, n.perm)) return null
-          const active = n.view === view
+      {/* Nav — grouped by feature category */}
+      <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2.5 py-3">
+        {NAV.map((group) => {
+          const visibleItems = group.items.filter(n => !n.perm || can(me, n.perm))
+          if (visibleItems.length === 0) return null
+
           return (
-            <button
-              key={n.id}
-              data-view={n.view}
-              onClick={() => { if (n.view) { onNavigate(n.view); onClose?.() } }}
-              className={`flex w-full items-center gap-[11px] rounded-[8px] px-3 py-[9px] text-left text-[13.5px] font-medium transition-colors ${
-                active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
-              }`}
-            >
-              <span className={active ? 'text-accent' : 'text-dim'}>
-                <NavIcon id={n.id} />
-              </span>
-              {n.label}
-              {active && <span className="ml-auto h-[5px] w-[5px] rounded-full bg-accent" />}
-            </button>
+            <div key={group.group} className="flex flex-col gap-1">
+              {/* Group header */}
+              <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
+                {group.group}
+              </div>
+              {/* Items in group */}
+              {visibleItems.map((n) => {
+                const active = n.view === view
+                return (
+                  <button
+                    key={n.id}
+                    data-view={n.view}
+                    onClick={() => { if (n.view) { onNavigate(n.view); onClose?.() } }}
+                    className={`flex w-full items-center gap-[11px] rounded-[8px] px-3 py-[9px] text-left text-[13.5px] font-medium transition-colors ${
+                      active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
+                    }`}
+                  >
+                    <span className={active ? 'text-accent' : 'text-dim'}>
+                      <NavIcon id={n.id} />
+                    </span>
+                    {n.label}
+                    {active && <span className="ml-auto h-[5px] w-[5px] rounded-full bg-accent" />}
+                  </button>
+                )
+              })}
+            </div>
           )
         })}
       </nav>
