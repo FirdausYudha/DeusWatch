@@ -228,8 +228,16 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
             <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
           </div>
           <span className="w-7 text-right text-[11px] font-medium text-fg">{r.score}</span>
-          <span className="w-24 shrink-0 text-right text-[10px] text-dim">
-            {r.fanout}✦ · {r.contacts}×
+          <span className="w-48 shrink-0 text-right text-[10px] text-dim">
+            <span title="Separate time windows this source appeared in — low-and-slow signature">{r.distinct_hours}h</span>
+            <span> · </span>
+            <span title={`Failed attempts (blocked/denied/4xx/auth-failure)`}>{r.failures} failures</span>
+            {r.fanout > 0 && (
+              <>
+                <span> · </span>
+                <span title="Distinct endpoints or ports probed">{r.fanout} targets</span>
+              </>
+            )}
           </span>
         </li>
       ))}
