@@ -1,7 +1,17 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-28 (RELEASED v2.3.1 — Suspicious-IPs widget tidy-up).
+> Last updated: 2026-07-28 (RELEASED v2.3.1; + unreleased collapsible sidebar groups).
+
+**Sidebar: collapsible feature groups 2026-07-28 (on `main`, UNRELEASED).** The sidebar nav is grouped
+(Monitoring & Operations / Asset & Endpoint Management / Detection & Automation / Administration &
+Access). Made each group header a toggle button (rotating chevron) that collapses/expands its items,
+persisted per-group via `usePersistedState('nav.collapsed', {})` (localStorage map name→collapsed). A
+collapsed group whose current page lives inside shows a small accent dot on the header so you don't lose
+your place. web/src/components/Sidebar.tsx only. VERIFIED live: collapse hides the group's items
+(15→11 for Detection's 4), survives reload, re-expands to 15; aria-expanded toggles; state persists.
+tsc + vite build clean.
+
 
 **v2.3.1 — Suspicious IPs (recon) widget tidy-up 2026-07-28 (RELEASED, tag `v2.3.1`).** User reported
 the widget looked cramped in its narrow (span-1) column: the one-line layout `[ip w-32][bar flex-1][score

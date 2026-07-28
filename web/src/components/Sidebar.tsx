@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { logout, can, type Me } from '../lib/api'
+import { usePersistedState } from '../lib/usePersistedState'
 import SupportModal from './SupportModal'
 
 export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
@@ -99,6 +100,9 @@ export default function Sidebar({
   onClose?: () => void
 }) {
   const [showSupport, setShowSupport] = useState(false)
+  // Per-group collapse, remembered across reloads (map of group name → collapsed).
+  const [collapsed, setCollapsed] = usePersistedState<Record<string, boolean>>('nav.collapsed', {})
+  const toggleGroup = (g: string) => setCollapsed({ ...collapsed, [g]: !collapsed[g] })
 
   const handleLogout = async () => {
     await logout()
@@ -136,14 +140,33 @@ export default function Sidebar({
           const visibleItems = group.items.filter(n => !n.perm || can(me, n.perm))
           if (visibleItems.length === 0) return null
 
+          const isCollapsed = !!collapsed[group.group]
+          const hasActive = visibleItems.some((n) => n.view === view)
+
           return (
             <div key={group.group} className="flex flex-col gap-1">
-              {/* Group header */}
-              <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim">
-                {group.group}
-              </div>
+              {/* Group header — click to collapse/expand. Shows an active dot when collapsed but the
+                  current page lives inside, so you never lose your place. */}
+              <button
+                onClick={() => toggleGroup(group.group)}
+                aria-expanded={!isCollapsed}
+                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim transition-colors hover:text-fg"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                  className={`shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                >
+                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>{group.group}</span>
+                {isCollapsed && hasActive && <span className="ml-auto h-[5px] w-[5px] rounded-full bg-accent" />}
+              </button>
               {/* Items in group */}
-              {visibleItems.map((n) => {
+              {!isCollapsed && visibleItems.map((n) => {
                 const active = n.view === view
                 return (
                   <button
