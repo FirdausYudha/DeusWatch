@@ -1,9 +1,9 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-28 (RELEASED v2.3.1; + unreleased collapsible sidebar groups).
+> Last updated: 2026-07-28 (RELEASED v2.3.2 — collapsible sidebar groups).
 
-**Sidebar: collapsible feature groups 2026-07-28 (on `main`, UNRELEASED).** The sidebar nav is grouped
+**v2.3.2 — Sidebar: collapsible feature groups 2026-07-28 (RELEASED, tag `v2.3.2`).** The sidebar nav is grouped
 (Monitoring & Operations / Asset & Endpoint Management / Detection & Automation / Administration &
 Access). Made each group header a toggle button (rotating chevron) that collapses/expands its items,
 persisted per-group via `usePersistedState('nav.collapsed', {})` (localStorage map name→collapsed). A
