@@ -1,7 +1,17 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-27 (RELEASED v2.3.0 — multi-tenancy + clock-skew fix + manual ban).
+> Last updated: 2026-07-27 (RELEASED v2.3.0; + unreleased Suspicious-IPs widget tidy-up).
+
+**Dashboard: Suspicious IPs (recon) widget tidy-up 2026-07-27 (on `main`, UNRELEASED).** User reported
+the widget looked cramped in its narrow (span-1) column: the one-line layout `[ip w-32][bar flex-1][score
+w-7][meta w-48 right]` squished the score bar and pushed a wide right-aligned meta block ("9h · 18
+failures") that read messily. Restructured `SuspiciousIPsWidget` (web/src/dashboard/widgets.tsx) to mirror
+its already-tidy sibling `SlowScannerWidget`: IP on the left, then a `min-w-0 flex-1` block with a compact
+LEFT-aligned meta line (**failures** bold · Nh seen · targets) ABOVE a full-width bar, then the score on the
+right. tsc + vite build clean. NOT visually screenshotted — Docker Desktop was down at commit time so the
+dev DB/dashboard couldn't be seeded; the change is a structural clone of the verified SlowScanner layout.
+Eyeball on next deploy; re-verify live if anything's off.
 
 **v2.3.0 — Manual "Ban an IP" 2026-07-27 (RELEASED, tag `v2.3.0`).** An admin can add an IP to the ban
 list on demand (not just via alerts). `engine.BanIP(ip, dur, by)` (internal/respond/engine.go): validates

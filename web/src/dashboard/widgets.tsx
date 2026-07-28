@@ -216,29 +216,42 @@ export function SlowScannerWidget({ data }: { data: SlowScanner[] }) {
 export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
   if (!data?.length) return <Empty />
   return (
-    <ul className="space-y-1.5">
+    <ul className="space-y-2">
       {data.map((r) => (
         <li
           key={r.ip}
-          className="flex items-center gap-2 text-sm"
+          className="flex items-center gap-2"
           title={`${r.contacts} contacts · ${r.fanout} distinct targets · ${r.failures} failed · seen across ${r.distinct_hours}h`}
         >
-          <span className="w-32 shrink-0 truncate font-mono text-[11px] text-fg">{r.ip}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
-            <div className="h-full rounded" style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }} />
+          <span className="w-32 shrink-0 truncate font-mono text-[11px] text-fg" title={r.ip}>
+            {r.ip}
+          </span>
+          {/* Meta above a full-width bar (mirrors SlowScannerWidget) — keeps the bar from being
+              squished in this narrow column and left-aligns the signals so rows read cleanly. */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-[10px] text-dim">
+              <span title="Failed attempts (blocked/denied/4xx/auth-failure)">
+                <b className="text-muted">{r.failures}</b> failures
+              </span>
+              <span>·</span>
+              <span title="Separate clock-hours this source appeared in — the low-and-slow signature">
+                {r.distinct_hours}h seen
+              </span>
+              {r.fanout > 0 && (
+                <>
+                  <span>·</span>
+                  <span title="Distinct endpoints or ports probed">{r.fanout} targets</span>
+                </>
+              )}
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded bg-surface-2">
+              <div
+                className="h-full rounded"
+                style={{ width: `${Math.min(100, r.score)}%`, background: bandColor(r.band) }}
+              />
+            </div>
           </div>
           <span className="w-7 text-right text-[11px] font-medium text-fg">{r.score}</span>
-          <span className="w-48 shrink-0 text-right text-[10px] text-dim">
-            <span title="Separate time windows this source appeared in — low-and-slow signature">{r.distinct_hours}h</span>
-            <span> · </span>
-            <span title={`Failed attempts (blocked/denied/4xx/auth-failure)`}>{r.failures} failures</span>
-            {r.fanout > 0 && (
-              <>
-                <span> · </span>
-                <span title="Distinct endpoints or ports probed">{r.fanout} targets</span>
-              </>
-            )}
-          </span>
         </li>
       ))}
     </ul>
