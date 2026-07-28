@@ -1,9 +1,41 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-27 (v2.1.1; multi-tenancy Phase 5 landed — feature COMPLETE, UNRELEASED).
+> Last updated: 2026-07-27 (RELEASED v2.3.0 — multi-tenancy + clock-skew fix + manual ban).
 
-**Multi-tenancy Phase 5 2026-07-27 (on `main`, UNRELEASED). Hardening — sibling tables + docs.**
+**v2.3.0 — Manual "Ban an IP" 2026-07-27 (RELEASED, tag `v2.3.0`).** An admin can add an IP to the ban
+list on demand (not just via alerts). `engine.BanIP(ip, dur, by)` (internal/respond/engine.go): validates
+the IP, REFUSES a whitelisted IP (whitelist = stronger "never ban" guarantee) and an IP with an already-open
+block, computes the progressive duration (or a given one), inserts + executes via the responder, returns the
+persisted row. `POST /api/responses/ban` (perm `execute_block`); the API engine doesn't live-reload, so the
+handler re-reads whitelist + ban policy from the DB PER CALL (a just-whitelisted IP stays protected). UI: a
+"Ban an IP" card on the Response page (web/src/response/Response.tsx, gated by execute_block). VERIFIED live:
+valid→executed, invalid/dedup/whitelisted→400, and in-browser the ban shows as "Manually banned by admin /
+executed / Unban". NOTE for the user's setup (agent+manager on one intentionally-vulnerable box): auto-ban for
+scanning/auth/bad-reputation ALREADY exists and respects the whitelist — enable it via Response→Ban-policy
+editor auto-approve (or `RESPONSE_AUTO_APPROVE=1`) + a live responder (`RESPONDER=nftables` + `RESPONSE_LIVE=1`);
+fill the IP whitelist FIRST to avoid self-lockout.
+
+**v2.2.1 — clock-skew clamp + tenant/workspace delete 2026-07-27 (RELEASED, tag `v2.2.1`).**
+- **Future-timestamp bug FIXED.** Symptom: agent configured 10:00 WIB, events only visible on the dashboard at
+  17:00. Root cause: event time = the AGENT's clock; an agent whose clock/timezone runs ahead (RTC in local time
+  but OS assumes UTC → +7h for UTC+7) stamped events in the future, which the dashboard's `time <= now()` upper
+  bound HID until the wall clock caught up. `internal/worker/worker.go` now clamps any event >2min ahead of
+  server time to now() and logs a throttled warning naming the agent + skew. Real fix on the user's side: sync
+  the agent host clock (NTP). ALSO IMPORTANT: after multi-tenancy, ad-hoc `SELECT ... FROM events` in psql
+  returns 0 rows (the `events` view filters by the tenant GUC) — run `SET deuswatch.superadmin='1';` first, or
+  query base table `events_data`.
+- **Delete tenants/workspaces** (higher roles). `DeleteTenant`/`DeleteWorkspace` (Default protected; tenant delete
+  409s while agents still FK-reference it; workspace member/tenant maps cascade). `DELETE /api/tenants/{id}`
+  (manage_tenants) + `DELETE /api/admin/workspaces/{id}` (manage_workspaces); Delete buttons on both admin pages
+  (hidden for Default, confirm dialog).
+
+**v2.2.0 — Multi-tenancy 2026-07-27 (RELEASED, tag `v2.2.0`).** The whole multi-tenancy arc (phases 0-5 below)
+shipped as one minor release: tenants/workspaces (M2M), DB-enforced RLS isolation, events security-barrier view,
+restricted `deuswatch_app` role + boot gate, per-tenant worker scoring, admin UI + workspace switcher + enroll
+tenant picker. Non-breaking (existing data → Default tenant). Phase-by-phase detail retained below.
+
+**Multi-tenancy Phase 5 2026-07-27 (part of v2.2.0). Hardening — sibling tables + docs.**
 Brings the deferred sibling-store tables under isolation and documents the deploy model.
 - **Shared scope tx**: the request's scoped transaction moved from a store-private key to
   `internal/tenancy/scope.go` (`WithTx`/`TxFrom`), so sibling stores that own their own pools run in
