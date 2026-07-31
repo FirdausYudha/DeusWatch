@@ -5,9 +5,11 @@ go 1.25.0
 require (
 	github.com/anthropics/anthropic-sdk-go v1.50.1
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/Velocidex/go-yara v1.1.10-0.20221128055811-346fa19056b2
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/nats-io/nats.go v1.52.0
 	github.com/pquerna/otp v1.5.0
+	github.com/VirusTotal/vt-go v0.0.0-20240930143112-f89e6670207f
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sys v0.46.0
 	gopkg.in/yaml.v3 v3.0.1
