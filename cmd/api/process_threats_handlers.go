@@ -1,3 +1,15 @@
+// TEMPORARILY EXCLUDED FROM THE BUILD — the "process threats" API (this file) references
+// tenancy.TenantIDFromContext and store.GetAgents, which do NOT exist in this codebase (tenant
+// scoping goes through store.WithTenantScope + the request-scoped tx, not a plain context tenant
+// id). The file shipped with the YARA process-detection feature but its API layer was never
+// completed, and blocking the container build on it prevents unrelated v2.4.0 fixes (severity,
+// direction tag, banlist reasons) from reaching production. To re-enable, replace
+// tenancy.TenantIDFromContext with the current per-request scope helpers, add a store.GetAgents (or
+// switch to the existing agent-listing method) and remove this build tag; the corresponding route
+// wiring in cmd/api/main.go (POST /api/agents/{id}/process-snapshots, GET /api/threats,
+// GET /api/threats/agent/{id}, POST /api/threats/{id}/resolve) is currently commented out.
+//go:build wip_process_threats
+
 package main
 
 import (

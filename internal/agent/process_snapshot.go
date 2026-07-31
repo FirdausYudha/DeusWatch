@@ -74,11 +74,13 @@ func computeFileHash(path string) (string, error) {
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
-// collectProcesses is implemented by platform-specific files:
-// - process_snapshot_linux.go (for Linux)
-// - process_snapshot_windows.go (for Windows)
-// - process_snapshot_other.go (for unsupported OS)
-func collectProcesses() ([]ProcessSnapshot, error)
+// collectProcesses is implemented by the platform-specific files with matching //go:build tags:
+//   - process_snapshot_linux.go   (linux)
+//   - process_snapshot_windows.go (windows)
+//   - process_snapshot_other.go   (everything else — no-op fallback)
+// Go has no forward-declaration syntax, so this cross-OS package works purely by build-tag
+// selection — DO NOT add a body-less declaration of collectProcesses here or every OS will
+// double-define the symbol and the build fails.
 
 // CollectProcessSnapshotBatch gathers all processes and wraps them in a timestamped batch.
 func CollectProcessSnapshotBatch() (*ProcessSnapshotBatch, error) {

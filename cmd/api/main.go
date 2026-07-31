@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.4.1"
+const version = "2.4.2"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.
@@ -264,11 +264,15 @@ func main() {
 			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
 		}
 
-		// Process-level malware detection (Phase 6): receive snapshots, analyze threats
-		mux.Handle("POST /api/agents/{id}/process-snapshots", protect(auth.PermViewDashboard, ingestProcessSnapshotHandler(st)))
-		mux.Handle("GET /api/threats", protect(auth.PermViewDashboard, getProcessThreatsHandler(st)))
-		mux.Handle("GET /api/agents/{id}/threats", protect(auth.PermViewDashboard, getAgentThreatsHandler(st)))
-		mux.Handle("POST /api/threats/{id}/resolve", protect(auth.PermManageTickets, resolveThreatHandler(st)))
+		// Process-level malware detection (Phase 6): WIP — the handlers in
+		// cmd/api/process_threats_handlers.go reference symbols (tenancy.TenantIDFromContext,
+		// store.GetAgents) that don't exist in this codebase, so that file carries the
+		// `//go:build wip_process_threats` tag and its routes stay disabled here until the API
+		// layer is completed against the request-scoped tenancy model.
+		// mux.Handle("POST /api/agents/{id}/process-snapshots", protect(auth.PermViewDashboard, ingestProcessSnapshotHandler(st)))
+		// mux.Handle("GET /api/threats", protect(auth.PermViewDashboard, getProcessThreatsHandler(st)))
+		// mux.Handle("GET /api/agents/{id}/threats", protect(auth.PermViewDashboard, getAgentThreatsHandler(st)))
+		// mux.Handle("POST /api/threats/{id}/resolve", protect(auth.PermManageTickets, resolveThreatHandler(st)))
 		// Response store — declared early so the events/alerts/search handlers can read the internal
 		// whitelist for the INBOUND/OUTBOUND/LATERAL direction tag. Its engine is built later.
 		respStore := respond.NewStore(st.Pool())

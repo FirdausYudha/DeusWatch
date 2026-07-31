@@ -5,7 +5,6 @@ package agent
 import (
 	"fmt"
 	"os/user"
-	"strconv"
 	"strings"
 	"time"
 
