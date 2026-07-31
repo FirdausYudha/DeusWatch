@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 
 	"deuswatch/internal/bus"
@@ -306,11 +307,24 @@ func HeartbeatHandler(seen SeenFunc, health HealthFunc, revoked RevokedFunc) htt
 		if cn != "" {
 			var hb heartbeatBody
 			_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&hb) // empty body = healthy
+			// Persist the heartbeat, and let the agent KNOW when we couldn't (was silently discarded
+			// before — an operator would then see the agent "offline" on the dashboard even though
+			// `journalctl -u deuswatch-agent` said the heartbeat was sent, because gateway pool
+			// connections that had gone bad returned an error on UPDATE that we then ignored; a
+			// `docker compose restart` "fixed" it by re-creating the pool. Now we log and return 503
+			// so the operator sees the failure in gateway logs and the agent's next heartbeat is not
+			// suppressed by a stale success response).
+			var err error
 			switch {
 			case health != nil:
-				_ = health(r.Context(), cn, hb.Degraded, hb.Detail)
+				err = health(r.Context(), cn, hb.Degraded, hb.Detail)
 			case seen != nil:
-				_ = seen(r.Context(), cn)
+				err = seen(r.Context(), cn)
+			}
+			if err != nil {
+				log.Printf("gateway: heartbeat DB update failed for agent %q: %v", cn, err)
+				http.Error(w, "heartbeat store error", http.StatusServiceUnavailable)
+				return
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)

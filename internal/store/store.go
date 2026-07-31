@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -113,6 +114,14 @@ func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
 		_, err := conn.Exec(ctx, `SET deuswatch.superadmin = '1'`)
 		return err
 	}
+	// Proactively evict silently-broken connections (long idle → NAT/keepalive cut, Postgres
+	// idle_in_transaction timeouts, docker network hiccups). Without this the gateway's heartbeat
+	// UPDATE would hang or fail against a dead-but-cached conn, and only a container restart
+	// recovered — exactly the "agent stays offline until docker compose restart" symptom operators
+	// reported. Also cap connection lifetime so bad state doesn't survive indefinitely.
+	cfg.HealthCheckPeriod = 30 * time.Second
+	cfg.MaxConnIdleTime = 5 * time.Minute
+	cfg.MaxConnLifetime = 30 * time.Minute
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("store: create pool: %w", err)

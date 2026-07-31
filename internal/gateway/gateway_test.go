@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -97,6 +98,36 @@ func TestHeartbeatHandlerRevoked(t *testing.T) {
 	}
 	if !seen["good-agent"] {
 		t.Fatal("a healthy agent should be marked seen")
+	}
+}
+
+// TestHeartbeatHandlerStoreFailureSurfaces is the regression for the "agent stays offline until
+// docker compose restart" bug. When MarkHealth/MarkSeen fail (e.g. a broken pool connection), the
+// handler used to swallow the error and return 204 — the agent's `journalctl` said "Sent" while the
+// dashboard kept showing the agent as offline. It must now return 503 (and log) so the failure is
+// visible to both the operator and the agent's own retry loop.
+func TestHeartbeatHandlerStoreFailureSurfaces(t *testing.T) {
+	req := func() *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/v1/heartbeat", strings.NewReader(""))
+		r.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{{Subject: pkix.Name{CommonName: "a1"}}}}
+		return r
+	}
+	boom := errors.New("db connection reset")
+
+	// health path.
+	h := HeartbeatHandler(nil, func(context.Context, string, bool, string) error { return boom }, nil)
+	rr := httptest.NewRecorder()
+	h(rr, req())
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("health failure must surface as 503, got %d", rr.Code)
+	}
+
+	// seen-only path (backwards-compat: agents on older managers).
+	h2 := HeartbeatHandler(func(context.Context, string) error { return boom }, nil, nil)
+	rr = httptest.NewRecorder()
+	h2(rr, req())
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("seen failure must surface as 503, got %d", rr.Code)
 	}
 }
 
