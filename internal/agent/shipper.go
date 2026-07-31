@@ -122,6 +122,32 @@ func (s *Shipper) PostInventory(ctx context.Context, inv Inventory) error {
 	return nil
 }
 
+// PostProcessSnapshot ships a batch of process snapshots to the manager for malware analysis.
+// Called periodically (e.g., every 5 minutes) by the agent.
+func (s *Shipper) PostProcessSnapshot(ctx context.Context, batch *ProcessSnapshotBatch) error {
+	body, err := json.Marshal(batch)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/process-snapshots", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("agent: post process snapshot: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusGone {
+		return ErrRevoked
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("agent: process snapshot rejected (status %d)", resp.StatusCode)
+	}
+	return nil
+}
+
 // FileActionItem is one manager-requested on-demand file operation (ADR 0002 Phase 3).
 type FileActionItem struct {
 	ID            int64  `json:"id"`

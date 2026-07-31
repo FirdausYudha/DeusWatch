@@ -263,6 +263,12 @@ func main() {
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
 			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
 		}
+
+		// Process-level malware detection (Phase 6): receive snapshots, analyze threats
+		mux.Handle("POST /api/agents/{id}/process-snapshots", protect(auth.PermViewDashboard, ingestProcessSnapshotHandler(st)))
+		mux.Handle("GET /api/threats", protect(auth.PermViewDashboard, getProcessThreatsHandler(st)))
+		mux.Handle("GET /api/agents/{id}/threats", protect(auth.PermViewDashboard, getAgentThreatsHandler(st)))
+		mux.Handle("POST /api/threats/{id}/resolve", protect(auth.PermManageTickets, resolveThreatHandler(st)))
 		// Response store — declared early so the events/alerts/search handlers can read the internal
 		// whitelist for the INBOUND/OUTBOUND/LATERAL direction tag. Its engine is built later.
 		respStore := respond.NewStore(st.Pool())
