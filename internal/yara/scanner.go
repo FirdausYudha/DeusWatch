@@ -65,8 +65,9 @@ func (s *Scanner) LoadFromDir(dir string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("yara: compiler: %w", err)
 	}
-	// The compiler holds file handles until GetRules(); Close() releases them.
-	defer compiler.Close()
+	// go-yara sets a finalizer on the compiler that calls Destroy when GC reclaims it, so we don't
+	// hold a manual Close/Destroy here — a defer would break the invariant that Rules keeps a
+	// reference to the compiler's underlying arena.
 
 	for _, f := range files {
 		content, rerr := os.ReadFile(f)
@@ -85,15 +86,12 @@ func (s *Scanner) LoadFromDir(dir string) (int, error) {
 	}
 
 	s.mu.Lock()
-	old := s.rules
 	s.rules = rules
 	s.loaded = len(files)
 	s.loadedAt = time.Now()
 	s.mu.Unlock()
-	// Free the old ruleset AFTER the swap so any in-flight scan finishes first.
-	if old != nil {
-		old.Close()
-	}
+	// Previous *Rules value (if any) becomes unreferenced now and go-yara's finalizer will Destroy
+	// it once GC runs. No manual free is required.
 	return len(files), nil
 }
 
@@ -107,24 +105,34 @@ func (s *Scanner) Scan(data []byte) ([]Match, error) {
 	if rules == nil || len(data) == 0 {
 		return nil, nil
 	}
-	var out []Match
-	cb := func(rule *yara.Rule, matched bool) (proceed bool) {
-		if !matched {
-			return true
-		}
-		out = append(out, Match{
-			Rule:        rule.Identifier(),
-			Namespace:   rule.Namespace(),
-			Description: metaDescription(rule),
-		})
-		return true
-	}
+	// go-yara's ScanCallback is an interface (RuleMatching(*ScanContext, *Rule) (bool, error)),
+	// not a func — wrap our accumulator in a small struct that implements it. The library also
+	// provides yara.MatchRules for the same purpose, but a local type keeps us free to enrich the
+	// Match struct later (score, tags, matched-string offsets) without leaking the library shape.
+	cb := &matchAccumulator{}
 	if err := rules.ScanMem(data, yara.ScanFlags(0), 10*time.Second, cb); err != nil {
 		return nil, fmt.Errorf("yara: scan: %w", err)
 	}
 	// Deterministic order so identical content yields identical detail strings across runs.
-	sort.Slice(out, func(i, j int) bool { return out[i].Rule < out[j].Rule })
-	return out, nil
+	sort.Slice(cb.out, func(i, j int) bool { return cb.out[i].Rule < cb.out[j].Rule })
+	return cb.out, nil
+}
+
+// matchAccumulator implements yara.ScanCallback and collects the matched rules into a slice.
+type matchAccumulator struct {
+	out []Match
+}
+
+// RuleMatching is called by libyara for each rule that fires. Returning (false, nil) means
+// "continue scanning" — we always want the full set of matches (so the banlist REASON aggregation
+// downstream lists every rule, not just the first).
+func (m *matchAccumulator) RuleMatching(_ *yara.ScanContext, r *yara.Rule) (abort bool, err error) {
+	m.out = append(m.out, Match{
+		Rule:        r.Identifier(),
+		Namespace:   r.Namespace(),
+		Description: metaDescription(r),
+	})
+	return false, nil
 }
 
 // HasRules reports whether the scanner has any compiled rules — the gateway uses this to decide
@@ -143,14 +151,13 @@ func (s *Scanner) Loaded() (int, time.Time) {
 	return s.loaded, s.loadedAt
 }
 
-// Close releases the compiled ruleset.
+// Close drops the reference to the compiled ruleset. go-yara sets a runtime finalizer on Rules
+// that calls Destroy() when GC reclaims it, so we don't need to (and can't) manually free — just
+// clear the field so a subsequent call sees "no rules".
 func (s *Scanner) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.rules != nil {
-		s.rules.Close()
-		s.rules = nil
-	}
+	s.rules = nil
 	return nil
 }
 
