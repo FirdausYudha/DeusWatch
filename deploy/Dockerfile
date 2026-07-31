@@ -8,6 +8,11 @@
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 
+# git is required by `go mod download` to resolve pseudo-versions (e.g. github.com/VirusTotal/vt-go
+# at a commit hash) that the Go module proxy can't serve directly. ca-certificates is needed for the
+# HTTPS fetches Go performs against those origins. Both are tiny; keep --no-cache to avoid bloat.
+RUN apk add --no-cache git ca-certificates
+
 # Dependency cache layer.
 COPY go.mod go.sum ./
 RUN go mod download
