@@ -614,6 +614,21 @@ export function agentOnline(a: AgentInfo): boolean {
   return Date.now() - new Date(a.last_seen_at).getTime() < 90_000
 }
 
+// agentDisplayStatus reduces the raw worker status + heartbeat timing to the four buckets the
+// dashboard widget cares about: online / never / stale / offline (+ revoked as a separate marker).
+// It prefers a fresh heartbeat over the worker's slower classification so a freshly-back agent
+// flips to "online" immediately instead of waiting for the next self-health tick.
+export type DisplayStatus = 'online' | 'never' | 'stale' | 'offline' | 'revoked'
+export function agentDisplayStatus(a: AgentInfo): DisplayStatus {
+  if (a.revoked) return 'revoked'
+  if (!a.last_seen_at) return 'never'
+  const age = Date.now() - new Date(a.last_seen_at).getTime()
+  if (age < 90_000) return 'online'
+  // Worker labels agents "stale" after prolonged silence; use it when present, else derive from age.
+  if (a.status === 'stale' || age > 24 * 3600_000) return 'stale'
+  return 'offline'
+}
+
 export async function fetchAgents(): Promise<AgentInfo[]> {
   const res = await authFetch('/api/agents')
   if (!res.ok) throw new Error(`agents: HTTP ${res.status}`)
@@ -1181,7 +1196,7 @@ export async function fetchDashboardData(range: number | DashRange = 24): Promis
   return res.json()
 }
 
-export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow'
+export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow' | 'agents'
 export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide: boolean }
 export type DashLayout = { widgets: DashWidget[] }
 

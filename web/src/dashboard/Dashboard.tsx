@@ -6,7 +6,7 @@ import {
   type DashboardData, type WidgetKind, type EventSearch,
   type StorageStatus,
 } from '../lib/api'
-import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget } from './widgets'
+import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget } from './widgets'
 import DocLink from '../components/DocLink'
 import { PageHeader } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
@@ -178,6 +178,10 @@ const PANELS: Panel[] = [
   // The slow-scanner table needs width for its columns; the donut is happy small.
   { kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', span: 2 },
   { kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', span: 1 },
+  // Fleet health at a glance — sits after the "who is attacking us" row, before the map, so the
+  // operator can spot a silent endpoint (never-connected / stale / offline) without leaving the
+  // dashboard. Full width for legibility across long agent names + status pill.
+  { kind: 'agents', source: 'agents', title: 'Agents', color: '#10b981', span: 3 },
   // The map reads best full width.
   { kind: 'map', source: 'countries', title: 'Attack origins', color: '#f43f5e', span: 3 },
 ]
@@ -210,6 +214,10 @@ function WidgetBody({ w, data }: { w: Panel; data: DashboardData | null }) {
       return <SuspiciousIPsWidget data={data.suspicious_ips ?? []} />
     case 'slow':
       return <SlowScannerWidget data={data.slow_scanners ?? []} />
+    case 'agents':
+      // Fetches its own agents list on mount + 15s refresh (independent of the dashboard bundle
+      // so status flips are visible without waiting for the next dashboard poll).
+      return <AgentsWidget />
     default:
       return <BarChart data={data.series[w.source] ?? []} color={w.color} />
   }

@@ -1,4 +1,6 @@
-import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner } from '../lib/api'
+import { useEffect, useState } from 'react'
+import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus } from '../lib/api'
+import { fetchAgents, agentDisplayStatus } from '../lib/api'
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
 // Categorical palette for donut segments, starting from the widget's chosen color.
@@ -282,4 +284,91 @@ export function AttackMap({ data, color }: { data: SeriesPoint[]; color: string 
       ))}
     </ul>
   )
+}
+
+// AgentsWidget lists every enrolled agent with its current status. It self-refreshes every 15s so an
+// agent coming back online (or dropping off) is visible without a page reload. Sorted so the
+// operator's actionable state — "never connected" first (something is wrong with enrollment), then
+// stale / offline (something is wrong with an agent) — sits at the top, and healthy agents follow.
+// Status semantics come from agentDisplayStatus (lib/api.ts): online = fresh heartbeat, never = no
+// heartbeat ever seen, stale = quiet for >24h (or worker marks it), offline = quiet for a while.
+export function AgentsWidget() {
+  const [agents, setAgents] = useState<AgentInfo[] | null>(null)
+  const [err, setErr] = useState<string>('')
+  useEffect(() => {
+    const load = () => {
+      fetchAgents()
+        .then((rows) => {
+          setAgents(rows)
+          setErr('')
+        })
+        .catch((e) => setErr(String((e as Error).message ?? e)))
+    }
+    load()
+    const t = setInterval(load, 15_000)
+    return () => clearInterval(t)
+  }, [])
+  if (err) return <p className="py-6 text-center text-[12.5px] text-critical">{err}</p>
+  if (!agents) return <p className="py-6 text-center text-[12.5px] text-dim">loading…</p>
+  if (agents.length === 0) return <Empty />
+  const rank: Record<DisplayStatus, number> = { never: 0, offline: 1, stale: 2, revoked: 3, online: 4 }
+  const sorted = [...agents].sort((a, b) => rank[agentDisplayStatus(a)] - rank[agentDisplayStatus(b)])
+  return (
+    <ul className="space-y-1.5">
+      {sorted.map((a) => {
+        const st = agentDisplayStatus(a)
+        return (
+          <li
+            key={a.id}
+            className="flex items-center gap-2 text-sm"
+            title={agentTitle(a, st)}
+          >
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: STATUS_COLOR[st] }}
+            />
+            <span className="min-w-0 flex-1 truncate font-medium text-fg">{a.name}</span>
+            <span className="hidden text-[10.5px] text-dim sm:inline">{a.os || '—'}</span>
+            <span
+              className={`w-[110px] shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium ${STATUS_STYLE[st]}`}
+            >
+              {STATUS_LABEL[st]}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+const STATUS_LABEL: Record<DisplayStatus, string> = {
+  online: 'online',
+  never: 'never connected',
+  stale: 'stale',
+  offline: 'offline',
+  revoked: 'revoked',
+}
+const STATUS_COLOR: Record<DisplayStatus, string> = {
+  online: '#10b981',
+  never: '#f59e0b',
+  stale: '#fb923c',
+  offline: '#94a3b8',
+  revoked: '#f43f5e',
+}
+// Reused pill styles matching band badges elsewhere in the app (bg tint + strong text color).
+const STATUS_STYLE: Record<DisplayStatus, string> = {
+  online: 'bg-emerald-500/15 text-emerald-500',
+  never: 'bg-amber-500/15 text-amber-500',
+  stale: 'bg-orange-500/15 text-orange-500',
+  offline: 'bg-slate-500/15 text-slate-400',
+  revoked: 'bg-rose-500/15 text-rose-500',
+}
+
+function agentTitle(a: AgentInfo, st: DisplayStatus): string {
+  const parts = [a.name, a.os || 'unknown OS', STATUS_LABEL[st]]
+  if (a.last_seen_at) parts.push('last seen ' + new Date(a.last_seen_at).toLocaleString())
+  else parts.push('never checked in since enrolment')
+  if (a.health_detail) parts.push(a.health_detail)
+  return parts.join(' · ')
 }
