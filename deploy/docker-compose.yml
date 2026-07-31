@@ -63,6 +63,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      target: runtime-static
       args:
         CMD: certgen
     # Run as root: on Linux the bind-mounted ./certs is host-root-owned, and the image's
@@ -79,6 +80,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      target: runtime-static
       args:
         CMD: api
         VERSION: "${DEUSWATCH_VERSION:-dev}"
@@ -149,6 +151,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      # runtime-cgo pulls in libyara for manager-side YARA scanning on FIM snapshot uploads (see
+      # docs/yara.md). Static distroless would silently disable it via the nocgo stub.
+      target: runtime-cgo
       args:
         CMD: gateway
     # Root so it can read the root-owned 0600 server key (server.key).
@@ -158,8 +163,16 @@ services:
       CERT_DIR: "/certs"
       NATS_URL: "nats://nats:4222"
       STORE_DSN: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
+      # YARA content scanning on FIM snapshot uploads. Drop *.yar files into ./yara-rules on the
+      # host and restart the gateway to pick them up. Empty dir → scanner silently disabled. See
+      # docs/yara.md.
+      YARA_RULES_DIR: "/rules/yara"
     volumes:
       - ./certs:/certs:ro
+      # Bind-mount the host's yara-rules dir over the image's /rules/yara so operators can add or
+      # edit rules without rebuilding. The image ships a starter set (deuswatch_starter.yar) that
+      # gets overlaid when the host dir exists.
+      - ./yara-rules:/rules/yara:ro
     ports:
       - "${DEUSWATCH_GATEWAY_PORT:-9443}:8443"
     depends_on:
@@ -182,6 +195,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      target: runtime-static
       args:
         CMD: worker
     # Reach services on the host (e.g. a local Ollama on :11434) via host.docker.internal,

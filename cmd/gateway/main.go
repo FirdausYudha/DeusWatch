@@ -23,6 +23,7 @@ import (
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/store"
+	"deuswatch/internal/yara"
 )
 
 func main() {
@@ -52,6 +53,22 @@ func main() {
 	} else if n := ds.Count(); n > 0 {
 		ingest.SetDecoders(ds)
 		log.Printf("gateway: loaded %d custom decoder(s) from %s", n, decoderDir)
+	}
+
+	// YARA scanner (optional; ADR: manager-side scan on FIM snapshot upload). Loads *.yar files
+	// from YARA_RULES_DIR (default /rules/yara). Silently no-ops when the dir is missing, empty, or
+	// the binary was built without CGO (Windows dev). Live-reload isn't wired yet — restart the
+	// gateway to pick up new rules. Content that matches yields an alert event with dw_label =
+	// "yara_malicious" so the whole existing enrichment/alert/response pipeline picks it up.
+	yaraScanner := yara.New()
+	defer yaraScanner.Close()
+	yaraDir := getenv("YARA_RULES_DIR", "/rules/yara")
+	if n, yerr := yaraScanner.LoadFromDir(yaraDir); yerr != nil {
+		log.Printf("gateway: yara: load %s: %v (scanning disabled)", yaraDir, yerr)
+	} else if n > 0 {
+		log.Printf("gateway: yara: loaded %d ruleset(s) from %s", n, yaraDir)
+	} else {
+		log.Printf("gateway: yara: no rules (%s empty or missing, or built without CGO)", yaraDir)
 	}
 
 	// Revocation + config push + agent-block feed (optional): needs DB access.
@@ -104,6 +121,24 @@ func main() {
 						Storage: storage, Trigger: sm.Trigger, Diff: sm.Diff,
 					}, content); err != nil {
 						return err
+					}
+					// YARA scan (only when we actually HAVE content — agent-storage mode ships
+					// only metadata). Errors are logged, not returned: the snapshot itself is
+					// already recorded, so a scanner glitch mustn't fail the upload.
+					if len(content) > 0 && yaraScanner.HasRules() {
+						matches, serr := yaraScanner.Scan(content)
+						if serr != nil {
+							log.Printf("gateway: yara scan %s@%s: %v", cn, sm.Path, serr)
+							continue
+						}
+						if len(matches) > 0 {
+							if perr := publishYARAAlert(ctx, b, cn, sm, matches); perr != nil {
+								log.Printf("gateway: yara alert publish %s@%s: %v", cn, sm.Path, perr)
+							} else {
+								log.Printf("gateway: yara MATCH %s@%s: %d rule(s) — %s",
+									cn, sm.Path, len(matches), matchNames(matches))
+							}
+						}
 					}
 				}
 				return nil
@@ -267,4 +302,49 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+// publishYARAAlert emits an ingest.Event that flows through the same normalize→enrich→detect→store
+// pipeline as any other alert. Choices made here:
+//   - dw_label = "yara_malicious" so the dashboard treats it as an alert (dw_label is the "this is
+//     surfaced" marker) and severity escalation ladder can bump it further.
+//   - event.severity starts at HIGH: a YARA match on a file dropped/changed on one of our hosts is
+//     never routine noise. It stays at HIGH here and the enricher can escalate to critical if the
+//     file hash also matches a known-bad reputation (community consensus).
+//   - dw_filehash_verdict/detail carry the match — the FIM verdict column on the Events & Alerts
+//     table already renders these, so the UI shows the YARA verdict with zero UI changes.
+//   - action = "yara_match" is a stable string the response layer can decision-table on later.
+func publishYARAAlert(ctx context.Context, b *bus.Bus, agentName string, sm gateway.SnapshotMeta, matches []yara.Match) error {
+	names := matchNames(matches)
+	ev := &ingest.Event{
+		Timestamp: time.Now(),
+		Event: ingest.EventFields{
+			Category: "malware",
+			Action:   "yara_match",
+			Outcome:  "detected",
+			Severity: ingest.SeverityHigh,
+			Dataset:  "yara",
+			Original: "yara scan matched " + names,
+		},
+		Agent:     &ingest.Agent{ID: agentName},
+		File:      &ingest.File{Path: sm.Path, HashSHA256: sm.SHA256},
+		Rule:      &ingest.Rule{ID: "deuswatch_yara", Name: "YARA match: " + names},
+		DeusWatch: ingest.DeusWatch{Label: "yara_malicious"},
+	}
+	ev.DeusWatch.FileHash.Verdict = "yara_malicious"
+	ev.DeusWatch.FileHash.Detail = "matched: " + names
+	body, err := json.Marshal(ev)
+	if err != nil {
+		return err
+	}
+	return b.Publish(ctx, bus.SubjectLogsNormalized, body)
+}
+
+// matchNames formats a compact, deterministic "rule1, rule2, rule3" string for logs + UI.
+func matchNames(matches []yara.Match) string {
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, m.Rule)
+	}
+	return strings.Join(names, ", ")
 }
