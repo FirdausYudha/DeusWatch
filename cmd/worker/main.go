@@ -202,11 +202,19 @@ func main() {
 		log.Printf("worker: notifications disabled (set TELEGRAM_*/WEBHOOK_URL/SMTP_* to enable)")
 	}
 
-	// Kill-switch recommender. Like containment it is recommend-only unless explicitly opted in:
-	// KILL_SWITCH_AUTO=1 skips the human approval gate, and the agent's own guards still apply.
+	// Kill-switch recommender. KILL_SWITCH_AUTO=1 forces auto-approve on regardless of the DB
+	// policy (docs/auto-kill.md); otherwise the singleton kill_policy row is authoritative
+	// (auto_approve toggle + whitelist + rate limit). Missing table/row → fail-closed to
+	// recommend-only via DefaultKillPolicy so a fresh install or a rollback never silently starts
+	// auto-killing.
 	killAuto, _ := strconv.ParseBool(os.Getenv("KILL_SWITCH_AUTO"))
 	killer := respond.NewKillRecommender(st, killAuto)
-	log.Printf("worker: ransomware kill-switch active (auto=%v)", killAuto)
+	if kp, kerr := respStore.LoadKillPolicy(ctx); kerr != nil {
+		log.Printf("worker: load kill policy: %v (falling back to recommend-only defaults)", kerr)
+	} else {
+		killer.SetPolicy(kp)
+	}
+	log.Printf("worker: ransomware kill-switch active (auto=%v, env_forced=%v)", killer.Auto(), killAuto)
 
 	onAlert := makeAlertHook(engine, containEngine, killer, dispatcher)
 
@@ -221,7 +229,7 @@ func main() {
 
 	// Live-reload rules + ban policy + playbooks from the DB so UI edits take effect
 	// without a restart.
-	go reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, respStore, pbStore, pbLive)
+	go reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, killer, respStore, pbStore, pbLive)
 
 	// Trusted-session gate: a plain file-change alert (e.g. index.php edited) is treated as an
 	// official change - and suppressed - when the host had a recent successful login from a
@@ -835,9 +843,10 @@ func aggGroup(a *ingest.Event) string {
 	return "-"
 }
 
-// reloadConfig re-reads the enabled rules, ban policy and IP whitelist from the DB every
-// 30s and swaps them into the live detectors/engine, so UI edits take effect without restarting.
-func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner, engine *respond.Engine, respStore *respond.Store, pbStore *playbooks.Store, pbLive *playbooks.Live) {
+// reloadConfig re-reads the enabled rules, ban policy, IP whitelist and kill policy from the DB
+// every 30s and swaps them into the live detectors/engine/killer, so UI edits take effect without
+// restarting.
+func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDetector, runner *detect.AggregateRunner, engine *respond.Engine, killer *respond.KillRecommender, respStore *respond.Store, pbStore *playbooks.Store, pbLive *playbooks.Live) {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -853,6 +862,13 @@ func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDete
 			}
 			if err := pbLive.Reload(ctx, pbStore); err != nil {
 				log.Printf("worker: reload playbooks: %v", err)
+			}
+			// Kill policy live-reload — same cadence as the ban policy so an admin's UI toggle
+			// takes effect without a worker restart.
+			if kp, kerr := respStore.LoadKillPolicy(ctx); kerr != nil {
+				log.Printf("worker: reload kill policy: %v", kerr)
+			} else {
+				killer.SetPolicy(kp)
 			}
 			if engine != nil {
 				if p, err := respStore.LoadPolicy(ctx); err != nil {

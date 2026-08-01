@@ -131,3 +131,45 @@ If you cannot enable who-data before the meeting, you can still demonstrate the 
 mechanism by seeding one recommendation directly (ask me for the exact SQL) and running a
 long-lived dummy process for it to target. It shows the operator flow and the real kill, but skips
 the automatic detection — so prefer the full chain above if at all possible.
+
+## Auto mode (v2.6+)
+
+The default is recommend-only: every proposed kill waits for a human to click Approve. From v2.6
+onward the kill-switch can auto-approve **high-confidence triggers** — YARA content-scan matches
+(docs/yara.md), agent-measured ransomware entropy (`file_encrypted`), and file hashes flagged by
+≥10 vendors in reputation feeds. Everything softer stays recommend-only.
+
+### Turn it on
+
+1. Fill the process whitelist first (`Response → Kill-switch auto-approval → Process whitelist`).
+   The default already covers systemd, sshd, dockerd, postgres, nginx, nats-server, and the
+   DeusWatch services themselves. Add anything else that would take your box down if killed.
+2. Verify who-data (auditd) attribution works on a test host — no attribution means no auto-kill
+   regardless of the toggle, so it's important the mechanism is confirmed before turning auto on.
+3. Flip **Enable auto-approve for high-confidence triggers**. The badge on the card changes to
+   `auto ON`. The worker picks up the new policy within ~30s (same reload cadence as the ban
+   policy) — no restart needed.
+
+Alternative: set `KILL_SWITCH_AUTO=1` in the worker's environment. Env wins over the DB toggle
+(useful for a declarative deploy that must survive a DB rewrite).
+
+### Guard rails (always on, even in auto mode)
+
+- **PID ≤ 100 is never auto-killed.** Covers kernel threads, init, systemd, early-boot daemons on
+  every Linux distro DeusWatch runs on.
+- **Whitelisted process names are never auto-killed.** Case-insensitive match on `procName`.
+- **Attribution is mandatory.** No `process.start` and no `process.command_line` → no auto-kill.
+  A recommendation the agent couldn't verify would only ever produce a refusal.
+- **Rate limit per agent** — default 3 auto-kills per minute. Beyond that the trigger degrades to
+  recommend-only and the operator sees the burst on the dashboard instead of silently losing 100
+  processes to a bad rule.
+
+When a guard rail blocks an auto-kill the worker still writes the recommendation (auto=false) and
+logs the reason (`respond: auto-kill blocked by guard rail (PID 42 ≤ 100…)`) — nothing gets
+silently dropped.
+
+### Audit
+
+Auto-kills record their trigger in `agent_file_actions.requested_by`:
+`auto:yara`, `auto:ransomware`, `auto:filehash`, `auto:ransom_rule`. Human approvals still record
+the operator's username. Filter the FIM Actions table by requester when reviewing what fired.

@@ -8,6 +8,9 @@ import {
   dismissPendingForIP,
   fetchBanPolicy,
   saveBanPolicy,
+  fetchKillPolicy,
+  saveKillPolicy,
+  type KillPolicy,
   fetchWhitelist,
   addWhitelist,
   deleteWhitelist,
@@ -237,6 +240,7 @@ export default function Response({ me }: { me: Me }) {
       <ContainmentPanel canApprove={canApprove} />
       <DecisionTablePanel />
       <BanPolicyEditor canManage={can(me, 'manage_settings')} />
+      <KillPolicyEditor canManage={can(me, 'manage_settings')} />
       <WhitelistEditor canManage={can(me, 'manage_settings')} />
       {can(me, 'execute_block') && (
         <div className="mt-4 rounded-[10px] border border-border bg-surface p-4">
@@ -1388,6 +1392,143 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
             ))}
           </tbody>
         </table>
+      )}
+    </section>
+  )
+}
+
+// KillPolicyEditor exposes the auto-approval policy for the ransomware kill-switch (docs/auto-kill.md).
+// It sits next to BanPolicyEditor because the mental model is identical: default off, opt-in via a
+// toggle, and the worker picks up changes within ~30s (same reload cadence as the ban policy). The
+// destructive nature of auto-kill vs auto-ban is called out inline — bulk of the copy is honest
+// warnings so an operator doesn't flip the toggle without understanding it.
+function KillPolicyEditor({ canManage }: { canManage: boolean }) {
+  const [policy, setPolicy] = useState<KillPolicy | null>(null)
+  const [wlText, setWlText] = useState('')
+  const [error, setError] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    fetchKillPolicy()
+      .then((p) => {
+        setPolicy(p)
+        setWlText((p.whitelist ?? []).join('\n'))
+      })
+      .catch((e) => setError((e as Error).message))
+  }, [])
+
+  const save = async () => {
+    if (!policy) return
+    setBusy(true)
+    setError('')
+    setMsg('')
+    try {
+      const whitelist = wlText.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0)
+      const saved = await saveKillPolicy({ ...policy, whitelist })
+      setPolicy(saved)
+      setWlText((saved.whitelist ?? []).join('\n'))
+      setMsg('Saved · the worker picks up the new policy within ~30s.')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!policy) {
+    return (
+      <section className="mb-3 rounded-[10px] border border-border bg-surface p-3">
+        <p className="text-[12px] text-dim">Loading kill policy…</p>
+        {error && <p className="mt-2 text-[12px] text-critical">{error}</p>}
+      </section>
+    )
+  }
+
+  return (
+    <section className="mb-3 rounded-[10px] border border-border bg-surface">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        aria-expanded={open}
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+          className={`shrink-0 transition-transform ${open ? '' : '-rotate-90'}`}>
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="text-[13px] font-semibold text-fg">Kill-switch auto-approval</span>
+        <span className={`ml-auto rounded px-2 py-0.5 text-[10.5px] font-medium ${policy.auto_approve
+          ? 'bg-rose-500/15 text-rose-500'
+          : 'bg-slate-500/15 text-slate-400'}`}>
+          {policy.auto_approve ? 'auto ON' : 'recommend-only'}
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-border p-3">
+          <p className="mb-3 text-[12px] text-dim">
+            When <b>auto</b> is on, high-confidence triggers (YARA match, ransomware entropy, file
+            hash flagged by ≥10 vendors) kill the offending process without waiting for approval.
+            All other triggers stay recommend-only. Guard rails apply regardless: PID ≤ 100 is never
+            auto-killed, whitelisted process names are refused, missing attribution is refused, and
+            the rate limit caps auto-kills per agent per minute so a bad rule can't take down 100
+            processes in a burst.
+          </p>
+
+          <label className="mb-3 flex items-center gap-2 text-[13px]">
+            <input
+              type="checkbox"
+              checked={policy.auto_approve}
+              disabled={!canManage}
+              onChange={(e) => setPolicy({ ...policy, auto_approve: e.target.checked })}
+            />
+            Enable auto-approve for high-confidence triggers
+          </label>
+
+          <label className="mb-3 block">
+            <span className="mb-1 block text-[11.5px] font-medium text-muted">
+              Rate limit (auto-kills per agent per minute, 1–60)
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={policy.rate_limit_per_min}
+              disabled={!canManage}
+              onChange={(e) => setPolicy({ ...policy, rate_limit_per_min: Math.max(1, Math.min(60, parseInt(e.target.value, 10) || 1)) })}
+              className="w-24 rounded-[8px] border border-border bg-surface-2 px-2 py-1 text-[13px] text-fg"
+            />
+          </label>
+
+          <label className="mb-3 block">
+            <span className="mb-1 block text-[11.5px] font-medium text-muted">
+              Process whitelist (one per line, case-insensitive) — never auto-killed
+            </span>
+            <textarea
+              value={wlText}
+              disabled={!canManage}
+              onChange={(e) => setWlText(e.target.value)}
+              className="h-40 w-full rounded-[8px] border border-border bg-surface-2 px-2 py-1 font-mono text-[12px] text-fg"
+            />
+          </label>
+
+          {error && <p className="mb-2 text-[12px] text-critical">{error}</p>}
+          {msg && <p className="mb-2 text-[12px] text-emerald-500">{msg}</p>}
+
+          {canManage ? (
+            <button
+              onClick={save}
+              disabled={busy}
+              className="rounded-[8px] bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : 'Save kill policy'}
+            </button>
+          ) : (
+            <p className="text-[11.5px] text-dim">
+              Read-only — needs the <code>manage_settings</code> permission to edit.
+            </p>
+          )}
+        </div>
       )}
     </section>
   )

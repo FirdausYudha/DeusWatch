@@ -430,6 +430,8 @@ func main() {
 		// edit requires manage_settings. The worker live-reloads it.
 		mux.Handle("GET /api/ban-policy", protect(auth.PermViewDashboard, banPolicyGetHandler(respStore)))
 		mux.Handle("PUT /api/ban-policy", protect(auth.PermManageSettings, banPolicySetHandler(respStore)))
+		mux.Handle("GET /api/kill-policy", protect(auth.PermViewDashboard, killPolicyGetHandler(respStore)))
+		mux.Handle("PUT /api/kill-policy", protect(auth.PermManageSettings, killPolicySetHandler(respStore)))
 
 		// IP whitelist: trusted IPs/CIDRs the response engine never bans.
 		mux.Handle("GET /api/whitelist", protect(auth.PermViewDashboard, whitelistListHandler(respStore)))
@@ -1617,6 +1619,43 @@ func banPolicySetHandler(s *respond.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, banPolicyJSON(p))
+	}
+}
+
+// killPolicyGetHandler serves the current kill-switch auto-approval policy (docs/auto-kill.md).
+// Read is view_dashboard so the Response page can show the current state to any operator.
+func killPolicyGetHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.LoadKillPolicy(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, p)
+	}
+}
+
+// killPolicySetHandler replaces the kill policy. The store validates (non-empty whitelist,
+// rate-limit range) so we surface a friendly 400 rather than a Postgres constraint error.
+// manage_settings-gated because turning auto-approve on is a significant privilege change.
+func killPolicySetHandler(s *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req respond.KillPolicy
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if err := s.SaveKillPolicy(r.Context(), req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Return the saved+normalised form so the UI can pick up the tidied whitelist immediately.
+		out, err := s.LoadKillPolicy(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }
 

@@ -1008,6 +1008,27 @@ export async function saveBanPolicy(p: BanPolicy): Promise<BanPolicy> {
   return res.json()
 }
 
+// Kill-switch auto-approval policy (docs/auto-kill.md). auto_approve=false = every kill stays a
+// recommendation (default, safe); whitelist is the process names never auto-killed regardless of
+// what triggered the alert; rate_limit_per_min caps auto-kills per agent per minute.
+export type KillPolicy = { auto_approve: boolean; whitelist: string[]; rate_limit_per_min: number }
+
+export async function fetchKillPolicy(): Promise<KillPolicy> {
+  const res = await authFetch('/api/kill-policy')
+  if (!res.ok) throw new Error(`kill policy: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveKillPolicy(p: KillPolicy): Promise<KillPolicy> {
+  const res = await authFetch('/api/kill-policy', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(p),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 // Manually add an IP to the ban list (admin action). minutes=0 uses the progressive-ban ladder.
 // Whitelisted IPs are refused by the server.
 export async function banIP(ip: string, minutes = 0): Promise<void> {
