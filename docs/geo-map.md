@@ -60,8 +60,9 @@ Recommended default: **B1** for v1. B2 is a natural follow-up once agents have g
 - No new tables. Just an app-level static bundle at `web/src/dashboard/geo/centroids.json`.
 - API endpoint `GET /api/dashboard/attacks/geo?range=24h` returns a compact array:
   `[{ip, country, city, lat, lon, count, blocked}]` — one entry per unique source IP in the range.
-  City may be empty in v1 (A1); `blocked` = row exists in `response_actions` with a currently-active
-  status.
+  Country + city are read from the already-populated `source_geo_country_iso` / `source_geo_city`
+  columns (verified in `internal/store/query.go`); lat/lon come from the centroid bundle in v1 (A1).
+  `blocked` = row exists in `response_actions` with a currently-active status.
 
 ## Frontend design
 

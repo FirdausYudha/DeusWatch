@@ -73,8 +73,11 @@ CREATE TABLE IF NOT EXISTS kill_policy (
 INSERT INTO kill_policy (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 ```
 
-Add columns to existing `agent_file_actions` — none needed; `decided_by = 'auto:<trigger>'` already
-distinguishes auto from manual (existing free-text column).
+Add columns to existing `agent_file_actions` — none needed. The column is `requested_by` (not
+`decided_by`; verified against `migrations/000042_file_actions.up.sql`); auto-kills write
+`requested_by = 'auto:<trigger>'` while human approvals write the operator's username. Existing
+`RecommendKill(ctx, agentName, pid, procName, exe, procStart, reason, requestedBy, auto)` interface
+already carries both the string and the bool — no signature change needed.
 
 ## API + UI
 
@@ -87,7 +90,7 @@ distinguishes auto from manual (existing free-text column).
 ## Audit
 
 Every auto-kill records:
-- `decided_by = 'auto:yara' | 'auto:ransomware' | 'auto:filehash'` (the concrete trigger).
+- `requested_by = 'auto:yara' | 'auto:ransomware' | 'auto:filehash'` (the concrete trigger).
 - Standard `agent_file_actions` row with `action='kill_process'`, target PID/proc/start.
 - Notification path unchanged: severity ≥ notify threshold → Telegram/webhook/email fires.
 
