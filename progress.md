@@ -1,7 +1,26 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-28 (RELEASED v2.3.2 — collapsible sidebar groups).
+> Last updated: 2026-07-31 (contracts locked for two upcoming features; last release v2.5.1).
+
+**Contracts locked, implementation pending — two upcoming features 2026-07-31.**
+User asked for both in one turn; scopes are very different so they get separate contracts + separate
+sessions to implement:
+- **Auto-kill PID for ransomware/virus/malware** — bounded, one-commit work. Contract at
+  [docs/auto-kill.md](docs/auto-kill.md). Trigger classification (YARA / ransomware entropy / hash
+  ≥10 vendor flags → auto-approvable; everything else recommend-only), guard rails (PID ≤100 never,
+  process whitelist default systemd/sshd/dockerd/etc, mandatory attribution, 3-per-min rate limit,
+  fail-closed defaults), env `KILL_AUTO_APPROVE` + DB `kill_policy` singleton (migration 000057),
+  new API + UI card next to ban-policy editor. **Ready to execute** — user says "gas #1".
+- **Animated attack-arc geo map** — MUCH bigger. Contract at [docs/geo-map.md](docs/geo-map.md).
+  Replaces the current flag+heat-bar `AttackMap` with real Robinson-projected world SVG + bezier
+  arcs + hover detail row. Offline-first constraint kept (no d3, no tiles — Natural Earth 1:110m
+  static SVG ~60KB gzipped). Two open decisions with proposed defaults: (A) country centroid bundle
+  vs MaxMind City DB — default centroid A1 (~5KB, country accuracy); (B) single-manager destination
+  vs per-agent — default B1 (single env-configured lat/lon). ~600 LoC, one session for v1. **Awaiting
+  user confirmation on defaults** — user says "gas #2 with defaults" to proceed.
+
+
 
 **v2.3.2 — Sidebar: collapsible feature groups 2026-07-28 (RELEASED, tag `v2.3.2`).** The sidebar nav is grouped
 (Monitoring & Operations / Asset & Endpoint Management / Detection & Automation / Administration &
