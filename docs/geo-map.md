@@ -1,7 +1,20 @@
 # Animated attack-arc geo map — contract
 
-**Status:** contract locked; implementation pending; two open decisions listed at the bottom
-(defaults proposed, awaiting confirmation).
+**Status:** v1 shipped (A1 + B1 defaults). Kept as the design doc; the "Open decisions" section at
+the bottom records the choices made.
+
+## How to enable
+
+In the dashboard, click the **⚑ list / 🗺 map** toggle in the "Attack origins" card header — it
+persists in localStorage under `deuswatch.ui.dashboard.geo_map` so your choice survives reloads.
+
+The manager's location defaults to Jakarta (`-6.2, 106.8`). Override per-browser by pasting into
+the console once:
+
+```js
+localStorage.setItem('deuswatch.manager_lat', '-6.2')
+localStorage.setItem('deuswatch.manager_lon', '106.8')
+```
 
 ## Goal
 
@@ -110,16 +123,20 @@ Recommended default: **B1** for v1. B2 is a natural follow-up once agents have g
   SVG map + component + tests + docs), one commit, one minor release.
 - v2 (Option A2 or B2): dedicated follow-up, ~1 more session each.
 
-## Open decisions
+## Decisions taken for v1
 
-Please confirm before I start:
+**Decision A — lat/lon source: A1 (country centroid bundle)** — ~250 ISO-3166 alpha-2 entries in
+`web/src/dashboard/geo/centroids.ts`. Country-level accuracy. No enrichment change; city text is
+whatever `source_geo_city` already carries.
 
-**Decision A — lat/lon source**
-- [ ] **A1: bundle country centroids** (recommended for v1 — 5 KB, no ops work) ← default
-- [ ] A2: MaxMind GeoLite2-City (accurate but 70 MB + account requirement)
+**Decision B — destination point: B1 (single static manager location)** — configured via
+localStorage keys `deuswatch.manager_lat` and `deuswatch.manager_lon`, default (Jakarta) baked in.
 
-**Decision B — destination point**
-- [ ] **B1: single static manager location** (recommended for v1 — one env var) ← default
-- [ ] B2: per-agent destination (needs agent geo — future work)
+**Decision C — projection: equirectangular, not Robinson** — one multiply per point, no lookup
+tables. Contract had Robinson as the aspiration; equirectangular is what's actually implemented and
+looks fine for a whole-world attack view. Swapping is a self-contained edit to `projection.ts`.
 
-If you just reply "**gas #2 with defaults**" I'll proceed with A1 + B1.
+**Decision D — world map: schematic outlines, not Natural Earth polygons** — the map background
+draws a coordinate grid + rough continent hints in `WorldMapBackground.tsx`. A Natural Earth
+1:110m GeoJSON bundle stays a v2 candidate; the current shape is functional and honest about its
+approximation, and readable in both themes.

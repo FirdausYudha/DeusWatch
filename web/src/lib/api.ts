@@ -1013,6 +1013,31 @@ export async function saveBanPolicy(p: BanPolicy): Promise<BanPolicy> {
 // what triggered the alert; rate_limit_per_min caps auto-kills per agent per minute.
 export type KillPolicy = { auto_approve: boolean; whitelist: string[]; rate_limit_per_min: number }
 
+// Attack origins for the animated geo map (docs/geo-map.md). One entry per external source IP in
+// the window, with country/city from enrichment and blocked from the response engine.
+export type AttackOrigin = {
+  ip: string
+  country: string
+  city: string
+  count: number
+  blocked: boolean
+}
+export async function fetchAttackGeo(range: DashRange | null): Promise<AttackOrigin[]> {
+  const qs = new URLSearchParams()
+  if (range && range.from && range.to) {
+    qs.set('from', range.from.toISOString())
+    qs.set('to', range.to.toISOString())
+  } else if (range && typeof range.hours === 'number') {
+    qs.set('hours', String(range.hours))
+  } else {
+    qs.set('hours', '24')
+  }
+  const res = await authFetch(`/api/dashboard/attacks/geo?${qs.toString()}`)
+  if (!res.ok) throw new Error(`geo: HTTP ${res.status}`)
+  const j = await res.json()
+  return (j.origins as AttackOrigin[]) ?? []
+}
+
 export async function fetchKillPolicy(): Promise<KillPolicy> {
   const res = await authFetch('/api/kill-policy')
   if (!res.ok) throw new Error(`kill policy: HTTP ${res.status}`)

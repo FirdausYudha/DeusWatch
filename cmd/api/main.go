@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.6.0"
+const version = "2.7.0"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.
@@ -366,6 +366,7 @@ func main() {
 
 		// Customizable dashboard: aggregated series + per-user widget layout.
 		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st)))
+		mux.Handle("GET /api/dashboard/attacks/geo", protect(auth.PermViewDashboard, attackGeoHandler(st, respStore)))
 		mux.Handle("GET /api/dashboard/layout", protect(auth.PermViewDashboard, getLayoutHandler(st)))
 		mux.Handle("PUT /api/dashboard/layout", protect(auth.PermViewDashboard, saveLayoutHandler(st)))
 
@@ -1472,6 +1473,29 @@ func dashboardDataHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, d)
+	}
+}
+
+// attackGeoHandler serves aggregated attack origins for the animated geo map (docs/geo-map.md).
+// One row per external source IP in the window; the frontend looks up lat/lon from a bundled ISO
+// centroid table and draws a bezier arc from there to the manager location. `blocked` is enriched
+// from the response engine's ActiveBlocks so an operator can see at-a-glance which sources are
+// still knocking vs already stopped.
+func attackGeoHandler(st *store.Store, rs *respond.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		since, until := dashboardWindow(r)
+		origins, err := st.AttackOrigins(r.Context(), since, until, 200)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Best-effort blocked-flag enrichment: a response-engine hiccup mustn't hide the map.
+		if rs != nil {
+			if blocked, berr := rs.ActiveBlocks(r.Context()); berr == nil {
+				store.AttachBlockedFlag(origins, blocked)
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"origins": origins})
 	}
 }
 

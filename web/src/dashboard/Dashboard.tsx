@@ -3,10 +3,11 @@ import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData,
   fetchStorageStatus, requestFimRestore,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
-  type DashboardData, type WidgetKind, type EventSearch,
+  type DashboardData, type WidgetKind, type EventSearch, type DashRange,
   type StorageStatus,
 } from '../lib/api'
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget } from './widgets'
+import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
 import { PageHeader } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
@@ -193,7 +194,7 @@ const SPAN_CLASS: Record<1 | 2 | 3, string> = {
   3: 'sm:col-span-2 lg:col-span-3',
 }
 
-function WidgetBody({ w, data }: { w: Panel; data: DashboardData | null }) {
+function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: DashboardData | null; geoRange: DashRange | null; geoEnabled: boolean }) {
   if (!data) return <p className="py-6 text-center text-[12.5px] text-dim">loading…</p>
   switch (w.kind) {
     case 'stat': {
@@ -207,7 +208,12 @@ function WidgetBody({ w, data }: { w: Panel; data: DashboardData | null }) {
     case 'table':
       return <TableWidget data={data.series[w.source] ?? []} />
     case 'map':
-      return <AttackMap data={data.series['countries'] ?? []} color={w.color} />
+      // Feature flag (localStorage `deuswatch.ui.dashboard.geo_map`): when on, render the animated
+      // geo map with attack arcs (docs/geo-map.md); off = the classic flag+heat-bar list. Kept as
+      // an opt-in in v1 so an operator can fall back if the new widget misbehaves in their env.
+      return geoEnabled
+        ? <AttackGeoMap range={geoRange} />
+        : <AttackMap data={data.series['countries'] ?? []} color={w.color} />
     case 'risk':
       return <RiskyIPsWidget data={data.risky_ips ?? []} />
     case 'watch':
@@ -234,6 +240,9 @@ export default function Dashboard({
   const [storage, setStorage] = useState<StorageStatus | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
+  // Feature flag for the animated geo map. Persisted per-browser so an operator's choice survives
+  // reloads. Off in v1 — flip via the toggle in the header (state key: dashboard.geo_map).
+  const [geoEnabled, setGeoEnabled] = usePersistedState<boolean>('dashboard.geo_map', false)
 
   // Poll live data for the selected time range. Re-subscribes when the range
   // changes; a custom range with incomplete inputs simply skips the data fetch.
@@ -293,15 +302,26 @@ export default function Dashboard({
             className={`rounded-[12px] border border-border bg-surface p-[18px] ${SPAN_CLASS[w.span]}`}
           >
             <h2
-              className={`mb-3 ${
+              className={`mb-3 flex items-center gap-2 ${
                 w.kind === 'stat'
                   ? 'text-[12px] font-semibold uppercase tracking-[0.4px] text-dim'
                   : 'text-[13.5px] font-bold tracking-tight text-fg'
               }`}
             >
-              {w.title}
+              <span>{w.title}</span>
+              {/* Small toggle in the map panel header so an operator can switch between the classic
+                  flag list and the animated geo map (docs/geo-map.md). Persisted per browser. */}
+              {w.kind === 'map' && (
+                <button
+                  onClick={() => setGeoEnabled(!geoEnabled)}
+                  className="ml-auto rounded-[6px] border border-border px-2 py-0.5 text-[10.5px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                  title={geoEnabled ? 'Switch to the classic flag list' : 'Switch to the animated geo map (beta)'}
+                >
+                  {geoEnabled ? '🗺 map' : '⚑ list'}
+                </button>
+              )}
             </h2>
-            <WidgetBody w={w} data={data} />
+            <WidgetBody w={w} data={data} geoRange={range.resolved} geoEnabled={geoEnabled} />
           </div>
         ))}
       </section>
