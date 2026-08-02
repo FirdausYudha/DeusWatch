@@ -136,7 +136,18 @@ localStorage keys `deuswatch.manager_lat` and `deuswatch.manager_lon`, default (
 tables. Contract had Robinson as the aspiration; equirectangular is what's actually implemented and
 looks fine for a whole-world attack view. Swapping is a self-contained edit to `projection.ts`.
 
-**Decision D — world map: schematic outlines, not Natural Earth polygons** — the map background
-draws a coordinate grid + rough continent hints in `WorldMapBackground.tsx`. A Natural Earth
-1:110m GeoJSON bundle stays a v2 candidate; the current shape is functional and honest about its
-approximation, and readable in both themes.
+**Decision D — world map: REAL Natural Earth 1:110m boundaries** (upgraded in v2.7.2; v2.7.0–2.7.1
+shipped schematic outlines that looked obviously fake). `tools/worldmapgen` downloads the
+world-atlas TopoJSON distribution, decodes the delta-encoded arc topology, projects it with the
+same equirectangular maths as `projection.ts`, simplifies it (drop islands < 4 px², thin points
+closer than 1.6 px, round to integers) and emits `web/src/dashboard/geo/worldPaths.ts` — 267 plain
+SVG path strings, ~63 KB.
+
+The generator runs **manually**, not at build time, so the app keeps its offline guarantee and
+carries no topojson/d3 runtime dependency:
+
+```bash
+go run ./tools/worldmapgen > web/src/dashboard/geo/worldPaths.ts
+```
+
+Natural Earth is public domain (<https://www.naturalearthdata.com/about/terms-of-use/>).
