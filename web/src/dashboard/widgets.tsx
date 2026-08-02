@@ -305,7 +305,11 @@ export function AgentsWidget() {
         .catch((e) => setErr(String((e as Error).message ?? e)))
     }
     load()
-    const t = setInterval(load, 15_000)
+    // 5s cadence: agent starts → sends first heartbeat immediately (cmd/agent/main.go beat()) →
+    // gateway's MarkHealth commits → next widget tick within 5s flips the badge to online. Combined
+    // that gets an operator from "just installed the agent" to "green dot on the dashboard" in
+    // well under 10 seconds. Endpoint is cheap (small SELECT) so the extra polling is fine.
+    const t = setInterval(load, 5_000)
     return () => clearInterval(t)
   }, [])
   if (err) return <p className="py-6 text-center text-[12.5px] text-critical">{err}</p>

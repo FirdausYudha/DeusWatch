@@ -74,22 +74,21 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
   if (err) {
     return <p className="py-6 text-center text-[12.5px] text-critical">{err}</p>
   }
-  if (!origins) {
-    return <p className="py-6 text-center text-[12.5px] text-dim">loading map…</p>
-  }
-  if (origins.length === 0) {
-    return <p className="py-6 text-center text-[12.5px] text-dim">no external attacks in this window</p>
-  }
+  // We deliberately DON'T early-return on `origins === null` (loading) or `origins.length === 0`
+  // (no attacks yet). The map itself is the widget's identity — showing a bare "loading…" or
+  // "no attacks" text is uglier than showing the world + manager pulse with a subtle overlay hint.
+  // An operator with a fresh deploy still sees a functioning globe waiting for its first attacker.
+  const list: AttackOrigin[] = origins ?? []
 
   return (
     <div className="flex flex-col gap-2 text-fg">
-      <div className="w-full overflow-x-auto rounded-[8px] border border-border bg-surface">
+      <div className="relative w-full overflow-x-auto rounded-[8px] border border-border bg-surface">
         <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} className="block h-auto w-full" role="img" aria-label="World map of external attack sources">
           <WorldMapBackground />
 
           {/* Arcs — behind the markers so the endpoint dots always sit on top. */}
           <g fill="none" strokeLinecap="round" pointerEvents="none">
-            {origins.map((o) => {
+            {list.map((o) => {
               const [lat, lon] = lookupCentroid(o.country)
               const [sx, sy] = project(lat, lon)
               const d = arcPath([sx, sy], [dstX, dstY])
@@ -122,7 +121,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
 
           {/* Source markers on top of everything so hover always finds them. */}
           <g>
-            {origins.map((o) => {
+            {list.map((o) => {
               const [lat, lon] = lookupCentroid(o.country)
               const [x, y] = project(lat, lon)
               const r = markerRadius(o.count)
@@ -138,6 +137,19 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
             })}
           </g>
         </svg>
+        {/* Overlay hint when we haven't seen anything yet — kept subtle so the map itself remains
+            the star. Absolute-positioned inside the map container's `relative` wrapper so it sits
+            over the SVG without shifting layout. Hidden as soon as any origin arrives. */}
+        {origins !== null && list.length === 0 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10.5px] uppercase tracking-wide text-dim">
+            waiting for external attacks
+          </div>
+        )}
+        {origins === null && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10.5px] uppercase tracking-wide text-dim">
+            loading…
+          </div>
+        )}
       </div>
 
       {/* Hover detail row — mirrors the columns in the reference dashboard the operator sent. */}

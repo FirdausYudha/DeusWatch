@@ -1,0 +1,44 @@
+{
+  "personas": {
+    "writer": {
+      "model": "claude-3-5-opus-latest",
+      "temperature": 0.7,
+      "max_tokens": 4096,
+      "description": "Primary implementation engine for DeusWatch. High creativity for design & UI."
+    },
+    "reviewer": {
+      "model": "claude-3-5-opus-latest",
+      "temperature": 0.3,
+      "max_tokens": 8192,
+      "description": "Critical security/quality reviewer. Low temp for precise analysis."
+    },
+    "full": {
+      "model": "claude-3-5-opus-latest",
+      "temperature": 0.5,
+      "max_tokens": 16384,
+      "description": "Full-context reasoning for complex multi-tenant isolation & threat response."
+    }
+  },
+  "project": {
+    "name": "DeusWatch v2.5.1",
+    "type": "security-monitoring",
+    "multi_tenant": true,
+    "last_release": "v2.5.1",
+    "critical_features": [
+      "RLS-enforced database isolation (13 scoped tables)",
+      "Fleet-wide response actions with global bans",
+      "Event clock-skew clamping (>2min ahead)",
+      "Scoped transactions across stores",
+      "Multi-tenancy (phases 0-5 complete)"
+    ]
+  },
+  "workflow": {
+    "default": "full",
+    "tasks": {
+      "implementation": "writer",
+      "review": "reviewer",
+      "architecture": "full",
+      "security": "reviewer"
+    }
+  }
+}

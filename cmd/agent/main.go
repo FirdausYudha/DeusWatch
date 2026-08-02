@@ -715,6 +715,27 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 		return agent.Health{Degraded: true,
 			Detail: fmt.Sprintf("%d buffered batch(es) awaiting delivery", len(pending))}
 	}
+	// beat sends one heartbeat + handles the "manager says I'm revoked" case. Returns true if the
+	// caller should stop looping. Refactored out of the ticker branch so we can call it once at
+	// startup (no more waiting a full 30s for the row to flip to online in the dashboard).
+	beat := func() (stopLooping bool) {
+		if err := shipper.Heartbeat(ctx, health()); err != nil {
+			if errors.Is(err, agent.ErrRevoked) {
+				log.Printf("agent: this agent was revoked by the manager — self-uninstalling")
+				selfUninstall()
+				stop()
+				return true
+			}
+			log.Printf("agent: heartbeat failed: %v", err)
+		}
+		return false
+	}
+	// Fire the first heartbeat immediately so the manager sees the agent online within seconds of
+	// service start, not up to 30s later — previously time.NewTicker's first tick was the FIRST
+	// heartbeat, which is exactly the "agent takes forever to appear online" symptom operators hit.
+	if beat() {
+		return
+	}
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -722,14 +743,8 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := shipper.Heartbeat(ctx, health()); err != nil {
-				if errors.Is(err, agent.ErrRevoked) {
-					log.Printf("agent: this agent was revoked by the manager — self-uninstalling")
-					selfUninstall()
-					stop()
-					return
-				}
-				log.Printf("agent: heartbeat failed: %v", err)
+			if beat() {
+				return
 			}
 		}
 	}
