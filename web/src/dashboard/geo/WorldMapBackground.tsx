@@ -7,22 +7,34 @@ import { WORLD_PATHS } from './worldPaths'
 //
 // Why pre-projected paths instead of GeoJSON + d3-geo at runtime: the app must work fully offline
 // and the bundle shouldn't carry a projection library for one widget. The generator does the
-// topology decoding + projection + simplification once, at build time; the frontend just renders
-// <path d> strings. ~63 KB of path data, no runtime deps.
+// topology decoding + projection + simplification once; the frontend just renders <path d> strings.
 //
-// Deliberately plain: no graticule, no equator/meridian guides. The map is context for the attack
-// arcs, and gridlines added visual noise that competed with them. Colours pull from theme variables
-// so this works in light + dark. Pointer events are off — the interactive bits are the markers on top.
+// Styling: a clean blue treatment — deep ocean, lighter blue landmasses, hairline borders. No
+// graticule, no equator/meridian guides: the map is context, the attack arcs are the content.
+// Colours are literal (not theme variables) because this is a deliberate "dark blue map" surface
+// that should look the same regardless of the app's light/dark setting — the arcs and markers on
+// top carry the semantic colour. Pointer events are off; the markers above handle interaction.
+
+const OCEAN_TOP = '#0d1a30'
+const OCEAN_BOTTOM = '#0a1526'
+const LAND_FILL = '#243b5c'
+const LAND_STROKE = '#37568a'
 
 export default function WorldMapBackground() {
   return (
     <g pointerEvents="none">
-      {/* Ocean fill so the landmasses read against it. */}
-      <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} fill="var(--color-surface-2, #0f172a)" opacity={0.35} />
+      <defs>
+        {/* Subtle vertical gradient stops the large ocean area from reading as a flat block. */}
+        <linearGradient id="dw-ocean" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={OCEAN_TOP} />
+          <stop offset="100%" stopColor={OCEAN_BOTTOM} />
+        </linearGradient>
+      </defs>
 
-      {/* Real country boundaries. One <path> per landmass outer ring.
-          fillOpacity is deliberately low: the land is context, the attack arcs are the content. */}
-      <g fill="currentColor" fillOpacity={0.08} stroke="currentColor" strokeOpacity={0.28} strokeWidth={0.4} strokeLinejoin="round">
+      <rect x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#dw-ocean)" />
+
+      {/* Real country boundaries, one <path> per landmass outer ring. */}
+      <g fill={LAND_FILL} stroke={LAND_STROKE} strokeWidth={0.4} strokeLinejoin="round">
         {WORLD_PATHS.map((d, i) => (
           <path key={i} d={d} />
         ))}

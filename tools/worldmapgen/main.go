@@ -55,9 +55,15 @@ type topology struct {
 }
 
 type geometry struct {
-	Type string          `json:"type"`
-	Arcs json.RawMessage `json:"arcs"`
+	Type       string          `json:"type"`
+	Arcs       json.RawMessage `json:"arcs"`
+	Properties struct {
+		Name string `json:"name"`
+	} `json:"properties"`
 }
+
+// Name is the country name from the source properties (used to skip Antarctica).
+func (g geometry) NameOrEmpty() string { return g.Properties.Name }
 
 type point struct{ X, Y float64 }
 
@@ -87,17 +93,29 @@ func main() {
 
 	var paths []string
 	for _, g := range topo.Objects.Countries.Geometries {
+		if g.Properties.Name == "Antarctica" {
+			// Antarctica's ring wraps the pole, so equirectangular renders it as a jagged band
+			// smeared across the bottom of the map. It is never an attack source in practice, and
+			// dropping it removes the single ugliest artefact of this projection.
+			continue
+		}
 		for _, ringIdx := range outerRings(g) {
 			ring := resolveRing(arcs, ringIdx)
-			projected := make([]point, len(ring))
-			for i, p := range ring {
-				projected[i] = project(p)
-			}
-			if ringArea(projected) < minAreaPx {
-				continue
-			}
-			if d := toPath(thin(projected, thinTolerancePx)); d != "" {
-				paths = append(paths, d)
+			// Split BEFORE projecting: a ring that crosses the antimeridian (±180°) has a
+			// consecutive longitude jump of ~360°, which projects into a horizontal streak across
+			// the entire map (this is what produced the stray lines the operator reported). Cutting
+			// the ring at those jumps yields separate, correctly-placed pieces per side.
+			for _, seg := range splitAtAntimeridian(ring) {
+				projected := make([]point, len(seg))
+				for i, p := range seg {
+					projected[i] = project(p)
+				}
+				if ringArea(projected) < minAreaPx {
+					continue
+				}
+				if d := toPath(thin(projected, thinTolerancePx)); d != "" {
+					paths = append(paths, d)
+				}
 			}
 		}
 	}
@@ -177,6 +195,28 @@ func resolveRing(arcs [][]point, idxs []int) []point {
 		}
 		out = append(out, seg...)
 	}
+	return out
+}
+
+// splitAtAntimeridian cuts a lon/lat ring wherever consecutive longitudes jump by more than 180°.
+// Such a jump means the ring crosses the ±180° seam; in an equirectangular projection the segment
+// would otherwise be drawn straight across the whole map as a horizontal streak. Returns one or
+// more sub-rings, each entirely on one side of the seam. Rings that never cross come back as-is.
+func splitAtAntimeridian(ring []point) [][]point {
+	if len(ring) < 2 {
+		return [][]point{ring}
+	}
+	var out [][]point
+	cur := []point{ring[0]}
+	for i := 1; i < len(ring); i++ {
+		if math.Abs(ring[i].X-ring[i-1].X) > 180 {
+			out = append(out, cur)
+			cur = []point{ring[i]}
+			continue
+		}
+		cur = append(cur, ring[i])
+	}
+	out = append(out, cur)
 	return out
 }
 
