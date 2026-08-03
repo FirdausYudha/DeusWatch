@@ -12,6 +12,12 @@ and click **Enable webhook (generate token)**. The panel shows the full URL (wit
 **Regenerate** rotates the token (the old one stops working immediately) and **Disable** turns the
 endpoint off (404). No restart needed — the token is stored in the database and read per request.
 
+**Bind to a workspace (v2.9.0+).** In the same panel, use the **Default workspace** selector to
+pick which workspace inbound events belong to. This is what makes them visible to *you* — see
+[§ Why my POST returns `accepted:1` but nothing appears](#why-my-post-returns-accepted1-but-nothing-appears)
+below for why. Leaving it on *"fall back to agent lookup / Default tenant"* preserves the
+historical behavior (route by agent name, else land in the platform's Default tenant).
+
 **Or via env** (still supported; seeded into the DB on first start so it becomes UI-manageable):
 
 ```dotenv
@@ -61,7 +67,29 @@ curl -X POST "http://<manager>:9080/api/ingest/webhook?token=<TOKEN>&agent=web-0
 ```
 
 The line appears in **Events** with agent `wazuh-agent/web-01`. Turn off the alerts-only
-filter to see raw ingested lines.
+filter to see raw ingested lines. (`dataset=wazuh` events are best-effort classified by the
+built-in `sshd`/firewall parsers; anything the parser doesn't recognize is still stamped with
+`wazuh_forward` at Low severity so it survives the alerts-only view — write a custom decoder
+on the Decoders page to enrich further.)
+
+## Why my POST returns `accepted:1` but nothing appears
+
+Two independent reasons the response can say "accepted" while the UI stays empty:
+
+1. **Wrong workspace.** Inbound events used to be stamped with the *producing agent's* tenant, and
+   an unenrolled agent (`wazuh-agent/<name>`) silently fell back to the *Default* tenant. If you
+   were logged into a non-Default workspace, the `events` RLS view hid the row. **Fix**: in
+   **Integrations → Log ingest webhook**, set **Default workspace** to your workspace. The next
+   POST lands there and shows up immediately.
+2. **Alerts-only filter.** The dashboard events feed defaults to showing alerts (rows with a
+   `dw_label`). A raw line whose format none of the built-in parsers recognize was previously
+   ingested unlabelled and hidden by that toggle. As of v2.9.0 anything from `dataset=wazuh`
+   gets at least a `wazuh_forward` label at Low severity, so it always survives. If you're on
+   an older manager, untick **alerts only** on the events table to see everything ingested.
+
+DeusWatch does not forward anything *back* to Wazuh — this is a one-way inbound webhook. If you're
+looking for events in your Wazuh dashboard after POSTing to DeusWatch, that's expected: they never
+went there.
 
 ## 2. Point Wazuh at it (Wazuh side)
 

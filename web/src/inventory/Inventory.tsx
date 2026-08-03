@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
+  can,
   fetchInventory,
   fetchAgentPackages,
   fetchVulnerabilities,
   fetchAgentVulnerabilities,
+  rematchVulnerabilities,
   type InventorySummary,
   type Package,
   type VulnSummary,
@@ -18,14 +20,17 @@ import { DonutChart } from '../dashboard/widgets'
 // findings from matching those packages against vendor advisories (Ubuntu USN / Debian). It leads
 // with vulnerabilities (the actionable part) and keeps the raw package list a tab away.
 export default function Inventory({ me }: { me: Me }) {
-  void me
   const [agents, setAgents] = useState<InventorySummary[]>([])
   const [vulns, setVulns] = useState<Record<string, VulnSummary>>({})
   const [advisoryTotal, setAdvisoryTotal] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
+  const [rematching, setRematching] = useState(false)
+  const [rematchMsg, setRematchMsg] = useState('')
 
-  useEffect(() => {
+  const canRematch = can(me, 'manage_settings')
+
+  const load = () =>
     Promise.all([fetchInventory(), fetchVulnerabilities()])
       .then(([inv, vo]) => {
         setAgents(inv)
@@ -36,13 +41,46 @@ export default function Inventory({ me }: { me: Me }) {
         setSelected((cur) => cur ?? (inv[0]?.agent_name ?? null))
       })
       .catch((e) => setError((e as Error).message))
+
+  useEffect(() => {
+    load()
   }, [])
+
+  const doRematch = async () => {
+    setRematching(true)
+    setRematchMsg('')
+    try {
+      const n = await rematchVulnerabilities()
+      setRematchMsg(`Rematched ${n} agent${n === 1 ? '' : 's'}.`)
+      await load()
+      setTimeout(() => setRematchMsg(''), 4000)
+    } catch (e) {
+      setRematchMsg(`Failed: ${(e as Error).message}`)
+    } finally {
+      setRematching(false)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <PageHeader
         subtitle="Installed software & CVE findings per endpoint (Ubuntu USN / Debian advisories)"
-        actions={<DocLink file="vulnerability-assessment.md" label="About vulnerability assessment" />}
+        actions={
+          <>
+            {rematchMsg && <span className="text-[12.5px] text-dim">{rematchMsg}</span>}
+            {canRematch && (
+              <button
+                onClick={doRematch}
+                disabled={rematching}
+                className="rounded-[8px] border border-border px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-50"
+                title="Recompute per-agent severities from the currently cached advisories. Useful after upgrading past a release that shipped severity enrichment."
+              >
+                {rematching ? 'Recomputing…' : 'Recompute severities'}
+              </button>
+            )}
+            <DocLink file="vulnerability-assessment.md" label="About vulnerability assessment" />
+          </>
+        }
       />
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}

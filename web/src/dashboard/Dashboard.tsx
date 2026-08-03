@@ -5,7 +5,7 @@ import {
   fetchLayout, saveLayout, deleteLayout,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type WidgetKind, type EventSearch, type DashRange,
-  type StorageStatus,
+  type StorageStatus, type TimelineBucket,
 } from '../lib/api'
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget } from './widgets'
 import AttackGeoMap from './geo/AttackGeoMap'
@@ -81,6 +81,31 @@ function ScoreDoughnut({ score, band, title }: { score: number; band: string; ti
           strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" transform="rotate(-90 12 12)" />
         <text x="12" y="12.5" textAnchor="middle" dominantBaseline="middle" fontSize="8.5" fontWeight="700" fill={color}>{score}</text>
       </svg>
+    </span>
+  )
+}
+
+// classifyThreatFamily surfaces ransomware / malware / virus / trojan directly on the events
+// feed. Rather than adding a schema column, it derives the family from the fields already
+// carried on the event (YARA rule names, VirusTotal verdicts, filehash detail, dw_label). This
+// keeps the feature migration-free while still catching the flows that matter — YARA hits set
+// rule_name/dw_label, VirusTotal enrichment sets dw_filehash_verdict/detail.
+function classifyThreatFamily(a: EventRow): { label: string; cls: string } | null {
+  const hay = `${a.rule_name || ''} ${a.dw_label || ''} ${a.dw_filehash_verdict || ''} ${a.dw_filehash_detail || ''} ${a.event_action || ''}`.toLowerCase()
+  if (!hay.trim()) return null
+  if (hay.includes('ransomware')) return { label: 'ransomware', cls: 'bg-rose-500/15 text-rose-300 border-rose-500/30' }
+  if (hay.includes('trojan')) return { label: 'trojan', cls: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30' }
+  if (hay.includes('virus')) return { label: 'virus', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' }
+  if (hay.includes('malware')) return { label: 'malware', cls: 'bg-orange-500/15 text-orange-300 border-orange-500/30' }
+  return null
+}
+
+function ThreatFamilyPill({ a }: { a: EventRow }) {
+  const c = classifyThreatFamily(a)
+  if (!c) return null
+  return (
+    <span className={`ml-1.5 inline-flex rounded border px-1.5 py-0 text-[10.5px] font-semibold uppercase tracking-wide ${c.cls}`}>
+      {c.label}
     </span>
   )
 }
@@ -210,6 +235,11 @@ const PANELS: Panel[] = [
   { kind: 'bar', source: 'source_ips', title: 'Top source IPs', color: '#38bdf8', span: 1 },
   { kind: 'risk', source: 'risky_ips', title: 'Top risky IPs', color: '#f43f5e', span: 1 },
   { kind: 'watch', source: 'suspicious_ips', title: 'Suspicious IPs (recon)', color: '#f59e0b', span: 1 },
+  // Where the attacks LAND — helps operators see whether attention is concentrated on one port or
+  // fanning across web/DB/SSH, and which asset/IP is currently the bullseye. Auto-grows as the data
+  // grows (the BarChart tops the list at whatever LIMIT the SQL returns).
+  { kind: 'bar', source: 'destination_ports', title: 'Top destination ports', color: '#22d3ee', span: 1 },
+  { kind: 'bar', source: 'destination_ips', title: 'Top destination IPs / agents', color: '#22d3ee', span: 2 },
   // The slow-scanner table needs width for its columns; the donut is happy small.
   { kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', span: 2 },
   { kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', span: 1 },
@@ -277,6 +307,9 @@ export default function Dashboard({
   // Feature flag for the animated geo map. Persisted per-browser so an operator's choice survives
   // reloads. Off in v1 — flip via the toggle in the header (state key: dashboard.geo_map).
   const [geoEnabled, setGeoEnabled] = usePersistedState<boolean>('dashboard.geo_map', false)
+  // Operator override for the incident timeline's bucket width; '' = server auto-picks based
+  // on the selected window. Persisted per-browser so a wide/short zoom preference sticks.
+  const [timelineBucket, setTimelineBucket] = usePersistedState<TimelineBucket>('dashboard.timeline_bucket', '')
 
   // Layout customization: operator can enter edit mode, drag panels to reorder, save or reset.
   // `panels` is the effective render order — starts as the default PANELS, replaced with the
@@ -364,7 +397,7 @@ export default function Dashboard({
       fetchStorageStatus().then((s) => { if (active) setStorage(s) }).catch(() => {})
       if (range.resolved) {
         try {
-          const d = await fetchDashboardData(range.resolved)
+          const d = await fetchDashboardData(range.resolved, timelineBucket)
           if (active) setData(d)
         } catch {
           /* API/DB not ready */
@@ -375,7 +408,7 @@ export default function Dashboard({
     void tick()
     const id = setInterval(tick, 5000)
     return () => { active = false; clearInterval(id) }
-  }, [range.preset, range.from, range.to])
+  }, [range.preset, range.from, range.to, timelineBucket])
 
   const services: { name: string; sub: string; state: DotState; detail: string }[] = [
     { name: 'API Server', sub: 'Go · :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'checking…' },
@@ -498,6 +531,26 @@ export default function Dashboard({
                   >
                     {geoEnabled ? '🗺 map' : '⚑ list'}
                   </button>
+                )}
+                {/* Timeline bucket picker on the "Events over time" panel — '' = server auto-picks. */}
+                {w.kind === 'line' && w.source === 'timeline' && (
+                  <select
+                    value={timelineBucket}
+                    onChange={(e) => setTimelineBucket(e.target.value as TimelineBucket)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onDragStart={(e) => e.preventDefault()}
+                    className="ml-auto rounded-[6px] border border-border bg-surface-2 px-1.5 py-0.5 text-[11.5px] font-medium text-muted outline-none transition-colors hover:text-fg"
+                    title="Bucket width for the timeline"
+                  >
+                    <option value="">auto</option>
+                    <option value="1min">1 min</option>
+                    <option value="5min">5 min</option>
+                    <option value="15min">15 min</option>
+                    <option value="30min">30 min</option>
+                    <option value="1h">1 h</option>
+                    <option value="6h">6 h</option>
+                    <option value="1d">1 d</option>
+                  </select>
                 )}
               </h2>
               <WidgetBody w={w} data={data} geoRange={range.resolved} geoEnabled={geoEnabled} />
@@ -792,6 +845,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                     </td>
                     <td className="px-4 py-2 text-fg">
                       {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
+                      <ThreatFamilyPill a={a} />
                       {a.file_path && (
                         <span className="mt-0.5 block truncate text-[12.5px] text-dim" title={a.file_path}>
                           location: <span className="font-mono text-muted">{a.file_path}</span>

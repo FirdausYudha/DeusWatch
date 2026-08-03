@@ -108,6 +108,42 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if kind == "sshd" && normalizeSSHD(raw.Message, e) {
 		return e, true
 	}
+	// Wazuh forwards a variety of upstream formats under the "wazuh" label — Wazuh manager
+	// integrator scripts, agent-shipped syslog, etc. Sniff the common syslog shapes so the
+	// classic "Failed password …" line lands as authentication_failure (the same as native
+	// SSHD ingest) instead of an unlabelled event that the alerts-only view hides.
+	if kind == "wazuh" {
+		if normalizeSSHD(raw.Message, e) {
+			// A Wazuh-forwarded sshd line is already the alert on this side, but the plain SSHD
+			// parser sets only category/action/outcome — the detection engine adds a label
+			// downstream. Stamp one directly for the wazuh path so the default alerts-only view
+			// surfaces it immediately (a login FAILURE gets High, everything else Low so it
+			// stays visible without over-signalling).
+			if e.DeusWatch.Label == "" {
+				if e.Event.Outcome == "failure" {
+					e.DeusWatch.Label = "authentication_failure"
+					e.Event.Severity = SeverityHigh
+				} else {
+					e.DeusWatch.Label = "wazuh_forward"
+				}
+			}
+			return e, true
+		}
+		if normalizeFirewall(raw.Message, e) {
+			if e.DeusWatch.Label == "" {
+				e.DeusWatch.Label = "wazuh_forward"
+			}
+			return e, true
+		}
+		// Unrecognized inner format — still label + escalate so the operator can find it on
+		// the events feed while writing a decoder. Without a label, the default alerts-only
+		// filter (dw_label IS NOT NULL) would hide it entirely.
+		e.Event.Category = "wazuh"
+		e.Event.Action = "forward"
+		e.Event.Severity = SeverityLow
+		e.DeusWatch.Label = "wazuh_forward"
+		return e, true
+	}
 	if kind == "fim" && normalizeFIM(raw.Message, e) {
 		return e, true
 	}

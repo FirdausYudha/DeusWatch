@@ -265,6 +265,10 @@ type DeusWatch struct {
 	Remediation Remediation    `json:"remediation,omitempty"`
 	FileHash    FileReputation `json:"file_hash,omitempty"`
 	Containment *Containment   `json:"containment,omitempty"`
+	// TenantID, when set, overrides the DB's agent-name-based tenant stamping in InsertEvent.
+	// Used by the ingest webhook to bind a payload to a specific workspace regardless of whether
+	// the producing "agent" has ever been enrolled. Empty = fall back to the agent lookup.
+	TenantID string `json:"tenant_id,omitempty"`
 }
 
 // ── Main record ───────────────────────────────────────────

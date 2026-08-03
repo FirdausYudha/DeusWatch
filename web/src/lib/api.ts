@@ -703,6 +703,15 @@ export async function fetchAgentVulnerabilities(agent: string): Promise<VulnFind
   return (await res.json()).vulnerabilities ?? []
 }
 
+// Forces the worker's re-match to run right now. Use after upgrades where the periodic rematch
+// missed enriched severities (v2.8.0 shipped USN priority enrichment but the shared feed context
+// starved rematch; v2.9.0 fixed the root cause AND exposed this one-shot recovery button).
+export async function rematchVulnerabilities(): Promise<number> {
+  const res = await authFetch('/api/vulnerabilities/rematch', { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).agents_matched ?? 0
+}
+
 // Log-storage health for the dashboard (PostgreSQL + TimescaleDB).
 export type StorageStatus = {
   reachable: boolean
@@ -953,7 +962,9 @@ export async function regenerateBlocklistToken(): Promise<BlocklistConfig> {
 
 // Inbound ingest webhook: the UI-managed token for POST /api/ingest/webhook (a Wazuh manager
 // or any external system pushing raw logs / alerts into the DeusWatch pipeline).
-export type IngestConfig = { token: string; enabled: boolean }
+// default_tenant_id (v2.9.0+) binds inbound events to a specific workspace so they aren't
+// silently routed to the Default tenant by agent-name lookup.
+export type IngestConfig = { token: string; enabled: boolean; default_tenant_id?: string }
 export async function fetchIngestConfig(): Promise<IngestConfig> {
   const res = await authFetch('/api/ingest-config')
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
@@ -966,6 +977,15 @@ export async function regenerateIngestToken(): Promise<IngestConfig> {
 }
 export async function disableIngestWebhook(): Promise<IngestConfig> {
   const res = await authFetch('/api/ingest-config/disable', { method: 'POST' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+export async function setIngestDefaultTenant(tenantID: string): Promise<{ default_tenant_id: string }> {
+  const res = await authFetch('/api/ingest-config/default-tenant', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenant_id: tenantID }),
+  })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
 }
@@ -1233,7 +1253,11 @@ export type DashboardData = {
 // explicit from/to (Date) range for precise calendar+time selection.
 export type DashRange = { hours?: number; from?: Date; to?: Date }
 
-export async function fetchDashboardData(range: number | DashRange = 24): Promise<DashboardData> {
+// TimelineBucket is the whitelisted set the API accepts on ?bucket=. Unknown values fall back
+// to the server's automatic per-window pick.
+export type TimelineBucket = '' | '1min' | '5min' | '15min' | '30min' | '1h' | '6h' | '1d'
+
+export async function fetchDashboardData(range: number | DashRange = 24, bucket: TimelineBucket = ''): Promise<DashboardData> {
   const r: DashRange = typeof range === 'number' ? { hours: range } : range
   const qs = new URLSearchParams()
   if (r.from && r.to) {
@@ -1242,6 +1266,7 @@ export async function fetchDashboardData(range: number | DashRange = 24): Promis
   } else {
     qs.set('hours', String(r.hours ?? 24))
   }
+  if (bucket) qs.set('bucket', bucket)
   const res = await authFetch(`/api/dashboard?${qs.toString()}`)
   if (!res.ok) throw new Error(`dashboard: HTTP ${res.status}`)
   return res.json()

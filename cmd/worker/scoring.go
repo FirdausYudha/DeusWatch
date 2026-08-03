@@ -221,7 +221,13 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 			}
 			log.Printf("worker: vuln: %s feed refreshed (%d advisories for %v)", source, len(advs), releases)
 		}
-		rematch(fc, st)
+		// Rematch gets its own fresh 5-min context. Sharing fc — already partially consumed by
+		// USN pagination (~120 requests per release) + per-CVE severity enrichment (thousands of
+		// requests on cold cache) — starved this call in v2.8.0, so agent_vulnerabilities held
+		// stale empty-severity rows even though advisories.severity was correctly enriched.
+		rmCtx, rmCancel := context.WithTimeout(ctx, 5*time.Minute)
+		rematch(rmCtx, st)
+		rmCancel()
 	}
 
 	feedT := time.NewTicker(feedInterval)

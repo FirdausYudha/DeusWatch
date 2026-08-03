@@ -29,15 +29,21 @@ type Publisher interface {
 // per request so a UI regenerate/disable takes effect immediately, without a restart.
 type TokenFunc func(ctx context.Context) (string, error)
 
+// TenantFunc returns the tenant UUID to stamp on inbound events ("" = fall back to the historical
+// agent-name → tenant lookup, then the Default tenant). Read per request so a UI change to the
+// binding takes effect immediately, without a restart.
+type TenantFunc func(ctx context.Context) (string, error)
+
 // Handler serves the raw-log ingest webhook.
 type Handler struct {
-	pub     Publisher
-	tokenFn TokenFunc
+	pub      Publisher
+	tokenFn  TokenFunc
+	tenantFn TenantFunc
 }
 
 // New builds the handler. tokenFn supplies the token dynamically (from the DB); an empty token
 // DISABLES the endpoint (returns 404), so it is never open by default. A static token can be
-// passed with NewStatic.
+// passed with NewStatic. Call WithTenant to bind inbound events to a specific workspace.
 func New(pub Publisher, tokenFn TokenFunc) *Handler {
 	return &Handler{pub: pub, tokenFn: tokenFn}
 }
@@ -46,6 +52,14 @@ func New(pub Publisher, tokenFn TokenFunc) *Handler {
 func NewStatic(pub Publisher, token string) *Handler {
 	token = strings.TrimSpace(token)
 	return &Handler{pub: pub, tokenFn: func(context.Context) (string, error) { return token, nil }}
+}
+
+// WithTenant attaches a per-request tenant resolver. Returns h for chaining.
+func (h *Handler) WithTenant(fn TenantFunc) *Handler {
+	if h != nil {
+		h.tenantFn = fn
+	}
+	return h
 }
 
 // token resolves the current token, treating any lookup error as "disabled" (fail closed).
@@ -120,8 +134,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve the tenant binding once per request — the worker's InsertEvent uses this to skip its
+	// agent-name-based tenant lookup (which lands unenrolled ingest sources in the Default tenant
+	// and hides them from the operator's workspace behind the events RLS view).
+	tenantID := ""
+	if h.tenantFn != nil {
+		if t, terr := h.tenantFn(r.Context()); terr == nil {
+			tenantID = strings.TrimSpace(t)
+		}
+	}
+
 	accepted := 0
 	for _, ev := range events {
+		if tenantID != "" && ev != nil {
+			ev.DeusWatch.TenantID = tenantID
+		}
 		data, merr := json.Marshal(ev)
 		if merr != nil {
 			continue

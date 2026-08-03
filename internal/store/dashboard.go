@@ -42,8 +42,10 @@ type DashboardData struct {
 	SlowScanners []SlowScanner `json:"slow_scanners"`
 }
 
-// Dashboard assembles all dashboard series for the window [since, until].
-func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (DashboardData, error) {
+// Dashboard assembles all dashboard series for the window [since, until]. `bucketOverride`
+// forces the timeline bucket width (e.g. "1 minute", "5 minutes", "1 hour"); "" = auto based
+// on the window span.
+func (s *Store) Dashboard(ctx context.Context, since, until time.Time, bucketOverride string) (DashboardData, error) {
 	if until.IsZero() {
 		until = time.Now()
 	}
@@ -87,6 +89,12 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (Dashboar
 		"verdicts": `SELECT dw_llm_verdict, count(*) FROM events
 			WHERE time >= $1 AND time <= $2 AND dw_llm_verdict IS NOT NULL
 			GROUP BY dw_llm_verdict ORDER BY count(*) DESC`,
+		"destination_ports": `SELECT destination_port::text, count(*) FROM events
+			WHERE time >= $1 AND time <= $2 AND destination_port IS NOT NULL
+			GROUP BY destination_port ORDER BY count(*) DESC LIMIT 10`,
+		"destination_ips": `SELECT COALESCE(host(destination_ip), agent_id, '(unknown)'), count(*) FROM events
+			WHERE time >= $1 AND time <= $2 AND (destination_ip IS NOT NULL OR agent_id IS NOT NULL)
+			GROUP BY 1 ORDER BY count(*) DESC LIMIT 10`,
 	} {
 		c, err := s.dashCounts(ctx, q, since, until)
 		if err != nil {
@@ -95,7 +103,7 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time) (Dashboar
 		d.Series[key] = c
 	}
 
-	if d.Timeline, err = s.dashTimeline(ctx, since, until); err != nil {
+	if d.Timeline, err = s.dashTimeline(ctx, since, until, bucketOverride); err != nil {
 		return d, err
 	}
 	// Composite-score leaderboard (already maintained by the worker's IP scorer). A failure
@@ -150,6 +158,20 @@ func (s *Store) dashCounts(ctx context.Context, query string, since, until time.
 	return out, rows.Err()
 }
 
+// allowedBuckets whitelists the operator-selectable bucket widths for the timeline widget.
+// The map key is what the API accepts on ?bucket=; the value is the TimescaleDB interval
+// literal fed to time_bucket(). Anything else falls through to bucketFor's automatic pick
+// (never trust a caller-supplied interval string in raw SQL).
+var allowedBuckets = map[string]string{
+	"1min":  "1 minute",
+	"5min":  "5 minutes",
+	"15min": "15 minutes",
+	"30min": "30 minutes",
+	"1h":    "1 hour",
+	"6h":    "6 hours",
+	"1d":    "1 day",
+}
+
 // bucketFor picks a timeline bucket width so the chart always has a sensible
 // number of points (~24-150) regardless of the selected window.
 func bucketFor(span time.Duration) string {
@@ -169,9 +191,14 @@ func bucketFor(span time.Duration) string {
 
 // dashTimeline returns a gap-filled series: every bucket across [since, until]
 // is present (zero where there were no events) so the line renders continuously
-// even when activity is sparse or confined to a single bucket.
-func (s *Store) dashTimeline(ctx context.Context, since, until time.Time) ([]TimePoint, error) {
+// even when activity is sparse or confined to a single bucket. `bucketOverride`
+// forces a specific TimescaleDB interval literal ("1 minute", "5 minutes", …);
+// unrecognized values (or "") fall back to bucketFor(span).
+func (s *Store) dashTimeline(ctx context.Context, since, until time.Time, bucketOverride string) ([]TimePoint, error) {
 	bucket := bucketFor(until.Sub(since))
+	if b, ok := allowedBuckets[bucketOverride]; ok {
+		bucket = b
+	}
 	rows, err := s.q(ctx).Query(ctx,
 		`SELECT g AS bucket, COALESCE(e.cnt, 0)
 		 FROM generate_series(time_bucket($3::interval, $1), time_bucket($3::interval, $2), $3::interval) AS g

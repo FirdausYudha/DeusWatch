@@ -8,9 +8,12 @@ import {
   fetchIngestConfig,
   regenerateIngestToken,
   disableIngestWebhook,
+  setIngestDefaultTenant,
+  fetchTenants,
   type IntegrationType,
   type Integration,
   type IntegrationField,
+  type Tenant,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
 
@@ -94,10 +97,27 @@ function IngestWebhookPanel() {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
   const [err, setErr] = useState('')
+  const [defaultTenantID, setDefaultTenantID] = useState('')
+  const [tenantSaved, setTenantSaved] = useState(false)
+  const [tenants, setTenants] = useState<Tenant[]>([])
 
   useEffect(() => {
-    fetchIngestConfig().then((c) => { setToken(c.token); setEnabled(c.enabled) }).catch(() => {})
+    fetchIngestConfig()
+      .then((c) => { setToken(c.token); setEnabled(c.enabled); setDefaultTenantID(c.default_tenant_id ?? '') })
+      .catch(() => {})
+    fetchTenants().then(setTenants).catch(() => {})
   }, [])
+
+  const saveTenant = async (tid: string) => {
+    setDefaultTenantID(tid)
+    try {
+      await setIngestDefaultTenant(tid)
+      setTenantSaved(true)
+      setTimeout(() => setTenantSaved(false), 2000)
+    } catch (e) {
+      setErr((e as Error).message)
+    }
+  }
 
   const url = enabled ? `${window.location.origin}/api/ingest/webhook?token=${token}&agent=<name>&dataset=wazuh` : ''
   const regenerate = async () => {
@@ -152,6 +172,27 @@ function IngestWebhookPanel() {
             <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, …).
             The token is in the URL — serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
           </p>
+
+          {/* v2.9.0: bind inbound events to a specific workspace so unenrolled sources ("wazuh-agent/*")
+              don't silently fall back to the Default tenant and vanish behind the events RLS view. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[8px] border border-border/60 bg-bg/40 px-3 py-2">
+            <label htmlFor="ingest-tenant" className="text-[12.5px] font-medium text-fg">Default workspace</label>
+            <select
+              id="ingest-tenant"
+              value={defaultTenantID}
+              onChange={(e) => saveTenant(e.target.value)}
+              className="rounded-[6px] border border-border bg-surface px-2 py-1 text-[12.5px] text-fg outline-none"
+            >
+              <option value="">— fall back to agent lookup / Default tenant —</option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            {tenantSaved && <span className="text-[12px] text-emerald-300">Saved.</span>}
+            <span className="ml-auto text-[11.5px] text-dim">
+              Stamps every inbound event with this workspace's tenant, so the events show up regardless of whether the source agent is enrolled.
+            </span>
+          </div>
         </>
       ) : (
         <button onClick={regenerate} disabled={busy}

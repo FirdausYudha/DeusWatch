@@ -276,10 +276,16 @@ INSERT INTO events (
 	$45,
 	$46, $47,
 	$48, $49, $50, $51,
-	-- Stamp the tenant from the producing agent (agent_id = $13 = the cert CN / agent name).
-	-- An unknown/unmapped agent falls back to the Default tenant so an event is never dropped.
-	-- Sentinel must match migration 000049 (tenancy.DefaultTenantID).
-	COALESCE((SELECT a.tenant_id FROM agents a WHERE a.name = $13), '00000000-0000-0000-0000-000000000001'::uuid)
+	-- Tenant stamping precedence: $52 (explicit override, e.g. from the ingest webhook bound to a
+	-- specific workspace) → the producing agent's tenant (agent_id = $13 = cert CN / agent name) →
+	-- the Default tenant sentinel from migration 000049 (tenancy.DefaultTenantID). Belt-and-braces
+	-- so no event is ever dropped for lack of a tenant; the override lets operators route webhook
+	-- traffic to their own workspace even when no agent record exists.
+	COALESCE(
+		$52::uuid,
+		(SELECT a.tenant_id FROM agents a WHERE a.name = $13),
+		'00000000-0000-0000-0000-000000000001'::uuid
+	)
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
@@ -380,6 +386,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		dwOTX = int(*e.DeusWatch.Enrichment.OTXPulseCount)
 	}
 	dwEscalatedBy = strOrNil(e.DeusWatch.Severity.EscalatedBy)
+	tenantOverride := strOrNil(e.DeusWatch.TenantID)
 
 	_, err := s.q(ctx).Exec(ctx, insertEventSQL,
 		e.Timestamp, strOrNil(e.Event.Category), strOrNil(e.Event.Action),
@@ -402,6 +409,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		fileDiff,
 		procName, procPID,
 		httpMethod, httpURI, httpStatus, httpHost,
+		tenantOverride,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

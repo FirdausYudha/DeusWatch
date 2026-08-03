@@ -34,6 +34,40 @@ func (s *Store) SetWebhookToken(ctx context.Context, token string) error {
 	return nil
 }
 
+// WebhookDefaultTenantID returns the workspace UUID that inbound webhook events should be stamped
+// with ("" = fall back to per-agent lookup / Default tenant, historical behavior). Read per
+// request so a UI change takes effect immediately.
+func (s *Store) WebhookDefaultTenantID(ctx context.Context) (string, error) {
+	var tid *string
+	err := s.q(ctx).QueryRow(ctx, `SELECT default_tenant_id::text FROM ingest_webhook WHERE id = 1`).Scan(&tid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("store: webhook default tenant: %w", err)
+	}
+	if tid == nil {
+		return "", nil
+	}
+	return *tid, nil
+}
+
+// SetWebhookDefaultTenantID sets (or clears with "") the default tenant for inbound webhook events.
+func (s *Store) SetWebhookDefaultTenantID(ctx context.Context, tenantID string) error {
+	var val any = nil
+	if tenantID != "" {
+		val = tenantID
+	}
+	_, err := s.q(ctx).Exec(ctx,
+		`INSERT INTO ingest_webhook (id, token, default_tenant_id, updated_at)
+		 VALUES (1, '', $1::uuid, now())
+		 ON CONFLICT (id) DO UPDATE SET default_tenant_id = $1::uuid, updated_at = now()`, val)
+	if err != nil {
+		return fmt.Errorf("store: set webhook default tenant: %w", err)
+	}
+	return nil
+}
+
 // SeedWebhookTokenFromEnv writes envToken into the DB only if no token is stored yet, so an
 // existing INGEST_WEBHOOK_TOKEN deployment keeps working and becomes UI-manageable. No-op if
 // env is empty or a token already exists.

@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.8.0"
+const version = "2.9.0"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.
@@ -331,6 +331,7 @@ func main() {
 		mux.Handle("GET /api/inventory/packages", protect(auth.PermViewDashboard, inventoryPackagesHandler(st)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
+		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
 
 		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
 		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))
@@ -401,12 +402,13 @@ func main() {
 			if b, berr := bus.Connect(context.Background(), natsURL); berr != nil {
 				log.Printf("api: ingest webhook disabled — NATS unavailable: %v", berr)
 			} else {
-				hook := ingesthook.New(b, st.WebhookToken)
+				hook := ingesthook.New(b, st.WebhookToken).WithTenant(st.WebhookDefaultTenantID)
 				mux.Handle("POST /api/ingest/webhook", hook)
 				// Config endpoints for the Integrations-page panel (admin-managed inbound secret).
 				mux.Handle("GET /api/ingest-config", protect(auth.PermManageIntegrations, ingestConfigHandler(st)))
 				mux.Handle("POST /api/ingest-config/regenerate", protect(auth.PermManageIntegrations, ingestRegenerateHandler(st)))
 				mux.Handle("POST /api/ingest-config/disable", protect(auth.PermManageIntegrations, ingestDisableHandler(st)))
+				mux.Handle("PUT /api/ingest-config/default-tenant", protect(auth.PermManageIntegrations, ingestDefaultTenantHandler(st)))
 				if hook.Enabled() {
 					log.Printf("api: raw-log ingest webhook active (POST /api/ingest/webhook?token=...)")
 				} else {
@@ -1468,7 +1470,8 @@ func configImportHandler(st *store.Store) http.HandlerFunc {
 func dashboardDataHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		since, until := dashboardWindow(r)
-		d, err := st.Dashboard(r.Context(), since, until)
+		bucket := strings.TrimSpace(r.URL.Query().Get("bucket"))
+		d, err := st.Dashboard(r.Context(), since, until, bucket)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1972,6 +1975,28 @@ func vulnAgentHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
+// vulnRematchHandler (POST /api/vulnerabilities/rematch) forces a re-match of every agent's
+// inventory against the currently-cached advisories. One-shot recovery when the periodic rematch
+// missed severities (e.g. a shared-context timeout starved the call after enrichment landed).
+func vulnRematchHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+		defer cancel()
+		// Cross-tenant admin action — same as the worker, run under superadmin so the write to
+		// agent_vulnerabilities isn't filtered by the caller's workspace scope.
+		var n int
+		if err := st.WithTenantScope(ctx, nil, true, func(sctx context.Context) error {
+			m, err := st.RematchAll(sctx)
+			n = m
+			return err
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"agents_matched": n})
+	}
+}
+
 // inventorySummaryHandler (GET /api/inventory) returns every agent's OS/package headline.
 func inventorySummaryHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -2271,6 +2296,8 @@ func notFoundOr500(err error) int {
 type ingestWebhookConfig interface {
 	WebhookToken(ctx context.Context) (string, error)
 	SetWebhookToken(ctx context.Context, token string) error
+	WebhookDefaultTenantID(ctx context.Context) (string, error)
+	SetWebhookDefaultTenantID(ctx context.Context, tenantID string) error
 }
 
 // ingestConfigHandler (GET /api/ingest-config) returns the current inbound-webhook token and
@@ -2282,7 +2309,27 @@ func ingestConfigHandler(s ingestWebhookConfig) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": tok != ""})
+		tid, _ := s.WebhookDefaultTenantID(r.Context())
+		writeJSON(w, http.StatusOK, map[string]any{"token": tok, "enabled": tok != "", "default_tenant_id": tid})
+	}
+}
+
+// ingestDefaultTenantHandler (PUT /api/ingest-config/default-tenant) binds inbound webhook events
+// to a workspace ("" clears the binding). Body: {"tenant_id": "<uuid or empty>"}.
+func ingestDefaultTenantHandler(s ingestWebhookConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			TenantID string `json:"tenant_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+		if err := s.SetWebhookDefaultTenantID(r.Context(), strings.TrimSpace(body.TenantID)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"default_tenant_id": body.TenantID})
 	}
 }
 
