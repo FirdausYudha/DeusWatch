@@ -1,7 +1,15 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-03 (v2.9.0 released — Wazuh webhook fix + severity refresh + 4 dashboard features).
+> Last updated: 2026-08-03 (v2.10.0 released — GeoIP always-on + MaxMind fallback + traffic direction + per-tenant trend).
+
+## 2026-08-03 — v2.10.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.10.0))
+
+- GeoIP default-on: ip-api.com now runs by default (opt out `GEOIP_ENABLED=0`). Adds MaxMind offline `.mmdb` provider tried first (`GEOIP_MMDB_PATH`), so country lookups work air-gapped and at unlimited rate when the operator brings a GeoLite2 file. Verified with the exact IP the user reported (37.48.254.107 → RU).
+- Traffic direction donut (Inbound/Outbound/Lateral/Unknown) — SQL classification over the full window using RFC1918/loopback as "internal".
+- Superadmin-only "Event trend by tenant" multi-line panel + new `GET /api/dashboard/timeline-by-tenant` (gated on `manage_tenants`).
+- Deferred to v2.11: Communication Graph (ASN node-link), Source→Destination node-link, ML super-slow scanner auto-ticket, per-tenant custom internal-subnets whitelist.
+
 
 ## 2026-08-03 — v2.9.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.9.0))
 
