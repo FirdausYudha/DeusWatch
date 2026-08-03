@@ -106,6 +106,13 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time, bucketOve
 	if d.Timeline, err = s.dashTimeline(ctx, since, until, bucketOverride); err != nil {
 		return d, err
 	}
+	// Traffic direction pie (v2.10.0): classifies every event in the window into
+	// Inbound / Outbound / Lateral / Unknown using RFC1918 + loopback as the "internal" set.
+	// Independent of the response engine's internal-nets whitelist to keep dashboard.go
+	// self-contained; a per-tenant custom whitelist is a v2.11 concern.
+	if dir, derr := s.dashDirectionCounts(ctx, since, until); derr == nil {
+		d.Series["direction"] = dir
+	}
 	// Composite-score leaderboard (already maintained by the worker's IP scorer). A failure
 	// here shouldn't blank the whole dashboard, so log-and-continue with an empty list.
 	if risky, rerr := s.TopIPScores(ctx, 10); rerr == nil {
@@ -148,6 +155,149 @@ func (s *Store) dashCounts(ctx context.Context, query string, since, until time.
 	}
 	defer rows.Close()
 	out := make([]Count, 0, 10)
+	for rows.Next() {
+		var c Count
+		if err := rows.Scan(&c.Label, &c.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// TenantTimeline is one row of the multi-tenant event trend (superadmin view). Each series is a
+// gap-filled per-bucket count for one tenant, so all series share the same X axis and can be
+// stacked or overlaid on a single chart without alignment work in the frontend.
+type TenantTimeline struct {
+	TenantID   string      `json:"tenant_id"`
+	TenantName string      `json:"tenant_name"`
+	Points     []TimePoint `json:"points"`
+}
+
+// TenantTimelines returns per-tenant timelines for the window. Requires the calling scope to be
+// superadmin (RLS bypass) — otherwise the events view only exposes the caller's own tenant and
+// the result trivially collapses to one series (i.e. the same shape as the plain timeline).
+// bucketOverride uses the same whitelist as dashTimeline.
+func (s *Store) TenantTimelines(ctx context.Context, since, until time.Time, bucketOverride string) ([]TenantTimeline, error) {
+	if until.IsZero() {
+		until = time.Now()
+	}
+	if since.IsZero() || !since.Before(until) {
+		since = until.Add(-24 * time.Hour)
+	}
+	bucket := bucketFor(until.Sub(since))
+	if b, ok := allowedBuckets[bucketOverride]; ok {
+		bucket = b
+	}
+	// One gap-filled series per tenant, resolved via LEFT JOIN so tenants with zero events in
+	// the window still surface (as a flat line at 0) rather than disappearing. The tenant list
+	// is intersected against tenants that have events in the WHOLE table (not just the window)
+	// so a brand-new empty tenant doesn't clutter the chart.
+	const q = `
+WITH active_tenants AS (
+    SELECT DISTINCT t.id, t.name
+    FROM tenants t
+    WHERE EXISTS(SELECT 1 FROM events e WHERE e.tenant_id = t.id)
+),
+buckets AS (
+    SELECT g AS b FROM generate_series(
+        time_bucket($3::interval, $1),
+        time_bucket($3::interval, $2),
+        $3::interval
+    ) g
+),
+counts AS (
+    SELECT
+        e.tenant_id,
+        time_bucket($3::interval, e.time) AS b,
+        count(*) AS cnt
+    FROM events e
+    WHERE e.time >= $1 AND e.time <= $2
+    GROUP BY 1, 2
+)
+SELECT
+    at.id::text,
+    at.name,
+    bk.b,
+    COALESCE(c.cnt, 0)
+FROM active_tenants at
+CROSS JOIN buckets bk
+LEFT JOIN counts c ON c.tenant_id = at.id AND c.b = bk.b
+ORDER BY at.name, bk.b`
+	rows, err := s.q(ctx).Query(ctx, q, since, until, bucket)
+	if err != nil {
+		return nil, fmt.Errorf("store: tenant timelines: %w", err)
+	}
+	defer rows.Close()
+
+	byID := make(map[string]*TenantTimeline)
+	var order []string
+	for rows.Next() {
+		var (
+			id, name string
+			t        time.Time
+			c        int64
+		)
+		if err := rows.Scan(&id, &name, &t, &c); err != nil {
+			return nil, err
+		}
+		tt, ok := byID[id]
+		if !ok {
+			tt = &TenantTimeline{TenantID: id, TenantName: name}
+			byID[id] = tt
+			order = append(order, id)
+		}
+		tt.Points = append(tt.Points, TimePoint{Time: t, Count: c})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]TenantTimeline, 0, len(order))
+	for _, id := range order {
+		out = append(out, *byID[id])
+	}
+	return out, nil
+}
+
+// dashDirectionCounts classifies every event in the window into Inbound / Outbound / Lateral /
+// Unknown and returns tallies for the traffic-direction pie widget. Matches AttachDirection's
+// logic (internal/store/direction.go) but runs in SQL so the pie summarizes the full window, not
+// just the sample the events view returned. Internal-nets bootstrap uses RFC1918 + loopback only
+// — a per-tenant custom whitelist is left for a future release.
+func (s *Store) dashDirectionCounts(ctx context.Context, since, until time.Time) ([]Count, error) {
+	const q = `
+WITH nets(n) AS (VALUES
+  ('10.0.0.0/8'::cidr), ('172.16.0.0/12'::cidr), ('192.168.0.0/16'::cidr), ('127.0.0.0/8'::cidr)
+),
+classified AS (
+  SELECT
+    e.source_ip IS NOT NULL AS has_src,
+    e.destination_ip IS NOT NULL AS has_dst,
+    e.agent_id IS NOT NULL AND e.agent_id <> '' AS has_agent,
+    e.source_ip IS NOT NULL AND EXISTS(SELECT 1 FROM nets WHERE e.source_ip <<= n) AS src_int,
+    e.destination_ip IS NOT NULL AND EXISTS(SELECT 1 FROM nets WHERE e.destination_ip <<= n) AS dst_int
+  FROM events e
+  WHERE e.time >= $1 AND e.time <= $2
+)
+SELECT
+  CASE
+    WHEN NOT has_src                                        THEN 'unknown'
+    WHEN src_int AND dst_int                                THEN 'lateral'
+    WHEN src_int AND has_dst                                THEN 'outbound'
+    WHEN NOT src_int AND (dst_int OR has_agent)             THEN 'inbound'
+    WHEN src_int AND NOT has_dst AND has_agent              THEN 'lateral'
+    ELSE                                                         'unknown'
+  END AS direction,
+  count(*)
+FROM classified
+GROUP BY 1
+ORDER BY 2 DESC`
+	rows, err := s.q(ctx).Query(ctx, q, since, until)
+	if err != nil {
+		return nil, fmt.Errorf("store: dashboard direction: %w", err)
+	}
+	defer rows.Close()
+	out := make([]Count, 0, 4)
 	for rows.Next() {
 		var c Count
 		if err := rows.Scan(&c.Label, &c.Count); err != nil {

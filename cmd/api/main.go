@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.9.0"
+const version = "2.10.0"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.
@@ -368,6 +368,7 @@ func main() {
 		// Customizable dashboard: aggregated series + per-user widget layout.
 		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st)))
 		mux.Handle("GET /api/dashboard/attacks/geo", protect(auth.PermViewDashboard, attackGeoHandler(st, respStore)))
+		mux.Handle("GET /api/dashboard/timeline-by-tenant", protect(auth.PermManageTenants, dashboardTenantTimelineHandler(st)))
 		mux.Handle("GET /api/dashboard/layout", protect(auth.PermViewDashboard, getLayoutHandler(st)))
 		mux.Handle("PUT /api/dashboard/layout", protect(auth.PermViewDashboard, saveLayoutHandler(st)))
 		mux.Handle("DELETE /api/dashboard/layout", protect(auth.PermViewDashboard, deleteLayoutHandler(st)))
@@ -1477,6 +1478,22 @@ func dashboardDataHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, d)
+	}
+}
+
+// dashboardTenantTimelineHandler serves the per-tenant event trend (v2.10.0). Gated by
+// manage_tenants because the whole point is a superadmin's cross-tenant view — a regular
+// tenant-scoped user would see one series that duplicates the plain timeline.
+func dashboardTenantTimelineHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		since, until := dashboardWindow(r)
+		bucket := strings.TrimSpace(r.URL.Query().Get("bucket"))
+		series, err := st.TenantTimelines(r.Context(), since, until, bucket)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"series": series})
 	}
 }
 

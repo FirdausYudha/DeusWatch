@@ -158,8 +158,9 @@ func (c *GeoClient) Geo(ctx context.Context, ip string) (country, city string, e
 type CompositeProvider struct {
 	Abuse     *AbuseIPDBClient
 	OTX       *OTXClient
-	Geo       *GeoClient
-	Blocklist *blocklist.Set // community blocklist (optional)
+	Geo       *GeoClient      // ip-api.com — online, rate-limited (45/min free)
+	MaxMind   *MaxMindClient  // MaxMind GeoLite2 .mmdb — offline, unlimited (preferred for country)
+	Blocklist *blocklist.Set  // community blocklist (optional)
 }
 
 // Lookup satisfies Provider.
@@ -178,6 +179,18 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 		ind.AbuseConfidence = 100
 		feeds, ok = append(feeds, "blocklist"), true
 	}
+	// MaxMind (offline .mmdb) gets first crack at the country — no external call, no rate limit,
+	// works in air-gapped deployments. This addresses the operator-reported case where AbuseIPDB
+	// + OTX were both down and public IPs came in without country codes.
+	if p.MaxMind != nil {
+		if country, err := p.MaxMind.Country(ctx, ip); err != nil {
+			log.Printf("enrich: %v", err)
+			errs = append(errs, err.Error())
+		} else if country != "" {
+			ind.CountryISO = country
+			feeds, ok = append(feeds, "maxmind"), true
+		}
+	}
 	if p.Abuse != nil {
 		if score, country, err := p.Abuse.Check(ctx, ip); err != nil {
 			log.Printf("enrich: %v", err)
@@ -186,7 +199,9 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 			if score > ind.AbuseConfidence { // do not lower the blocklist floor
 				ind.AbuseConfidence = score
 			}
-			ind.CountryISO = country
+			if ind.CountryISO == "" { // don't overwrite MaxMind's answer with an empty from AbuseIPDB
+				ind.CountryISO = country
+			}
 			feeds, ok = append(feeds, "abuseipdb"), true
 		}
 	}
@@ -225,19 +240,28 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 //
 //	ABUSEIPDB_API_KEY  -> enable the AbuseIPDB client
 //	OTX_API_KEY        -> enable the OTX client
-//	GEOIP_ENABLED=1    -> enable GeoIP (ip-api.com, free)
+//	GEOIP_ENABLED      -> ip-api.com online GeoIP (default TRUE as of v2.10.0; set 0/false to opt out)
+//	GEOIP_MMDB_PATH    -> path to a MaxMind GeoLite2-Country.mmdb (offline, preferred when present)
 //
 // If nothing is configured, it falls back to the demo MockProvider (dev) + false flag.
 func ProviderFromEnv() (Provider, bool) {
-	geoOn, _ := strconv.ParseBool(os.Getenv("GEOIP_ENABLED"))
-	return BuildProvider(os.Getenv("ABUSEIPDB_API_KEY"), os.Getenv("OTX_API_KEY"), geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")))
+	// GeoIP defaults to ON: v2.10.0 change to fix operators seeing public IPs with no country when
+	// AbuseIPDB + OTX aren't wired. Opt out explicitly with GEOIP_ENABLED=0.
+	geoOn := true
+	if v := os.Getenv("GEOIP_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			geoOn = b
+		}
+	}
+	return BuildProvider(os.Getenv("ABUSEIPDB_API_KEY"), os.Getenv("OTX_API_KEY"), geoOn, os.Getenv("GEOIP_MMDB_PATH"), splitCSV(os.Getenv("BLOCKLIST_URLS")))
 }
 
 // BuildProvider assembles a CTI provider from explicit config (used by ProviderFromEnv
 // and by the worker when the keys come from the Integrations registry instead of env).
+// mmdbPath is the MaxMind GeoLite2-Country.mmdb path — "" disables the offline lookup.
 // Returns the demo provider + false when nothing is configured.
-func BuildProvider(abuseKey, otxKey string, geoOn bool, blURLs []string) (Provider, bool) {
-	if abuseKey == "" && otxKey == "" && !geoOn && len(blURLs) == 0 {
+func BuildProvider(abuseKey, otxKey string, geoOn bool, mmdbPath string, blURLs []string) (Provider, bool) {
+	if abuseKey == "" && otxKey == "" && !geoOn && mmdbPath == "" && len(blURLs) == 0 {
 		return NewDemoProvider(), false
 	}
 	cp := &CompositeProvider{}
@@ -249,6 +273,14 @@ func BuildProvider(abuseKey, otxKey string, geoOn bool, blURLs []string) (Provid
 	}
 	if geoOn {
 		cp.Geo = NewGeoClient()
+	}
+	if mmdbPath != "" {
+		if mm, err := NewMaxMindClient(mmdbPath); err != nil {
+			log.Printf("enrich: MaxMind disabled: %v", err)
+		} else if mm != nil {
+			cp.MaxMind = mm
+			log.Printf("enrich: MaxMind GeoLite2 loaded from %s (offline, preferred country source)", mmdbPath)
+		}
 	}
 	if len(blURLs) > 0 {
 		if set, err := blocklist.Load(context.Background(), nil, blURLs); err != nil {

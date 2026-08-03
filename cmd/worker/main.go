@@ -104,10 +104,20 @@ func main() {
 	// CTI enrichment: TTL cache in Postgres + a real provider when AbuseIPDB/OTX keys are
 	// configured — from the Integrations registry first, then env (GEOIP via env), else mock.
 	abuseKey, otxKey := resolveCTIKeys(ctx, intStore)
-	geoOn, _ := strconv.ParseBool(os.Getenv("GEOIP_ENABLED"))
-	provider, real := enrich.BuildProvider(abuseKey, otxKey, geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")))
+	// v2.10.0: ip-api.com defaults ON so operators without AbuseIPDB/OTX keys still get country
+	// on external IPs (the reported gap for 37.48.254.107 / 167.148.33.174). Opt out with
+	// GEOIP_ENABLED=0. GEOIP_MMDB_PATH points at a MaxMind GeoLite2-Country.mmdb — when set,
+	// that offline lookup is tried first (no rate limit, works air-gapped).
+	geoOn := true
+	if v := os.Getenv("GEOIP_ENABLED"); v != "" {
+		if b, perr := strconv.ParseBool(v); perr == nil {
+			geoOn = b
+		}
+	}
+	mmdbPath := os.Getenv("GEOIP_MMDB_PATH")
+	provider, real := enrich.BuildProvider(abuseKey, otxKey, geoOn, mmdbPath, splitCSV(os.Getenv("BLOCKLIST_URLS")))
 	if real {
-		log.Printf("worker: real CTI provider active (abuseipdb=%v otx=%v geoip=%v)", abuseKey != "", otxKey != "", geoOn)
+		log.Printf("worker: real CTI provider active (abuseipdb=%v otx=%v ipapi=%v maxmind=%v)", abuseKey != "", otxKey != "", geoOn, mmdbPath != "")
 	} else {
 		log.Printf("worker: mock CTI provider (add an AbuseIPDB/OTX integration or set the env keys for real)")
 	}
@@ -334,7 +344,7 @@ func main() {
 
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
-	go runCTIProviderReload(ctx, intStore, enricher, geoOn, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
+	go runCTIProviderReload(ctx, intStore, enricher, geoOn, mmdbPath, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
 
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
@@ -508,7 +518,7 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 // from the Integrations registry every minute, rebuilding the CTI provider when the keys
 // change and applying the TTL when it changes, so adding/editing a CTI integration in the UI
 // takes effect without a worker restart. GeoIP/blocklist stay from env (restart).
-func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enricher *enrich.Enricher, geoOn bool, blURLs []string, abuseKey, otxKey string) {
+func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enricher *enrich.Enricher, geoOn bool, mmdbPath string, blURLs []string, abuseKey, otxKey string) {
 	sig := abuseKey + "|" + otxKey
 	ttlSig := resolveCTITTL(ctx, intStore)
 	t := time.NewTicker(1 * time.Minute)
@@ -528,7 +538,7 @@ func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enr
 				continue
 			}
 			sig = ak + "|" + ox
-			provider, real := enrich.BuildProvider(ak, ox, geoOn, blURLs)
+			provider, real := enrich.BuildProvider(ak, ox, geoOn, mmdbPath, blURLs)
 			enricher.SetProvider(provider)
 			log.Printf("worker: CTI provider reloaded from UI change (real=%v abuseipdb=%v otx=%v)", real, ak != "", ox != "")
 		}

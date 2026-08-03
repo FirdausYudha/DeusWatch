@@ -98,7 +98,7 @@ export default function App() {
         ) : view === 'settings' ? (
           <Settings />
         ) : (
-          <Dashboard range={range} onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
+          <Dashboard range={range} me={me} onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
           )}
         </main>
       </div>

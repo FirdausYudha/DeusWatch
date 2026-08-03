@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { useEffect, useState } from 'react'
 import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus } from '../lib/api'
 import { fetchAgents, agentDisplayStatus } from '../lib/api'
@@ -102,6 +103,57 @@ export function LineChart({ points, color }: { points: TimelinePoint[]; color: s
       <path d={area} fill={color} opacity="0.15" />
       <path d={line} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
     </svg>
+  )
+}
+
+// TenantLinesWidget draws one line per tenant on a shared axis (v2.10.0, superadmin-only).
+// Self-fetches from /api/dashboard/timeline-by-tenant on mount + on range change, so it's
+// independent of the main dashboard bundle. Silently hides itself on 403 (regular tenant users
+// can't see cross-tenant data) or when the API returns empty.
+export function TenantLinesWidget({ range }: { range: { hours?: number; from?: Date; to?: Date } | null }) {
+  const [series, setSeries] = React.useState<Array<{ tenant_id: string; tenant_name: string; points: Array<{ time: string; count: number }> }>>([])
+  const [forbidden, setForbidden] = React.useState(false)
+  React.useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const s = await (await import('../lib/api')).fetchTenantTimeline(range ?? 24, '')
+        if (alive) setSeries(s)
+      } catch (e) {
+        if (String((e as Error).message).includes('403') && alive) setForbidden(true)
+      }
+    }
+    load()
+    const t = setInterval(load, 15000)
+    return () => { alive = false; clearInterval(t) }
+  }, [range])
+  if (forbidden) return <p className="py-6 text-center text-[13.5px] text-dim">requires manage_tenants</p>
+  if (!series.length || series.every((s) => !s.points.some((p) => p.count > 0))) return <Empty />
+  const W = 320, H = 90, pad = 6
+  const n = series[0]?.points.length ?? 0
+  const max = Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.count)))
+  const x = (i: number) => pad + (n > 1 ? (i / (n - 1)) * (W - 2 * pad) : 0)
+  const y = (v: number) => H - pad - (v / max) * (H - 2 * pad)
+  // A discrete palette that's readable in both themes; wraps beyond 8 tenants.
+  const palette = ['#6366f1', '#22d3ee', '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6', '#38bdf8', '#a3e635']
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-28 w-full" preserveAspectRatio="none">
+        {series.map((s, si) => {
+          if (!s.points.length) return null
+          const d = s.points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.count).toFixed(1)}`).join(' ')
+          return <path key={s.tenant_id} d={d} fill="none" stroke={palette[si % palette.length]} strokeWidth="1.5" vectorEffect="non-scaling-stroke" opacity="0.9" />
+        })}
+      </svg>
+      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-muted">
+        {series.map((s, si) => (
+          <li key={s.tenant_id} className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: palette[si % palette.length] }} />
+            <span className="truncate">{s.tenant_name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

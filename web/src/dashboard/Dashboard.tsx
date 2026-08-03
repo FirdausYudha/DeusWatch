@@ -3,11 +3,11 @@ import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData,
   fetchStorageStatus, requestFimRestore,
   fetchLayout, saveLayout, deleteLayout,
-  SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
+  SEVERITY, can, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type WidgetKind, type EventSearch, type DashRange,
-  type StorageStatus, type TimelineBucket,
+  type StorageStatus, type TimelineBucket, type Me,
 } from '../lib/api'
-import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget } from './widgets'
+import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget } from './widgets'
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
 import { PageHeader } from '../components/ui'
@@ -240,6 +240,10 @@ const PANELS: Panel[] = [
   // grows (the BarChart tops the list at whatever LIMIT the SQL returns).
   { kind: 'bar', source: 'destination_ports', title: 'Top destination ports', color: '#22d3ee', span: 1 },
   { kind: 'bar', source: 'destination_ips', title: 'Top destination IPs / agents', color: '#22d3ee', span: 2 },
+  // Traffic direction pie (v2.10.0): Inbound / Outbound / Lateral / Unknown. Lateral is the
+  // highest-value signal — an attacker already past the perimeter. Classification uses
+  // RFC1918/loopback as "internal"; per-tenant custom subnets deferred to v2.11.
+  { kind: 'donut', source: 'direction', title: 'Traffic direction', color: '#a3e635', span: 1 },
   // The slow-scanner table needs width for its columns; the donut is happy small.
   { kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', span: 2 },
   { kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', span: 1 },
@@ -288,6 +292,11 @@ function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: Dashboa
       // Fetches its own agents list on mount + 15s refresh (independent of the dashboard bundle
       // so status flips are visible without waiting for the next dashboard poll).
       return <AgentsWidget />
+    case 'tenant_lines':
+      // Superadmin-only (v2.10.0). Widget self-hides on 403 so a regular operator sees only the
+      // panel frame + "requires manage_tenants" — the panel is filtered out of PANELS below in
+      // that case, so it should never actually mount.
+      return <TenantLinesWidget range={geoRange} />
     default:
       return <BarChart data={data.series[w.source] ?? []} color={w.color} />
   }
@@ -295,9 +304,11 @@ function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: Dashboa
 
 export default function Dashboard({
   range,
+  me,
   onCreateTicket,
 }: {
   range: DashRangeState
+  me: Me
   onCreateTicket?: (t: NewTicketInput) => void
 }) {
   const [health, setHealth] = useState<Health | null>(null)
@@ -315,12 +326,18 @@ export default function Dashboard({
   // `panels` is the effective render order — starts as the default PANELS, replaced with the
   // reconciled saved order once fetchLayout resolves. Reconciler tolerates historical shapes so a
   // pre-v2.0 saved layout still lands cleanly (see reconcileOrder + DashLayout in lib/api.ts).
-  const [panels, setPanels] = useState<Panel[]>(PANELS)
+  const [panels, setPanels] = useState<Panel[]>(PANELS) // reset in load useEffect to effectivePanels
   const [edit, setEdit] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
   const [saveMsg, setSaveMsg] = useState('')
+
+  // Superadmin gets a per-tenant timeline panel at the tail of PANELS. Regular tenant users don't
+  // see it (the API is 403 for them, and a one-tenant chart duplicates the plain timeline anyway).
+  const effectivePanels: Panel[] = can(me, 'manage_tenants')
+    ? [...PANELS, { kind: 'tenant_lines' as WidgetKind, source: 'tenant_lines', title: 'Event trend by tenant', color: '#a3e635', span: 3 } as Panel]
+    : PANELS
 
   useEffect(() => {
     fetchLayout()
@@ -332,10 +349,14 @@ export default function Dashboard({
           Array.isArray(l.order) ? l.order :
           Array.isArray(l.widgets) ? l.widgets.map((w) => panelId({ source: w.source, kind: w.kind })) :
           undefined
-        if (ids && ids.length > 0) setPanels(reconcileOrder(ids, PANELS))
+        if (ids && ids.length > 0) setPanels(reconcileOrder(ids, effectivePanels))
       })
       .catch(() => { /* no saved layout, no problem — stick with defaults */ })
-  }, [])
+    // Ensure the tenant-lines panel appears on first mount for superadmin even before a saved layout
+    // reconciles (or when there is no saved layout at all).
+    setPanels((cur) => (cur === PANELS ? effectivePanels : cur))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.username])
 
   const reorder = (fromId: string, toId: string) => {
     setPanels((cur) => {

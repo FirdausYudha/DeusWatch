@@ -212,7 +212,12 @@ services:
       # precedence over these env vars when configured.
       ABUSEIPDB_API_KEY: "${ABUSEIPDB_API_KEY:-}"
       OTX_API_KEY: "${OTX_API_KEY:-}"
-      GEOIP_ENABLED: "${GEOIP_ENABLED:-0}"
+      # v2.10.0: default to ON so operators without paid CTI keys still get country codes on
+      # external IPs (ip-api.com free tier, 45 req/min — the enricher cache dedups repeats).
+      GEOIP_ENABLED: "${GEOIP_ENABLED:-1}"
+      # Optional MaxMind GeoLite2-Country .mmdb — offline, no rate limit, tried BEFORE ip-api.
+      # Set the path (inside the container) and mount the .mmdb via `volumes:` — see docs/geoip.md.
+      GEOIP_MMDB_PATH: "${GEOIP_MMDB_PATH:-}"
       # Community blocklist (optional): comma-separated IP/CIDR feed URLs.
       BLOCKLIST_URLS: "${BLOCKLIST_URLS:-}"
       # LLM worker (Phase 3): ANTHROPIC_API_KEY -> Claude; LLM_ENABLED=1 -> offline heuristic.

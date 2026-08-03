@@ -1272,7 +1272,24 @@ export async function fetchDashboardData(range: number | DashRange = 24, bucket:
   return res.json()
 }
 
-export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow' | 'agents'
+export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow' | 'agents' | 'tenant_lines'
+
+// TenantTimeline is one row of the superadmin-only per-tenant event trend (v2.10.0).
+export type TenantTimeline = { tenant_id: string; tenant_name: string; points: Array<{ time: string; count: number }> }
+export async function fetchTenantTimeline(range: number | DashRange = 24, bucket: TimelineBucket = ''): Promise<TenantTimeline[]> {
+  const r: DashRange = typeof range === 'number' ? { hours: range } : range
+  const qs = new URLSearchParams()
+  if (r.from && r.to) {
+    qs.set('from', r.from.toISOString())
+    qs.set('to', r.to.toISOString())
+  } else {
+    qs.set('hours', String(r.hours ?? 24))
+  }
+  if (bucket) qs.set('bucket', bucket)
+  const res = await authFetch(`/api/dashboard/timeline-by-tenant?${qs.toString()}`)
+  if (!res.ok) throw new Error(`tenant timeline: HTTP ${res.status}`)
+  return (await res.json()).series ?? []
+}
 // DashWidget is retained for backwards compat with pre-v2.0 saved layouts. The current dashboard
 // persists just the panel ORDER (see DashLayout below) — widget shape (kind/source/title/color/span)
 // lives in the frontend PANELS const and is the source of truth. Keeping this type exported so the
