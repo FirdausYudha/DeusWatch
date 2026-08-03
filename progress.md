@@ -1,7 +1,25 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-07-31 (contracts locked for two upcoming features; last release v2.5.1).
+> Last updated: 2026-08-03 (v2.9.0 released — Wazuh webhook fix + severity refresh + 4 dashboard features).
+
+## 2026-08-03 — v2.9.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.9.0))
+
+**Fixes**
+- Wazuh webhook silently invisible. Root cause: `agent=wazuh-agent` was never enrolled → event stamped with Default tenant → events RLS view hid it from any non-Default workspace. Compounded by no `dataset=wazuh` normalizer → no `dw_label` → hidden by alerts-only default. Fix: migration `000059_webhook_default_tenant` + Default workspace picker in Integrations UI + `wazuh` branch in `internal/ingest/normalize.go` that forces `authentication_failure` (High) on parsed SSHD failures, `wazuh_forward` otherwise.
+- Vuln severity stuck at "unknown" after v2.8.0. Root cause: `cmd/worker/scoring.go` `rematch(fc, st)` shared the 30-min context already consumed by USN pagination + per-CVE enrichment → rematch failed silently. Fix: fresh 5-min ctx for rematch. Recovery button `POST /api/vulnerabilities/rematch` + Inventory "Recompute severities".
+
+**New**
+- Incident timeline: operator picks bucket width (`auto/1min/…/1d`). SQL is safe (`allowedBuckets` whitelist, not raw interpolation).
+- Top destination ports + Top destination IPs/agents widgets.
+- Attack-origins map interactive: wheel-zoom, drag-pan, +/-/reset/my-location.
+- Threat-family pill (ransomware/malware/virus/trojan) derived at render time from `rule_name` + `dw_filehash_verdict` — no schema change.
+
+**Deferred to v2.10.0** (documented in release notes): Communication Graph (ASN node-link), Source→Destination node-link, event trend by tenant, ML auto-ticket for super-slow scanners, MaxMind GeoLite2 fallback, traffic-direction pie.
+
+---
+
+## History
 
 **Contracts locked, implementation pending — two upcoming features 2026-07-31.**
 User asked for both in one turn; scopes are very different so they get separate contracts + separate
