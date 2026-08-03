@@ -59,10 +59,10 @@ export default function Topbar({
           <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       </button>
-      <h1 className="text-[16px] font-bold tracking-tight text-fg">{meta.title}</h1>
+      <h1 className="text-[17px] font-bold tracking-tight text-fg">{meta.title}</h1>
       {/* The subtitle is supporting context, so it is hidden on narrow screens rather than
           allowed to wrap and push the 60px bar out of shape. */}
-      <p className="hidden truncate text-[12.5px] text-dim sm:block">{meta.subtitle}</p>
+      <p className="hidden truncate text-[13.5px] text-dim sm:block">{meta.subtitle}</p>
 
       <div className="ml-auto flex items-center gap-2.5">
         <WorkspaceSwitcher />

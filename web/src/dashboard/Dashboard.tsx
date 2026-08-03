@@ -2,6 +2,7 @@ import { useEffect, useState, Fragment, type ReactNode } from 'react'
 import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData,
   fetchStorageStatus, requestFimRestore,
+  fetchLayout, saveLayout, deleteLayout,
   SEVERITY, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type WidgetKind, type EventSearch, type DashRange,
   type StorageStatus,
@@ -25,7 +26,7 @@ function depDot(s: DepState): DotState {
 }
 function SeverityBadge({ sev }: { sev: number }) {
   const m = SEVERITY[sev] ?? SEVERITY[0]
-  return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${m.cls}`}>{m.label}</span>
+  return <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${m.cls}`}>{m.label}</span>
 }
 // DirectionBadge tags an event's direction relative to our network. LATERAL is the highest-value
 // signal for a SOAR (attacker already past the perimeter), so it gets the sharpest color; INBOUND is
@@ -40,7 +41,7 @@ function DirectionBadge({ d }: { d?: string }) {
   if (!d) return null
   const m = DIRECTION_BADGE[d]
   if (!m) return null
-  return <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold tracking-wide ${m.cls}`} title={m.title}>{m.label}</span>
+  return <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold tracking-wide ${m.cls}`} title={m.title}>{m.label}</span>
 }
 const VERDICT_BADGE: Record<string, string> = {
   malicious: 'text-rose-300 bg-rose-500/15',
@@ -51,7 +52,7 @@ const VERDICT_BADGE: Record<string, string> = {
 function LLMVerdict({ a }: { a: EventRow }) {
   if (!a.dw_llm_verdict) return <span className="text-dim">—</span>
   const cls = VERDICT_BADGE[a.dw_llm_verdict] ?? 'text-muted bg-surface-2'
-  return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`} title={a.dw_llm_summary || undefined}>{a.dw_llm_verdict}</span>
+  return <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${cls}`} title={a.dw_llm_summary || undefined}>{a.dw_llm_verdict}</span>
 }
 function FileHashBadge({ a }: { a: EventRow }) {
   const v = a.dw_filehash_verdict
@@ -60,7 +61,7 @@ function FileHashBadge({ a }: { a: EventRow }) {
   const cls = bad ? 'text-rose-300 bg-rose-500/15' : 'text-emerald-300 bg-emerald-500/15'
   const title = `${a.file_path || 'file'}${a.dw_filehash_detail ? ` — ${a.dw_filehash_detail}` : ''}`
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`} title={title}>
+    <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${cls}`} title={title}>
       {bad ? '☣ malware' : '✓ known-good'}
     </span>
   )
@@ -96,12 +97,12 @@ function ThreatIntel({ a }: { a: EventRow }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {hasScore && <ScoreDoughnut score={a.threat_score} band={a.threat_band} title={scoreTitle} />}
-      {a.source_geo_country_iso && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg" title={a.source_geo_city || undefined}>{a.source_geo_country_iso}</span>}
+      {a.source_geo_country_iso && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[12.5px] text-fg" title={a.source_geo_city || undefined}>{a.source_geo_country_iso}</span>}
       {/* When there is no accumulated score yet, fall back to the raw CTI badges. */}
-      {!hasScore && abuse != null && <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${abuseCls}`} title="AbuseIPDB confidence">abuse {abuse}</span>}
-      {!hasScore && otx != null && otx > 0 && <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[11px] font-medium text-violet-300" title="OTX pulses">otx {otx}</span>}
+      {!hasScore && abuse != null && <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${abuseCls}`} title="AbuseIPDB confidence">abuse {abuse}</span>}
+      {!hasScore && otx != null && otx > 0 && <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[12.5px] font-medium text-violet-300" title="OTX pulses">otx {otx}</span>}
       <FileHashBadge a={a} />
-      {a.dw_severity_escalated_by && <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-[11px] font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>↑</span>}
+      {a.dw_severity_escalated_by && <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-[12.5px] font-medium text-orange-300" title={`Escalated by: ${a.dw_severity_escalated_by}`}>↑</span>}
     </div>
   )
 }
@@ -118,12 +119,12 @@ function RestoreButton({ agent, path }: { agent: string; path: string }) {
     try { await requestFimRestore(agent, path); setState('done') }
     catch (err) { setState('err'); setMsg((err as Error).message) }
   }
-  if (state === 'done') return <span className="text-[11px] text-emerald-400">✓ restore requested (applies within ~15s)</span>
+  if (state === 'done') return <span className="text-[12.5px] text-emerald-400">✓ restore requested (applies within ~15s)</span>
   return (
     <span className="flex items-center gap-2">
-      {state === 'err' && <span className="text-[11px] text-rose-400" title={msg}>failed</span>}
+      {state === 'err' && <span className="text-[12.5px] text-rose-400" title={msg}>failed</span>}
       <button onClick={onClick} disabled={state === 'busy'}
-        className="rounded-md border border-amber-700/60 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-500/10 disabled:opacity-50">
+        className="rounded-md border border-amber-700/60 px-2 py-1 text-[12.5px] text-amber-200 hover:bg-amber-500/10 disabled:opacity-50">
         {state === 'busy' ? 'Requesting…' : 'Restore file'}
       </button>
     </span>
@@ -164,6 +165,39 @@ type Panel = {
   span: 1 | 2 | 3
 }
 
+// panelId is the stable key used to persist an operator's preferred order. Derived from source+kind
+// so it survives renames of `title` / palette changes without invalidating a saved layout.
+function panelId(p: { source: string; kind: WidgetKind }): string {
+  return `${p.source}:${p.kind}`
+}
+
+// reconcileOrder combines what the operator saved with the current PANELS set: it drops IDs the
+// code no longer ships (a widget was removed from PANELS after the operator saved) and appends new
+// PANELS at the end (a widget was added to PANELS after the operator's last save). Result is the
+// operator's preferred order, complete and current.
+function reconcileOrder(savedIds: readonly string[] | undefined, current: Panel[]): Panel[] {
+  const currentById = new Map(current.map((p) => [panelId(p), p]))
+  const out: Panel[] = []
+  const placed = new Set<string>()
+  if (savedIds) {
+    for (const id of savedIds) {
+      const p = currentById.get(id)
+      if (p && !placed.has(id)) {
+        out.push(p)
+        placed.add(id)
+      }
+    }
+  }
+  for (const p of current) {
+    const id = panelId(p)
+    if (!placed.has(id)) {
+      out.push(p)
+      placed.add(id)
+    }
+  }
+  return out
+}
+
 const PANELS: Panel[] = [
   // Headline numbers — one row of three.
   { kind: 'stat', source: 'total_events', title: 'Total events', color: '#6366f1', span: 1 },
@@ -195,7 +229,7 @@ const SPAN_CLASS: Record<1 | 2 | 3, string> = {
 }
 
 function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: DashboardData | null; geoRange: DashRange | null; geoEnabled: boolean }) {
-  if (!data) return <p className="py-6 text-center text-[12.5px] text-dim">loading…</p>
+  if (!data) return <p className="py-6 text-center text-[13.5px] text-dim">loading…</p>
   switch (w.kind) {
     case 'stat': {
       const v = w.source === 'total_alerts' ? data.total_alerts : w.source === 'alerts_24h' ? data.alerts_24h : data.total_events
@@ -244,6 +278,82 @@ export default function Dashboard({
   // reloads. Off in v1 — flip via the toggle in the header (state key: dashboard.geo_map).
   const [geoEnabled, setGeoEnabled] = usePersistedState<boolean>('dashboard.geo_map', false)
 
+  // Layout customization: operator can enter edit mode, drag panels to reorder, save or reset.
+  // `panels` is the effective render order — starts as the default PANELS, replaced with the
+  // reconciled saved order once fetchLayout resolves. Reconciler tolerates historical shapes so a
+  // pre-v2.0 saved layout still lands cleanly (see reconcileOrder + DashLayout in lib/api.ts).
+  const [panels, setPanels] = useState<Panel[]>(PANELS)
+  const [edit, setEdit] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+  const [saveMsg, setSaveMsg] = useState('')
+
+  useEffect(() => {
+    fetchLayout()
+      .then((l) => {
+        if (!l) return
+        // v2 shape: {v:2, order:string[]}. v1 shape: {widgets:[{source,kind,...}]}. Both map to a
+        // list of stable ids we can hand to reconcileOrder.
+        const ids: string[] | undefined =
+          Array.isArray(l.order) ? l.order :
+          Array.isArray(l.widgets) ? l.widgets.map((w) => panelId({ source: w.source, kind: w.kind })) :
+          undefined
+        if (ids && ids.length > 0) setPanels(reconcileOrder(ids, PANELS))
+      })
+      .catch(() => { /* no saved layout, no problem — stick with defaults */ })
+  }, [])
+
+  const reorder = (fromId: string, toId: string) => {
+    setPanels((cur) => {
+      const from = cur.findIndex((p) => panelId(p) === fromId)
+      const to = cur.findIndex((p) => panelId(p) === toId)
+      if (from < 0 || to < 0 || from === to) return cur
+      const next = [...cur]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+    setDirty(true)
+    setSaveMsg('')
+  }
+  // Keyboard-accessible fallback for arrow reordering (matches the pre-v2.0 behaviour so a
+  // keyboard-only operator can still use the feature).
+  const nudge = (id: string, dir: -1 | 1) => {
+    setPanels((cur) => {
+      const i = cur.findIndex((p) => panelId(p) === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= cur.length) return cur
+      const next = [...cur]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+    setDirty(true)
+    setSaveMsg('')
+  }
+  const clearDrag = () => { setDragId(null); setOverId(null) }
+  const saveOrder = async () => {
+    try {
+      await saveLayout({ v: 2, order: panels.map(panelId) })
+      setDirty(false)
+      setSaveMsg('Saved.')
+      setTimeout(() => setSaveMsg(''), 2000)
+    } catch (e) {
+      setSaveMsg(String((e as Error).message))
+    }
+  }
+  const resetOrder = async () => {
+    try {
+      await deleteLayout()
+      setPanels(PANELS)
+      setDirty(false)
+      setSaveMsg('Reset to default.')
+      setTimeout(() => setSaveMsg(''), 2000)
+    } catch (e) {
+      setSaveMsg(String((e as Error).message))
+    }
+  }
+
   // Poll live data for the selected time range. Re-subscribes when the range
   // changes; a custom range with incomplete inputs simply skips the data fetch.
   useEffect(() => {
@@ -279,8 +389,36 @@ export default function Dashboard({
       <PageHeader
         actions={
           <>
+            {edit && (
+              <>
+                {saveMsg && <span className="text-[12.5px] text-dim">{saveMsg}</span>}
+                <button
+                  onClick={resetOrder}
+                  className="rounded-[8px] border border-border px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                  title="Discard your saved layout and restore the default panel order"
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={saveOrder}
+                  disabled={!dirty}
+                  className="rounded-[8px] bg-accent px-3 py-1.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                >
+                  {dirty ? 'Save layout' : 'Saved'}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => { setEdit((e) => !e); clearDrag() }}
+              className={`rounded-[8px] border px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                edit ? 'border-accent bg-accent-soft text-accent' : 'border-border text-muted hover:bg-surface-2 hover:text-fg'
+              }`}
+              title={edit ? 'Exit edit mode' : 'Enter edit mode to drag panels'}
+            >
+              {edit ? 'Done' : '✎ Edit layout'}
+            </button>
             <span
-              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium ${
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium ${
                 allReady ? 'border-success/30 bg-success/10 text-success' : 'border-medium/30 bg-medium/10 text-medium'
               }`}
             >
@@ -292,38 +430,80 @@ export default function Dashboard({
       />
 
 
-      {/* Fixed widget grid. Three columns on wide screens, two at medium, one on mobile.
-          `grid-auto-flow: dense` is a safety net for the narrower breakpoints, where a 2-column
-          panel can still leave a gap the following 1-column panel is able to backfill. */}
-      <section className="mb-8 grid gap-3 [grid-auto-flow:dense] sm:grid-cols-2 lg:grid-cols-3">
-        {PANELS.map((w) => (
-          <div
-            key={w.source + w.kind}
-            className={`rounded-[12px] border border-border bg-surface p-[18px] ${SPAN_CLASS[w.span]}`}
-          >
-            <h2
-              className={`mb-3 flex items-center gap-2 ${
-                w.kind === 'stat'
-                  ? 'text-[12px] font-semibold uppercase tracking-[0.4px] text-dim'
-                  : 'text-[13.5px] font-bold tracking-tight text-fg'
-              }`}
+      {/* Customizable widget grid. Three columns on wide screens, two at medium, one on mobile.
+          `grid-auto-flow: dense` backfills 1-col panels behind a 2-col panel at the narrower
+          breakpoints. `gap-5` (was gap-3) gives the cards more room to breathe at 1400px. Edit mode
+          enables drag-and-drop reorder via a grip icon (the pre-v2.0 mechanism, restored). */}
+      <section className="mb-8 grid gap-5 [grid-auto-flow:dense] sm:grid-cols-2 lg:grid-cols-3">
+        {panels.map((w) => {
+          const id = panelId(w)
+          const isDragging = dragId === id
+          const isOver = overId === id && dragId !== id
+          return (
+            <div
+              key={id}
+              tabIndex={edit ? 0 : -1}
+              draggable={edit}
+              onDragStart={(e) => {
+                if (!edit) return
+                setDragId(id)
+                e.dataTransfer.effectAllowed = 'move'
+              }}
+              onDragOver={(e) => {
+                if (!edit || !dragId || dragId === id) return
+                e.preventDefault()
+                setOverId(id)
+              }}
+              onDragLeave={() => setOverId((o) => (o === id ? null : o))}
+              onDrop={(e) => {
+                if (!edit || !dragId) return
+                e.preventDefault()
+                reorder(dragId, id)
+                clearDrag()
+              }}
+              onDragEnd={clearDrag}
+              onKeyDown={(e) => {
+                if (!edit) return
+                if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); nudge(id, +1) }
+                if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); nudge(id, -1) }
+              }}
+              className={`rounded-[12px] border bg-surface p-[18px] shadow-sm transition-all ${SPAN_CLASS[w.span]} ${
+                isOver ? 'border-accent ring-2 ring-accent/40' : 'border-border'
+              } ${isDragging ? 'opacity-40' : ''} ${edit ? 'cursor-grab hover:border-accent/50 active:cursor-grabbing' : ''}`}
             >
-              <span>{w.title}</span>
-              {/* Small toggle in the map panel header so an operator can switch between the classic
-                  flag list and the animated geo map (docs/geo-map.md). Persisted per browser. */}
-              {w.kind === 'map' && (
-                <button
-                  onClick={() => setGeoEnabled(!geoEnabled)}
-                  className="ml-auto rounded-[6px] border border-border px-2 py-0.5 text-[10.5px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
-                  title={geoEnabled ? 'Switch to the classic flag list' : 'Switch to the animated geo map (beta)'}
-                >
-                  {geoEnabled ? '🗺 map' : '⚑ list'}
-                </button>
-              )}
-            </h2>
-            <WidgetBody w={w} data={data} geoRange={range.resolved} geoEnabled={geoEnabled} />
-          </div>
-        ))}
+              <h2
+                className={`mb-3 flex items-center gap-2 ${
+                  w.kind === 'stat'
+                    ? 'text-[13px] font-semibold uppercase tracking-[0.4px] text-dim'
+                    : 'text-[14.5px] font-bold tracking-tight text-fg'
+                }`}
+              >
+                {edit && (
+                  <span
+                    aria-hidden="true"
+                    className="select-none text-base leading-none text-dim"
+                    title="Drag to reorder (or focus and press ↑ / ↓)"
+                  >
+                    ⠿
+                  </span>
+                )}
+                <span>{w.title}</span>
+                {/* Small toggle in the map panel header so an operator can switch between the classic
+                    flag list and the animated geo map (docs/geo-map.md). Persisted per browser. */}
+                {w.kind === 'map' && (
+                  <button
+                    onClick={() => setGeoEnabled(!geoEnabled)}
+                    className="ml-auto rounded-[6px] border border-border px-2 py-0.5 text-[11.5px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                    title={geoEnabled ? 'Switch to the classic flag list' : 'Switch to the animated geo map (beta)'}
+                  >
+                    {geoEnabled ? '🗺 map' : '⚑ list'}
+                  </button>
+                )}
+              </h2>
+              <WidgetBody w={w} data={data} geoRange={range.resolved} geoEnabled={geoEnabled} />
+            </div>
+          )
+        })}
       </section>
 
       {/* Searchable events & alerts — filter by IP / rule / MITRE / level / time */}
@@ -331,16 +511,16 @@ export default function Dashboard({
 
       {/* System Health (fixed) */}
       <section>
-        <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-dim">System Health</h2>
+        <h2 className="mb-3 text-[12.5px] font-semibold uppercase tracking-wider text-dim">System Health</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           {services.map((s) => (
             <div key={s.name} className="rounded-[12px] border border-border bg-surface p-4">
               <div className="flex items-center justify-between">
-                <span className="text-[12.5px] font-medium text-fg">{s.name}</span>
+                <span className="text-[13.5px] font-medium text-fg">{s.name}</span>
                 <Dot state={s.state} />
               </div>
-              <div className="mt-1 text-[11px] text-dim">{s.sub}</div>
-              <div className={`mt-3 font-mono text-[12.5px] ${s.state === 'good' ? 'text-emerald-400' : s.state === 'bad' ? 'text-rose-400' : 'text-amber-400'}`}>{s.detail}</div>
+              <div className="mt-1 text-[12.5px] text-dim">{s.sub}</div>
+              <div className={`mt-3 font-mono text-[13.5px] ${s.state === 'good' ? 'text-emerald-400' : s.state === 'bad' ? 'text-rose-400' : 'text-amber-400'}`}>{s.detail}</div>
             </div>
           ))}
         </div>
@@ -358,16 +538,16 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
   const repl = s?.replication
   return (
     <section className="mt-6">
-      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-dim">Log Storage</h2>
+      <h2 className="mb-3 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Log Storage</h2>
       <div className="grid gap-3 sm:grid-cols-3">
         {/* Capacity */}
         <div className="rounded-[12px] border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
-            <span className="text-[12.5px] font-medium text-fg">Database size</span>
+            <span className="text-[13.5px] font-medium text-fg">Database size</span>
             <Dot state={!s ? 'unknown' : s.reachable ? (pct != null && pct >= 90 ? 'bad' : 'good') : 'bad'} />
           </div>
-          <div className="mt-1 text-[11px] text-dim">{s?.host ? `host: ${s.host}` : 'log storage'}</div>
-          <div className="mt-3 font-mono text-[12.5px] text-fg">
+          <div className="mt-1 text-[12.5px] text-dim">{s?.host ? `host: ${s.host}` : 'log storage'}</div>
+          <div className="mt-3 font-mono text-[13.5px] text-fg">
             {!s ? 'checking…' : !s.reachable ? 'unreachable' : s.db_size_pretty}
             {s?.reachable && <span className="text-dim"> · {s.events_count.toLocaleString('en-US')} events</span>}
           </div>
@@ -376,23 +556,23 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
               <div className="h-2 overflow-hidden rounded bg-surface-2">
                 <div className={`h-full rounded ${barColor}`} style={{ width: `${pct}%` }} />
               </div>
-              <div className="mt-1 text-[11px] text-dim">{pct}% of {(s!.budget_bytes / 1073741824).toFixed(0)} GB budget</div>
+              <div className="mt-1 text-[12.5px] text-dim">{pct}% of {(s!.budget_bytes / 1073741824).toFixed(0)} GB budget</div>
             </div>
           )}
-          {s?.reachable && !s.budget_bytes && <div className="mt-2 text-[11px] text-dim">set STORAGE_BUDGET_GB for a usage bar + near-full alerts</div>}
+          {s?.reachable && !s.budget_bytes && <div className="mt-2 text-[12.5px] text-dim">set STORAGE_BUDGET_GB for a usage bar + near-full alerts</div>}
         </div>
 
         {/* Lifecycle (retention + compression = ILM equivalent) */}
         <div className="rounded-[12px] border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
-            <span className="text-[12.5px] font-medium text-fg">Lifecycle</span>
+            <span className="text-[13.5px] font-medium text-fg">Lifecycle</span>
             <Dot state={s?.reachable ? 'good' : s ? 'unknown' : 'unknown'} />
           </div>
-          <div className="mt-1 text-[11px] text-dim">TimescaleDB retention + compression</div>
-          <div className="mt-3 font-mono text-[12.5px] text-fg">
+          <div className="mt-1 text-[12.5px] text-dim">TimescaleDB retention + compression</div>
+          <div className="mt-3 font-mono text-[13.5px] text-fg">
             {s?.retention_days != null ? `retention ${s.retention_days}d` : 'retention: —'}
           </div>
-          <div className="font-mono text-[11px] text-dim">
+          <div className="font-mono text-[12.5px] text-dim">
             {s?.compression_days != null ? `compress after ${s.compression_days}d` : 'compression: —'}
           </div>
         </div>
@@ -400,15 +580,15 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
         {/* Replication */}
         <div className="rounded-[12px] border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
-            <span className="text-[12.5px] font-medium text-fg">Replication</span>
+            <span className="text-[13.5px] font-medium text-fg">Replication</span>
             <Dot state={!repl ? 'unknown' : repl.enabled ? 'good' : 'unknown'} />
           </div>
-          <div className="mt-1 text-[11px] text-dim">PostgreSQL streaming</div>
-          <div className={`mt-3 font-mono text-[12.5px] ${repl?.enabled ? 'text-emerald-400' : 'text-amber-400'}`}>
+          <div className="mt-1 text-[12.5px] text-dim">PostgreSQL streaming</div>
+          <div className={`mt-3 font-mono text-[13.5px] ${repl?.enabled ? 'text-emerald-400' : 'text-amber-400'}`}>
             {!repl ? 'checking…' : repl.enabled ? 'active' : 'not configured'}
           </div>
           {repl?.standbys?.length ? (
-            <div className="mt-1 font-mono text-[11px] text-dim">{repl.standbys.join(', ')}</div>
+            <div className="mt-1 font-mono text-[12.5px] text-dim">{repl.standbys.join(', ')}</div>
           ) : null}
         </div>
       </div>
@@ -427,7 +607,7 @@ const SEV_OPTIONS: { label: string; value: number }[] = [
   { label: 'Critical', value: 4 },
 ]
 const fieldCls =
-  'rounded-md border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] text-fg outline-none focus:border-accent [color-scheme:dark]'
+  'rounded-md border border-border bg-surface-2 px-2 py-1.5 text-[13.5px] text-fg outline-none focus:border-accent [color-scheme:dark]'
 
 // cleanEvent drops empty/null fields so the expanded "full log" JSON shows only what the
 // event actually carries (Wazuh-style), rather than a wall of blank keys.
@@ -509,7 +689,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   return (
     <section className="mb-8">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-dim">
+        <h2 className="text-[12.5px] font-semibold uppercase tracking-wider text-dim">
           Events &amp; Alerts
           <span className="ml-2 normal-case text-dim">{rows.length} shown</span>
         </h2>
@@ -522,19 +702,19 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
           />
           <button
             onClick={() => setOpen((o) => !o)}
-            className={`rounded-md border px-2.5 py-1.5 text-[11px] font-medium ${hasFilter || open ? 'border-accent bg-accent-soft text-accent' : 'border-border text-fg hover:bg-surface-2'}`}
+            className={`rounded-md border px-2.5 py-1.5 text-[12.5px] font-medium ${hasFilter || open ? 'border-accent bg-accent-soft text-accent' : 'border-border text-fg hover:bg-surface-2'}`}
           >
             ⛃ Filters{hasFilter ? ' ·' : ''}
           </button>
           <button
             onClick={sendWebhook}
-            className="rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-fg hover:bg-surface-2"
+            className="rounded-md border border-border px-2.5 py-1.5 text-[12.5px] font-medium text-fg hover:bg-surface-2"
             title="Send these filtered events as JSON to the configured export webhook"
           >
             ↗ Webhook
           </button>
-          {whMsg && <span className="text-[11px] text-dim">{whMsg}</span>}
-          <label className="flex items-center gap-1 text-[11px] text-muted">
+          {whMsg && <span className="text-[12.5px] text-dim">{whMsg}</span>}
+          <label className="flex items-center gap-1 text-[12.5px] text-muted">
             Show
             <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} className={fieldCls}>
               {ROW_OPTIONS.map((n) => (
@@ -558,19 +738,19 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
           </Field>
           <Field label="From"><input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={fieldCls} /></Field>
           <Field label="To"><input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className={fieldCls} /></Field>
-          <label className="flex items-center gap-1.5 px-1 text-[11px] text-fg">
+          <label className="flex items-center gap-1.5 px-1 text-[12.5px] text-fg">
             <input type="checkbox" checked={alertsOnly} onChange={(e) => setAlertsOnly(e.target.checked)} className="h-4 w-4 accent-indigo-500" />
             Alerts only
           </label>
           {hasFilter && (
-            <button onClick={reset} className="rounded-md border border-border px-2.5 py-1.5 text-[11px] text-muted hover:bg-surface-2 hover:text-rose-300">Clear</button>
+            <button onClick={reset} className="rounded-md border border-border px-2.5 py-1.5 text-[12.5px] text-muted hover:bg-surface-2 hover:text-rose-300">Clear</button>
           )}
         </div>
       )}
 
       <div className="overflow-hidden rounded-[12px] border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
+          <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Time</th>
               <th className="px-4 py-2 font-medium">Agent</th>
@@ -613,7 +793,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                     <td className="px-4 py-2 text-fg">
                       {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
                       {a.file_path && (
-                        <span className="mt-0.5 block truncate text-[11px] text-dim" title={a.file_path}>
+                        <span className="mt-0.5 block truncate text-[12.5px] text-dim" title={a.file_path}>
                           location: <span className="font-mono text-muted">{a.file_path}</span>
                         </span>
                       )}
@@ -624,7 +804,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                     <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
                     {onCreateTicket && (
                       <td className="px-4 py-2 text-right">
-                        <button onClick={(e) => { e.stopPropagation(); onCreateTicket(alertToTicket(a)) }} className="rounded-md border border-border px-2 py-1 text-[11px] text-fg transition-colors hover:bg-surface-2" title="Raise a Tier-2 ticket from this event">+ Ticket</button>
+                        <button onClick={(e) => { e.stopPropagation(); onCreateTicket(alertToTicket(a)) }} className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg transition-colors hover:bg-surface-2" title="Raise a Tier-2 ticket from this event">+ Ticket</button>
                       </td>
                     )}
                   </tr>
@@ -633,18 +813,18 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                       <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-3">
                         {a.dw_remediation_action && (
                           <div className="mb-3 rounded-[8px] border border-indigo-900/50 bg-accent-soft p-3">
-                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-accent">
+                            <div className="mb-1 text-[12.5px] font-medium uppercase tracking-wider text-accent">
                               Recommended playbook {a.dw_remediation_source === 'playbook' ? '' : `(${a.dw_remediation_source})`}
                             </div>
-                            <pre className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-fg">{a.dw_remediation_action}</pre>
+                            <pre className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-fg">{a.dw_remediation_action}</pre>
                           </div>
                         )}
                         {(a.http_uri || a.http_host || a.http_status > 0) && (
                           <div className="mb-3 rounded-[8px] border border-cyan-900/50 bg-cyan-500/5 p-3">
-                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-cyan-300">
+                            <div className="mb-1 text-[12.5px] font-medium uppercase tracking-wider text-cyan-300">
                               HTTP request{a.event_action === 'waf_block' ? ' · WAF blocked' : ''}
                             </div>
-                            <div className="space-y-0.5 font-mono text-[11px] text-fg">
+                            <div className="space-y-0.5 font-mono text-[12.5px] text-fg">
                               {(a.http_method || a.http_uri) && (
                                 <div><span className="text-dim">{a.http_method || 'GET'}</span> {a.http_uri || '—'}{a.http_status > 0 && <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-muted">{a.http_status}</span>}</div>
                               )}
@@ -655,13 +835,13 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                         {(a.file_diff || (a.event_category === 'file' && a.file_path)) && (
                           <div className="mb-3 rounded-[8px] border border-amber-900/50 bg-amber-500/5 p-3">
                             <div className="mb-1 flex items-center justify-between">
-                              <span className="text-[11px] font-medium uppercase tracking-wider text-amber-300">
+                              <span className="text-[12.5px] font-medium uppercase tracking-wider text-amber-300">
                                 File change{a.file_path ? ` — ${a.file_path}` : ''}
                               </span>
                               {a.file_path && a.agent_id && <RestoreButton agent={a.agent_id} path={a.file_path} />}
                             </div>
                             {(a.process_name || a.user_name) && (
-                              <div className="mb-2 text-[11px] text-muted">
+                              <div className="mb-2 text-[12.5px] text-muted">
                                 changed by{' '}
                                 {a.process_name && (
                                   <span className="font-mono text-amber-200">
@@ -676,7 +856,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                               </div>
                             )}
                             {a.file_diff && (
-                              <pre className="max-h-80 overflow-auto rounded bg-bg p-2 font-mono text-[11px] leading-relaxed">
+                              <pre className="max-h-80 overflow-auto rounded bg-bg p-2 font-mono text-[12.5px] leading-relaxed">
                                 {a.file_diff.split('\n').map((line, k) => (
                                   <div key={k} className={line.startsWith('+') ? 'text-emerald-400' : line.startsWith('-') ? 'text-rose-400' : 'text-dim'}>{line}</div>
                                 ))}
@@ -684,8 +864,8 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                             )}
                           </div>
                         )}
-                        <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-dim">Full log (JSON)</div>
-                        <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-[8px] border border-border bg-surface p-3 text-[11px] leading-relaxed text-fg">
+                        <div className="mb-1 text-[12.5px] font-medium uppercase tracking-wider text-dim">Full log (JSON)</div>
+                        <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-[8px] border border-border bg-surface p-3 text-[12.5px] leading-relaxed text-fg">
 {JSON.stringify(cleanEvent(a), null, 2)}
                         </pre>
                       </td>
@@ -695,7 +875,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
               ))
             ) : (
               <tr>
-                <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-6 text-center text-[12.5px] text-dim">
+                <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-6 text-center text-[13.5px] text-dim">
                   {apiDown ? 'API unreachable — run docker compose up' : hasFilter || q ? 'No events match these filters.' : 'No events yet.'}
                 </td>
               </tr>
@@ -703,14 +883,14 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-[11px] text-dim">{updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Loading…'}</p>
+      <p className="mt-3 text-[12.5px] text-dim">{updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Loading…'}</p>
     </section>
   )
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide text-dim">
+    <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide text-dim">
       {label}
       {children}
     </label>

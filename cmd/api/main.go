@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.7.4"
+const version = "2.8.0"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.
@@ -369,6 +369,7 @@ func main() {
 		mux.Handle("GET /api/dashboard/attacks/geo", protect(auth.PermViewDashboard, attackGeoHandler(st, respStore)))
 		mux.Handle("GET /api/dashboard/layout", protect(auth.PermViewDashboard, getLayoutHandler(st)))
 		mux.Handle("PUT /api/dashboard/layout", protect(auth.PermViewDashboard, saveLayoutHandler(st)))
+		mux.Handle("DELETE /api/dashboard/layout", protect(auth.PermViewDashboard, deleteLayoutHandler(st)))
 
 		// Response engine: the block approval workflow (executed via the same responder
 		// as the worker — RESPONDER/RESPONSE_LIVE). See internal/respond. respStore was created
@@ -1582,6 +1583,23 @@ func saveLayoutHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+	}
+}
+
+// deleteLayoutHandler removes the user's saved dashboard layout so the dashboard renders the
+// default PANELS order again. Behaves like a reset button; idempotent.
+func deleteLayoutHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, _ := auth.UserFrom(r.Context())
+		if u == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if err := st.DeleteDashboardLayout(r.Context(), u.ID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

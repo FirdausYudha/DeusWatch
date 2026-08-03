@@ -47,33 +47,33 @@ export default function Tenants() {
   return (
     <div className="mx-auto max-w-3xl p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-[12.5px] text-dim">A tenant is a data-isolation boundary — agents and their telemetry belong to one tenant.</p>
+        <p className="text-[13.5px] text-dim">A tenant is a data-isolation boundary — agents and their telemetry belong to one tenant.</p>
         <DocLink file="multi-tenancy.md" />
       </div>
       <form onSubmit={submit} className="mb-6 flex flex-wrap items-end gap-2.5">
         <div className="flex-1 min-w-[220px]">
-          <label className="mb-1 block text-[12px] font-medium text-dim">New tenant</label>
+          <label className="mb-1 block text-[13px] font-medium text-dim">New tenant</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Acme Corp"
-            className="w-full rounded-[8px] border border-border bg-surface px-3 py-2 text-[13.5px] text-fg focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full rounded-[8px] border border-border bg-surface px-3 py-2 text-[14.5px] text-fg focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
         <button
           type="submit"
           disabled={busy || !name.trim()}
-          className="rounded-[8px] bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="rounded-[8px] bg-accent px-4 py-2 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {busy ? 'Creating…' : 'Create tenant'}
         </button>
       </form>
 
-      {err && <div className="mb-4 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[12.5px] text-critical">{err}</div>}
+      {err && <div className="mb-4 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[13.5px] text-critical">{err}</div>}
 
       <div className="overflow-hidden rounded-[10px] border border-border">
-        <table className="w-full text-left text-[13px]">
-          <thead className="bg-surface-2 text-[11.5px] uppercase tracking-wide text-dim">
+        <table className="w-full text-left text-[14px]">
+          <thead className="bg-surface-2 text-[12.5px] uppercase tracking-wide text-dim">
             <tr>
               <th className="px-4 py-2.5 font-medium">Name</th>
               <th className="px-4 py-2.5 font-medium">Slug</th>
@@ -85,13 +85,13 @@ export default function Tenants() {
             {tenants.map((t) => (
               <tr key={t.id} className="border-t border-border">
                 <td className="px-4 py-2.5 font-medium text-fg">{t.name}</td>
-                <td className="px-4 py-2.5 font-mono text-[12px] text-muted">{t.slug}</td>
+                <td className="px-4 py-2.5 font-mono text-[13px] text-muted">{t.slug}</td>
                 <td className="px-4 py-2.5 text-dim">{new Date(t.created_at).toLocaleDateString()}</td>
                 <td className="px-4 py-2.5 text-right">
                   {t.slug !== 'default' && (
                     <button
                       onClick={() => remove(t)}
-                      className="rounded-[7px] border border-border px-2 py-1 text-[11.5px] text-muted transition-colors hover:border-critical/50 hover:bg-critical/10 hover:text-critical"
+                      className="rounded-[7px] border border-border px-2 py-1 text-[12.5px] text-muted transition-colors hover:border-critical/50 hover:bg-critical/10 hover:text-critical"
                     >
                       Delete
                     </button>

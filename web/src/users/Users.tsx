@@ -42,10 +42,10 @@ function Checklist({
     <div className="grid gap-4 sm:grid-cols-2">
       {groups.map(([group, items]) => (
         <div key={group} className="rounded-[8px] border border-border bg-surface p-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-dim">{group}</div>
+          <div className="mb-2 text-[12.5px] font-semibold uppercase tracking-wider text-dim">{group}</div>
           <div className="space-y-1.5">
             {items.map((p) => (
-              <label key={p.key} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-fg">
+              <label key={p.key} className="flex cursor-pointer items-center gap-2 text-[13.5px] text-fg">
                 <input
                   type="checkbox"
                   checked={selected.has(p.key)}
@@ -189,32 +189,32 @@ export default function Users({ me }: { me: Me }) {
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-8">
-        <p className="mt-0.5 text-[12px] text-muted">
+        <p className="mt-0.5 text-[13px] text-muted">
           Manage accounts, roles, and per-user permissions (granular RBAC)
         </p>
       </header>
 
       <section className="mb-8 rounded-[12px] border border-border bg-surface p-5">
-        <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-dim">Add user</h2>
+        <h2 className="mb-4 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Add user</h2>
         <form onSubmit={submit} className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Username"
-              className="w-40 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+              className="w-40 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
             />
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password (min 8)"
-              className="w-44 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+              className="w-44 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
             />
             <select
               value={role}
               onChange={(e) => onRoleChange(e.target.value)}
-              className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+              className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -222,7 +222,7 @@ export default function Users({ me }: { me: Me }) {
                 </option>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-[12.5px] text-fg">
+            <label className="flex items-center gap-2 text-[13.5px] text-fg">
               <input
                 type="checkbox"
                 checked={custom}
@@ -234,7 +234,7 @@ export default function Users({ me }: { me: Me }) {
             <button
               type="submit"
               disabled={busy || !username || !password}
-              className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+              className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
             >
               {busy ? 'Saving…' : 'Add'}
             </button>
@@ -242,18 +242,18 @@ export default function Users({ me }: { me: Me }) {
           {custom ? (
             <Checklist groups={groups} selected={perms} onToggle={togglePerm} />
           ) : (
-            <p className="text-[11px] text-dim">
+            <p className="text-[12.5px] text-dim">
               Inherits the <span className="text-fg">{role}</span> role defaults. Tick “Customize
               permissions” to tailor exactly what this user can access.
             </p>
           )}
         </form>
-        {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
+        {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
       </section>
 
       <div className="overflow-hidden rounded-[12px] border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
+          <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Username</th>
               <th className="px-4 py-2 font-medium">Role</th>
@@ -268,7 +268,7 @@ export default function Users({ me }: { me: Me }) {
               <tr key={u.id} className="align-top hover:bg-surface-2">
                 <td className="px-4 py-2 font-medium text-fg">{u.username}</td>
                 <td className="px-4 py-2">
-                  <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${ROLE_BADGE[u.role] ?? 'text-muted bg-surface-2'}`}>
+                  <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${ROLE_BADGE[u.role] ?? 'text-muted bg-surface-2'}`}>
                     {u.role}
                   </span>
                 </td>
@@ -285,14 +285,14 @@ export default function Users({ me }: { me: Me }) {
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => startEdit(u)}
-                      className="rounded-md border border-border px-2 py-1 text-[11px] text-fg transition-colors hover:bg-surface-2"
+                      className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
                     >
                       Edit access
                     </button>
                     {u.username !== me.username && (
                       <button
                         onClick={() => remove(u)}
-                        className="rounded-md border border-rose-900/60 px-2 py-1 text-[11px] text-rose-300 transition-colors hover:bg-rose-500/10"
+                        className="rounded-md border border-rose-900/60 px-2 py-1 text-[12.5px] text-rose-300 transition-colors hover:bg-rose-500/10"
                       >
                         Delete
                       </button>
@@ -311,14 +311,14 @@ export default function Users({ me }: { me: Me }) {
             className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-4 text-[12.5px] font-semibold text-fg">
+            <h3 className="mb-4 text-[13.5px] font-semibold text-fg">
               Edit access — <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span>
             </h3>
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <select
                 value={editRole}
                 onChange={(e) => editOnRoleChange(e.target.value)}
-                className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+                className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -326,7 +326,7 @@ export default function Users({ me }: { me: Me }) {
                   </option>
                 ))}
               </select>
-              <label className="flex items-center gap-2 text-[12.5px] text-fg">
+              <label className="flex items-center gap-2 text-[13.5px] text-fg">
                 <input
                   type="checkbox"
                   checked={editCustom}
@@ -339,21 +339,21 @@ export default function Users({ me }: { me: Me }) {
             {editCustom ? (
               <Checklist groups={groups} selected={editPerms} onToggle={editTogglePerm} />
             ) : (
-              <p className="text-[11px] text-dim">
+              <p className="text-[12.5px] text-dim">
                 Inherits the <span className="text-fg">{editRole}</span> role defaults.
               </p>
             )}
             <div className="mt-5 flex justify-end gap-3">
               <button
                 onClick={() => setEditId(null)}
-                className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
+                className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2"
               >
                 Cancel
               </button>
               <button
                 onClick={saveEdit}
                 disabled={editBusy}
-                className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+                className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
               >
                 {editBusy ? 'Saving…' : 'Save'}
               </button>

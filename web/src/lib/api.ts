@@ -668,6 +668,11 @@ export type VulnSummary = {
   high: number
   medium: number
   low: number
+  // negligible + unknown broken out in v2.8.0 so donut totals reconcile with `total` — previously
+  // findings with empty severity (USN before the Ubuntu-priority enrichment landed) were counted
+  // in total but not in any bucket.
+  negligible: number
+  unknown: number
   total: number
   updated_at: string
 }
@@ -1243,8 +1248,14 @@ export async function fetchDashboardData(range: number | DashRange = 24): Promis
 }
 
 export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow' | 'agents'
-export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide: boolean }
-export type DashLayout = { widgets: DashWidget[] }
+// DashWidget is retained for backwards compat with pre-v2.0 saved layouts. The current dashboard
+// persists just the panel ORDER (see DashLayout below) — widget shape (kind/source/title/color/span)
+// lives in the frontend PANELS const and is the source of truth. Keeping this type exported so the
+// backend TS shim doesn't break.
+export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide?: boolean }
+// DashLayout v2 persists only the order of the fixed panel set. v1 kept `widgets` (with per-widget
+// styling that could drift from the frontend); v2 keeps it simple — the reader below tolerates both.
+export type DashLayout = { v?: number; order?: string[]; widgets?: DashWidget[] }
 
 export async function fetchLayout(): Promise<DashLayout | null> {
   const res = await authFetch('/api/dashboard/layout')
@@ -1259,6 +1270,13 @@ export async function saveLayout(layout: DashLayout): Promise<void> {
     body: JSON.stringify(layout),
   })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+// deleteLayout removes the operator's saved dashboard layout, so the dashboard falls back to the
+// default panel order. Used by the "Reset layout" button in edit mode.
+export async function deleteLayout(): Promise<void> {
+  const res = await authFetch('/api/dashboard/layout', { method: 'DELETE' })
+  if (!res.ok && res.status !== 404) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 // ── Detection rules (Wazuh-style management) ──────────────

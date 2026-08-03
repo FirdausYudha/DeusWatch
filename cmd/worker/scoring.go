@@ -204,6 +204,17 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 				log.Printf("worker: vuln: fetch %s feed failed (keeping cached): %v", source, ferr)
 				continue
 			}
+			// Enrich USN entries with per-CVE Ubuntu priority (v2.8.0). The USN notices feed
+			// omits severity — without this step every USN finding shows as "unknown" in the UI.
+			// Cached in cve_priority_cache with a 30-day TTL, so a cold start is the only slow
+			// path; subsequent refreshes reuse the cache.
+			if source == "usn" {
+				ec, ecancel := context.WithTimeout(fc, 20*time.Minute)
+				if err := vuln.EnrichUSNSeverity(ec, nil, st, advs, 4, 30*24*time.Hour); err != nil {
+					log.Printf("worker: vuln: enrich USN severities (continuing with what we have): %v", err)
+				}
+				ecancel()
+			}
 			if err := st.ReplaceAdvisories(fc, source, advs); err != nil {
 				log.Printf("worker: vuln: cache %s advisories: %v", source, err)
 				continue

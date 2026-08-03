@@ -12,6 +12,7 @@ import {
 } from '../lib/api'
 import { PageHeader } from '../components/ui'
 import DocLink from '../components/DocLink'
+import { DonutChart } from '../dashboard/widgets'
 
 // Inventory is the Vulnerability Assessment view: each agent's OS + installed packages, and the CVE
 // findings from matching those packages against vendor advisories (Ubuntu USN / Debian). It leads
@@ -44,10 +45,10 @@ export default function Inventory({ me }: { me: Me }) {
         actions={<DocLink file="vulnerability-assessment.md" label="About vulnerability assessment" />}
       />
 
-      {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
+      {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
 
       {advisoryTotal === 0 && !error && (
-        <div className="mb-4 rounded-[12px] border border-amber-700/40 bg-amber-500/10 px-4 py-2.5 text-[12px] text-amber-200">
+        <div className="mb-4 rounded-[12px] border border-amber-700/40 bg-amber-500/10 px-4 py-2.5 text-[13px] text-amber-200">
           No advisories loaded yet. The worker fetches vendor feeds (Ubuntu USN / Debian) for your
           fleet's releases shortly after startup, then every 12h. Findings appear once a feed is
           cached — this needs internet access on the manager.
@@ -55,7 +56,7 @@ export default function Inventory({ me }: { me: Me }) {
       )}
 
       {agents.length === 0 && !error && (
-        <div className="rounded-[12px] border border-dashed border-border px-4 py-12 text-center text-[12.5px] text-dim">
+        <div className="rounded-[12px] border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-dim">
           No inventory reported yet. Agents (v2.0.2+) report their software inventory shortly after
           startup and every 12h.
         </div>
@@ -74,7 +75,7 @@ export default function Inventory({ me }: { me: Me }) {
               />
             ))}
           </div>
-          {selected && <DetailPanel agent={selected} />}
+          {selected && <DetailPanel agent={selected} summary={vulns[selected]} />}
         </div>
       )}
     </div>
@@ -84,7 +85,7 @@ export default function Inventory({ me }: { me: Me }) {
 // SevBadge shows a severity count in its colour, only when non-zero.
 function SevBadge({ n, cls, label }: { n: number; cls: string; label: string }) {
   if (!n) return null
-  return <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>{n} {label}</span>
+  return <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${cls}`}>{n} {label}</span>
 }
 
 function AgentCard({
@@ -108,10 +109,10 @@ function AgentCard({
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[13px] font-semibold text-fg">{a.agent_name}</span>
-        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">{a.pkg_count} pkg</span>
+        <span className="truncate text-[14px] font-semibold text-fg">{a.agent_name}</span>
+        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[12.5px] text-muted">{a.pkg_count} pkg</span>
       </div>
-      <div className="mt-1 truncate text-[11px] capitalize text-muted">
+      <div className="mt-1 truncate text-[12.5px] capitalize text-muted">
         {os}
         {a.os_codename ? ` (${a.os_codename})` : ''} · {a.arch || '—'}
       </div>
@@ -120,8 +121,8 @@ function AgentCard({
         <SevBadge n={vuln?.high ?? 0} cls="text-orange-200 bg-orange-500/15" label="high" />
         <SevBadge n={vuln?.medium ?? 0} cls="text-amber-200 bg-amber-500/15" label="medium" />
         <SevBadge n={vuln?.low ?? 0} cls="text-sky-200 bg-sky-500/15" label="low" />
-        {clean && <span className="text-[11px] text-emerald-400">✓ no known CVEs</span>}
-        {!vuln && <span className="text-[11px] text-dim">not yet scanned</span>}
+        {clean && <span className="text-[12.5px] text-emerald-400">✓ no known CVEs</span>}
+        {!vuln && <span className="text-[12.5px] text-dim">not yet scanned</span>}
       </div>
     </button>
   )
@@ -136,7 +137,33 @@ const SEV_CLS: Record<string, string> = {
   unknown: 'text-muted bg-surface-2',
 }
 
-function DetailPanel({ agent }: { agent: string }) {
+// SEV_COLOR is the hex-only palette for the SeverityDonut, keyed by severity. The tones mirror
+// SEV_CLS above so the donut slices match their badge in the row table — critical=rose,
+// high=orange, medium=amber, low=sky, negligible+unknown=slate. Keeping the mapping literal (not
+// derived from tailwind classes) lets DonutChart take it via its `colors` prop without extra work.
+const SEV_COLOR: Record<string, string> = {
+  critical: '#fb7185',
+  high: '#fb923c',
+  medium: '#fbbf24',
+  low: '#38bdf8',
+  negligible: '#94a3b8',
+  unknown: '#64748b',
+}
+const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'negligible', 'unknown'] as const
+
+// SeverityDonut is a compact per-agent breakdown of vulnerability counts by severity, tinted with
+// the SEV_COLOR palette. Non-zero slices only — an empty summary or a totally-safe agent renders
+// nothing (the DetailPanel header stays clean).
+function SeverityDonut({ summary }: { summary: VulnSummary }) {
+  const data = SEV_ORDER
+    .map((sev) => ({ label: sev, count: (summary as unknown as Record<string, number>)[sev] || 0 }))
+    .filter((d) => d.count > 0)
+  if (data.length === 0) return null
+  const colors = data.map((d) => SEV_COLOR[d.label])
+  return <DonutChart data={data} color="#6366f1" colors={colors} />
+}
+
+function DetailPanel({ agent, summary }: { agent: string; summary?: VulnSummary }) {
   const [tab, setTab] = useState<'vulns' | 'packages'>('vulns')
   return (
     <div className="overflow-hidden rounded-[12px] border border-border bg-surface">
@@ -145,15 +172,23 @@ function DetailPanel({ agent }: { agent: string }) {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-[8px] px-3 py-1 text-[12px] font-medium transition-colors ${
+            className={`rounded-[8px] px-3 py-1 text-[13px] font-medium transition-colors ${
               tab === t ? 'bg-accent-soft text-accent' : 'text-muted hover:text-fg'
             }`}
           >
             {t === 'vulns' ? 'Vulnerabilities' : 'Packages'}
           </button>
         ))}
-        <span className="ml-auto pr-2 text-[11px] text-dim">{agent}</span>
+        <span className="ml-auto pr-2 text-[12.5px] text-dim">{agent}</span>
       </div>
+      {/* Compact per-agent donut: only rendered on the Vulnerabilities tab (where it belongs) and
+          only when the agent has at least one finding. Sits directly under the tab bar so the row
+          table still gets the full viewport height. */}
+      {tab === 'vulns' && summary && summary.total > 0 && (
+        <div className="border-b border-border px-3 py-1">
+          <SeverityDonut summary={summary} />
+        </div>
+      )}
       {tab === 'vulns' ? <VulnList agent={agent} /> : <PackageList agent={agent} />}
     </div>
   )
@@ -175,11 +210,11 @@ function VulnList({ agent }: { agent: string }) {
       .finally(() => setLoading(false))
   }, [agent])
 
-  if (loading) return <p className="px-4 py-6 text-center text-[12px] text-dim">loading…</p>
-  if (error) return <p className="px-4 py-2 text-[12.5px] text-rose-400">{error}</p>
+  if (loading) return <p className="px-4 py-6 text-center text-[13px] text-dim">loading…</p>
+  if (error) return <p className="px-4 py-2 text-[13.5px] text-rose-400">{error}</p>
   if (rows.length === 0)
     return (
-      <p className="px-4 py-8 text-center text-[12.5px] text-emerald-400">
+      <p className="px-4 py-8 text-center text-[13.5px] text-emerald-400">
         ✓ No known vulnerabilities for this agent’s installed packages.
       </p>
     )
@@ -187,7 +222,7 @@ function VulnList({ agent }: { agent: string }) {
   return (
     <div className="max-h-[calc(100vh-240px)] overflow-y-auto">
       <table className="w-full text-left text-sm">
-        <thead className="sticky top-0 bg-surface text-[11px] uppercase tracking-wider text-dim">
+        <thead className="sticky top-0 bg-surface text-[12.5px] uppercase tracking-wider text-dim">
           <tr>
             <th className="px-4 py-2 font-medium">Severity</th>
             <th className="px-4 py-2 font-medium">CVE</th>
@@ -199,7 +234,7 @@ function VulnList({ agent }: { agent: string }) {
           {rows.map((v) => (
             <tr key={`${v.cve}/${v.package}`} className="border-t border-border align-top">
               <td className="px-4 py-1.5">
-                <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${SEV_CLS[v.severity] ?? SEV_CLS.unknown}`}>
+                <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${SEV_CLS[v.severity] ?? SEV_CLS.unknown}`}>
                   {v.severity || 'unknown'}
                 </span>
               </td>
@@ -212,13 +247,13 @@ function VulnList({ agent }: { agent: string }) {
                   }
                   target="_blank"
                   rel="noreferrer"
-                  className="font-mono text-[11px] text-accent hover:underline"
+                  className="font-mono text-[12.5px] text-accent hover:underline"
                 >
                   {v.cve}
                 </a>
               </td>
               <td className="px-4 py-1.5 font-medium text-fg">{v.package}</td>
-              <td className="px-4 py-1.5 font-mono text-[11px] text-muted">
+              <td className="px-4 py-1.5 font-mono text-[12.5px] text-muted">
                 {v.installed_version || '—'}
                 {v.fixed_version ? (
                   <>
@@ -233,7 +268,7 @@ function VulnList({ agent }: { agent: string }) {
           ))}
         </tbody>
       </table>
-      <div className="border-t border-border px-4 py-2 text-[11px] text-dim">
+      <div className="border-t border-border px-4 py-2 text-[12.5px] text-dim">
         {rows.length} finding{rows.length === 1 ? '' : 's'} · fix by upgrading the listed package to its fixed version
       </div>
     </div>
@@ -267,20 +302,20 @@ function PackageList({ agent }: { agent: string }) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Filter by package or source…"
-          className="w-64 rounded-[8px] border border-border bg-bg px-2.5 py-1 text-[12px] text-fg outline-none focus:border-accent"
+          className="w-64 rounded-[8px] border border-border bg-bg px-2.5 py-1 text-[13px] text-fg outline-none focus:border-accent"
         />
       </div>
-      {error && <p className="px-4 py-2 text-[12.5px] text-rose-400">{error}</p>}
+      {error && <p className="px-4 py-2 text-[13.5px] text-rose-400">{error}</p>}
       {loading ? (
-        <p className="px-4 py-6 text-center text-[12px] text-dim">loading…</p>
+        <p className="px-4 py-6 text-center text-[13px] text-dim">loading…</p>
       ) : pkgs.length === 0 ? (
-        <p className="px-4 py-6 text-center text-[12px] text-dim">
+        <p className="px-4 py-6 text-center text-[13px] text-dim">
           {q ? 'No packages match that filter.' : 'No packages reported for this agent.'}
         </p>
       ) : (
         <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 bg-surface text-[11px] uppercase tracking-wider text-dim">
+            <thead className="sticky top-0 bg-surface text-[12.5px] uppercase tracking-wider text-dim">
               <tr>
                 <th className="px-4 py-2 font-medium">Package</th>
                 <th className="px-4 py-2 font-medium">Version</th>
@@ -292,9 +327,9 @@ function PackageList({ agent }: { agent: string }) {
               {pkgs.map((p) => (
                 <tr key={`${p.name}/${p.arch}`} className="border-t border-border">
                   <td className="px-4 py-1.5 font-medium text-fg">{p.name}</td>
-                  <td className="px-4 py-1.5 font-mono text-[11px] text-muted">{p.version}</td>
-                  <td className="px-4 py-1.5 text-[11px] text-dim">{p.arch || '—'}</td>
-                  <td className="px-4 py-1.5 text-[11px] text-dim">{p.source || '—'}</td>
+                  <td className="px-4 py-1.5 font-mono text-[12.5px] text-muted">{p.version}</td>
+                  <td className="px-4 py-1.5 text-[12.5px] text-dim">{p.arch || '—'}</td>
+                  <td className="px-4 py-1.5 text-[12.5px] text-dim">{p.source || '—'}</td>
                 </tr>
               ))}
             </tbody>

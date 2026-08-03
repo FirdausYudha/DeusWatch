@@ -34,7 +34,7 @@ export default function Snapshots({ me, initialAgent }: { me: Me; initialAgent?:
       {error && <ErrorText>{error}</ErrorText>}
 
       {loading ? (
-        <p className="text-[12px] text-dim">Loading…</p>
+        <p className="text-[13px] text-dim">Loading…</p>
       ) : agents.length === 0 ? (
         <EmptyState
           title="No agents enrolled yet"
@@ -59,7 +59,7 @@ export default function Snapshots({ me, initialAgent }: { me: Me; initialAgent?:
                       a.revoked ? 'bg-critical' : agentOnline(a) ? 'bg-success' : 'bg-dim'
                     }`}
                   />
-                  <span className="min-w-0 flex-1 truncate text-[12px]">{a.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-[13px]">{a.name}</span>
                   {a.revoked && <Pill className="bg-critical/15 text-critical">revoked</Pill>}
                 </button>
               ))}
@@ -71,7 +71,7 @@ export default function Snapshots({ me, initialAgent }: { me: Me; initialAgent?:
             {selected ? (
               <SnapshotBrowser agentName={selected} me={me} />
             ) : (
-              <p className="text-[12px] text-dim">Select an endpoint.</p>
+              <p className="text-[13px] text-dim">Select an endpoint.</p>
             )}
           </Card>
         </div>

@@ -72,7 +72,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
   const markerRadius = (count: number) => Math.min(14, 3 + Math.sqrt(count) * 1.2)
 
   if (err) {
-    return <p className="py-6 text-center text-[12.5px] text-critical">{err}</p>
+    return <p className="py-6 text-center text-[13.5px] text-critical">{err}</p>
   }
   // We deliberately DON'T early-return on `origins === null` (loading) or `origins.length === 0`
   // (no attacks yet). The map itself is the widget's identity — showing a bare "loading…" or
@@ -141,19 +141,19 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
             the star. Absolute-positioned inside the map container's `relative` wrapper so it sits
             over the SVG without shifting layout. Hidden as soon as any origin arrives. */}
         {origins !== null && list.length === 0 && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10.5px] uppercase tracking-wide text-dim">
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[11.5px] uppercase tracking-wide text-dim">
             waiting for external attacks
           </div>
         )}
         {origins === null && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[10.5px] uppercase tracking-wide text-dim">
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[11.5px] uppercase tracking-wide text-dim">
             loading…
           </div>
         )}
       </div>
 
       {/* Hover detail row — mirrors the columns in the reference dashboard the operator sent. */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-[8px] border border-border bg-surface px-3 py-2 text-[11.5px] sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-[8px] border border-border bg-surface px-3 py-2 text-[12.5px] sm:grid-cols-5">
         <DetailCell label="Country" value={selected?.country || (selected ? '—' : 'Hover a marker')} />
         <DetailCell label="City" value={selected?.city || (selected ? '—' : '—')} />
         <DetailCell label="IP" value={selected?.ip || '—'} mono />
@@ -168,8 +168,8 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
 function DetailCell({ label, value, mono = false, valueClass = '' }: { label: string; value: string; mono?: boolean; valueClass?: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-dim">{label}</div>
-      <div className={`truncate ${mono ? 'font-mono text-[11px]' : 'text-[12.5px]'} ${valueClass || 'text-fg'}`}>{value}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-dim">{label}</div>
+      <div className={`truncate ${mono ? 'font-mono text-[12.5px]' : 'text-[13.5px]'} ${valueClass || 'text-fg'}`}>{value}</div>
     </div>
   )
 }

@@ -131,7 +131,7 @@ export default function Sidebar({
       {/* Brand */}
       <div className="flex h-[60px] items-center gap-2.5 px-[18px]">
         <img src="/deuswatch-eye.png" alt="" aria-hidden="true" className="h-7 w-auto shrink-0" />
-        <span className="text-[15px] font-bold tracking-tight text-fg">DeusWatch</span>
+        <span className="text-[16px] font-bold tracking-tight text-fg">DeusWatch</span>
       </div>
 
       {/* Nav — grouped by feature category */}
@@ -150,7 +150,7 @@ export default function Sidebar({
               <button
                 onClick={() => toggleGroup(group.group)}
                 aria-expanded={!isCollapsed}
-                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim transition-colors hover:text-fg"
+                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[12.5px] font-semibold uppercase tracking-wide text-dim transition-colors hover:text-fg"
               >
                 <svg
                   width="10"
@@ -173,7 +173,7 @@ export default function Sidebar({
                     key={n.id}
                     data-view={n.view}
                     onClick={() => { if (n.view) { onNavigate(n.view); onClose?.() } }}
-                    className={`flex w-full items-center gap-[11px] rounded-[8px] px-3 py-[9px] text-left text-[13.5px] font-medium transition-colors ${
+                    className={`flex w-full items-center gap-[11px] rounded-[8px] px-3 py-[9px] text-left text-[14.5px] font-medium transition-colors ${
                       active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
                     }`}
                   >
@@ -193,17 +193,17 @@ export default function Sidebar({
       {/* Footer: user, theme, support */}
       <div className="flex flex-col gap-2 border-t border-border p-3">
         <div className="flex items-center gap-2.5 px-1">
-          <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-white">
+          <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-accent text-[12.5px] font-bold text-white">
             {initials}
           </div>
           <div className="min-w-0 leading-tight">
-            <div className="truncate text-[12.5px] font-medium text-fg">{me.username}</div>
-            <div className="truncate text-[11px] capitalize text-dim">{me.role}</div>
+            <div className="truncate text-[13.5px] font-medium text-fg">{me.username}</div>
+            <div className="truncate text-[12.5px] capitalize text-dim">{me.role}</div>
           </div>
           <button
             onClick={handleLogout}
             title="Log out"
-            className="ml-auto rounded-[8px] border border-border px-2 py-1 text-[11px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+            className="ml-auto rounded-[8px] border border-border px-2 py-1 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
           >
             Exit
           </button>
@@ -214,7 +214,7 @@ export default function Sidebar({
         <button
           onClick={() => setShowSupport(true)}
           title="Support DeusWatch"
-          className="flex items-center justify-center gap-1.5 rounded-[8px] border border-border px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-surface-2 hover:text-critical"
+          className="flex items-center justify-center gap-1.5 rounded-[8px] border border-border px-2 py-1.5 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-critical"
         >
           <span aria-hidden="true">♥</span> Support DeusWatch
         </button>

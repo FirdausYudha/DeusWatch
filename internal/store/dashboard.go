@@ -218,3 +218,13 @@ func (s *Store) SaveDashboardLayout(ctx context.Context, userID string, layout [
 	}
 	return nil
 }
+
+// DeleteDashboardLayout removes a user's saved layout, so the dashboard falls back to the default
+// PANELS order. Idempotent — no error when the row doesn't exist.
+func (s *Store) DeleteDashboardLayout(ctx context.Context, userID string) error {
+	_, err := s.q(ctx).Exec(ctx, `DELETE FROM user_dashboards WHERE user_id=$1`, userID)
+	if err != nil {
+		return fmt.Errorf("store: delete dashboard layout: %w", err)
+	}
+	return nil
+}

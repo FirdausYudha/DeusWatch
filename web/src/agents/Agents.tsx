@@ -37,7 +37,7 @@ function relative(ts: string | null): string {
 // online/disconnected stay accurate even between checker ticks.
 function StatusBadge({ a }: { a: AgentInfo }) {
   const badge = (cls: string, label: string, title?: string) => (
-    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`} title={title}>{label}</span>
+    <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${cls}`} title={title}>{label}</span>
   )
   if (a.revoked) return badge('text-rose-300 bg-rose-500/15', 'revoked')
   const live = agentOnline(a)
@@ -84,7 +84,7 @@ export default function Agents({ me }: { me: Me }) {
     <div className="mx-auto max-w-[1400px] px-6 py-5">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="mt-0.5 text-[12px] text-muted">Registered agents, heartbeat status &amp; centrally-pushed config</p>
+          <p className="mt-0.5 text-[13px] text-muted">Registered agents, heartbeat status &amp; centrally-pushed config</p>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             <DocLink file="new-log-source.md" label="Add a log source" />
             <DocLink file="agent-troubleshooting.md" label="Troubleshooting" />
@@ -99,18 +99,18 @@ export default function Agents({ me }: { me: Me }) {
         {isAdmin && (
           <button
             onClick={() => setWizard(true)}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90"
           >
             + Add agent
           </button>
         )}
       </header>
 
-      {error && <p className="mb-4 text-[12.5px] text-rose-400">{error}</p>}
+      {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
 
       <div className="overflow-hidden rounded-[12px] border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface text-[11px] uppercase tracking-wider text-dim">
+          <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">OS</th>
@@ -145,20 +145,20 @@ export default function Agents({ me }: { me: Me }) {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEditing(a)}
-                        className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2"
+                        className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg hover:bg-surface-2"
                       >
                         Monitoring
                       </button>
                       <button
                         onClick={() => setSnapshotsFor(a)}
-                        className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2"
+                        className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg hover:bg-surface-2"
                         title="Browse the dated FIM snapshot timeline of this agent's watched files"
                       >
                         Snapshots
                       </button>
                       <button
                         onClick={() => setUninstalling(a)}
-                        className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2"
+                        className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg hover:bg-surface-2"
                         title="Show commands to uninstall this agent from its endpoint"
                       >
                         Uninstall
@@ -166,7 +166,7 @@ export default function Agents({ me }: { me: Me }) {
                       {!a.revoked && (
                         <button
                           onClick={() => doRevoke(a)}
-                          className="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10"
+                          className="rounded-md border border-rose-500/40 px-2 py-1 text-[12.5px] text-rose-300 hover:bg-rose-500/10"
                         >
                           Revoke
                         </button>
@@ -224,23 +224,23 @@ function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => vo
   return (
     <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-1 text-[12.5px] font-semibold text-fg">
+        <h3 className="mb-1 text-[13.5px] font-semibold text-fg">
           Uninstall agent — <span className="text-accent">{agent.name}</span>
-          <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase text-muted">{agent.os || 'linux'}</span>
+          <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] uppercase text-muted">{agent.os || 'linux'}</span>
         </h3>
-        <p className="mb-4 text-[11px] text-dim">
+        <p className="mb-4 text-[12.5px] text-dim">
           Cleanest way: <span className="text-fg">Revoke</span> this agent — it self-uninstalls on its
           next heartbeat. Run the commands below on the endpoint for a manual or forced cleanup.
         </p>
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-dim">
+        <div className="mb-2 text-[12.5px] font-medium uppercase tracking-wider text-dim">
           Run on the {isWindows ? 'Windows endpoint (elevated PowerShell)' : 'Linux endpoint'}
         </div>
         <Copyable text={isWindows ? windows : linux} />
-        <p className="mt-3 text-[11px] text-dim">
+        <p className="mt-3 text-[12.5px] text-dim">
           Removing the certs de-enrolls the host; re-installing later issues a fresh certificate.
         </p>
         <div className="mt-5 flex justify-end">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">Close</button>
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Close</button>
         </div>
       </div>
     </div>
@@ -263,11 +263,11 @@ function Copyable({ text }: { text: string }) {
     <div className="relative">
       <button
         onClick={copy}
-        className="absolute right-2 top-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-accent hover:bg-surface-2"
+        className="absolute right-2 top-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-accent hover:bg-surface-2"
       >
         {copied ? 'copied ✓' : 'copy'}
       </button>
-      <code className="block whitespace-pre-wrap break-all rounded-[8px] border border-border bg-bg px-3 py-2 pr-14 text-[11px] text-emerald-300">
+      <code className="block whitespace-pre-wrap break-all rounded-[8px] border border-border bg-bg px-3 py-2 pr-14 text-[12.5px] text-emerald-300">
         {text}
       </code>
     </div>
@@ -341,48 +341,48 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
         className="w-full max-w-xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-[15px] font-semibold text-fg">Add agent</h2>
-        <p className="mb-4 text-[11px] text-dim">Pick the endpoint’s platform, then run the generated command on it.</p>
+        <h2 className="mb-1 text-[16px] font-semibold text-fg">Add agent</h2>
+        <p className="mb-4 text-[12.5px] text-dim">Pick the endpoint’s platform, then run the generated command on it.</p>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="mb-1 block text-[11px] font-medium text-muted">Operating system</span>
+            <span className="mb-1 block text-[12.5px] font-medium text-muted">Operating system</span>
             <select
               value={os}
               onChange={(e) => setOs(e.target.value)}
-              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
             >
               <option value="linux">Linux</option>
               <option value="windows">Windows</option>
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-medium text-muted">Agent name</span>
+            <span className="mb-1 block text-[12.5px] font-medium text-muted">Agent name</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. web01"
-              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-medium text-muted">Manager host</span>
+            <span className="mb-1 block text-[12.5px] font-medium text-muted">Manager host</span>
             <input
               value={host}
               onChange={(e) => setHost(e.target.value)}
-              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+              className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
             />
           </label>
           {tenants.length > 1 && (
             <label className="block">
-              <span className="mb-1 block text-[11px] font-medium text-muted">Tenant</span>
+              <span className="mb-1 block text-[12.5px] font-medium text-muted">Tenant</span>
               <select
                 value={tenantID}
                 onChange={(e) => {
                   setTenantID(e.target.value)
                   void gen(e.target.value) // re-issue the token bound to the chosen tenant
                 }}
-                className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+                className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
               >
                 <option value="">Default</option>
                 {tenants
@@ -399,36 +399,36 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
 
         <div className="mt-5 space-y-4">
           <div>
-            <div className="mb-1 text-[11px] font-medium text-muted">
+            <div className="mb-1 text-[12.5px] font-medium text-muted">
               1 · On the manager — open the firewall <span className="text-dim">(elevated PowerShell, once)</span>
             </div>
             <Copyable text={managerFw} />
           </div>
           <div>
-            <div className="mb-1 text-[11px] font-medium text-muted">
+            <div className="mb-1 text-[12.5px] font-medium text-muted">
               2 · On the endpoint — paste &amp; run{' '}
               <span className="text-dim">{os === 'windows' ? '(elevated PowerShell)' : '(root; sudo is included)'}</span>
             </div>
             <Copyable text={install} />
             {!token && (
-              <p className="mt-1 text-[11px] text-amber-400/80">{busy ? 'Generating token…' : 'No token yet — click “Generate token”.'}</p>
+              <p className="mt-1 text-[12.5px] text-amber-400/80">{busy ? 'Generating token…' : 'No token yet — click “Generate token”.'}</p>
             )}
-            <p className="mt-1 text-[11px] text-dim">
+            <p className="mt-1 text-[12.5px] text-dim">
               Downloads the agent, opens its firewall, enrolls with the token, installs an auto-start service, and connects to the gateway.
             </p>
           </div>
         </div>
 
-        {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
+        {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
 
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
             Close
           </button>
           <button
             onClick={() => gen()}
             disabled={busy}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {busy ? 'Generating…' : token ? 'Regenerate token' : 'Generate token'}
           </button>
@@ -496,15 +496,15 @@ function ConfigEditor({
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-[15px] font-semibold text-fg">Monitoring — {agent.name}</h2>
-        <p className="mb-4 text-[11px] text-dim">
+        <h2 className="mb-1 text-[16px] font-semibold text-fg">Monitoring — {agent.name}</h2>
+        <p className="mb-4 text-[12.5px] text-dim">
           Choose what this agent collects. For <code className="text-fg">fim</code> &amp;{' '}
           <code className="text-fg">wineventlog</code> set a scan interval (seconds) to control intensity.
           Saving bumps the version &amp; the agent re-applies on its next poll.
         </p>
 
         <div className="space-y-2">
-          <div className="grid grid-cols-[1fr_8rem_1.6fr_6rem_2rem] gap-2 px-1 text-[11px] uppercase tracking-wider text-dim">
+          <div className="grid grid-cols-[1fr_8rem_1.6fr_6rem_2rem] gap-2 px-1 text-[12.5px] uppercase tracking-wider text-dim">
             <span>Dataset</span>
             <span>Type</span>
             <span>Path</span>
@@ -512,7 +512,7 @@ function ConfigEditor({
             <span></span>
           </div>
           {sources.length === 0 && (
-            <p className="rounded-[8px] border border-dashed border-border px-3 py-4 text-center text-[11px] text-dim">
+            <p className="rounded-[8px] border border-dashed border-border px-3 py-4 text-center text-[12.5px] text-dim">
               No sources. Add one below (or save empty to clear).
             </p>
           )}
@@ -522,12 +522,12 @@ function ConfigEditor({
                 value={s.dataset}
                 onChange={(e) => update(i, { dataset: e.target.value })}
                 placeholder="sshd"
-                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
+                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[13.5px] outline-none focus:border-accent"
               />
               <select
                 value={s.type}
                 onChange={(e) => update(i, { type: e.target.value })}
-                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
+                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[13.5px] outline-none focus:border-accent"
               >
                 {SOURCE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -539,7 +539,7 @@ function ConfigEditor({
                 value={s.path}
                 onChange={(e) => update(i, { path: e.target.value })}
                 placeholder={s.type === 'fim' ? '/etc/passwd,/etc/ssh' : s.type === 'wineventlog' ? 'Security' : '/var/log/auth.log'}
-                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
+                className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[13.5px] outline-none focus:border-accent"
               />
               {POLL_TYPES.has(s.type) ? (
                 <input
@@ -548,10 +548,10 @@ function ConfigEditor({
                   value={s.interval || ''}
                   onChange={(e) => update(i, { interval: Number(e.target.value) })}
                   placeholder={s.type === 'fim' ? '60' : '5'}
-                  className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] outline-none focus:border-accent"
+                  className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[13.5px] outline-none focus:border-accent"
                 />
               ) : (
-                <span className="grid place-items-center text-[11px] text-dim">live</span>
+                <span className="grid place-items-center text-[12.5px] text-dim">live</span>
               )}
               <button
                 onClick={() => removeRow(i)}
@@ -615,20 +615,20 @@ function ConfigEditor({
 
         <button
           onClick={addRow}
-          className="mt-3 rounded-[8px] border border-dashed border-border px-3 py-1.5 text-[11px] text-fg hover:bg-surface-2"
+          className="mt-3 rounded-[8px] border border-dashed border-border px-3 py-1.5 text-[12.5px] text-fg hover:bg-surface-2"
         >
           + Add source
         </button>
 
-        {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
+        {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2">
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
             Cancel
           </button>
           <button
             onClick={save}
             disabled={busy}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {busy ? 'Saving…' : 'Save & push'}
           </button>
@@ -652,10 +652,10 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between gap-3">
-          <h2 className="text-[15px] font-semibold text-fg">FIM snapshots — {agent.name}</h2>
+          <h2 className="text-[16px] font-semibold text-fg">FIM snapshots — {agent.name}</h2>
           <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" className="shrink-0" />
         </div>
-        <p className="mb-3 text-[11.5px] text-dim">
+        <p className="mb-3 text-[12.5px] text-dim">
           Dated version timeline of watched files. Expand a version to see the old-vs-new diff.
         </p>
         <SnapshotBrowser agentName={agent.name} me={me} />

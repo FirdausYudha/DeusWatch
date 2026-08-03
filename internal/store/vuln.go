@@ -212,15 +212,20 @@ func (s *Store) RematchAll(ctx context.Context) (int, error) {
 	return len(agents), nil
 }
 
-// VulnSummary is one agent's vulnerability headline: counts by severity.
+// VulnSummary is one agent's vulnerability headline: counts by severity. Negligible + Unknown are
+// broken out separately (v2.8.0) so the donut totals reconcile with Total — previously an agent's
+// USN findings with empty severity fell into a hidden bucket, leaving Critical+High+Medium+Low <
+// Total with no explanation.
 type VulnSummary struct {
-	AgentName string    `json:"agent_name"`
-	Critical  int       `json:"critical"`
-	High      int       `json:"high"`
-	Medium    int       `json:"medium"`
-	Low       int       `json:"low"`
-	Total     int       `json:"total"`
-	UpdatedAt time.Time `json:"updated_at"`
+	AgentName  string    `json:"agent_name"`
+	Critical   int       `json:"critical"`
+	High       int       `json:"high"`
+	Medium     int       `json:"medium"`
+	Low        int       `json:"low"`
+	Negligible int       `json:"negligible"`
+	Unknown    int       `json:"unknown"`
+	Total      int       `json:"total"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // ListVulnSummaries returns per-agent severity counts (agents with inventory but no findings appear
@@ -232,6 +237,8 @@ func (s *Store) ListVulnSummaries(ctx context.Context) ([]VulnSummary, error) {
 		  count(*) FILTER (WHERE v.severity='high'),
 		  count(*) FILTER (WHERE v.severity='medium'),
 		  count(*) FILTER (WHERE v.severity='low'),
+		  count(*) FILTER (WHERE v.severity='negligible'),
+		  count(*) FILTER (WHERE v.severity='unknown' OR (v.cve IS NOT NULL AND (v.severity IS NULL OR v.severity=''))),
 		  count(v.cve),
 		  max(oi.updated_at)
 		FROM agent_os_inventory oi
@@ -244,7 +251,7 @@ func (s *Store) ListVulnSummaries(ctx context.Context) ([]VulnSummary, error) {
 	out := make([]VulnSummary, 0, 16)
 	for rows.Next() {
 		var v VulnSummary
-		if err := rows.Scan(&v.AgentName, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Total, &v.UpdatedAt); err != nil {
+		if err := rows.Scan(&v.AgentName, &v.Critical, &v.High, &v.Medium, &v.Low, &v.Negligible, &v.Unknown, &v.Total, &v.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

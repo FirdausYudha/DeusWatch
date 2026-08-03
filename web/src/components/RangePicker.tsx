@@ -35,7 +35,7 @@ export default function RangePicker({ range }: { range: DashRangeState }) {
   }
 
   const item = (active: boolean) =>
-    `rounded-[6px] px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+    `rounded-[6px] px-2.5 py-1 text-[12.5px] font-medium transition-colors ${
       active ? 'bg-accent text-white shadow-sm' : 'text-muted hover:text-fg'
     }`
 
@@ -71,32 +71,32 @@ export default function RangePicker({ range }: { range: DashRangeState }) {
       </div>
 
       {incomplete && !openCustom && (
-        <span className="hidden text-[11px] text-amber-300 sm:inline">range incomplete</span>
+        <span className="hidden text-[12.5px] text-amber-300 sm:inline">range incomplete</span>
       )}
 
       {openCustom && (
         <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[260px] rounded-[10px] border border-border bg-surface p-3 shadow-xl">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.4px] text-dim">
+          <div className="mb-2 text-[12.5px] font-semibold uppercase tracking-[0.4px] text-dim">
             Custom range
           </div>
-          <label className="mb-1 block text-[11px] text-muted">From</label>
+          <label className="mb-1 block text-[12.5px] text-muted">From</label>
           <input
             type="datetime-local"
             value={range.from}
             max={range.to || undefined}
             onChange={(e) => range.setFrom(e.target.value)}
-            className="mb-2 w-full rounded-[6px] border border-border bg-surface-2 px-2 py-1 text-[11.5px] text-fg outline-none focus:border-accent"
+            className="mb-2 w-full rounded-[6px] border border-border bg-surface-2 px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
           />
-          <label className="mb-1 block text-[11px] text-muted">To</label>
+          <label className="mb-1 block text-[12.5px] text-muted">To</label>
           <input
             type="datetime-local"
             value={range.to}
             min={range.from || undefined}
             onChange={(e) => range.setTo(e.target.value)}
-            className="w-full rounded-[6px] border border-border bg-surface-2 px-2 py-1 text-[11.5px] text-fg outline-none focus:border-accent"
+            className="w-full rounded-[6px] border border-border bg-surface-2 px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
           />
           {!range.resolved && (
-            <p className="mt-2 text-[11px] text-amber-300">
+            <p className="mt-2 text-[12.5px] text-amber-300">
               {range.from && range.to
                 ? 'The start must come before the end.'
                 : 'Pick both a start and an end to load data.'}
@@ -105,7 +105,7 @@ export default function RangePicker({ range }: { range: DashRangeState }) {
           <button
             onClick={() => setOpenCustom(false)}
             disabled={!range.resolved}
-            className="mt-3 w-full rounded-[6px] bg-accent px-2 py-1.5 text-[11.5px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="mt-3 w-full rounded-[6px] bg-accent px-2 py-1.5 text-[12.5px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             Apply
           </button>

@@ -33,7 +33,7 @@ export default function WorkspaceSwitcher() {
       <select
         value={active}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-[8px] border border-border bg-surface px-2 py-1 text-[12.5px] text-fg transition-colors hover:bg-surface-2 focus:outline-none"
+        className="rounded-[8px] border border-border bg-surface px-2 py-1 text-[13.5px] text-fg transition-colors hover:bg-surface-2 focus:outline-none"
       >
         <option value="">All workspaces</option>
         {workspaces.map((w) => (

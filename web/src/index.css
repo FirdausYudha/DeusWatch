@@ -113,8 +113,9 @@ body {
   background: var(--dw-bg);
   color: var(--dw-fg);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* The redesign is deliberately dense: 12.5px body, 11px labels. */
-  font-size: 12.5px;
+  /* Body baseline (bumped from 12.5px in v2.8.0 for readability). Absolute-px text-[Npx] classes
+     across the app were bumped 1-1.5px each — see the mapping table in the plan. */
+  font-size: 14px;
   transition: background-color 0.2s, color 0.2s;
 }
 

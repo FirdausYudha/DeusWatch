@@ -35,7 +35,7 @@ function ScoringWeightsPanel() {
     const sum = keys.reduce((n, [k]) => n + (vals[k] || 0), 0) || 1
     return (
       <div className="mb-3">
-        <div className="mb-1 text-[11px] font-medium text-muted">{label}</div>
+        <div className="mb-1 text-[12.5px] font-medium text-muted">{label}</div>
         <div className="grid gap-2 sm:grid-cols-2">
           {keys.map(([k, name]) => (
             <label key={k} className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface px-2 py-1.5 text-xs">
@@ -59,8 +59,8 @@ function ScoringWeightsPanel() {
     <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
       <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
         <div>
-          <h2 className="text-[12.5px] font-medium text-fg">Threat-scoring weights</h2>
-          <p className="mt-0.5 text-[12px] text-muted">
+          <h2 className="text-[13.5px] font-medium text-fg">Threat-scoring weights</h2>
+          <p className="mt-0.5 text-[13px] text-muted">
             Tune how the composite IP score and the suspicious-IP watchlist weigh their signals. Applies live.
           </p>
         </div>
@@ -69,9 +69,9 @@ function ScoringWeightsPanel() {
 
       {open && (
         <div className="mt-4">
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-dim">Composite threat score</h3>
+          <h3 className="mb-2 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Composite threat score</h3>
           <WeightRow group="composite" label="Signals" keys={[['abuse', 'AbuseIPDB'], ['fired_times', 'Fired times'], ['otx', 'OTX pulses'], ['severity', 'Worst severity'], ['anomaly', 'Anomaly (ML)'], ['fanout', 'Cross-agent fan-out']]} />
-          <label className="mb-3 flex items-center gap-2 text-[11px] text-muted">
+          <label className="mb-3 flex items-center gap-2 text-[12.5px] text-muted">
             Lookback window
             <input
               type="number" min={1} step={1} value={Math.round(cfg.composite_window_secs / 60)}
@@ -82,9 +82,9 @@ function ScoringWeightsPanel() {
             <span className="text-dim">— how long an event keeps its score doughnut (longer = stays visible on older alerts)</span>
           </label>
 
-          <h3 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-dim">Suspicious-IP watchlist</h3>
+          <h3 className="mb-2 mt-4 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Suspicious-IP watchlist</h3>
           <WeightRow group="suspicion" label="Signals" keys={[['fanout', 'Fan-out (distinct targets)'], ['fail_ratio', 'Failure ratio'], ['spread', 'Time spread'], ['volume', 'Volume']]} />
-          <label className="mb-1 flex items-center gap-2 text-[11px] text-muted">
+          <label className="mb-1 flex items-center gap-2 text-[12.5px] text-muted">
             Lookback window
             <input
               type="number" min={1} step={1} value={Math.round(cfg.suspicious_window_secs / 3600)}
@@ -97,19 +97,19 @@ function ScoringWeightsPanel() {
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button onClick={() => save(cfg)} disabled={busy}
-              className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
+              className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
               {busy ? 'Saving…' : 'Save weights'}
             </button>
             {defaults && (
               <button onClick={() => { setCfg(defaults); save(defaults) }} disabled={busy}
-                className="rounded-[8px] border border-border px-4 py-2 text-[12.5px] text-fg hover:bg-surface-2 disabled:opacity-50">
+                className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2 disabled:opacity-50">
                 Reset to defaults
               </button>
             )}
-            {msg && <span className="text-[11px] text-emerald-400">{msg}</span>}
-            {err && <span className="text-[11px] text-rose-400">{err}</span>}
+            {msg && <span className="text-[12.5px] text-emerald-400">{msg}</span>}
+            {err && <span className="text-[12.5px] text-rose-400">{err}</span>}
           </div>
-          <p className="mt-2 text-[11px] text-dim">
+          <p className="mt-2 text-[12.5px] text-dim">
             Weights are relative — each is divided by its group's total, so only the ratios matter. The caps
             (e.g. how many fired-times saturate to 100) keep their built-in values. See docs/suspicious-ips.md.
           </p>
@@ -170,13 +170,13 @@ function SubscriptionsPanel() {
   return (
     <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
       <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 text-left">
-        <h2 className="text-[12.5px] font-medium text-fg">Log subscriptions (API)</h2>
+        <h2 className="text-[13.5px] font-medium text-fg">Log subscriptions (API)</h2>
         <div className="flex items-center gap-3">
           <DocLink file="subscription-api.md" className="shrink-0" />
           <span className="text-dim">{open ? '▾' : '▸'}</span>
         </div>
       </button>
-      <p className="mb-4 mt-0.5 text-[12px] text-muted">
+      <p className="mb-4 mt-0.5 text-[13px] text-muted">
         Issue per-subscriber API keys so external customers can PULL enriched events / threat
         indicators — the sellable rich-log product. Each key is shown once; usage is tracked.
       </p>
@@ -184,20 +184,20 @@ function SubscriptionsPanel() {
       {open && (
         <>
           <div className="mb-4 flex flex-wrap items-end gap-3 rounded-[8px] border border-border bg-surface p-3">
-            <label className="text-[12.5px] text-fg">
-              <span className="mb-1 block text-[11px] text-muted">Subscriber name</span>
+            <label className="text-[13.5px] text-fg">
+              <span className="mb-1 block text-[12.5px] text-muted">Subscriber name</span>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme SOC"
-                className="w-48 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent" />
+                className="w-48 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent" />
             </label>
-            <label className="text-[12.5px] text-fg">
-              <span className="mb-1 block text-[11px] text-muted">Min severity</span>
+            <label className="text-[13.5px] text-fg">
+              <span className="mb-1 block text-[12.5px] text-muted">Min severity</span>
               <select value={minSev} onChange={(e) => setMinSev(Number(e.target.value))}
-                className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent">
+                className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent">
                 {SEVERITY_LABELS.map((l, i) => <option key={i} value={i}>{i} · {l}</option>)}
               </select>
             </label>
-            <div className="text-[12.5px] text-fg">
-              <span className="mb-1 block text-[11px] text-muted">Scopes</span>
+            <div className="text-[13.5px] text-fg">
+              <span className="mb-1 block text-[12.5px] text-muted">Scopes</span>
               <div className="flex gap-3 py-2">
                 <label className="flex items-center gap-1.5 text-xs">
                   <input type="checkbox" checked={wantEvents} onChange={(e) => setWantEvents(e.target.checked)} /> events
@@ -208,21 +208,21 @@ function SubscriptionsPanel() {
               </div>
             </div>
             <button onClick={create} disabled={busy || !name.trim()}
-              className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50">
+              className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50">
               {busy ? 'Creating…' : 'Create key'}
             </button>
           </div>
 
           {newKey && (
             <div className="mb-4 rounded-[8px] border border-emerald-900/50 bg-emerald-500/5 p-3">
-              <p className="text-[11px] text-emerald-200">New API key — copy it now, it is shown only once:</p>
-              <code className="mt-1 block break-all rounded bg-bg px-2 py-1 font-mono text-[11px] text-emerald-300">{newKey}</code>
+              <p className="text-[12.5px] text-emerald-200">New API key — copy it now, it is shown only once:</p>
+              <code className="mt-1 block break-all rounded bg-bg px-2 py-1 font-mono text-[12.5px] text-emerald-300">{newKey}</code>
             </div>
           )}
 
           {subs.length > 0 ? (
             <table className="w-full text-left text-sm">
-              <thead className="text-[11px] uppercase tracking-wider text-dim">
+              <thead className="text-[12.5px] uppercase tracking-wider text-dim">
                 <tr>
                   <th className="py-2 font-medium">Name</th>
                   <th className="py-2 font-medium">Scopes</th>
@@ -237,21 +237,21 @@ function SubscriptionsPanel() {
                 {subs.map((s) => (
                   <tr key={s.id}>
                     <td className="py-2 text-fg">{s.name}</td>
-                    <td className="py-2 text-[11px] text-muted">{s.scopes.join(', ')}</td>
+                    <td className="py-2 text-[12.5px] text-muted">{s.scopes.join(', ')}</td>
                     <td className="py-2 text-muted">{s.min_severity}</td>
                     <td className="py-2 text-muted">{s.request_count}</td>
-                    <td className="py-2 text-[11px] text-dim">{s.last_used_at ? new Date(s.last_used_at).toLocaleString() : '—'}</td>
+                    <td className="py-2 text-[12.5px] text-dim">{s.last_used_at ? new Date(s.last_used_at).toLocaleString() : '—'}</td>
                     <td className="py-2">
-                      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${s.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-surface-2 text-muted'}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${s.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-surface-2 text-muted'}`}>
                         {s.enabled ? 'enabled' : 'disabled'}
                       </span>
                     </td>
                     <td className="py-2 text-right">
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => toggle(s)} className="rounded-md border border-border px-2 py-1 text-[11px] text-fg hover:bg-surface-2">
+                        <button onClick={() => toggle(s)} className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg hover:bg-surface-2">
                           {s.enabled ? 'Disable' : 'Enable'}
                         </button>
-                        <button onClick={() => remove(s)} className="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/10">
+                        <button onClick={() => remove(s)} className="rounded-md border border-rose-500/40 px-2 py-1 text-[12.5px] text-rose-300 hover:bg-rose-500/10">
                           Revoke
                         </button>
                       </div>
@@ -261,9 +261,9 @@ function SubscriptionsPanel() {
               </tbody>
             </table>
           ) : (
-            <p className="text-[12.5px] text-dim">No subscribers yet.</p>
+            <p className="text-[13.5px] text-dim">No subscribers yet.</p>
           )}
-          {err && <p className="mt-3 text-[12.5px] text-rose-400">{err}</p>}
+          {err && <p className="mt-3 text-[13.5px] text-rose-400">{err}</p>}
         </>
       )}
     </section>
@@ -454,16 +454,16 @@ export default function Settings() {
     <div className="mx-auto max-w-4xl px-6 py-5">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 gap-3">
         <div>
-          <p className="mt-0.5 text-[12px] text-muted">Account security</p>
+          <p className="mt-0.5 text-[13px] text-muted">Account security</p>
         </div>
         <DocLink file="production.md" label="Production hardening" className="shrink-0" />
       </header>
 
       <section className="rounded-[12px] border border-border bg-surface p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[12.5px] font-medium text-fg">Two-Factor Authentication (TOTP)</h2>
+          <h2 className="text-[13.5px] font-medium text-fg">Two-Factor Authentication (TOTP)</h2>
           <span
-            className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+            className={`rounded px-2 py-0.5 text-[12.5px] font-medium ${
               enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-surface-2 text-muted'
             }`}
           >
@@ -474,7 +474,7 @@ export default function Settings() {
         {enabled === false && !setup && (
           <button
             onClick={startSetup}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90"
           >
             Enable 2FA
           </button>
@@ -482,7 +482,7 @@ export default function Settings() {
 
         {enabled === false && setup && (
           <form onSubmit={confirmEnable} className="space-y-3">
-            <p className="text-[12.5px] text-muted">
+            <p className="text-[13.5px] text-muted">
               Scan this QR with your authenticator app (Google Authenticator, Authy, 1Password…),
               then enter the 6-digit code:
             </p>
@@ -502,12 +502,12 @@ export default function Settings() {
               onChange={(e) => setCode(e.target.value)}
               placeholder="6-digit code"
               inputMode="numeric"
-              className="w-44 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] tracking-widest outline-none focus:border-accent"
+              className="w-44 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] tracking-widest outline-none focus:border-accent"
             />
             <button
               type="submit"
               disabled={busy || !code}
-              className="ml-2 rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="ml-2 rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               Confirm
             </button>
@@ -516,44 +516,44 @@ export default function Settings() {
 
         {enabled === true && (
           <form onSubmit={doDisable} className="space-y-3">
-            <p className="text-[12.5px] text-muted">Enter your current 2FA code to disable it:</p>
+            <p className="text-[13.5px] text-muted">Enter your current 2FA code to disable it:</p>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="6-digit code"
               inputMode="numeric"
-              className="w-44 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] tracking-widest outline-none focus:border-accent"
+              className="w-44 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] tracking-widest outline-none focus:border-accent"
             />
             <button
               type="submit"
               disabled={busy || !code}
-              className="ml-2 rounded-[8px] border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-[12.5px] font-medium text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
+              className="ml-2 rounded-[8px] border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-[13.5px] font-medium text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
             >
               Disable
             </button>
           </form>
         )}
 
-        {error && <p className="mt-3 text-[12.5px] text-rose-400">{error}</p>}
-        {msg && <p className="mt-3 text-[12.5px] text-emerald-400">{msg}</p>}
+        {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
+        {msg && <p className="mt-3 text-[13.5px] text-emerald-400">{msg}</p>}
       </section>
 
       <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[12.5px] font-medium text-fg">Alert notifications</h2>
+          <h2 className="text-[13.5px] font-medium text-fg">Alert notifications</h2>
           <DocLink file="notifications.md" className="shrink-0" />
         </div>
-        <p className="mb-4 mt-0.5 text-[12px] text-muted">
+        <p className="mb-4 mt-0.5 text-[13px] text-muted">
           Send an alert to your channels (Telegram / email) when an event's severity is at or above
           this level. Channels are configured via the server's environment variables.
         </p>
-        <label className="flex items-center gap-3 text-[12.5px] text-fg">
+        <label className="flex items-center gap-3 text-[13.5px] text-fg">
           Notify at or above
           <select
             value={notify?.min_severity ?? 2}
             disabled={!notify}
             onChange={(e) => saveSeverity(Number(e.target.value))}
-            className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent disabled:opacity-50"
+            className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent disabled:opacity-50"
           >
             {SEVERITY_LABELS.map((lbl, i) => (
               <option key={i} value={i}>
@@ -562,8 +562,8 @@ export default function Settings() {
             ))}
           </select>
         </label>
-        {notifyErr && <p className="mt-3 text-[12.5px] text-rose-400">{notifyErr}</p>}
-        {notifyMsg && <p className="mt-3 text-[12.5px] text-emerald-400">{notifyMsg}</p>}
+        {notifyErr && <p className="mt-3 text-[13.5px] text-rose-400">{notifyErr}</p>}
+        {notifyMsg && <p className="mt-3 text-[13.5px] text-emerald-400">{notifyMsg}</p>}
       </section>
 
       <ScoringWeightsPanel />
@@ -572,55 +572,55 @@ export default function Settings() {
 
       <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[12.5px] font-medium text-fg">Log storage lifecycle</h2>
+          <h2 className="text-[13.5px] font-medium text-fg">Log storage lifecycle</h2>
           <DocLink file="storage.md" className="shrink-0" />
         </div>
-        <p className="mb-4 mt-0.5 text-[12px] text-muted">
+        <p className="mb-4 mt-0.5 text-[13px] text-muted">
           How long logs are kept (TimescaleDB retention) and when they get compressed - the
           relational equivalent of an ILM policy. Data older than the retention window is
           dropped automatically. Compression must happen before retention.
           {storage && <span className="ml-1 text-dim">Current DB size: {storage.db_size_pretty}.</span>}
         </p>
         <form onSubmit={saveLifecycle} className="flex flex-wrap items-end gap-3">
-          <label className="text-[12.5px] text-fg">
-            <span className="mb-1 block text-[11px] text-muted">Keep logs for (days)</span>
+          <label className="text-[13.5px] text-fg">
+            <span className="mb-1 block text-[12.5px] text-muted">Keep logs for (days)</span>
             <input type="number" min={1} max={3650} value={retDays} onChange={(e) => setRetDays(e.target.value)}
-              className="w-32 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent" />
+              className="w-32 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent" />
           </label>
-          <label className="text-[12.5px] text-fg">
-            <span className="mb-1 block text-[11px] text-muted">Compress after (days)</span>
+          <label className="text-[13.5px] text-fg">
+            <span className="mb-1 block text-[12.5px] text-muted">Compress after (days)</span>
             <input type="number" min={0} value={cmpDays} onChange={(e) => setCmpDays(e.target.value)}
-              className="w-32 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent" />
+              className="w-32 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent" />
           </label>
           <button type="submit" disabled={stBusy || !retDays}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50">
+            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50">
             {stBusy ? 'Saving…' : 'Save lifecycle'}
           </button>
         </form>
-        {stErr && <p className="mt-3 text-[12.5px] text-rose-400">{stErr}</p>}
-        {stMsg && <p className="mt-3 text-[12.5px] text-emerald-400">{stMsg}</p>}
+        {stErr && <p className="mt-3 text-[13.5px] text-rose-400">{stErr}</p>}
+        {stMsg && <p className="mt-3 text-[13.5px] text-emerald-400">{stMsg}</p>}
       </section>
 
       <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
-        <h2 className="text-[12.5px] font-medium text-fg">Software updates</h2>
-        <p className="mb-4 mt-0.5 text-[12px] text-muted">
+        <h2 className="text-[13.5px] font-medium text-fg">Software updates</h2>
+        <p className="mb-4 mt-0.5 text-[13px] text-muted">
           Check whether a newer DeusWatch build is available on GitHub. Updates run on the host
           with <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">./scripts/update.sh</code> —
           the web app never controls Docker, which keeps the attack surface small.
         </p>
         <button onClick={checkUpdate} disabled={updBusy}
-          className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2 disabled:opacity-50">
+          className="rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2 disabled:opacity-50">
           {updBusy ? 'Checking…' : 'Check for update'}
         </button>
-        {updErr && <p className="mt-3 text-[12.5px] text-rose-400">{updErr}</p>}
+        {updErr && <p className="mt-3 text-[13.5px] text-rose-400">{updErr}</p>}
         {upd && (upd.update_available ? (
-          <div className="mt-3 text-[12.5px] text-amber-300">
+          <div className="mt-3 text-[13.5px] text-amber-300">
             Update available — running <span className="font-mono">{upd.current}</span>, latest <span className="font-mono">{upd.latest}</span>
             {upd.latest_date && <span className="text-dim"> ({new Date(upd.latest_date).toLocaleString('en-US')})</span>}.
             <div className="mt-1 text-muted">On the host run: <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">{upd.update_command}</code></div>
           </div>
         ) : (
-          <p className="mt-3 text-[12.5px] text-emerald-400">
+          <p className="mt-3 text-[13.5px] text-emerald-400">
             {upd.current === 'dev'
               ? `Latest on GitHub: ${upd.latest}. (This build has no version stamp — deploy via ./scripts/update.sh to enable comparison.)`
               : `Up to date (${upd.current}).`}
@@ -629,7 +629,7 @@ export default function Settings() {
       </section>
 
       <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
-        <h2 className="mb-4 text-[12.5px] font-medium text-fg">Change password</h2>
+        <h2 className="mb-4 text-[13.5px] font-medium text-fg">Change password</h2>
         <form onSubmit={submitPassword} className="space-y-3">
           <input
             type="password"
@@ -637,7 +637,7 @@ export default function Settings() {
             onChange={(e) => setCurPw(e.target.value)}
             placeholder="Current password"
             autoComplete="current-password"
-            className="block w-72 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+            className="block w-72 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
           />
           <input
             type="password"
@@ -645,7 +645,7 @@ export default function Settings() {
             onChange={(e) => setNewPw(e.target.value)}
             placeholder="New password (min 8)"
             autoComplete="new-password"
-            className="block w-72 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+            className="block w-72 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
           />
           <input
             type="password"
@@ -653,23 +653,23 @@ export default function Settings() {
             onChange={(e) => setConfirmPw(e.target.value)}
             placeholder="Confirm new password"
             autoComplete="new-password"
-            className="block w-72 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] outline-none focus:border-accent"
+            className="block w-72 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
           />
           <button
             type="submit"
             disabled={pwBusy || !curPw || newPw.length < 8 || !confirmPw}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[12.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
           >
             {pwBusy ? 'Saving…' : 'Change password'}
           </button>
         </form>
-        {pwError && <p className="mt-3 text-[12.5px] text-rose-400">{pwError}</p>}
-        {pwMsg && <p className="mt-3 text-[12.5px] text-emerald-400">{pwMsg}</p>}
+        {pwError && <p className="mt-3 text-[13.5px] text-rose-400">{pwError}</p>}
+        {pwMsg && <p className="mt-3 text-[13.5px] text-emerald-400">{pwMsg}</p>}
       </section>
 
       <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
-        <h2 className="text-[12.5px] font-medium text-fg">Config profile</h2>
-        <p className="mb-4 mt-0.5 text-[12px] text-muted">
+        <h2 className="text-[13.5px] font-medium text-fg">Config profile</h2>
+        <p className="mb-4 mt-0.5 text-[13px] text-muted">
           Export this server's settings — detection rules, ban policy, IP whitelist, the AI-report
           schedule, alert/notification settings (severity threshold + report delivery schedule), and
           integrations — as JSON to clone onto another DeusWatch server. Secrets (API keys /
@@ -678,11 +678,11 @@ export default function Settings() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={doExport}
-            className="rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2"
+            className="rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2"
           >
             ⬇ Export config
           </button>
-          <label className="cursor-pointer rounded-[8px] border border-border px-3 py-2 text-[12.5px] text-fg transition-colors hover:bg-surface-2">
+          <label className="cursor-pointer rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2">
             ⬆ Import config
             <input
               type="file"
@@ -692,8 +692,8 @@ export default function Settings() {
             />
           </label>
         </div>
-        {cfgErr && <p className="mt-3 text-[12.5px] text-rose-400">{cfgErr}</p>}
-        {cfgMsg && <p className="mt-3 text-[12.5px] text-emerald-400">{cfgMsg}</p>}
+        {cfgErr && <p className="mt-3 text-[13.5px] text-rose-400">{cfgErr}</p>}
+        {cfgMsg && <p className="mt-3 text-[13.5px] text-emerald-400">{cfgMsg}</p>}
       </section>
     </div>
   )

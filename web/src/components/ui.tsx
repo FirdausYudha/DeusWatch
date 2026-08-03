@@ -15,7 +15,7 @@ export function PageHeader({
 }) {
   return (
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>{subtitle && <p className="text-[12px] text-muted">{subtitle}</p>}</div>
+      <div>{subtitle && <p className="text-[13px] text-muted">{subtitle}</p>}</div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   )
@@ -45,9 +45,9 @@ export function Card({
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
             {kicker && (
-              <div className="text-[10px] font-medium uppercase tracking-wider text-dim">{kicker}</div>
+              <div className="text-[11px] font-medium uppercase tracking-wider text-dim">{kicker}</div>
             )}
-            {title && <div className="truncate text-[13.5px] font-bold text-fg">{title}</div>}
+            {title && <div className="truncate text-[14.5px] font-bold text-fg">{title}</div>}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
@@ -79,9 +79,9 @@ export function StatCard({
 }) {
   return (
     <div className={`rounded-[12px] border border-border bg-surface px-[18px] py-4 ${className}`}>
-      <div className="text-[12px] font-semibold uppercase tracking-[0.4px] text-dim">{label}</div>
-      <div className={`mt-1.5 text-[26px] font-bold leading-none ${accentClass}`}>{value}</div>
-      {hint && <div className="mt-1.5 text-[11px] text-muted">{hint}</div>}
+      <div className="text-[13px] font-semibold uppercase tracking-[0.4px] text-dim">{label}</div>
+      <div className={`mt-1.5 text-[28px] font-bold leading-none ${accentClass}`}>{value}</div>
+      {hint && <div className="mt-1.5 text-[12.5px] text-muted">{hint}</div>}
     </div>
   )
 }
@@ -144,7 +144,7 @@ export function StatusBadge({ status }: { status: string }) {
 export function Pill({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium ${className}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium ${className}`}
     >
       {children}
     </span>
@@ -170,7 +170,7 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`rounded-[8px] px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-45 ${BTN[variant]} ${className}`}
+      className={`rounded-[8px] px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-45 ${BTN[variant]} ${className}`}
     >
       {children}
     </button>
@@ -183,7 +183,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...rest}
-      className={`rounded-[8px] border border-border bg-surface-2 px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-dim focus:border-accent ${className}`}
+      className={`rounded-[8px] border border-border bg-surface-2 px-2.5 py-1.5 text-[13px] text-fg outline-none placeholder:text-dim focus:border-accent ${className}`}
     />
   )
 }
@@ -193,7 +193,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...rest}
-      className={`rounded-[8px] border border-border bg-surface-2 px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-accent ${className}`}
+      className={`rounded-[8px] border border-border bg-surface-2 px-2.5 py-1.5 text-[13px] text-fg outline-none focus:border-accent ${className}`}
     />
   )
 }
@@ -204,8 +204,8 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
   return (
     <div className="rounded-[12px] border border-dashed border-border px-4 py-10 text-center">
-      <div className="text-[13px] font-medium text-muted">{title}</div>
-      {hint && <div className="mx-auto mt-1 max-w-md text-[11.5px] text-dim">{hint}</div>}
+      <div className="text-[14px] font-medium text-muted">{title}</div>
+      {hint && <div className="mx-auto mt-1 max-w-md text-[12.5px] text-dim">{hint}</div>}
       {action && <div className="mt-3">{action}</div>}
     </div>
   )
@@ -216,7 +216,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {
-  return <p className="text-[12px] text-critical">{children}</p>
+  return <p className="text-[13px] text-critical">{children}</p>
 }
 
 /**
@@ -244,8 +244,8 @@ export function NoticeBanner({
     <div className={`rounded-[12px] border p-3 ${tones[tone]}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className={`text-[12.5px] font-medium ${titleTone[tone]}`}>{title}</p>
-          {children && <div className="mt-1 text-[11.5px] text-muted">{children}</div>}
+          <p className={`text-[13.5px] font-medium ${titleTone[tone]}`}>{title}</p>
+          {children && <div className="mt-1 text-[12.5px] text-muted">{children}</div>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>

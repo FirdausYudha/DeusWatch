@@ -137,7 +137,7 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
     }
   }
 
-  if (loading) return <p className="text-[12px] text-dim">Loading…</p>
+  if (loading) return <p className="text-[13px] text-dim">Loading…</p>
 
   if (paths.length === 0) {
     return (
@@ -180,8 +180,8 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
               }`}
               title={p.path}
             >
-              <span className="block truncate font-mono text-[11.5px]">{p.path}</span>
-              <span className="text-[10px] text-dim">
+              <span className="block truncate font-mono text-[12.5px]">{p.path}</span>
+              <span className="text-[11px] text-dim">
                 {p.versions} version{p.versions === 1 ? '' : 's'}
               </span>
             </button>
@@ -192,7 +192,7 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
         <div>
           {selected && (
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="mr-auto truncate font-mono text-[11px] text-dim" title={selected}>
+              <span className="mr-auto truncate font-mono text-[12.5px] text-dim" title={selected}>
                 {selected}
               </span>
               {canSnapshot && (
@@ -214,9 +214,9 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
           )}
 
           {versions.length === 0 ? (
-            <p className="text-[12px] text-dim">Select a file.</p>
+            <p className="text-[13px] text-dim">Select a file.</p>
           ) : (
-            <table className="w-full text-left text-[11.5px]">
+            <table className="w-full text-left text-[12.5px]">
               <thead className="uppercase tracking-wider text-dim">
                 <tr>
                   <th className="py-1 font-medium">Captured</th>
@@ -266,7 +266,7 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
                     {expanded === v.id && v.diff && (
                       <tr>
                         <td colSpan={5} className="pb-2">
-                          <pre className="max-h-64 overflow-auto rounded-[8px] bg-bg p-2 font-mono text-[11px] leading-relaxed">
+                          <pre className="max-h-64 overflow-auto rounded-[8px] bg-bg p-2 font-mono text-[12.5px] leading-relaxed">
                             {v.diff.split('\n').map((line, i) => (
                               <div
                                 key={i}
@@ -293,10 +293,10 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
 
           {actions.length > 0 && (
             <div className="mt-4">
-              <h3 className="mb-1 text-[10px] font-medium uppercase tracking-wider text-dim">Recent actions</h3>
+              <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-dim">Recent actions</h3>
               <ul className="space-y-1">
                 {actions.map((a) => (
-                  <li key={a.id} className="flex flex-wrap items-center gap-2 text-[11.5px]">
+                  <li key={a.id} className="flex flex-wrap items-center gap-2 text-[12.5px]">
                     <Pill className="bg-surface-2 text-fg">{a.action}</Pill>
                     <span
                       className={
@@ -319,7 +319,7 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
       </div>
 
       {error && <ErrorText>{error}</ErrorText>}
-      {msg && <p className="text-[12px] text-success">{msg}</p>}
+      {msg && <p className="text-[13px] text-success">{msg}</p>}
     </div>
   )
 }

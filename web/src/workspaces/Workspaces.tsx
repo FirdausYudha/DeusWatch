@@ -58,7 +58,7 @@ export default function Workspaces() {
   return (
     <div className="mx-auto max-w-5xl p-4 sm:p-6">
      <div className="mb-4 flex items-center justify-between">
-       <p className="text-[12.5px] text-dim">A workspace grants a team access to one or more tenants.</p>
+       <p className="text-[13.5px] text-dim">A workspace grants a team access to one or more tenants.</p>
        <DocLink file="multi-tenancy.md" />
      </div>
      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
@@ -69,23 +69,23 @@ export default function Workspaces() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="New workspace name"
-            className="min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 py-2 text-[13px] text-fg focus:outline-none focus:ring-1 focus:ring-accent"
+            className="min-w-0 flex-1 rounded-[8px] border border-border bg-surface px-3 py-2 text-[14px] text-fg focus:outline-none focus:ring-1 focus:ring-accent"
           />
           <button
             type="submit"
             disabled={!name.trim()}
-            className="rounded-[8px] bg-accent px-3 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="rounded-[8px] bg-accent px-3 py-2 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             Add
           </button>
         </form>
-        {err && <div className="mb-3 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[12px] text-critical">{err}</div>}
+        {err && <div className="mb-3 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[13px] text-critical">{err}</div>}
         <div className="flex flex-col gap-1">
           {workspaces.map((w) => (
             <div key={w.id} className="group flex items-center gap-1">
               <button
                 onClick={() => setSelected(w)}
-                className={`flex-1 rounded-[8px] px-3 py-2 text-left text-[13.5px] transition-colors ${
+                className={`flex-1 rounded-[8px] px-3 py-2 text-left text-[14.5px] transition-colors ${
                   selected?.id === w.id ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
                 }`}
               >
@@ -96,14 +96,14 @@ export default function Workspaces() {
                   onClick={() => remove(w)}
                   title="Delete workspace"
                   aria-label={`Delete ${w.name}`}
-                  className="rounded-[7px] border border-transparent px-2 py-1.5 text-[11.5px] text-dim opacity-0 transition-all hover:border-critical/50 hover:bg-critical/10 hover:text-critical group-hover:opacity-100"
+                  className="rounded-[7px] border border-transparent px-2 py-1.5 text-[12.5px] text-dim opacity-0 transition-all hover:border-critical/50 hover:bg-critical/10 hover:text-critical group-hover:opacity-100"
                 >
                   ✕
                 </button>
               )}
             </div>
           ))}
-          {workspaces.length === 0 && <div className="px-3 py-4 text-[12.5px] text-dim">No workspaces yet.</div>}
+          {workspaces.length === 0 && <div className="px-3 py-4 text-[13.5px] text-dim">No workspaces yet.</div>}
         </div>
       </div>
 
@@ -112,7 +112,7 @@ export default function Workspaces() {
         {selected ? (
           <WorkspaceEditor key={selected.id} workspace={selected} />
         ) : (
-          <div className="grid h-40 place-items-center rounded-[10px] border border-dashed border-border text-[13px] text-dim">
+          <div className="grid h-40 place-items-center rounded-[10px] border border-dashed border-border text-[14px] text-dim">
             Select a workspace to edit its tenants and members.
           </div>
         )}
@@ -167,27 +167,27 @@ function WorkspaceEditor({ workspace }: { workspace: Workspace }) {
 
   return (
     <div className="rounded-[10px] border border-border p-4">
-      <h2 className="mb-4 text-[15px] font-bold text-fg">{workspace.name}</h2>
-      {err && <div className="mb-3 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[12px] text-critical">{err}</div>}
+      <h2 className="mb-4 text-[16px] font-bold text-fg">{workspace.name}</h2>
+      {err && <div className="mb-3 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[13px] text-critical">{err}</div>}
 
       <section className="mb-5">
-        <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-dim">Tenants (data access)</h3>
+        <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-dim">Tenants (data access)</h3>
         <div className="flex flex-col gap-1.5">
           {tenants.map((t) => (
-            <label key={t.id} className="flex items-center gap-2 text-[13px] text-fg">
+            <label key={t.id} className="flex items-center gap-2 text-[14px] text-fg">
               <input type="checkbox" checked={tenantIDs.has(t.id)} onChange={() => toggle(tenantIDs, setTenantIDs, t.id)} />
               {t.name}
             </label>
           ))}
-          {tenants.length === 0 && <span className="text-[12.5px] text-dim">No tenants — create one on the Tenants page.</span>}
+          {tenants.length === 0 && <span className="text-[13.5px] text-dim">No tenants — create one on the Tenants page.</span>}
         </div>
       </section>
 
       <section className="mb-5">
-        <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-dim">Members</h3>
+        <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-dim">Members</h3>
         <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
           {users.map((u) => (
-            <label key={u.id} className="flex items-center gap-2 text-[13px] text-fg">
+            <label key={u.id} className="flex items-center gap-2 text-[14px] text-fg">
               <input type="checkbox" checked={memberIDs.has(u.id)} onChange={() => toggle(memberIDs, setMemberIDs, u.id)} />
               {u.username}
             </label>
@@ -196,10 +196,10 @@ function WorkspaceEditor({ workspace }: { workspace: Workspace }) {
       </section>
 
       <div className="flex items-center gap-3">
-        <button onClick={save} className="rounded-[8px] bg-accent px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90">
+        <button onClick={save} className="rounded-[8px] bg-accent px-4 py-2 text-[14px] font-semibold text-white transition-opacity hover:opacity-90">
           Save changes
         </button>
-        {savedMsg && <span className="text-[12.5px] text-emerald-500">{savedMsg}</span>}
+        {savedMsg && <span className="text-[13.5px] text-emerald-500">{savedMsg}</span>}
       </div>
     </div>
   )
