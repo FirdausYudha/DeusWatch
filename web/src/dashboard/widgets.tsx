@@ -492,9 +492,11 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   return (
     <div className="w-full overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full text-fg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Communication flow graph">
-        {/* Column headers */}
-        <text x={xLeft - 8} y={16} textAnchor="end" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{leftHeader}</text>
-        <text x={xRight + 8} y={16} textAnchor="start" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{rightHeader}</text>
+        {/* Column headers — anchored to the panel EDGES (not the node columns) so they never
+            clip at narrow panel widths. Pre-v2.14.4 the source header sat at xLeft-8 with
+            textAnchor="end" which pushed it left of x=0 for headers longer than ~15 chars. */}
+        <text x={4} y={16} textAnchor="start" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{leftHeader}</text>
+        <text x={W - 4} y={16} textAnchor="end" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{rightHeader}</text>
         {/* Edges — drawn first so nodes sit on top */}
         <g fill="none" strokeLinecap="round">
           {shown.map((e, i) => {
