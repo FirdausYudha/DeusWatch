@@ -1,7 +1,27 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-04 (v2.12.0 released — one-click agent self-update from the manager UI).
+> Last updated: 2026-08-04 (v2.13.0 Communication Graph + Src→Dest Graph shipped, v2.14.0 dashboard panel width customization shipped).
+
+## 2026-08-04 — v2.13.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.13.0))
+
+Two node-link diagram widgets on dashboard (the two features operator asked for at v2.10 planning):
+- **Communication Graph** (Zone & Direction): source (ASN/country/internal) → destination (agent/IP) bipartite SVG, edges coloured by traffic direction. Uses same direction palette as traffic-direction donut. Falls through: ASN if GeoLite2-ASN mounted → country → RFC1918 "internal" → "ext other".
+- **Source → Destination Graph**: attacker IP → agent CN. Simpler, no direction colouring.
+- Both dependency-free SVG (no d3, offline-first), deterministic bipartite layout (busiest at top), cap 8 nodes per side to keep readable.
+
+New env: `GEOIP_ASN_MMDB_PATH` for MaxMind GeoLite2-ASN. `CompositeProvider` grew `MaxMindASN` field.
+
+Migration `000061` adds `source_asn_number`, `source_asn_org` to `events_data` AND recreates `events` VIEW (SELECT * freezes columns at CREATE-time — 000052 warned about this footgun and I still stepped on it once in first iteration; fix rolled into the same migration).
+
+## 2026-08-04 — v2.14.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.14.0))
+
+Dashboard panel width customization — follow-up to v2.8.0's reorder-only DnD (operator: "belum ada pengaturan custom width nya"):
+- Each panel gets a 1/2/3 button group in edit mode. `DashLayout.spans` map added (additive JSON field — no migration).
+- Diff-only save: only overrides vs coded defaults are persisted, so future default-span changes propagate automatically to untouched panels.
+- Not verified end-to-end (Docker Desktop got stuck mid-verify); TS typecheck clean, wire additive.
+
+## 2026-08-04 — v2.12.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.12.0))
 
 ## 2026-08-04 — v2.12.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.12.0))
 
