@@ -1,7 +1,33 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-04 (v2.13.0 Communication Graph + Src→Dest Graph shipped, v2.14.0 dashboard panel width customization shipped).
+> Last updated: 2026-08-04 (v2.14.5 — real root cause of the "vdev" self-update bug).
+
+## 2026-08-04 — v2.14.5 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.14.5))
+
+**The "vdev" bug: two independent causes, both version plumbing.** v2.14.2 and v2.14.3 each fixed a
+real defect but neither was the cause — three releases of churn before the actual wire was found.
+
+1. `deploy/docker-compose.yml` passed the `VERSION` build-arg to `api` but **not** to `gateway`.
+   Since v2.14.1 the *gateway* serves the self-update binary (`/v1/agent-binary/{arch}`), so every
+   UI update shipped an agent stamped `dev`. Manual reinstall worked because `install.sh` downloads
+   from the *api*, which did get the arg — matching the operator's exact observation.
+2. `cmd/gateway/main.go` never declared `buildVersion`, so the Dockerfile's `-X main.buildVersion`
+   was a **silent no-op** (Go ignores `-X` for absent symbols). It read `DEUSWATCH_VERSION` from the
+   *environment*, which compose only set as a *build arg*. `managerVersion` was permanently `dev`,
+   so `MarkHealthWithVersion` compared `dev == dev`, matched, and cleared `update_requested_at` —
+   the "badge disappears, nothing upgraded" symptom.
+
+Fixes: VERSION build-arg on gateway/worker/certgen + `DEUSWATCH_VERSION` runtime env on gateway;
+gateway declares `buildVersion` and resolves **ldflag → env → const**; agent gets the same chain
+(the api always had this fallback, the agent did not — that asymmetry is what let one missing
+build-arg pin a whole fleet at the un-comparable `dev`).
+
+**Lesson for future version work:** a `-X` ldflag against an undeclared symbol fails silently. Any
+service that reports a version needs (a) a declared `buildVersion` var, (b) a compiled-in fallback
+const, and (c) the build-arg actually wired in compose. Verify with `<binary> -version`, never by
+reading the UI — the api's fallback masked the failure there.
+
 
 ## 2026-08-04 — v2.14.1 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.14.1))
 
