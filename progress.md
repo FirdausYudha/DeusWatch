@@ -1,7 +1,22 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-04 (v2.11.2 released — nftables push diagnostics + troubleshooting).
+> Last updated: 2026-08-04 (v2.12.0 released — one-click agent self-update from the manager UI).
+
+## 2026-08-04 — v2.12.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.12.0))
+
+Operator report from v2.11 rollout: after manager upgrade, agents on separate hosts stayed on old binary because `./update.sh` only rebuilds Docker containers. Manual reinstall on every endpoint = painful.
+
+Fix — self-update button per agent + fleet-wide:
+- Migration 000060 adds `agents.agent_version` + `agents.update_requested_at`.
+- Agent reports `buildVersion` on heartbeat (Dockerfile stamps `-X main.buildVersion` on cross-compiled agent binaries — previously only server binaries).
+- Gateway heartbeat handler grew from 204-only to optional 200+JSON `{update:{url,version}}` when the operator has queued an update via `POST /api/agents/{name}/update`.
+- New agent Heartbeat returns `*UpdateDirective`; when non-nil, agent downloads new binary to tmp file in same dir, atomic `os.Rename` over running executable, exits → systemd `Restart=always` boots new binary. Windows uses rename-current-aside pattern (can't rename over running exe).
+- MarkHealthWithVersion auto-clears `update_requested_at` when agent reports back at manager's version.
+- UI: Agents page grew Version column (green if match, amber if drift, "unknown" for pre-v2.12), amber banner "N agents out of date" with "Update all outdated" button, per-row Update button.
+
+Wire compat: old servers return 204 (no directive parsed), old agents don't send version (falls back to old MarkHealth path). First upgrade from pre-v2.12 fleet still needs manual reinstall — from v2.12.0 forward, every subsequent bump is one-click.
+
 
 ## 2026-08-04 — v2.11.2 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.11.2))
 
