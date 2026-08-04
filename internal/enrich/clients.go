@@ -156,11 +156,12 @@ func (c *GeoClient) Geo(ctx context.Context, ip string) (country, city string, e
 // CompositeProvider runs the configured sub-clients and merges their results.
 // Nil fields are skipped.
 type CompositeProvider struct {
-	Abuse     *AbuseIPDBClient
-	OTX       *OTXClient
-	Geo       *GeoClient      // ip-api.com — online, rate-limited (45/min free)
-	MaxMind   *MaxMindClient  // MaxMind GeoLite2 .mmdb — offline, unlimited (preferred for country)
-	Blocklist *blocklist.Set  // community blocklist (optional)
+	Abuse      *AbuseIPDBClient
+	OTX        *OTXClient
+	Geo        *GeoClient        // ip-api.com — online, rate-limited (45/min free)
+	MaxMind    *MaxMindClient    // MaxMind GeoLite2-Country .mmdb — offline (preferred for country)
+	MaxMindASN *MaxMindASNClient // MaxMind GeoLite2-ASN .mmdb    — offline (only source of ASN)
+	Blocklist  *blocklist.Set    // community blocklist (optional)
 }
 
 // Lookup satisfies Provider.
@@ -217,6 +218,19 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 			feeds, ok = append(feeds, "otx"), true
 		}
 	}
+	// ASN lookup is offline-only (no free online ASN provider we trust). Runs regardless of
+	// whether Country succeeded, since ASN is orthogonal enrichment used by the Communication
+	// Graph widget on the dashboard.
+	if p.MaxMindASN != nil {
+		if num, org, err := p.MaxMindASN.ASN(ctx, ip); err != nil {
+			log.Printf("enrich: %v", err)
+			errs = append(errs, err.Error())
+		} else if num != 0 || org != "" {
+			ind.ASNNumber = num
+			ind.ASNOrg = org
+			feeds, ok = append(feeds, "maxmind-asn"), true
+		}
+	}
 	if p.Geo != nil && (ind.CountryISO == "" || ind.City == "") {
 		if country, city, err := p.Geo.Geo(ctx, ip); err != nil {
 			log.Printf("enrich: %v", err)
@@ -242,6 +256,8 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 //	OTX_API_KEY        -> enable the OTX client
 //	GEOIP_ENABLED      -> ip-api.com online GeoIP (default TRUE as of v2.10.0; set 0/false to opt out)
 //	GEOIP_MMDB_PATH    -> path to a MaxMind GeoLite2-Country.mmdb (offline, preferred when present)
+//	GEOIP_ASN_MMDB_PATH-> path to a MaxMind GeoLite2-ASN.mmdb (v2.13.0+, needed for the
+//	                     Communication Graph widget's ASN grouping)
 //
 // If nothing is configured, it falls back to the demo MockProvider (dev) + false flag.
 func ProviderFromEnv() (Provider, bool) {
@@ -253,15 +269,18 @@ func ProviderFromEnv() (Provider, bool) {
 			geoOn = b
 		}
 	}
-	return BuildProvider(os.Getenv("ABUSEIPDB_API_KEY"), os.Getenv("OTX_API_KEY"), geoOn, os.Getenv("GEOIP_MMDB_PATH"), splitCSV(os.Getenv("BLOCKLIST_URLS")))
+	return BuildProvider(os.Getenv("ABUSEIPDB_API_KEY"), os.Getenv("OTX_API_KEY"), geoOn,
+		os.Getenv("GEOIP_MMDB_PATH"), os.Getenv("GEOIP_ASN_MMDB_PATH"),
+		splitCSV(os.Getenv("BLOCKLIST_URLS")))
 }
 
 // BuildProvider assembles a CTI provider from explicit config (used by ProviderFromEnv
 // and by the worker when the keys come from the Integrations registry instead of env).
-// mmdbPath is the MaxMind GeoLite2-Country.mmdb path — "" disables the offline lookup.
+// mmdbPath is the MaxMind GeoLite2-Country.mmdb path; asnMMDBPath the GeoLite2-ASN.mmdb path
+// — "" disables the respective offline lookup.
 // Returns the demo provider + false when nothing is configured.
-func BuildProvider(abuseKey, otxKey string, geoOn bool, mmdbPath string, blURLs []string) (Provider, bool) {
-	if abuseKey == "" && otxKey == "" && !geoOn && mmdbPath == "" && len(blURLs) == 0 {
+func BuildProvider(abuseKey, otxKey string, geoOn bool, mmdbPath, asnMMDBPath string, blURLs []string) (Provider, bool) {
+	if abuseKey == "" && otxKey == "" && !geoOn && mmdbPath == "" && asnMMDBPath == "" && len(blURLs) == 0 {
 		return NewDemoProvider(), false
 	}
 	cp := &CompositeProvider{}
@@ -280,6 +299,14 @@ func BuildProvider(abuseKey, otxKey string, geoOn bool, mmdbPath string, blURLs 
 		} else if mm != nil {
 			cp.MaxMind = mm
 			log.Printf("enrich: MaxMind GeoLite2 loaded from %s (offline, preferred country source)", mmdbPath)
+		}
+	}
+	if asnMMDBPath != "" {
+		if mm, err := NewMaxMindASNClient(asnMMDBPath); err != nil {
+			log.Printf("enrich: MaxMind ASN disabled: %v", err)
+		} else if mm != nil {
+			cp.MaxMindASN = mm
+			log.Printf("enrich: MaxMind GeoLite2-ASN loaded from %s (offline, ASN enrichment for Communication Graph)", asnMMDBPath)
 		}
 	}
 	if len(blURLs) > 0 {

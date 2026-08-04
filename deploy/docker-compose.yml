@@ -218,6 +218,9 @@ services:
       # Optional MaxMind GeoLite2-Country .mmdb — offline, no rate limit, tried BEFORE ip-api.
       # Set the path (inside the container) and mount the .mmdb via `volumes:` — see docs/geoip.md.
       GEOIP_MMDB_PATH: "${GEOIP_MMDB_PATH:-}"
+      # v2.13.0: MaxMind GeoLite2-ASN .mmdb — required for the Communication Graph widget's
+      # ASN grouping. Same mount pattern as the Country DB (see docs/geoip.md).
+      GEOIP_ASN_MMDB_PATH: "${GEOIP_ASN_MMDB_PATH:-}"
       # Community blocklist (optional): comma-separated IP/CIDR feed URLs.
       BLOCKLIST_URLS: "${BLOCKLIST_URLS:-}"
       # LLM worker (Phase 3): ANTHROPIC_API_KEY -> Claude; LLM_ENABLED=1 -> offline heuristic.

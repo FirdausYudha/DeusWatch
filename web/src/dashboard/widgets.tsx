@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useEffect, useState } from 'react'
-import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus } from '../lib/api'
+import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus, CommFlow, CommFlowDirection, SrcDstFlow } from '../lib/api'
 import { fetchAgents, agentDisplayStatus } from '../lib/api'
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
@@ -431,4 +431,178 @@ function agentTitle(a: AgentInfo, st: DisplayStatus): string {
   else parts.push('never checked in since enrolment')
   if (a.health_detail) parts.push(a.health_detail)
   return parts.join(' · ')
+}
+
+// ── Bipartite node-link graph (v2.13.0) ─────────────────────────────────────────
+// A shared SVG renderer for the Communication Graph and Source→Destination Graph. Both are
+// "flows between two node buckets" — no force simulation needed, which keeps the widget
+// dependency-free (no d3, works fully offline) and predictable to read: node order is
+// deterministic (busiest at the top), edges are quadratic bézier curves whose thickness
+// scales with the edge weight.
+type BipartiteEdge = {
+  src: string          // stable key for the left-column node (dedup + node lookup)
+  dst: string          // stable key for the right-column node
+  srcLabel: string
+  dstLabel: string
+  count: number
+  color: string        // stroke colour for this edge — direction-driven or a single hue
+  tooltip: string      // rendered as <title> so the browser shows on hover
+}
+
+// bipartiteFlow renders a two-column node-link diagram. `maxPerSide` caps how many nodes
+// each column shows (busiest first) so a hostile fleet doesn't produce a wall of overlapping
+// lines; edges pointing at trimmed nodes are dropped.
+function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
+  edges: BipartiteEdge[]
+  leftHeader: string
+  rightHeader: string
+  maxPerSide?: number
+}) {
+  if (!edges.length) return <Empty />
+  // Fold edges into per-side node totals so we can rank + trim.
+  const leftTotals = new Map<string, { label: string; count: number }>()
+  const rightTotals = new Map<string, { label: string; count: number }>()
+  for (const e of edges) {
+    const l = leftTotals.get(e.src) ?? { label: e.srcLabel, count: 0 }
+    l.count += e.count; l.label = e.srcLabel; leftTotals.set(e.src, l)
+    const r = rightTotals.get(e.dst) ?? { label: e.dstLabel, count: 0 }
+    r.count += e.count; r.label = e.dstLabel; rightTotals.set(e.dst, r)
+  }
+  const topN = <T extends { count: number }>(m: Map<string, T>): [string, T][] =>
+    Array.from(m.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, maxPerSide)
+  const leftNodes = topN(leftTotals)
+  const rightNodes = topN(rightTotals)
+  const leftKeep = new Set(leftNodes.map(([k]) => k))
+  const rightKeep = new Set(rightNodes.map(([k]) => k))
+  const shown = edges.filter((e) => leftKeep.has(e.src) && rightKeep.has(e.dst))
+  if (!shown.length) return <Empty />
+  // SVG geometry: fixed width, height grows with node count so labels don't overlap.
+  const W = 640
+  const rowH = 26
+  const rows = Math.max(leftNodes.length, rightNodes.length)
+  const H = 32 + rows * rowH
+  const xLeft = 130     // right edge of left labels (edges start here)
+  const xRight = 510    // left edge of right labels (edges end here)
+  const y0 = 28
+  const posLeft: Record<string, number> = {}
+  const posRight: Record<string, number> = {}
+  leftNodes.forEach(([k], i) => (posLeft[k] = y0 + i * rowH))
+  rightNodes.forEach(([k], i) => (posRight[k] = y0 + i * rowH))
+  const maxCount = Math.max(1, ...shown.map((e) => e.count))
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full text-fg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Communication flow graph">
+        {/* Column headers */}
+        <text x={xLeft - 8} y={16} textAnchor="end" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{leftHeader}</text>
+        <text x={xRight + 8} y={16} textAnchor="start" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{rightHeader}</text>
+        {/* Edges — drawn first so nodes sit on top */}
+        <g fill="none" strokeLinecap="round">
+          {shown.map((e, i) => {
+            const y1 = posLeft[e.src], y2 = posRight[e.dst]
+            if (y1 === undefined || y2 === undefined) return null
+            const midX = (xLeft + xRight) / 2
+            const d = `M ${xLeft} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${xRight} ${y2}`
+            const w = 1 + (e.count / maxCount) * 4
+            return (
+              <path key={i} d={d} stroke={e.color} strokeWidth={w} opacity="0.55">
+                <title>{e.tooltip}</title>
+              </path>
+            )
+          })}
+        </g>
+        {/* Left nodes */}
+        {leftNodes.map(([k, n], i) => (
+          <g key={'l-' + k}>
+            <circle cx={xLeft} cy={y0 + i * rowH} r={4} fill="currentColor" opacity="0.7" />
+            <text x={xLeft - 8} y={y0 + i * rowH + 4} textAnchor="end" fill="currentColor" className="text-[11.5px]">
+              <title>{n.label} · {n.count} events</title>
+              {truncate(n.label, 24)}
+            </text>
+          </g>
+        ))}
+        {/* Right nodes */}
+        {rightNodes.map(([k, n], i) => (
+          <g key={'r-' + k}>
+            <circle cx={xRight} cy={y0 + i * rowH} r={4} fill="currentColor" opacity="0.7" />
+            <text x={xRight + 8} y={y0 + i * rowH + 4} textAnchor="start" fill="currentColor" className="text-[11.5px]">
+              <title>{n.label} · {n.count} events</title>
+              {truncate(n.label, 20)}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+function truncate(s: string, n: number): string {
+  if (s.length <= n) return s
+  return s.slice(0, n - 1) + '…'
+}
+
+// DIRECTION_COLOR is the direction-driven palette shared by CommunicationGraphWidget and
+// the traffic-direction donut, so the two widgets read as the same visual system.
+const DIRECTION_COLOR: Record<CommFlowDirection, string> = {
+  inbound:  '#f43f5e',  // rose  — external → us (the common attack shape)
+  outbound: '#fb923c',  // orange — us → external (beaconing / exfil)
+  lateral:  '#f59e0b',  // amber — internal → internal (attacker moving inside)
+  unknown:  '#64748b',  // slate — we couldn't classify
+}
+
+// CommunicationGraphWidget (v2.13.0): grouped flows from external ASN / country / internal
+// subnet nodes to enrolled-agent or destination-IP nodes, coloured by traffic direction.
+// Data feed comes from CommunicationFlow() in the store — the SQL emits pre-computed source
+// / dest keys plus a direction label so this component is pure rendering.
+export function CommunicationGraphWidget({ data }: { data: CommFlow[] | undefined }) {
+  if (!data || data.length === 0) return <Empty />
+  const edges: BipartiteEdge[] = data.map((f) => ({
+    src: f.source_key,
+    dst: f.dest_key,
+    srcLabel: f.source_label,
+    dstLabel: f.dest_label,
+    count: f.count,
+    color: DIRECTION_COLOR[f.direction] || DIRECTION_COLOR.unknown,
+    tooltip: `${f.source_label} → ${f.dest_label}\n${f.direction} · ${f.count} events`,
+  }))
+  return (
+    <div>
+      <BipartiteFlow edges={edges} leftHeader="source (ASN / country)" rightHeader="destination" />
+      {/* Compact direction legend under the graph so operators know what the colours mean. */}
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-muted">
+        {(Object.keys(DIRECTION_COLOR) as CommFlowDirection[]).map((d) => (
+          <span key={d} className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: DIRECTION_COLOR[d] }} />
+            {d}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// SrcDstGraphWidget (v2.13.0): external attacker source IP → agent it landed on. Same
+// bipartite shape but a single edge colour (cyan) since direction is implicit ("inbound").
+export function SrcDstGraphWidget({ data, agents }: { data: SrcDstFlow[] | undefined; agents?: AgentInfo[] }) {
+  if (!data || data.length === 0) return <Empty />
+  // If we have the agents list, decorate each right-side label with the agent's own last-known
+  // source IP (from AgentInfo when present) — operator asked for "source ip (attacker) → agent
+  // (bersama source ip dari agent kita nya)".
+  const agentByName = new Map<string, AgentInfo>()
+  for (const a of agents ?? []) agentByName.set(a.name, a)
+  const edges: BipartiteEdge[] = data.map((f) => {
+    const a = agentByName.get(f.agent_name)
+    // AgentInfo doesn't carry an IP field today (v2.13.0), so we surface OS + name as the
+    // secondary label. A future migration adding agent host_ip can plug in here.
+    const dstLabel = a ? `${f.agent_name} (${a.os || 'agent'})` : f.agent_name
+    return {
+      src: f.source_ip,
+      dst: f.agent_name,
+      srcLabel: f.source_ip,
+      dstLabel,
+      count: f.count,
+      color: '#22d3ee',
+      tooltip: `${f.source_ip} → ${f.agent_name}\n${f.count} events`,
+    }
+  })
+  return <BipartiteFlow edges={edges} leftHeader="attacker IP" rightHeader="agent" />
 }

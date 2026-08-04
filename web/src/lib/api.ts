@@ -1258,6 +1258,22 @@ export type SlowScanner = {
   updated_at: string
 }
 
+// CommFlow (v2.13.0+) is one edge of the Communication Graph widget: a source (ASN or
+// country or internal subnet) → destination (agent or IP) grouped by traffic direction.
+export type CommFlowDirection = 'inbound' | 'outbound' | 'lateral' | 'unknown'
+export type CommFlow = {
+  source_key: string
+  source_label: string
+  dest_key: string
+  dest_label: string
+  direction: CommFlowDirection
+  count: number
+}
+
+// SrcDstFlow (v2.13.0+) is one edge of the Source→Destination Graph widget: an external
+// source IP → an enrolled agent (identified by name).
+export type SrcDstFlow = { source_ip: string; agent_name: string; count: number }
+
 export type DashboardData = {
   total_events: number
   total_alerts: number
@@ -1267,6 +1283,8 @@ export type DashboardData = {
   risky_ips: RiskyIP[] | null
   suspicious_ips: SuspiciousIP[] | null
   slow_scanners: SlowScanner[] | null
+  comm_flow?: CommFlow[]
+  src_dst_flow?: SrcDstFlow[]
 }
 
 // DashRange selects the dashboard window: either a relative number of hours, or an
@@ -1292,7 +1310,7 @@ export async function fetchDashboardData(range: number | DashRange = 24, bucket:
   return res.json()
 }
 
-export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow' | 'agents' | 'tenant_lines'
+export type WidgetKind = 'stat' | 'bar' | 'donut' | 'line' | 'table' | 'map' | 'risk' | 'watch' | 'slow' | 'agents' | 'tenant_lines' | 'comm_flow' | 'src_dst_flow'
 
 // TenantTimeline is one row of the superadmin-only per-tenant event trend (v2.10.0).
 export type TenantTimeline = { tenant_id: string; tenant_name: string; points: Array<{ time: string; count: number }> }

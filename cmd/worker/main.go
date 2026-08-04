@@ -115,9 +115,10 @@ func main() {
 		}
 	}
 	mmdbPath := os.Getenv("GEOIP_MMDB_PATH")
-	provider, real := enrich.BuildProvider(abuseKey, otxKey, geoOn, mmdbPath, splitCSV(os.Getenv("BLOCKLIST_URLS")))
+	asnMMDBPath := os.Getenv("GEOIP_ASN_MMDB_PATH")
+	provider, real := enrich.BuildProvider(abuseKey, otxKey, geoOn, mmdbPath, asnMMDBPath, splitCSV(os.Getenv("BLOCKLIST_URLS")))
 	if real {
-		log.Printf("worker: real CTI provider active (abuseipdb=%v otx=%v ipapi=%v maxmind=%v)", abuseKey != "", otxKey != "", geoOn, mmdbPath != "")
+		log.Printf("worker: real CTI provider active (abuseipdb=%v otx=%v ipapi=%v maxmind=%v maxmind-asn=%v)", abuseKey != "", otxKey != "", geoOn, mmdbPath != "", asnMMDBPath != "")
 	} else {
 		log.Printf("worker: mock CTI provider (add an AbuseIPDB/OTX integration or set the env keys for real)")
 	}
@@ -344,7 +345,7 @@ func main() {
 
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
-	go runCTIProviderReload(ctx, intStore, enricher, geoOn, mmdbPath, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
+	go runCTIProviderReload(ctx, intStore, enricher, geoOn, mmdbPath, asnMMDBPath, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
 
 	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
@@ -518,7 +519,7 @@ func runAggregation(ctx context.Context, runner *detect.AggregateRunner, sink in
 // from the Integrations registry every minute, rebuilding the CTI provider when the keys
 // change and applying the TTL when it changes, so adding/editing a CTI integration in the UI
 // takes effect without a worker restart. GeoIP/blocklist stay from env (restart).
-func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enricher *enrich.Enricher, geoOn bool, mmdbPath string, blURLs []string, abuseKey, otxKey string) {
+func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enricher *enrich.Enricher, geoOn bool, mmdbPath, asnMMDBPath string, blURLs []string, abuseKey, otxKey string) {
 	sig := abuseKey + "|" + otxKey
 	ttlSig := resolveCTITTL(ctx, intStore)
 	t := time.NewTicker(1 * time.Minute)
@@ -538,7 +539,7 @@ func runCTIProviderReload(ctx context.Context, intStore *integrations.Store, enr
 				continue
 			}
 			sig = ak + "|" + ox
-			provider, real := enrich.BuildProvider(ak, ox, geoOn, mmdbPath, blURLs)
+			provider, real := enrich.BuildProvider(ak, ox, geoOn, mmdbPath, asnMMDBPath, blURLs)
 			enricher.SetProvider(provider)
 			log.Printf("worker: CTI provider reloaded from UI change (real=%v abuseipdb=%v otx=%v)", real, ak != "", ox != "")
 		}

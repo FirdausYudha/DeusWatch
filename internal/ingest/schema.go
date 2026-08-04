@@ -129,6 +129,17 @@ type Endpoint struct {
 	IP   string `json:"ip,omitempty"`
 	Port uint16 `json:"port,omitempty"`
 	Geo  *Geo   `json:"geo,omitempty"`
+	// AS (v2.13.0+) carries MaxMind's autonomous_system_number + organization when the
+	// GeoLite2-ASN DB is mounted. Used by the dashboard's Communication Graph widget to
+	// group source IPs by ASN — an EXT node in that graph is one ASN, not one IP.
+	AS *AS `json:"as,omitempty"`
+}
+
+// AS is the autonomous-system pair a source IP was attributed to. Nil when the enricher
+// couldn't resolve (missing DB, private IP, unattributed range).
+type AS struct {
+	Number uint   `json:"number,omitempty"`
+	Org    string `json:"org,omitempty"`
 }
 
 // Host = host.*.

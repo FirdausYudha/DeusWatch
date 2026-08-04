@@ -7,7 +7,7 @@ import {
   type DashboardData, type WidgetKind, type EventSearch, type DashRange,
   type StorageStatus, type TimelineBucket, type Me,
 } from '../lib/api'
-import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget } from './widgets'
+import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget, CommunicationGraphWidget, SrcDstGraphWidget } from './widgets'
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
 import { PageHeader } from '../components/ui'
@@ -244,6 +244,13 @@ const PANELS: Panel[] = [
   // highest-value signal — an attacker already past the perimeter. Classification uses
   // RFC1918/loopback as "internal"; per-tenant custom subnets deferred to v2.11.
   { kind: 'donut', source: 'direction', title: 'Traffic direction', color: '#a3e635', span: 1 },
+  // Communication Graph (v2.13.0): where events flow FROM (grouped by ASN / country / internal
+  // subnet) TO (agent or destination IP), coloured by direction. Full-width so ~8 nodes on
+  // each side plus their edges have room to breathe.
+  { kind: 'comm_flow', source: 'comm_flow', title: 'Communication graph (Zone & Direction)', color: '#22d3ee', span: 3 },
+  // Source→Destination Graph (v2.13.0): attacker IP → agent it hit. Simpler than the
+  // Communication Graph — no direction colouring, no ASN dependency.
+  { kind: 'src_dst_flow', source: 'src_dst_flow', title: 'Source → Destination', color: '#22d3ee', span: 3 },
   // The slow-scanner table needs width for its columns; the donut is happy small.
   { kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', span: 2 },
   { kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', span: 1 },
@@ -297,6 +304,14 @@ function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: Dashboa
       // panel frame + "requires manage_tenants" — the panel is filtered out of PANELS below in
       // that case, so it should never actually mount.
       return <TenantLinesWidget range={geoRange} />
+    case 'comm_flow':
+      // v2.13.0: node-link diagram of source (ASN / country / internal) → destination (agent
+      // / IP) grouped by traffic direction. Requires MaxMind GeoLite2-ASN for the ASN grouping
+      // to actually show ASN nodes; falls back to country nodes when the DB isn't mounted.
+      return <CommunicationGraphWidget data={data.comm_flow} />
+    case 'src_dst_flow':
+      // v2.13.0: external attacker IP → agent it landed on. Independent of ASN enrichment.
+      return <SrcDstGraphWidget data={data.src_dst_flow} />
     default:
       return <BarChart data={data.series[w.source] ?? []} color={w.color} />
   }

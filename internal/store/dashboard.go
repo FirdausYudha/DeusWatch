@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -40,6 +41,12 @@ type DashboardData struct {
 	// SlowScanners is the MULTI-DAY watchlist: sources that keep coming back at a volume too low
 	// for any burst rule to fire. Independent of the dashboard time range (it is a days-long view).
 	SlowScanners []SlowScanner `json:"slow_scanners"`
+	// CommFlow feeds the Communication Graph widget (v2.13.0): source (ASN or country or
+	// internal-subnet) → destination (agent or IP) grouped by traffic direction.
+	CommFlow []CommFlow `json:"comm_flow,omitempty"`
+	// SrcDstFlow feeds the Source→Destination Graph widget (v2.13.0): external source IP →
+	// agent CN edge counts.
+	SrcDstFlow []SrcDstFlow `json:"src_dst_flow,omitempty"`
 }
 
 // Dashboard assembles all dashboard series for the window [since, until]. `bucketOverride`
@@ -136,6 +143,14 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time, bucketOve
 	if slow, serr := s.TopSlowScanners(ctx, 10); serr == nil {
 		d.SlowScanners = slow
 	}
+	// v2.13.0 graph widgets — best-effort, log-and-continue so a heavy CTE failing (e.g. on a
+	// pre-migration DB) never blanks the whole dashboard.
+	if cf, cerr := s.CommunicationFlow(ctx, since, until, 60); cerr == nil {
+		d.CommFlow = cf
+	}
+	if sd, serr := s.SourceDestinationFlow(ctx, since, until, 60); serr == nil {
+		d.SrcDstFlow = sd
+	}
 	return d, nil
 }
 
@@ -173,6 +188,135 @@ func (s *Store) dashCounts(ctx context.Context, query string, since, until time.
 			return nil, err
 		}
 		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// CommFlow is one edge of the Communication Graph widget: an aggregated event count between a
+// source node (grouped by ASN if we have it, else country, else "internal RFC1918", else "ext
+// other") and a destination node (an enrolled agent's CN, else the raw destination IP, else
+// "unknown"), stamped with the traffic direction.
+type CommFlow struct {
+	SourceKey   string `json:"source_key"`
+	SourceLabel string `json:"source_label"`
+	DestKey     string `json:"dest_key"`
+	DestLabel   string `json:"dest_label"`
+	Direction   string `json:"direction"` // inbound|outbound|lateral|unknown
+	Count       int64  `json:"count"`
+}
+
+// CommunicationFlow returns the top N flows for the Communication Graph widget. Grouped in SQL
+// (so the frontend gets a compact edge list, not raw event rows); ASN is preferred but the
+// classifier falls through to country → int-subnet → "ext other" when the ASN DB isn't loaded.
+func (s *Store) CommunicationFlow(ctx context.Context, since, until time.Time, limit int) ([]CommFlow, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	const q = `
+SELECT
+  CASE
+    WHEN source_ip IS NULL THEN 'unk'
+    WHEN source_asn_org IS NOT NULL AND source_asn_org <> ''
+      THEN 'asn:AS' || COALESCE(source_asn_number::text,'?') || ' ' || source_asn_org
+    WHEN source_geo_country_iso IS NOT NULL AND source_geo_country_iso <> ''
+      THEN 'cc:' || source_geo_country_iso
+    WHEN source_ip <<= '10.0.0.0/8'::cidr OR source_ip <<= '172.16.0.0/12'::cidr
+      OR source_ip <<= '192.168.0.0/16'::cidr OR source_ip <<= '127.0.0.0/8'::cidr
+      THEN 'int:internal'
+    ELSE 'ext:other'
+  END AS source_key,
+  CASE
+    WHEN agent_id IS NOT NULL AND agent_id <> '' THEN 'agent:' || agent_id
+    WHEN destination_ip IS NOT NULL THEN 'ip:' || host(destination_ip)
+    ELSE 'unk'
+  END AS dest_key,
+  CASE
+    WHEN source_ip IS NULL THEN 'unknown'
+    WHEN (source_ip <<= '10.0.0.0/8'::cidr OR source_ip <<= '172.16.0.0/12'::cidr
+       OR source_ip <<= '192.168.0.0/16'::cidr OR source_ip <<= '127.0.0.0/8'::cidr)
+      AND destination_ip IS NOT NULL
+      AND (destination_ip <<= '10.0.0.0/8'::cidr OR destination_ip <<= '172.16.0.0/12'::cidr
+        OR destination_ip <<= '192.168.0.0/16'::cidr OR destination_ip <<= '127.0.0.0/8'::cidr)
+      THEN 'lateral'
+    WHEN (source_ip <<= '10.0.0.0/8'::cidr OR source_ip <<= '172.16.0.0/12'::cidr
+       OR source_ip <<= '192.168.0.0/16'::cidr OR source_ip <<= '127.0.0.0/8'::cidr)
+      AND destination_ip IS NOT NULL
+      THEN 'outbound'
+    WHEN NOT (source_ip <<= '10.0.0.0/8'::cidr OR source_ip <<= '172.16.0.0/12'::cidr
+          OR source_ip <<= '192.168.0.0/16'::cidr OR source_ip <<= '127.0.0.0/8'::cidr)
+      AND (destination_ip IS NOT NULL OR (agent_id IS NOT NULL AND agent_id <> ''))
+      THEN 'inbound'
+    ELSE 'unknown'
+  END AS direction,
+  count(*) AS n
+FROM events
+WHERE time >= $1 AND time <= $2 AND (source_ip IS NOT NULL OR destination_ip IS NOT NULL OR agent_id IS NOT NULL)
+GROUP BY 1, 2, 3
+ORDER BY n DESC
+LIMIT $3`
+	rows, err := s.q(ctx).Query(ctx, q, since, until, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: comm flow: %w", err)
+	}
+	defer rows.Close()
+	out := make([]CommFlow, 0, limit)
+	for rows.Next() {
+		var f CommFlow
+		if err := rows.Scan(&f.SourceKey, &f.DestKey, &f.Direction, &f.Count); err != nil {
+			return nil, err
+		}
+		f.SourceLabel = strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(f.SourceKey, "asn:"), "cc:"), "int:"), "ext:")
+		f.DestLabel = strings.TrimPrefix(strings.TrimPrefix(f.DestKey, "agent:"), "ip:")
+		if f.SourceLabel == "" {
+			f.SourceLabel = "unknown"
+		}
+		if f.DestLabel == "" {
+			f.DestLabel = "unknown"
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+// SrcDstFlow is one edge of the Source→Destination Graph widget: an external source IP → an
+// enrolled agent (identified by name; the agent's own last-known source IP is looked up
+// separately in the frontend from the agents list).
+type SrcDstFlow struct {
+	SourceIP  string `json:"source_ip"`
+	AgentName string `json:"agent_name"`
+	Count     int64  `json:"count"`
+}
+
+// SourceDestinationFlow returns the top N attacker-IP → agent flows for the widget. Filters
+// out events with no agent_id (there's nothing to draw on the right side) and rows where the
+// source itself is one of our agents (a self-generated event is not "attacker → agent").
+func (s *Store) SourceDestinationFlow(ctx context.Context, since, until time.Time, limit int) ([]SrcDstFlow, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	const q = `
+SELECT host(source_ip), agent_id, count(*) AS n
+FROM events
+WHERE time >= $1 AND time <= $2
+  AND source_ip IS NOT NULL
+  AND agent_id IS NOT NULL AND agent_id <> ''
+  AND NOT (source_ip <<= '10.0.0.0/8'::cidr OR source_ip <<= '172.16.0.0/12'::cidr
+       OR source_ip <<= '192.168.0.0/16'::cidr OR source_ip <<= '127.0.0.0/8'::cidr)
+GROUP BY 1, 2
+ORDER BY n DESC
+LIMIT $3`
+	rows, err := s.q(ctx).Query(ctx, q, since, until, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: src-dst flow: %w", err)
+	}
+	defer rows.Close()
+	out := make([]SrcDstFlow, 0, limit)
+	for rows.Next() {
+		var f SrcDstFlow
+		if err := rows.Scan(&f.SourceIP, &f.AgentName, &f.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
 	}
 	return out, rows.Err()
 }

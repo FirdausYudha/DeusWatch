@@ -210,6 +210,10 @@ func applyIPIndicator(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 			ev.Source.Geo.CityName = ind.City
 		}
 	}
+	// v2.13.0: MaxMind GeoLite2-ASN attribution, feeds the Communication Graph widget.
+	if ind.ASNNumber != 0 || ind.ASNOrg != "" {
+		ev.Source.AS = &ingest.AS{Number: ind.ASNNumber, Org: ind.ASNOrg}
+	}
 
 	// Dynamic severity escalation (section 9); cumulative with any FIM bump. Community reputation
 	// (AbuseIPDB, OTX) is COMMUNITY-VERIFIED intelligence: an IP the community has already agreed is

@@ -257,7 +257,8 @@ INSERT INTO events (
 	file_diff,
 	process_name, process_pid,
 	http_method, http_uri, http_status, http_host,
-	tenant_id
+	tenant_id,
+	source_asn_number, source_asn_org
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -285,7 +286,8 @@ INSERT INTO events (
 		$52::uuid,
 		(SELECT a.tenant_id FROM agents a WHERE a.name = $13),
 		'00000000-0000-0000-0000-000000000001'::uuid
-	)
+	),
+	$53, $54
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
@@ -343,12 +345,19 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	}
 	fhVerdict = strOrNil(e.DeusWatch.FileHash.Verdict)
 	fhDetail = strOrNil(e.DeusWatch.FileHash.Detail)
+	var srcASNNum, srcASNOrg any = nil, nil
 	if e.Source != nil {
 		srcIP = strOrNil(e.Source.IP)
 		srcPort = portOrNil(e.Source.Port)
 		if e.Source.Geo != nil {
 			srcGeoCountry = strOrNil(e.Source.Geo.CountryISOCode)
 			srcGeoCity = strOrNil(e.Source.Geo.CityName)
+		}
+		if e.Source.AS != nil {
+			if e.Source.AS.Number != 0 {
+				srcASNNum = int(e.Source.AS.Number)
+			}
+			srcASNOrg = strOrNil(e.Source.AS.Org)
 		}
 	}
 	if e.Host != nil {
@@ -410,6 +419,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		procName, procPID,
 		httpMethod, httpURI, httpStatus, httpHost,
 		tenantOverride,
+		srcASNNum, srcASNOrg,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

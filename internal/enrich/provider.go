@@ -17,6 +17,8 @@ type Indicator struct {
 	OTXPulseCount   int    // OTX pulse count
 	CountryISO      string // ISO country code (GeoIP)
 	City            string // city (GeoIP, optional)
+	ASNNumber       uint   // v2.13.0+: MaxMind GeoLite2-ASN autonomous_system_number
+	ASNOrg          string // v2.13.0+: MaxMind GeoLite2-ASN autonomous_system_organization
 	FeedName        string // source, e.g. "abuseipdb,otx" / "mock"
 }
 
