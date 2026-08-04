@@ -1,7 +1,25 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-03 (v2.10.0 released — GeoIP always-on + MaxMind fallback + traffic direction + per-tenant trend).
+> Last updated: 2026-08-04 (v2.11.0 released — nftables_agent integration actually pushes to the agent).
+
+## 2026-08-04 — v2.11.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.11.0))
+
+Bug fix (operator report): "nftables integration configured in UI, but `sudo nft list tables` on agent host has no `deuswatch` table". Root cause — the agent's firewall loop was env-var-gated (`AGENT_FIREWALL=nftables`) and the manager's integration config (table/set/agent_scope) was NEVER delivered to the agent. `/v1/blocklist` returned raw `[]string` for every agent regardless of scope.
+
+Fix:
+- `/v1/blocklist` envelope grew to `{enabled, table, set, ips}` (backwards-compat: pre-v2.11 servers decode as `Enabled=false`).
+- Gateway resolves per-agent config by matching CN against `agent_scope`; defaults `deuswatch`/`blocklist` applied server-side.
+- Agent runs firewall loop unconditionally on Linux; applies only when server says `Enabled=true`. `AGENT_FIREWALL=nftables` kept as local force-on override.
+- No auto-teardown when integration is disabled (documented manual `nft delete table` step).
+- New `docs/nftables-agent.md`; Catalog entry linked to it via DocLink.
+
+Upgrade note: agents must be reinstalled/updated to v2.11.0 binary to parse the new envelope.
+
+Not verified end-to-end in browser (Docker Desktop was down at release time) — code compiles clean and change is wire-backwards-compat, but agent-host smoke test still pending.
+
+Still deferred: Communication Graph (ASN node-link), Source→Destination node-link, ML super-slow scanner auto-ticket, per-tenant custom internal-subnets whitelist for the direction classifier.
+
 
 ## 2026-08-03 — v2.10.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.10.0))
 
