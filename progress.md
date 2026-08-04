@@ -1,7 +1,15 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-04 (v2.11.0 released — nftables_agent integration actually pushes to the agent).
+> Last updated: 2026-08-04 (v2.11.1 released — dashboard range-change perf + map zoom cap + docs index).
+
+## 2026-08-04 — v2.11.1 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.11.1))
+
+Operator feedback follow-ups:
+- **Dashboard range change felt heavy** ("berat sekali" 1h↔6h↔24h). Root cause: `SELECT count(*) FROM events` (all-time, no time filter) ran on every refresh — dominated tail latency on any events table with real data. Rescoped Total events / Total alerts counters to `[since, until]` so Timescale chunk pruning kicks in. Also rewrote traffic-direction SQL to pure boolean CASE (no CTE, no EXISTS subquery). Frontend now fires health/storage/dashboard in parallel + shows a "Loading…" pill in the header on range change.
+- **Map zoom out limit**: bumped MIN_K from 0.5 → 1.0 in AttackGeoMap. Below 100% the SVG shrank inside its viewBox and left disorienting dead space. Zoom-out button + wheel snap to origin at MIN_K.
+- **Docs index**: README now links `docs/nftables-agent.md` (v2.11.0) and `docs/geoip.md` (v2.10.0) — previously only reachable by knowing the filename.
+
 
 ## 2026-08-04 — v2.11.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.11.0))
 
