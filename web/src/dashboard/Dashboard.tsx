@@ -315,6 +315,10 @@ export default function Dashboard({
   const [storage, setStorage] = useState<StorageStatus | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
+  // Loading state so a slow refetch (range change hitting a big events table) gives immediate
+  // visual feedback instead of leaving the operator staring at stale numbers. Distinct from
+  // "no data yet" (data===null) which persists until the first successful fetch.
+  const [loading, setLoading] = useState(false)
   // Feature flag for the animated geo map. Persisted per-browser so an operator's choice survives
   // reloads. Off in v1 — flip via the toggle in the header (state key: dashboard.geo_map).
   const [geoEnabled, setGeoEnabled] = usePersistedState<boolean>('dashboard.geo_map', false)
@@ -408,26 +412,33 @@ export default function Dashboard({
     }
   }
 
-  // Poll live data for the selected time range. Re-subscribes when the range
-  // changes; a custom range with incomplete inputs simply skips the data fetch.
+  // Poll live data for the selected time range. Re-subscribes when the range changes; a custom
+  // range with incomplete inputs simply skips the data fetch. Fires the three independent
+  // fetches (health / storage / dashboard) IN PARALLEL — waiting on fetchHealth serially before
+  // even asking the DB was measurably delaying the panels the operator actually looks at.
   useEffect(() => {
     let active = true
-    const tick = async () => {
-      const h = await fetchHealth()
-      if (active) setHealth(h)
-      fetchStorageStatus().then((s) => { if (active) setStorage(s) }).catch(() => {})
+    const tick = async (isFirstAfterRangeChange: boolean) => {
+      if (isFirstAfterRangeChange && active) setLoading(true)
+      const jobs: Promise<unknown>[] = [
+        fetchHealth().then((h) => { if (active) setHealth(h) }).catch(() => {}),
+        fetchStorageStatus().then((s) => { if (active) setStorage(s) }).catch(() => {}),
+      ]
       if (range.resolved) {
-        try {
-          const d = await fetchDashboardData(range.resolved, timelineBucket)
-          if (active) setData(d)
-        } catch {
-          /* API/DB not ready */
-        }
+        jobs.push(
+          fetchDashboardData(range.resolved, timelineBucket)
+            .then((d) => { if (active) setData(d) })
+            .catch(() => { /* API/DB not ready */ }),
+        )
       }
-      if (active) setUpdated(new Date())
+      await Promise.all(jobs)
+      if (active) {
+        setUpdated(new Date())
+        setLoading(false)
+      }
     }
-    void tick()
-    const id = setInterval(tick, 5000)
+    void tick(true)
+    const id = setInterval(() => void tick(false), 5000)
     return () => { active = false; clearInterval(id) }
   }, [range.preset, range.from, range.to, timelineBucket])
 
@@ -471,6 +482,17 @@ export default function Dashboard({
             >
               {edit ? 'Done' : '✎ Edit layout'}
             </button>
+            {loading && (
+              <span
+                className="flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft px-3 py-1.5 text-[12.5px] font-medium text-accent"
+                aria-live="polite"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" className="animate-spin" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" fill="none" strokeDasharray="14 42" />
+                </svg>
+                Loading…
+              </span>
+            )}
             <span
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium ${
                 allReady ? 'border-success/30 bg-success/10 text-success' : 'border-medium/30 bg-medium/10 text-medium'

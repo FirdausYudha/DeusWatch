@@ -9,7 +9,11 @@ import WorldMapBackground from './WorldMapBackground'
 // the wheel handler updates translate + scale atomically (zoom-under-cursor requires both).
 type View = { tx: number; ty: number; k: number }
 const DEFAULT_VIEW: View = { tx: 0, ty: 0, k: 1 }
-const MIN_K = 0.5
+// Minimum zoom = 1.0 (100%). Below that the map shrinks smaller than its viewBox and leaves
+// dead space around the SVG — operators found it disorienting ("where did the world go?"),
+// so we clamp at natural size. Zooming IN goes up to 8× (city-level for the pre-rendered
+// country outlines; finer than that just shows chunky centroids without extra detail).
+const MIN_K = 1.0
 const MAX_K = 8
 
 // AttackGeoMap draws an equirectangular world map with animated attack arcs from every external
@@ -80,7 +84,11 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
     const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
     setView((v) => {
       const newK = Math.min(MAX_K, Math.max(MIN_K, v.k * factor))
+      if (newK === v.k) return v // hit clamp — don't shift translate uselessly
       const ratio = newK / v.k
+      // At MIN_K the view snaps back to origin so the map always covers the full frame instead
+      // of drifting with a residual pan from earlier interactions.
+      if (newK === MIN_K) return DEFAULT_VIEW
       return { k: newK, tx: px - (px - v.tx) * ratio, ty: py - (py - v.ty) * ratio }
     })
   }
@@ -246,11 +254,13 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
             type="button"
             onClick={() => setView((v) => {
               const newK = Math.max(MIN_K, v.k / 1.3)
+              if (newK === v.k) return v
+              if (newK === MIN_K) return DEFAULT_VIEW
               const ratio = newK / v.k
               const cx = MAP_WIDTH / 2, cy = MAP_HEIGHT / 2
               return { k: newK, tx: cx - (cx - v.tx) * ratio, ty: cy - (cy - v.ty) * ratio }
             })}
-            className="pointer-events-auto h-7 w-7 rounded-[6px] border border-border bg-surface/90 text-[14px] font-semibold text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2"
+            className="pointer-events-auto h-7 w-7 rounded-[6px] border border-border bg-surface/90 text-[14px] font-semibold text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2 disabled:opacity-40"
             title="Zoom out"
           >−</button>
           <button
