@@ -44,7 +44,27 @@ type heartbeatBody struct {
 }
 
 // BlocklistFunc returns the source IPs agents should block (empty when none/disabled).
+// LEGACY signature: kept so the interface stays stable while the response envelope evolves
+// (see BlocklistConfigFunc below, which lets the manager tell the agent which nftables
+// table/set to use and whether the agent-side firewall is enabled AT ALL for this CN).
 type BlocklistFunc func(ctx context.Context) ([]string, error)
+
+// BlocklistConfig is what a single agent should apply to its local firewall. Enabled=false
+// means the manager has NOT configured the nftables_agent integration for this CN — the
+// agent must NOT touch its firewall (leave any pre-existing rules alone; no auto-teardown,
+// operators dislike surprises). Table/Set are the integration's chosen names, defaulted
+// server-side so the agent never has to know the defaults.
+type BlocklistConfig struct {
+	Enabled bool     `json:"enabled"`
+	Table   string   `json:"table"`
+	Set     string   `json:"set"`
+	IPs     []string `json:"ips"`
+}
+
+// BlocklistConfigFunc resolves the per-agent firewall envelope: the manager checks whether an
+// enabled nftables_agent integration covers the calling CN (agent_scope) and returns Enabled
+// accordingly, together with the chosen table/set and the current block set.
+type BlocklistConfigFunc func(ctx context.Context, agentCN string) (BlocklistConfig, error)
 
 // FileTarget is a known-bad file (path + hash) the agent should quarantine/delete.
 type FileTarget struct {
@@ -100,6 +120,10 @@ func QuarantineHandler(fn QuarantineFunc) http.HandlerFunc {
 
 // BlocklistHandler serves the agent-side auto-block list over mTLS. Agents poll this and
 // apply the IPs to their local nftables set.
+//
+// LEGACY handler kept for older agents whose parser only expects {"ips": [...]}. New
+// deployments should mount BlocklistConfigHandler at the same path instead — it returns the
+// same "ips" field for old agents PLUS enabled/table/set for new ones.
 func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ips := []string{}
@@ -110,6 +134,32 @@ func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string][]string{"ips": ips})
+	}
+}
+
+// BlocklistConfigHandler is the v2.11.0 replacement: response envelope carries not just the
+// IPs but the enable flag and the table/set names, so the agent no longer needs a local
+// AGENT_FIREWALL env var to activate — the manager's nftables_agent integration is the
+// source of truth. Backwards-compatible on the wire: the "ips" field is unchanged, older
+// agents ignore the new fields (they simply won't know to activate their firewall from the
+// server side, which is the pre-v2.11 behaviour anyway).
+func BlocklistConfigHandler(fn BlocklistConfigFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		out := BlocklistConfig{IPs: []string{}}
+		if fn != nil {
+			var cn string
+			if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+				cn = r.TLS.PeerCertificates[0].Subject.CommonName
+			}
+			if got, err := fn(r.Context(), cn); err == nil {
+				out = got
+				if out.IPs == nil {
+					out.IPs = []string{}
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(out)
 	}
 }
 

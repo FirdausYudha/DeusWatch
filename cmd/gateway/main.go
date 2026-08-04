@@ -76,7 +76,7 @@ func main() {
 	var cfgFunc gateway.ConfigFunc
 	var seenFunc gateway.SeenFunc
 	var healthFunc gateway.HealthFunc
-	var blockFunc gateway.BlocklistFunc
+	var blockCfgFunc gateway.BlocklistConfigFunc
 	var quarantineFunc gateway.QuarantineFunc
 	var containFunc gateway.ContainmentFunc
 	var restoreFunc gateway.RestoreFunc
@@ -177,16 +177,46 @@ func main() {
 				}
 				return st.ReplaceInventory(ctx, cn, inv)
 			}
-			// Agent-side auto-block: only feed the blocklist when the admin has enabled an
-			// nftables_agent integration; the IPs are the active response-engine blocks.
+			// Agent-side auto-block: return a per-agent envelope. The manager's nftables_agent
+			// integration is the source of truth — agent_scope filters which CNs it applies to;
+			// table/set from the integration config override the agent's defaults. Pre-v2.11
+			// this only returned IPs and the agent had to have AGENT_FIREWALL=nftables set
+			// locally to do anything, which meant the UI integration was silently useless if
+			// the operator hadn't also configured the env var. The v2.11 envelope makes the
+			// integration the single source of truth.
 			rs := respond.NewStore(st.Pool())
 			pool := st.Pool()
-			blockFunc = func(ctx context.Context) ([]string, error) {
-				on, err := integrations.HasEnabled(ctx, pool, "nftables_agent")
-				if err != nil || !on {
-					return nil, err
+			blockCfgFunc = func(ctx context.Context, agentCN string) (gateway.BlocklistConfig, error) {
+				out := gateway.BlocklistConfig{Table: "deuswatch", Set: "blocklist", IPs: []string{}}
+				cfgs, err := integrations.ListEnabledConfigs(ctx, pool, "nftables_agent")
+				if err != nil {
+					return out, err
 				}
-				return rs.ActiveBlocks(ctx)
+				var match *integrations.EnabledConfig
+				for i := range cfgs {
+					if integrations.AgentScopeMatches(cfgs[i].Config["agent_scope"], agentCN) {
+						match = &cfgs[i]
+						break
+					}
+				}
+				if match == nil {
+					return out, nil // Enabled stays false — agent will not touch its firewall
+				}
+				if v := strings.TrimSpace(match.Config["table"]); v != "" {
+					out.Table = v
+				}
+				if v := strings.TrimSpace(match.Config["set"]); v != "" {
+					out.Set = v
+				}
+				ips, err := rs.ActiveBlocks(ctx)
+				if err != nil {
+					return out, err
+				}
+				out.Enabled = true
+				if ips != nil {
+					out.IPs = ips
+				}
+				return out, nil
 			}
 			// Endpoint file quarantine: only feed the known-bad file list when the admin has
 			// enabled the file_quarantine integration. Agents must also opt in on the host.
@@ -225,7 +255,7 @@ func main() {
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
 	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc, healthFunc, revoked))
-	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistHandler(blockFunc))
+	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistConfigHandler(blockCfgFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))
 	mux.HandleFunc("GET /v1/restore", gateway.RestoreHandler(restoreFunc))

@@ -243,28 +243,42 @@ func (s *Shipper) Heartbeat(ctx context.Context, health Health) error {
 	return nil
 }
 
-// FetchBlocklist retrieves the source IPs the manager wants this agent's firewall to
-// block (GET /v1/blocklist). Returns an empty slice when none/disabled.
-func (s *Shipper) FetchBlocklist(ctx context.Context) ([]string, error) {
+// BlocklistConfig is what the manager tells this agent to apply. Enabled=false means the
+// nftables_agent integration is off for this CN and the agent must not touch its firewall.
+// v2.11.0: the envelope grew from `{ips:[]}` to `{enabled,table,set,ips}` so the manager's
+// integration is the single source of truth; older servers without the new fields land as
+// Enabled=false (the field is zero-value), preserving the historical "env-var-only" gating.
+type BlocklistConfig struct {
+	Enabled bool     `json:"enabled"`
+	Table   string   `json:"table"`
+	Set     string   `json:"set"`
+	IPs     []string `json:"ips"`
+}
+
+// FetchBlocklist retrieves the manager's per-agent firewall envelope (GET /v1/blocklist).
+// Wire-compatible with pre-v2.11 servers: an "ips"-only response decodes with Enabled=false,
+// Table/Set empty, and the calling loop keeps its historical opt-in-via-env behaviour.
+func (s *Shipper) FetchBlocklist(ctx context.Context) (BlocklistConfig, error) {
+	var out BlocklistConfig
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/v1/blocklist", nil)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("agent: fetch blocklist (status %d)", resp.StatusCode)
+		return out, fmt.Errorf("agent: fetch blocklist (status %d)", resp.StatusCode)
 	}
-	var body struct {
-		IPs []string `json:"ips"`
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return out, err
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
-		return nil, err
+	if out.IPs == nil {
+		out.IPs = []string{}
 	}
-	return body.IPs, nil
+	return out, nil
 }
 
 // FetchQuarantine retrieves the known-bad files the manager wants this agent to

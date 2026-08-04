@@ -137,10 +137,13 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	// Resend buffered batches (store-and-forward) + heartbeat.
 	go drainBuffer(ctx, shipper, buf)
 	go heartbeatLoop(ctx, shipper, buf, onConfigChange)
-	// Agent-side firewall auto-block (opt-in via AGENT_FIREWALL=nftables, Linux only):
-	// poll the manager's blocklist and apply it to a local nftables set.
-	if strings.EqualFold(os.Getenv("AGENT_FIREWALL"), "nftables") {
-		go runFirewall(ctx, shipper)
+	// Agent-side firewall auto-block. v2.11.0: the manager's nftables_agent integration is the
+	// source of truth — the poll loop always runs, but ApplyBlocklist only fires when the
+	// server envelope says Enabled=true (i.e. the operator configured the integration AND its
+	// agent_scope covers this CN). AGENT_FIREWALL=nftables is kept as a local force-on for
+	// operators who prefer env-driven activation (e.g. air-gapped or IaC-driven deployments).
+	if runtime.GOOS == "linux" {
+		go runFirewall(ctx, shipper, strings.EqualFold(os.Getenv("AGENT_FIREWALL"), "nftables"))
 	}
 	// Endpoint file remediation (opt-in via AGENT_FILE_REMEDIATION=quarantine|delete):
 	// poll the manager's known-bad file list and quarantine/delete matching files.
@@ -341,34 +344,63 @@ func drainBuffer(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer)
 	}
 }
 
-// runFirewall polls the manager's blocklist and syncs it into the local nftables set.
-// Table/set names come from NFT_TABLE/NFT_SET (defaults deuswatch/blocklist).
-func runFirewall(ctx context.Context, shipper *agent.Shipper) {
-	table := getenv("NFT_TABLE", "deuswatch")
-	set := getenv("NFT_SET", "blocklist")
+// runFirewall polls the manager's per-agent firewall envelope and syncs the block set into
+// nftables. Behaviour (v2.11.0):
+//
+//   - envelope.Enabled=false → skip (do NOT touch the firewall; leave any pre-existing rules
+//     alone — teardown is the operator's call, we never rm the table under them)
+//   - envelope.Enabled=true → ensure the table/chain/set exist and reconcile the IP set
+//
+// envForceOn=true (AGENT_FIREWALL=nftables env var set) forces Enabled=true regardless of
+// what the server says, preserving pre-v2.11 opt-in-via-env deployments where the operator
+// has always driven activation locally.
+//
+// Table/Set names precedence: local env NFT_TABLE/NFT_SET override the server, so an
+// operator can pin custom names on a specific host. Otherwise the server's envelope values
+// win (mirroring the integration's config field), falling back to deuswatch/blocklist.
+func runFirewall(ctx context.Context, shipper *agent.Shipper, envForceOn bool) {
+	envTable := os.Getenv("NFT_TABLE")
+	envSet := os.Getenv("NFT_SET")
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
-	last := ""
+	// Run once immediately so the operator doesn't wait a full poll cycle after startup to
+	// see the manager's rules land.
+	tick := func() {
+		cfg, err := shipper.FetchBlocklist(ctx)
+		if err != nil {
+			log.Printf("agent: fetch blocklist: %v", err)
+			return
+		}
+		if !cfg.Enabled && !envForceOn {
+			return // integration off / scope-excluded for this CN — never touch the firewall
+		}
+		table := envTable
+		if table == "" {
+			table = cfg.Table
+		}
+		if table == "" {
+			table = "deuswatch"
+		}
+		set := envSet
+		if set == "" {
+			set = cfg.Set
+		}
+		if set == "" {
+			set = "blocklist"
+		}
+		if err := agent.ApplyBlocklist(table, set, cfg.IPs); err != nil {
+			log.Printf("agent: apply blocklist: %v", err)
+			return
+		}
+		log.Printf("agent: firewall synced %d blocked IP(s) into nft set %s/%s", len(cfg.IPs), table, set)
+	}
+	tick()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			ips, err := shipper.FetchBlocklist(ctx)
-			if err != nil {
-				log.Printf("agent: fetch blocklist: %v", err)
-				continue
-			}
-			key := strings.Join(ips, ",")
-			if key == last {
-				continue // unchanged
-			}
-			if err := agent.ApplyBlocklist(table, set, ips); err != nil {
-				log.Printf("agent: apply blocklist: %v", err)
-				continue
-			}
-			last = key
-			log.Printf("agent: firewall synced %d blocked IP(s) into nft set %s/%s", len(ips), table, set)
+			tick()
 		}
 	}
 }

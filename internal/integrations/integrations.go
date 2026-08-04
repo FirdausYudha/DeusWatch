@@ -63,7 +63,9 @@ var Catalog = []TypeInfo{
 	},
 	{
 		Type: "nftables_agent", Label: "Linux firewall — nftables (agent-side)", Category: "firewall",
-		Desc: "Auto-block on the endpoint: the agent adds blocking rules to a local nftables set.",
+		Desc: "Auto-block on the endpoint: the agent adds blocking rules to a local nftables set. " +
+			"Enable this here and the agent picks it up on its next poll (~30 s) — no per-host env-var required.",
+		Doc: "nftables-agent.md",
 		Fields: []Field{
 			{Key: "table", Label: "nft table", Optional: true, Help: "default: deuswatch"},
 			{Key: "set", Label: "nft set", Optional: true, Help: "default: blocklist"},
@@ -168,6 +170,63 @@ func HasEnabled(ctx context.Context, pool *pgxpool.Pool, typ string) (bool, erro
 	var ok bool
 	err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM integrations WHERE type=$1 AND enabled)`, typ).Scan(&ok)
 	return ok, err
+}
+
+// EnabledConfig is one enabled integration's public (non-secret) config, keyed by field name.
+// The caller must know the type has no secret fields — nftables_agent, file_quarantine, etc.
+type EnabledConfig struct {
+	ID     string
+	Name   string
+	Config map[string]string
+}
+
+// ListEnabledConfigs returns every enabled integration of the given type, with the
+// JSONB config decoded but NOT decrypted. Safe for cipher-less callers (the gateway) as long
+// as the type is one where no field is marked Secret in the Catalog (nftables_agent, etc.).
+func ListEnabledConfigs(ctx context.Context, pool *pgxpool.Pool, typ string) ([]EnabledConfig, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT id, name, config FROM integrations WHERE type=$1 AND enabled ORDER BY created_at`, typ)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]EnabledConfig, 0, 2)
+	for rows.Next() {
+		var (
+			id, name string
+			raw      []byte
+		)
+		if err := rows.Scan(&id, &name, &raw); err != nil {
+			return nil, err
+		}
+		cfg := map[string]string{}
+		if len(raw) > 0 {
+			_ = json.Unmarshal(raw, &cfg)
+		}
+		out = append(out, EnabledConfig{ID: id, Name: name, Config: cfg})
+	}
+	return out, rows.Err()
+}
+
+// AgentScopeMatches reports whether the given agent CN falls inside the integration's
+// agent_scope filter. An empty/whitespace scope means "all agents" (backwards-compatible
+// default). Names are matched case-insensitively, comma-separated; each entry is an EXACT
+// name match against the agent CN.
+func AgentScopeMatches(scope, agentCN string) bool {
+	scope = strings.TrimSpace(scope)
+	if scope == "" {
+		return true
+	}
+	agentCN = strings.ToLower(strings.TrimSpace(agentCN))
+	if agentCN == "" {
+		return false
+	}
+	for _, part := range strings.Split(scope, ",") {
+		if p := strings.ToLower(strings.TrimSpace(part)); p != "" && p == agentCN {
+			return true
+		}
+	}
+	return false
 }
 
 func typeInfo(t string) (TypeInfo, bool) {
