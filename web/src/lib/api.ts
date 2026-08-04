@@ -1335,7 +1335,10 @@ export async function fetchTenantTimeline(range: number | DashRange = 24, bucket
 export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide?: boolean }
 // DashLayout v2 persists only the order of the fixed panel set. v1 kept `widgets` (with per-widget
 // styling that could drift from the frontend); v2 keeps it simple — the reader below tolerates both.
-export type DashLayout = { v?: number; order?: string[]; widgets?: DashWidget[] }
+// v2.14.0 added `spans` — a per-panel column-width override (1/2/3) that the Edit-mode UI writes
+// diff-only vs coded defaults, so any future PANELS default-span change automatically propagates
+// to untouched panels.
+export type DashLayout = { v?: number; order?: string[]; spans?: Record<string, 1 | 2 | 3>; widgets?: DashWidget[] }
 
 export async function fetchLayout(): Promise<DashLayout | null> {
   const res = await authFetch('/api/dashboard/layout')

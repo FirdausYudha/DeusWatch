@@ -362,13 +362,22 @@ export default function Dashboard({
     fetchLayout()
       .then((l) => {
         if (!l) return
-        // v2 shape: {v:2, order:string[]}. v1 shape: {widgets:[{source,kind,...}]}. Both map to a
-        // list of stable ids we can hand to reconcileOrder.
+        // v2 shape: {v:2, order:string[], spans?:{...}}. v1 shape: {widgets:[{source,kind,...}]}.
+        // Both collapse to a list of stable ids we can hand to reconcileOrder.
         const ids: string[] | undefined =
           Array.isArray(l.order) ? l.order :
           Array.isArray(l.widgets) ? l.widgets.map((w) => panelId({ source: w.source, kind: w.kind })) :
           undefined
-        if (ids && ids.length > 0) setPanels(reconcileOrder(ids, effectivePanels))
+        const reconciled = ids && ids.length > 0 ? reconcileOrder(ids, effectivePanels) : effectivePanels
+        // v2.14.0: apply width overrides on top of the reconciled order. Missing keys keep the
+        // coded default — that way if we change a panel's default span later, untouched panels
+        // pick up the new value automatically instead of freezing on the operator's saved copy.
+        const spans = (l.spans ?? {}) as Record<string, 1 | 2 | 3>
+        const withSpans = reconciled.map((p) => {
+          const s = spans[panelId(p)]
+          return s === 1 || s === 2 || s === 3 ? { ...p, span: s } : p
+        })
+        setPanels(withSpans)
       })
       .catch(() => { /* no saved layout, no problem — stick with defaults */ })
     // Ensure the tenant-lines panel appears on first mount for superadmin even before a saved layout
@@ -376,6 +385,14 @@ export default function Dashboard({
     setPanels((cur) => (cur === PANELS ? effectivePanels : cur))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me.username])
+
+  // resize sets a panel's column width in edit mode. Persisted alongside order on save; reset
+  // wipes to the coded defaults.
+  const resize = (id: string, span: 1 | 2 | 3) => {
+    setPanels((cur) => cur.map((p) => (panelId(p) === id ? { ...p, span } : p)))
+    setDirty(true)
+    setSaveMsg('')
+  }
 
   const reorder = (fromId: string, toId: string) => {
     setPanels((cur) => {
@@ -407,7 +424,19 @@ export default function Dashboard({
   const clearDrag = () => { setDragId(null); setOverId(null) }
   const saveOrder = async () => {
     try {
-      await saveLayout({ v: 2, order: panels.map(panelId) })
+      // Build a diff-only spans map: only include entries that differ from the coded default,
+      // so a future change to PANELS' default spans propagates to untouched panels automatically.
+      const defaultSpan = new Map(effectivePanels.map((p) => [panelId(p), p.span]))
+      const spans: Record<string, 1 | 2 | 3> = {}
+      for (const p of panels) {
+        const id = panelId(p)
+        if (defaultSpan.get(id) !== p.span) spans[id] = p.span
+      }
+      const payload: { v: number; order: string[]; spans?: Record<string, 1 | 2 | 3> } = {
+        v: 2, order: panels.map(panelId),
+      }
+      if (Object.keys(spans).length > 0) payload.spans = spans
+      await saveLayout(payload)
       setDirty(false)
       setSaveMsg('Saved.')
       setTimeout(() => setSaveMsg(''), 2000)
@@ -579,12 +608,33 @@ export default function Dashboard({
                   </span>
                 )}
                 <span>{w.title}</span>
+                {/* Right-aligned control cluster. In edit mode the width picker takes the ml-auto
+                    slot; the map toggle and timeline bucket sit beside it. Out of edit mode they
+                    each grab ml-auto themselves so their solo position matches pre-v2.14 layout. */}
+                {edit && (
+                  <span className="ml-auto inline-flex items-center gap-0.5 rounded-[6px] border border-border p-0.5" title="Panel width">
+                    {([1, 2, 3] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={(e) => { e.stopPropagation(); resize(id, s) }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onDragStart={(e) => e.preventDefault()}
+                        className={`h-[22px] w-[26px] rounded-[4px] text-[11.5px] font-semibold transition-colors ${
+                          w.span === s ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg'
+                        }`}
+                        title={`Set width to ${s} column${s > 1 ? 's' : ''}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </span>
+                )}
                 {/* Small toggle in the map panel header so an operator can switch between the classic
                     flag list and the animated geo map (docs/geo-map.md). Persisted per browser. */}
                 {w.kind === 'map' && (
                   <button
                     onClick={() => setGeoEnabled(!geoEnabled)}
-                    className="ml-auto rounded-[6px] border border-border px-2 py-0.5 text-[11.5px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                    className={`${edit ? '' : 'ml-auto'} rounded-[6px] border border-border px-2 py-0.5 text-[11.5px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg`}
                     title={geoEnabled ? 'Switch to the classic flag list' : 'Switch to the animated geo map (beta)'}
                   >
                     {geoEnabled ? '🗺 map' : '⚑ list'}
@@ -597,7 +647,7 @@ export default function Dashboard({
                     onChange={(e) => setTimelineBucket(e.target.value as TimelineBucket)}
                     onMouseDown={(e) => e.stopPropagation()}
                     onDragStart={(e) => e.preventDefault()}
-                    className="ml-auto rounded-[6px] border border-border bg-surface-2 px-1.5 py-0.5 text-[11.5px] font-medium text-muted outline-none transition-colors hover:text-fg"
+                    className={`${edit ? '' : 'ml-auto'} rounded-[6px] border border-border bg-surface-2 px-1.5 py-0.5 text-[11.5px] font-medium text-muted outline-none transition-colors hover:text-fg`}
                     title="Bucket width for the timeline"
                   >
                     <option value="">auto</option>
