@@ -26,6 +26,14 @@ ARG VERSION=dev
 # Produces a pure-Go binary suitable for distroless static. The yara package's nocgo stub is picked
 # by build tags in this configuration, so a static build silently disables YARA scanning.
 FROM builder-common AS build-static
+# v2.14.3: ARGs declared in a parent stage do NOT propagate into derived stages' shell env
+# (they're only visible during the parent's own RUN). We re-declare here so the ${VERSION}
+# shell interpolation below actually reaches the go build ldflag — otherwise it expands to
+# empty and the agent binary reports `buildVersion="dev"` (the source-const default), which
+# breaks the self-update version-compare loop and produces the "vdev" symptom operators saw
+# after installing from a manager that HAD its VERSION arg set correctly at compose time.
+ARG CMD=api
+ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" -o /out/app ./cmd/${CMD}
 # When building the api, also cross-compile the agent binaries it serves to endpoints via the
 # one-line installer (GET /api/agent/binary/{os}/{arch}). /agents stays empty for other services.
@@ -40,6 +48,8 @@ RUN mkdir -p /agents && if [ "$CMD" = "api" ]; then \
 # ── CGO build (libyara-linked, for the gateway) ─────────────
 # libyara-dev provides the yara headers + libyara.so the Go binding links against.
 FROM builder-common AS build-cgo
+ARG CMD=api
+ARG VERSION=dev
 RUN apk add --no-cache gcc musl-dev yara-dev pkgconfig
 RUN CGO_ENABLED=1 go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" -o /out/app ./cmd/${CMD}
 # v2.14.1: gateway serves the agent self-update binary from /agents (agents can't reach the
