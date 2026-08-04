@@ -150,7 +150,9 @@ export default function Agents({ me }: { me: Me }) {
           update-request flag and produces the "queued update never lands" symptom. Almost
           always caused by `docker build` without `--build-arg VERSION=…` or by a stale image
           cached before scripts/update.sh started passing the git-described version. */}
-      {isAdmin && (managerVersion === 'dev' || agents.some((a) => a.agent_version === 'dev')) && (
+      {/* Revoked agents are excluded — they're not actionable and a decommissioned host
+          shouldn't keep a scary banner on screen forever. */}
+      {isAdmin && (managerVersion === 'dev' || agents.some((a) => !a.revoked && a.agent_version === 'dev')) && (
         <div className="mb-4 rounded-[10px] border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-[13px] text-rose-200">
           <strong>Untagged build detected.</strong> {managerVersion === 'dev' ? 'The manager itself reports version "dev" — it was built without a VERSION arg. ' : ''}
           {agents.some((a) => a.agent_version === 'dev') ? 'One or more agents report "dev" — they were installed from an untagged manager image. ' : ''}

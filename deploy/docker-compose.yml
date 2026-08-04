@@ -66,6 +66,7 @@ services:
       target: runtime-static
       args:
         CMD: certgen
+        VERSION: "${DEUSWATCH_VERSION:-dev}"
     # Run as root: on Linux the bind-mounted ./certs is host-root-owned, and the image's
     # nonroot user can't write the certs there (Windows ignores mount perms, so it worked).
     user: "0:0"
@@ -156,9 +157,21 @@ services:
       target: runtime-cgo
       args:
         CMD: gateway
+        # CRITICAL (v2.14.5): the gateway serves the agent self-update binary from /agents
+        # (see /v1/agent-binary/{arch}, added in v2.14.1). Without this arg the baked agent
+        # binaries compile with buildVersion="dev", so every UI-driven self-update lands a
+        # "dev" binary on the endpoint and the version-compare loop can never converge.
+        # This was the real cause of the long-running "vdev" bug: `api` had the arg, the
+        # gateway never did, and the binary-serving role moved from api → gateway in v2.14.1.
+        VERSION: "${DEUSWATCH_VERSION:-dev}"
     # Root so it can read the root-owned 0600 server key (server.key).
     user: "0:0"
     environment:
+      # Belt-and-braces alongside the VERSION build-arg above: if the image was built without
+      # the ldflag (a stale cached layer, a hand-rolled `docker build`), the gateway still
+      # resolves a real version at runtime instead of falling back to "dev" and breaking the
+      # agent self-update version compare. See resolveVersion() in cmd/gateway/main.go.
+      DEUSWATCH_VERSION: "${DEUSWATCH_VERSION:-}"
       GATEWAY_ADDR: ":8443"
       CERT_DIR: "/certs"
       NATS_URL: "nats://nats:4222"
@@ -198,6 +211,7 @@ services:
       target: runtime-static
       args:
         CMD: worker
+        VERSION: "${DEUSWATCH_VERSION:-dev}"
     # Reach services on the host (e.g. a local Ollama on :11434) via host.docker.internal,
     # which otherwise does not resolve inside a Linux container.
     extra_hosts:

@@ -69,15 +69,45 @@ func logBlockDecision(cn, scope string, nIPs int, enabled bool, reason string) {
 	log.Printf("gateway: nftables push cn=%q enabled=%v scope=%q ips=%d reason=%s", cn, enabled, scope, nIPs, reason)
 }
 
+// buildVersion is injected at compile time via -ldflags="-X main.buildVersion=<tag>" from
+// deploy/Dockerfile. NOTE: Go silently ignores -X for a symbol that does not exist, so this
+// declaration is load-bearing — without it the Dockerfile's ldflag was a no-op for the
+// gateway (the bug fixed in v2.14.5).
+var buildVersion = ""
+
+// fallbackVersion is the compiled-in semver used when neither the ldflag nor the env var
+// supplied one. Keep in lockstep with `const version` in cmd/api/main.go on every release.
+const fallbackVersion = "2.14.5"
+
+// resolveVersion picks the gateway's reported version: build-time ldflag first (the intended
+// path), then the DEUSWATCH_VERSION env var (backwards-compat with deployments that set it),
+// then the compiled-in const. Never returns the un-comparable sentinel "dev" unless someone
+// explicitly sets DEUSWATCH_VERSION=dev.
+func resolveVersion() string {
+	if buildVersion != "" && buildVersion != "dev" {
+		return buildVersion
+	}
+	if v := os.Getenv("DEUSWATCH_VERSION"); v != "" && v != "dev" {
+		return v
+	}
+	return fallbackVersion
+}
+
 func main() {
 	addr := getenv("GATEWAY_ADDR", ":8443")
 	certDir := getenv("CERT_DIR", "deploy/certs")
 	natsURL := getenv("NATS_URL", "nats://localhost:4222")
-	// managerVersion is baked in at build time (see scripts/update.sh which passes it via
-	// -ldflags). Used by v2.12.0's heartbeat-driven self-update flow to (a) auto-clear the
-	// update_requested_at flag once an agent reports the same version, and (b) include the
-	// target version in the directive returned to out-of-date agents.
-	managerVersion := getenv("DEUSWATCH_VERSION", "dev")
+	// managerVersion drives v2.12.0's heartbeat self-update flow: it (a) auto-clears the
+	// update_requested_at flag once an agent reports the same version, and (b) is the target
+	// version in the directive handed to out-of-date agents.
+	//
+	// v2.14.5 fix: this used to read ONLY the DEUSWATCH_VERSION env var, which compose never
+	// set on the gateway container (it was passed as a *build* arg, not an environment entry).
+	// So managerVersion was permanently "dev" — the compare against an agent that ALSO reported
+	// "dev" matched, silently clearing the update flag while nothing had actually upgraded.
+	// That is the "badge disappears, version unchanged" symptom. Resolution order is now
+	// ldflag → env → compiled-in const, so no single missing wire can degrade it to "dev".
+	managerVersion := resolveVersion()
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
@@ -385,7 +415,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("DeusWatch gateway (mTLS) listening on %s", addr)
+		log.Printf("DeusWatch gateway %s (mTLS) listening on %s", managerVersion, addr)
 		// Certificates are already in TLSConfig, so the file arguments are empty.
 		if err := srv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway: serve: %v", err)

@@ -34,7 +34,25 @@ import (
 // buildVersion is set at compile time via -ldflags="-X main.buildVersion=<tag>" (see
 // deploy/Dockerfile). Reported on every heartbeat so the manager UI can compare fleet
 // versions against its own and offer a "Update agent" button when they drift.
-var buildVersion = "dev"
+var buildVersion = ""
+
+// fallbackVersion is the compiled-in semver used when the build did NOT inject buildVersion
+// (missing --build-arg VERSION, an ARG that didn't propagate to the build stage, a bare
+// `go build`). The api has always had this fallback via appVersion(); the agent did not,
+// which is why a single missing compose build-arg surfaced as a permanent "dev" agent that
+// the self-update version-compare could never converge on. Keep in lockstep with the
+// `const version` in cmd/api/main.go on every release.
+const fallbackVersion = "2.14.5"
+
+// agentVersion resolves the version this binary reports on heartbeats. Mirrors the api's
+// appVersion(): a real ldflag wins, anything else falls back to the compiled-in const, so
+// the fleet never reports the un-comparable sentinel "dev".
+func agentVersion() string {
+	if buildVersion != "" && buildVersion != "dev" {
+		return buildVersion
+	}
+	return fallbackVersion
+}
 
 func main() {
 	enrollMode := flag.Bool("enroll", false, "exchange an enrollment token for a certificate then exit")
@@ -51,13 +69,13 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Println(buildVersion)
+		fmt.Println(agentVersion())
 		return
 	}
 	// Log the build version on every start so `journalctl -u deuswatch-agent` always shows what
 	// binary is currently loaded — matters for self-update debugging where "did the swap happen?"
 	// is otherwise invisible until an alert flows.
-	log.Printf("DeusWatch agent %s starting", buildVersion)
+	log.Printf("DeusWatch agent %s starting", agentVersion())
 
 	if *uninstall {
 		selfUninstall()
@@ -755,7 +773,7 @@ func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan 
 // revoked (ErrRevoked), the agent self-uninstalls and stops.
 func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer, stop func()) {
 	health := func() agent.Health {
-		base := agent.Health{Version: buildVersion}
+		base := agent.Health{Version: agentVersion()}
 		if buf == nil {
 			return base
 		}
@@ -784,7 +802,7 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 		}
 		if directive != nil {
 			if uerr := performSelfUpdate(ctx, shipper, directive); uerr != nil {
-				log.Printf("agent: self-update failed (staying on %s): %v", buildVersion, uerr)
+				log.Printf("agent: self-update failed (staying on %s): %v", agentVersion(), uerr)
 			} else {
 				log.Printf("agent: self-update to %s complete — exiting for systemd to restart", directive.Version)
 				stop() // graceful shutdown; systemd Restart=always brings up the new binary
