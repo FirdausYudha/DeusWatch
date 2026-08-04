@@ -606,6 +606,26 @@ export type AgentInfo = {
   health_detail?: string
   config_version: number
   sources?: AgentSource[]
+  agent_version?: string           // v2.12.0+: reported by agent on heartbeat
+  update_requested_at?: string     // v2.12.0+: set when operator clicked Update
+}
+
+// Fetches the manager's own build tag so the UI can show "agent 2.11.0 · manager 2.12.0"
+// and gate the per-agent Update button. Distinct from fetchUpdateCheck() (that one reaches
+// GitHub for latest-release comparison; this is instant + local).
+export async function fetchManagerVersion(): Promise<string> {
+  const res = await authFetch('/api/manager-version')
+  if (!res.ok) return ''
+  const j = await res.json().catch(() => ({}))
+  return String(j.version || '')
+}
+
+// Queues an in-place self-update for the named agent. The agent picks up the directive on
+// its next heartbeat (~30 s), downloads the new binary, atomically replaces itself, and
+// systemd restarts it.
+export async function requestAgentUpdate(name: string): Promise<void> {
+  const res = await authFetch(`/api/agents/${encodeURIComponent(name)}/update`, { method: 'POST' })
+  if (!res.ok && res.status !== 202) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 // An agent is considered online if its last heartbeat was < 90s ago (30s interval + tolerance).

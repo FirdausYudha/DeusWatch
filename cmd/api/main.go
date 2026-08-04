@@ -44,7 +44,7 @@ import (
 	"deuswatch/migrations"
 )
 
-const version = "2.11.2"
+const version = "2.12.0"
 
 // buildVersion is the short git commit baked in at build time (-ldflags -X). "dev" when
 // built without it. Used by the update-check endpoint to compare against GitHub.
@@ -262,6 +262,9 @@ func main() {
 			mux.Handle("/api/agents", protect(auth.PermViewDashboard, enrollStore.AgentsHandler()))
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
 			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
+			// v2.12.0: queue an in-place self-update for the named agent; picked up on next
+			// heartbeat, agent atomically replaces its own binary + exits, systemd restarts it.
+			mux.Handle("POST /api/agents/{name}/update", protect(auth.PermManageAgents, enrollStore.RequestUpdateHandler()))
 		}
 
 		// Process-level malware detection (Phase 6): WIP — the handlers in
@@ -354,6 +357,12 @@ func main() {
 
 		// Software update check (read-only; never executes an update).
 		mux.Handle("GET /api/update-check", protect(auth.PermViewDashboard, updateCheckHandler()))
+		// v2.12.0: lightweight local-only "what version is this manager running?" for the UI
+		// to gate the per-agent Update button. Distinct from /api/update-check which reaches
+		// out to GitHub — that one is slow and unnecessary just to fill a table cell.
+		mux.Handle("GET /api/manager-version", protect(auth.PermViewDashboard, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]any{"version": appVersion()})
+		})))
 
 		// CTI enrichment: dedup cache TTL (UI-managed).
 

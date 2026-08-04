@@ -211,36 +211,60 @@ func (s *Shipper) PostFileActionResult(ctx context.Context, id int64, status, re
 
 // Health is the agent's self-reported state carried on the heartbeat. Degraded means
 // "alive but not fully working" - e.g. the offline buffer is piling up because log
-// batches are not getting through while the heartbeat itself still succeeds.
+// batches are not getting through while the heartbeat itself still succeeds. Version
+// (v2.12.0+) is the agent's own build tag, so the manager UI can show which agents
+// are out of date and offer a one-click self-update button.
 type Health struct {
 	Degraded bool   `json:"degraded"`
 	Detail   string `json:"detail,omitempty"`
+	Version  string `json:"version,omitempty"`
+}
+
+// UpdateDirective is what the manager returned on a heartbeat when it wants this agent
+// to self-replace. URL may contain a literal "{arch}" that the caller substitutes for
+// the running GOARCH before downloading.
+type UpdateDirective struct {
+	URL     string `json:"url"`
+	Version string `json:"version"`
 }
 
 // Heartbeat sends a liveness signal to POST {url}/v1/heartbeat (the manager updates
-// the agent's last_seen and records the self-reported health).
-func (s *Shipper) Heartbeat(ctx context.Context, health Health) error {
+// the agent's last_seen and records the self-reported health). Returns a non-nil
+// *UpdateDirective when the manager wants the agent to self-upgrade.
+func (s *Shipper) Heartbeat(ctx context.Context, health Health) (*UpdateDirective, error) {
 	body, err := json.Marshal(health)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/heartbeat", bytes.NewReader(body))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusGone {
-		return ErrRevoked
+		return nil, ErrRevoked
 	}
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("agent: heartbeat rejected (status %d)", resp.StatusCode)
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
 	}
-	return nil
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("agent: heartbeat rejected (status %d)", resp.StatusCode)
+	}
+	// 200 OK — parse the response envelope for an optional update directive. Old servers
+	// (pre-v2.12.0) return 204 above; new servers return 200 + JSON only when there's
+	// something to say. Best-effort decode: a garbled body is not fatal.
+	var out struct {
+		Update *UpdateDirective `json:"update,omitempty"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<10)).Decode(&out); err != nil {
+		return nil, nil // heartbeat itself succeeded, just no directive
+	}
+	return out.Update, nil
 }
 
 // BlocklistConfig is what the manager tells this agent to apply. Enabled=false means the

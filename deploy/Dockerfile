@@ -32,7 +32,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERS
 RUN mkdir -p /agents && if [ "$CMD" = "api" ]; then \
       for t in linux/amd64 linux/arm64 windows/amd64; do \
         os="${t%/*}"; arch="${t#*/}"; ext=""; [ "$os" = "windows" ] && ext=".exe"; \
-        CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w" \
+        CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" \
           -o "/agents/deuswatch-agent-$os-$arch$ext" ./cmd/agent; \
       done; \
     fi

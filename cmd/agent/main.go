@@ -31,6 +31,11 @@ import (
 	"deuswatch/internal/mtls"
 )
 
+// buildVersion is set at compile time via -ldflags="-X main.buildVersion=<tag>" (see
+// deploy/Dockerfile). Reported on every heartbeat so the manager UI can compare fleet
+// versions against its own and offer a "Update agent" button when they drift.
+var buildVersion = "dev"
+
 func main() {
 	enrollMode := flag.Bool("enroll", false, "exchange an enrollment token for a certificate then exit")
 	enrollToken := flag.String("token", "", "enrollment token (-enroll mode)")
@@ -737,21 +742,24 @@ func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan 
 // revoked (ErrRevoked), the agent self-uninstalls and stops.
 func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer, stop func()) {
 	health := func() agent.Health {
+		base := agent.Health{Version: buildVersion}
 		if buf == nil {
-			return agent.Health{}
+			return base
 		}
 		pending, err := buf.Pending()
 		if err != nil || len(pending) == 0 {
-			return agent.Health{}
+			return base
 		}
-		return agent.Health{Degraded: true,
-			Detail: fmt.Sprintf("%d buffered batch(es) awaiting delivery", len(pending))}
+		base.Degraded = true
+		base.Detail = fmt.Sprintf("%d buffered batch(es) awaiting delivery", len(pending))
+		return base
 	}
 	// beat sends one heartbeat + handles the "manager says I'm revoked" case. Returns true if the
 	// caller should stop looping. Refactored out of the ticker branch so we can call it once at
 	// startup (no more waiting a full 30s for the row to flip to online in the dashboard).
 	beat := func() (stopLooping bool) {
-		if err := shipper.Heartbeat(ctx, health()); err != nil {
+		directive, err := shipper.Heartbeat(ctx, health())
+		if err != nil {
 			if errors.Is(err, agent.ErrRevoked) {
 				log.Printf("agent: this agent was revoked by the manager — self-uninstalling")
 				selfUninstall()
@@ -759,6 +767,16 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 				return true
 			}
 			log.Printf("agent: heartbeat failed: %v", err)
+			return false
+		}
+		if directive != nil {
+			if uerr := performSelfUpdate(ctx, directive); uerr != nil {
+				log.Printf("agent: self-update failed (staying on %s): %v", buildVersion, uerr)
+			} else {
+				log.Printf("agent: self-update to %s complete — exiting for systemd to restart", directive.Version)
+				stop() // graceful shutdown; systemd Restart=always brings up the new binary
+				return true
+			}
 		}
 		return false
 	}

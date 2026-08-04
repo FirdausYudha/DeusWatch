@@ -1,6 +1,8 @@
 import { useState, useEffect, Fragment } from 'react'
 import {
   fetchAgents,
+  fetchManagerVersion,
+  requestAgentUpdate,
   createEnrollToken,
   fetchInstallInfo,
   fetchTenants,
@@ -57,6 +59,8 @@ export default function Agents({ me }: { me: Me }) {
   const [snapshotsFor, setSnapshotsFor] = useState<AgentInfo | null>(null)
   const [wizard, setWizard] = useState(false)
   const [uninstalling, setUninstalling] = useState<AgentInfo | null>(null)
+  const [managerVersion, setManagerVersion] = useState('')
+  const [updating, setUpdating] = useState<Record<string, boolean>>({})
 
   const load = () => {
     fetchAgents()
@@ -65,9 +69,34 @@ export default function Agents({ me }: { me: Me }) {
   }
   useEffect(() => {
     load()
+    fetchManagerVersion().then(setManagerVersion).catch(() => {})
     const t = setInterval(load, 15_000)
     return () => clearInterval(t)
   }, [])
+
+  const doUpdate = async (a: AgentInfo) => {
+    setUpdating((s) => ({ ...s, [a.id]: true }))
+    setError('')
+    try {
+      await requestAgentUpdate(a.name)
+      // Optimistic: mark update_requested_at locally so the UI reflects the queued state
+      // before the next fetchAgents poll.
+      setAgents((cur) => cur.map((x) => (x.id === a.id ? { ...x, update_requested_at: new Date().toISOString() } : x)))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setUpdating((s) => ({ ...s, [a.id]: false }))
+    }
+  }
+  const doUpdateAll = async () => {
+    const outdated = agents.filter((a) => !a.revoked && a.agent_version && managerVersion && a.agent_version !== managerVersion)
+    if (outdated.length === 0) return
+    if (!confirm(`Queue self-update for ${outdated.length} agent(s)? Each picks up the directive on its next heartbeat (~30 s).`)) return
+    for (const a of outdated) {
+      await doUpdate(a)
+    }
+  }
+  const outdatedCount = agents.filter((a) => !a.revoked && a.agent_version && managerVersion && a.agent_version !== managerVersion).length
 
   const doRevoke = async (a: AgentInfo) => {
     if (!confirm(`Revoke agent "${a.name}"? Its connection will be rejected by the gateway.`)) return
@@ -108,6 +137,20 @@ export default function Agents({ me }: { me: Me }) {
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
 
+      {isAdmin && outdatedCount > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-[13px] text-amber-200">
+          <span>
+            <strong>{outdatedCount}</strong> agent{outdatedCount === 1 ? '' : 's'} out of date · manager is on <strong>v{managerVersion}</strong>. Each self-updates on its next heartbeat (~30 s).
+          </span>
+          <button
+            onClick={doUpdateAll}
+            className="rounded-md border border-amber-400/60 bg-amber-500/20 px-3 py-1 text-[12.5px] font-medium text-amber-100 hover:bg-amber-500/30"
+          >
+            ↑ Update all outdated
+          </button>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-[12px] border border-border">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
@@ -116,6 +159,7 @@ export default function Agents({ me }: { me: Me }) {
               <th className="px-4 py-2 font-medium">OS</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Heartbeat</th>
+              <th className="px-4 py-2 font-medium">Version</th>
               <th className="px-4 py-2 font-medium">Config</th>
               {isAdmin && <th className="px-4 py-2 font-medium">Actions</th>}
             </tr>
@@ -123,7 +167,7 @@ export default function Agents({ me }: { me: Me }) {
           <tbody className="divide-y divide-border bg-surface">
             {agents.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-dim">
+                <td colSpan={isAdmin ? 7 : 6} className="px-4 py-8 text-center text-dim">
                   No agents yet. Click “Add agent” to enroll one.
                 </td>
               </tr>
@@ -135,6 +179,22 @@ export default function Agents({ me }: { me: Me }) {
                 <td className="px-4 py-2"><StatusBadge a={a} /></td>
                 <td className="px-4 py-2 text-muted">{relative(a.last_seen_at)}</td>
                 <td className="px-4 py-2 text-muted">
+                  {a.agent_version ? (
+                    a.agent_version === managerVersion ? (
+                      <span className="text-emerald-300" title="Agent is on the same version as the manager">v{a.agent_version}</span>
+                    ) : (
+                      <span className="text-amber-300" title={`Manager is v${managerVersion || '?'}`}>v{a.agent_version}</span>
+                    )
+                  ) : (
+                    <span className="text-dim" title="Pre-v2.12.0 agent — doesn't report its build. Reinstall once to enable self-update.">unknown</span>
+                  )}
+                  {a.update_requested_at && (
+                    <span className="ml-1.5 rounded bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent" title="Self-update queued; picked up on next heartbeat">
+                      updating…
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-2 text-muted">
                   v{a.config_version}
                   {a.sources && a.sources.length > 0 && (
                     <span className="ml-1 text-dim">({a.sources.length} source{a.sources.length > 1 ? 's' : ''})</span>
@@ -142,7 +202,17 @@ export default function Agents({ me }: { me: Me }) {
                 </td>
                 {isAdmin && (
                   <td className="px-4 py-2">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      {!a.revoked && a.agent_version && managerVersion && a.agent_version !== managerVersion && (
+                        <button
+                          onClick={() => doUpdate(a)}
+                          disabled={updating[a.id] || !!a.update_requested_at}
+                          className="rounded-md border border-accent/40 bg-accent-soft px-2 py-1 text-[12.5px] text-accent hover:bg-accent hover:text-white disabled:opacity-50"
+                          title={`Push new binary (v${managerVersion}); agent applies on next heartbeat`}
+                        >
+                          {a.update_requested_at ? 'Queued' : updating[a.id] ? 'Queuing…' : `↑ Update to v${managerVersion}`}
+                        </button>
+                      )}
                       <button
                         onClick={() => setEditing(a)}
                         className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg hover:bg-surface-2"

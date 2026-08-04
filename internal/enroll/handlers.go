@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"deuswatch/internal/agent"
 )
@@ -75,6 +76,24 @@ func (s *Store) AgentsHandler() http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, agents)
+	}
+}
+
+// RequestUpdateHandler (admin) marks an agent for a self-update on its next heartbeat.
+// Path: POST /api/agents/{name}/update — {name} is the agent's CN, matching how the
+// gateway identifies it on the wire.
+func (s *Store) RequestUpdateHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimSpace(r.PathValue("name"))
+		if name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		if err := s.RequestAgentUpdate(r.Context(), name); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"status": "queued", "agent": name})
 	}
 }
 

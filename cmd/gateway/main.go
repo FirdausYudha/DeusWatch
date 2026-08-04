@@ -73,6 +73,11 @@ func main() {
 	addr := getenv("GATEWAY_ADDR", ":8443")
 	certDir := getenv("CERT_DIR", "deploy/certs")
 	natsURL := getenv("NATS_URL", "nats://localhost:4222")
+	// managerVersion is baked in at build time (see scripts/update.sh which passes it via
+	// -ldflags). Used by v2.12.0's heartbeat-driven self-update flow to (a) auto-clear the
+	// update_requested_at flag once an agent reports the same version, and (b) include the
+	// target version in the directive returned to out-of-date agents.
+	managerVersion := getenv("DEUSWATCH_VERSION", "dev")
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
@@ -119,6 +124,8 @@ func main() {
 	var cfgFunc gateway.ConfigFunc
 	var seenFunc gateway.SeenFunc
 	var healthFunc gateway.HealthFunc
+	var healthVFunc gateway.HealthWithVersionFunc
+	var updateFunc gateway.UpdateDirectiveFunc
 	var blockCfgFunc gateway.BlocklistConfigFunc
 	var quarantineFunc gateway.QuarantineFunc
 	var containFunc gateway.ContainmentFunc
@@ -144,6 +151,26 @@ func main() {
 			seenFunc = es.MarkSeen
 			restoreFunc = st.PendingRestores
 			healthFunc = es.MarkHealth
+			// v2.12.0: capture the agent's reported version + evaluate pending update directive so
+			// the heartbeat response can tell an out-of-date agent to self-upgrade. managerVersion
+			// is baked in at build time (matches the API/gateway release tag), and the manager
+			// serves the fresh agent binary at /api/agent/binary/{os}/{arch} via api-8080.
+			apiOrigin := getenv("DEUSWATCH_API_ORIGIN", "http://api:8080")
+			healthVFunc = func(ctx context.Context, cn string, degraded bool, detail, version string) error {
+				return es.MarkHealthWithVersion(ctx, cn, degraded, detail, version, managerVersion)
+			}
+			updateFunc = func(ctx context.Context, cn string) (*gateway.UpdateDirective, error) {
+				pending, err := es.PendingAgentUpdate(ctx, cn, managerVersion)
+				if err != nil || !pending {
+					return nil, err
+				}
+				// GOARCH is fixed on the manager but agents can be arm64 or amd64 — the URL
+				// path parameter selects at download time. Agent already knows its own arch.
+				return &gateway.UpdateDirective{
+					URL:     apiOrigin + "/api/agent/binary/linux/{arch}",
+					Version: managerVersion,
+				}, nil
+			}
 			// Versioned FIM snapshots (ADR 0002): record each uploaded version's metadata; the
 			// content itself stays on the agent (storage="agent"). RecordSnapshot de-dups an
 			// unchanged latest hash, so re-reported versions are no-ops.
@@ -310,7 +337,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
-	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandler(seenFunc, healthFunc, revoked))
+	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandlerFull(seenFunc, healthFunc, healthVFunc, revoked, updateFunc))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistConfigHandler(blockCfgFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))

@@ -184,21 +184,24 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 
 // AgentInfo for the agent list.
 type AgentInfo struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	OS            string         `json:"os"`
-	EnrolledAt    time.Time      `json:"enrolled_at"`
-	LastSeenAt    *time.Time     `json:"last_seen_at"`
-	Revoked       bool           `json:"revoked"`
-	Status        string         `json:"status"`                  // unknown|online|degraded|disconnected|stale (worker-maintained)
-	HealthDetail  string         `json:"health_detail,omitempty"` // agent's self-reported problem, e.g. "217 batches buffered"
-	ConfigVersion int            `json:"config_version"`
-	Sources       []agent.Source `json:"sources,omitempty"`
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	OS                string         `json:"os"`
+	EnrolledAt        time.Time      `json:"enrolled_at"`
+	LastSeenAt        *time.Time     `json:"last_seen_at"`
+	Revoked           bool           `json:"revoked"`
+	Status            string         `json:"status"`                  // unknown|online|degraded|disconnected|stale (worker-maintained)
+	HealthDetail      string         `json:"health_detail,omitempty"` // agent's self-reported problem, e.g. "217 batches buffered"
+	ConfigVersion     int            `json:"config_version"`
+	Sources           []agent.Source `json:"sources,omitempty"`
+	AgentVersion      string         `json:"agent_version,omitempty"`       // v2.12.0+: what the agent last reported
+	UpdateRequestedAt *time.Time     `json:"update_requested_at,omitempty"` // v2.12.0+: operator asked for upgrade
 }
 
 func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	rows, err := s.q(ctx).Query(ctx,
-		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, status, health_detail, config
+		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, status, health_detail, config,
+		         COALESCE(agent_version,''), update_requested_at
 		 FROM agents ORDER BY enrolled_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("enroll: list agents: %w", err)
@@ -210,7 +213,7 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 			a   AgentInfo
 			raw *string
 		)
-		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &a.Status, &a.HealthDetail, &raw); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &a.Status, &a.HealthDetail, &raw, &a.AgentVersion, &a.UpdateRequestedAt); err != nil {
 			return nil, err
 		}
 		if raw != nil {
@@ -278,6 +281,76 @@ func (s *Store) MarkHealth(ctx context.Context, name string, degraded bool, deta
 		`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3 WHERE name = $1`,
 		name, degraded, detail)
 	return err
+}
+
+// MarkHealthWithVersion is v2.12.0's replacement: also persists the agent's self-reported
+// build version so the UI can compare against the manager's. When the reported version
+// matches managerVersion, any pending update_requested_at is cleared (the upgrade landed).
+// managerVersion="" skips the auto-clear so a caller that doesn't know it can still record
+// the version safely.
+func (s *Store) MarkHealthWithVersion(ctx context.Context, name string, degraded bool, detail, version, managerVersion string) error {
+	if version == "" {
+		// No version reported → behave exactly like MarkHealth so agents on the wire
+		// format that predates v2.12.0 don't have their agent_version wiped to "".
+		return s.MarkHealth(ctx, name, degraded, detail)
+	}
+	if managerVersion != "" && version == managerVersion {
+		_, err := s.q(ctx).Exec(ctx,
+			`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3,
+			                    agent_version = $4, update_requested_at = NULL
+			 WHERE name = $1`,
+			name, degraded, detail, version)
+		return err
+	}
+	_, err := s.q(ctx).Exec(ctx,
+		`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3,
+		                    agent_version = $4
+		 WHERE name = $1`,
+		name, degraded, detail, version)
+	return err
+}
+
+// RequestAgentUpdate flags an agent for a self-update on its next heartbeat. Idempotent:
+// re-requesting just refreshes the timestamp (the "still pending" window).
+func (s *Store) RequestAgentUpdate(ctx context.Context, name string) error {
+	tag, err := s.q(ctx).Exec(ctx,
+		`UPDATE agents SET update_requested_at = now() WHERE name = $1`, name)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("enroll: no agent named %q", name)
+	}
+	return nil
+}
+
+// PendingAgentUpdate reports whether name has an unfulfilled update request within the
+// staleness window (older requests are ignored — if the agent has been offline for 24h+
+// and the operator forgot they clicked, we don't want to auto-fire on the next reappearance).
+// Returns (false, nil) when no request or when the agent's version already matches managerVersion.
+func (s *Store) PendingAgentUpdate(ctx context.Context, name, managerVersion string) (bool, error) {
+	var (
+		requestedAt *time.Time
+		version     *string
+	)
+	err := s.q(ctx).QueryRow(ctx,
+		`SELECT update_requested_at, agent_version FROM agents WHERE name = $1`, name).Scan(&requestedAt, &version)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if requestedAt == nil {
+		return false, nil
+	}
+	if time.Since(*requestedAt) > 24*time.Hour {
+		return false, nil
+	}
+	if version != nil && managerVersion != "" && *version == managerVersion {
+		return false, nil // upgrade already landed; no directive needed
+	}
+	return true, nil
 }
 
 // SetConfig sets the desired sources for an agent (config push) and bumps the

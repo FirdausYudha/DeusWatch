@@ -41,7 +41,31 @@ type HealthFunc func(ctx context.Context, agentName string, degraded bool, detai
 type heartbeatBody struct {
 	Degraded bool   `json:"degraded"`
 	Detail   string `json:"detail"`
+	Version  string `json:"version,omitempty"` // v2.12.0+: reported so UI can gate the Update button
 }
+
+// HeartbeatResponse is what the gateway returns on a successful heartbeat. Legacy field-less
+// {} is the normal case; when an operator has clicked Update in the UI, Update is populated
+// and the agent atomically self-replaces its binary on receipt (v2.12.0+).
+type HeartbeatResponse struct {
+	Update *UpdateDirective `json:"update,omitempty"`
+}
+
+// UpdateDirective tells the agent to fetch a new binary from URL and restart. Version is
+// informational — the agent will always use whatever URL returns.
+type UpdateDirective struct {
+	URL     string `json:"url"`
+	Version string `json:"version"`
+}
+
+// HealthWithVersionFunc is the v2.12.0 replacement for HealthFunc: also persists the agent's
+// self-reported version so the UI can compare fleet vs manager. When set on the handler,
+// takes precedence over HealthFunc.
+type HealthWithVersionFunc func(ctx context.Context, agentName string, degraded bool, detail, version string) error
+
+// UpdateDirectiveFunc returns a pending update directive for the calling CN, or (nil, nil) when
+// no update is pending. Called on every heartbeat.
+type UpdateDirectiveFunc func(ctx context.Context, agentName string) (*UpdateDirective, error)
 
 // BlocklistFunc returns the source IPs agents should block (empty when none/disabled).
 // LEGACY signature: kept so the interface stays stable while the response envelope evolves
@@ -340,8 +364,16 @@ func InventoryHandler(fn InventoryFunc, revoked RevokedFunc) http.HandlerFunc {
 // HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN) and records
 // the agent's self-reported health from the optional JSON body (degraded + detail, e.g.
 // "217 batches buffered"). A revoked agent gets HTTP 410 Gone — the signal for the
-// agent to self-uninstall and stop.
+// agent to self-uninstall and stop. When updFn is non-nil and returns a pending directive
+// for the calling CN, the response becomes 200 + JSON {"update":{...}} so the agent can
+// atomically self-replace its binary (v2.12.0+).
 func HeartbeatHandler(seen SeenFunc, health HealthFunc, revoked RevokedFunc) http.HandlerFunc {
+	return HeartbeatHandlerFull(seen, health, nil, revoked, nil)
+}
+
+// HeartbeatHandlerFull is the v2.12.0 form that also accepts a version-persisting store and
+// an update-directive resolver. The pre-v2.12 HeartbeatHandler delegates to this with nils.
+func HeartbeatHandlerFull(seen SeenFunc, health HealthFunc, healthV HealthWithVersionFunc, revoked RevokedFunc, updFn UpdateDirectiveFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var cn, serial string
 		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
@@ -354,8 +386,8 @@ func HeartbeatHandler(seen SeenFunc, health HealthFunc, revoked RevokedFunc) htt
 				return
 			}
 		}
+		var hb heartbeatBody
 		if cn != "" {
-			var hb heartbeatBody
 			_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&hb) // empty body = healthy
 			// Persist the heartbeat, and let the agent KNOW when we couldn't (was silently discarded
 			// before — an operator would then see the agent "offline" on the dashboard even though
@@ -366,6 +398,8 @@ func HeartbeatHandler(seen SeenFunc, health HealthFunc, revoked RevokedFunc) htt
 			// suppressed by a stale success response).
 			var err error
 			switch {
+			case healthV != nil:
+				err = healthV(r.Context(), cn, hb.Degraded, hb.Detail, hb.Version)
 			case health != nil:
 				err = health(r.Context(), cn, hb.Degraded, hb.Detail)
 			case seen != nil:
@@ -374,6 +408,16 @@ func HeartbeatHandler(seen SeenFunc, health HealthFunc, revoked RevokedFunc) htt
 			if err != nil {
 				log.Printf("gateway: heartbeat DB update failed for agent %q: %v", cn, err)
 				http.Error(w, "heartbeat store error", http.StatusServiceUnavailable)
+				return
+			}
+		}
+		// Update-directive check happens after we've persisted the heartbeat, so a "fresh"
+		// last_seen is recorded even when we're about to tell the agent to restart.
+		if updFn != nil && cn != "" {
+			if dir, err := updFn(r.Context(), cn); err == nil && dir != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(HeartbeatResponse{Update: dir})
 				return
 			}
 		}
