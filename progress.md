@@ -1,7 +1,23 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-04 (v2.11.1 released — dashboard range-change perf + map zoom cap + docs index).
+> Last updated: 2026-08-04 (v2.11.2 released — nftables push diagnostics + troubleshooting).
+
+## 2026-08-04 — v2.11.2 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.11.2))
+
+Operator report: v2.11.0 shipped but `deuswatch` table STILL doesn't appear on agent host. No diagnostic surface — every failure mode collapsed into the same silent symptom.
+
+Fix (observability, no behaviour change):
+- Gateway logs one line per (agent CN, decision) transition + 60s heartbeat per CN. Grep for `nftables push` in `docker compose logs gateway`. Format: `cn="X" enabled=Y scope="Z" ips=N reason="..."`. Failure reasons called out explicitly.
+- `docs/nftables-agent.md` gained a 4-step walkthrough mapping each grep-able log line to the concrete fix: manager not upgraded / agent not upgraded / scope typo / endpoint permission problem.
+
+Most likely causes for the operator's report (in order):
+1. Agent binary on `linux2` still runs pre-v2.11.0 code (only checks env var). Reinstall required.
+2. Gateway container on manager not rebuilt since pulling v2.11 tag.
+3. Agent CN mismatch (hostname includes `.local` or an enrollment suffix that doesn't match `linux2` exactly).
+
+The gateway log after v2.11.2 will tell them which one.
+
 
 ## 2026-08-04 — v2.11.1 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.11.1))
 
