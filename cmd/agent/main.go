@@ -44,7 +44,20 @@ func main() {
 	outDir := flag.String("out", "", "certificate output directory (default CERT_DIR)")
 	serviceCmd := flag.String("service", "", "Windows Service control: install|uninstall|start|stop (Windows only)")
 	uninstall := flag.Bool("uninstall", false, "stop the agent service and remove all installed files, then exit")
+	// -version prints the buildVersion (baked in via -ldflags at build time) and exits.
+	// v2.14.2 addition: operators diagnosing self-update failures previously had to `strings`
+	// the binary to check what it thought it was — this makes that a one-liner.
+	versionFlag := flag.Bool("version", false, "print the agent build version and exit")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println(buildVersion)
+		return
+	}
+	// Log the build version on every start so `journalctl -u deuswatch-agent` always shows what
+	// binary is currently loaded — matters for self-update debugging where "did the swap happen?"
+	// is otherwise invisible until an alert flows.
+	log.Printf("DeusWatch agent %s starting", buildVersion)
 
 	if *uninstall {
 		selfUninstall()

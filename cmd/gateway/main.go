@@ -160,11 +160,32 @@ func main() {
 			healthVFunc = func(ctx context.Context, cn string, degraded bool, detail, version string) error {
 				return es.MarkHealthWithVersion(ctx, cn, degraded, detail, version, managerVersion)
 			}
+			// updateLog throttles the per-directive log line to once per (CN, decision) transition
+			// + a heartbeat every minute per CN, so the log tells the story without spamming (the
+			// heartbeat cadence is 30 s per agent — unthrottled would be 2 lines/agent/minute).
+			var updateLogMu sync.Mutex
+			updateLogLast := map[string]time.Time{}
 			updateFunc = func(ctx context.Context, cn string) (*gateway.UpdateDirective, error) {
 				pending, err := es.PendingAgentUpdate(ctx, cn, managerVersion)
-				if err != nil || !pending {
+				if err != nil {
 					return nil, err
 				}
+				now := time.Now()
+				logDecision := func(msg string) {
+					updateLogMu.Lock()
+					defer updateLogMu.Unlock()
+					key := cn + "|" + msg
+					if last, ok := updateLogLast[key]; ok && now.Sub(last) < time.Minute {
+						return
+					}
+					updateLogLast[key] = now
+					log.Printf("gateway: agent-update: %s cn=%q manager=%q", msg, cn, managerVersion)
+				}
+				if !pending {
+					logDecision("no pending directive")
+					return nil, nil
+				}
+				logDecision("pushing directive")
 				// {arch} substituted by the agent on receipt so a single directive works across
 				// amd64 and arm64 fleets.
 				return &gateway.UpdateDirective{

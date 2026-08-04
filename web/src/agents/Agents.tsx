@@ -145,6 +145,19 @@ export default function Agents({ me }: { me: Me }) {
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
 
+      {/* Warn on "dev" builds — either the manager or any agent reporting "dev" means the
+          build didn't get its version stamp, which breaks the version-match auto-clear of the
+          update-request flag and produces the "queued update never lands" symptom. Almost
+          always caused by `docker build` without `--build-arg VERSION=…` or by a stale image
+          cached before scripts/update.sh started passing the git-described version. */}
+      {isAdmin && (managerVersion === 'dev' || agents.some((a) => a.agent_version === 'dev')) && (
+        <div className="mb-4 rounded-[10px] border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-[13px] text-rose-200">
+          <strong>Untagged build detected.</strong> {managerVersion === 'dev' ? 'The manager itself reports version "dev" — it was built without a VERSION arg. ' : ''}
+          {agents.some((a) => a.agent_version === 'dev') ? 'One or more agents report "dev" — they were installed from an untagged manager image. ' : ''}
+          Self-update relies on version comparison; a "dev" side will never converge. Rebuild the manager with <code className="rounded bg-rose-500/20 px-1 py-0.5 font-mono text-[12px]">scripts/update.sh</code> (it exports the git-described version), then reinstall affected agents from the Agents page.
+        </div>
+      )}
+
       {isAdmin && outdatedCount > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-[13px] text-amber-200">
           <span>
