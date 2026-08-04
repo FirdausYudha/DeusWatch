@@ -8,6 +8,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 
 	"deuswatch/internal/bus"
 	"deuswatch/internal/ingest"
@@ -358,6 +361,33 @@ func InventoryHandler(fn InventoryFunc, revoked RevokedFunc) http.HandlerFunc {
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// AgentBinaryHandler serves the fresh agent binary the self-update flow points at. Lives
+// on the gateway (not the api) so agents don't need a second network path — they already
+// trust the gateway via mTLS. `binDir` is the directory the Dockerfile bakes the
+// cross-compiled binaries into (/agents). {arch} path param picks amd64 / arm64;
+// {os} is fixed to linux because Windows agents use their own service update pattern.
+func AgentBinaryHandler(binDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		arch := r.PathValue("arch")
+		// filepath.Base guards against a caller sneaking .. or / into the path param.
+		safeArch := filepath.Base(arch)
+		if safeArch != "amd64" && safeArch != "arm64" {
+			http.Error(w, "unsupported arch (want amd64 or arm64)", http.StatusBadRequest)
+			return
+		}
+		name := "deuswatch-agent-linux-" + safeArch
+		f, err := os.Open(filepath.Join(binDir, name))
+		if err != nil {
+			http.Error(w, "agent binary not found", http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", "attachment; filename="+name)
+		http.ServeContent(w, r, name, time.Time{}, f)
 	}
 }
 

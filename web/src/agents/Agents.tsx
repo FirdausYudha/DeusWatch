@@ -22,6 +22,14 @@ import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim']
 const POLL_TYPES = new Set(['fim', 'wineventlog']) // types where the interval applies
 
+// v() prints a semver with exactly one leading "v" — buildVersion baked in from `git describe`
+// already carries a `v` prefix (v2.14.0-1-gabc), so blindly prepending in the template
+// produces `vv2.14.0-1-gabc`. Handles both prefixed and bare inputs uniformly.
+function v(s?: string | null): string {
+  if (!s) return ''
+  return s.startsWith('v') ? s : 'v' + s
+}
+
 function relative(ts: string | null): string {
   if (!ts) return 'never'
   const diff = Date.now() - new Date(ts).getTime()
@@ -140,7 +148,7 @@ export default function Agents({ me }: { me: Me }) {
       {isAdmin && outdatedCount > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-[13px] text-amber-200">
           <span>
-            <strong>{outdatedCount}</strong> agent{outdatedCount === 1 ? '' : 's'} out of date · manager is on <strong>v{managerVersion}</strong>. Each self-updates on its next heartbeat (~30 s).
+            <strong>{outdatedCount}</strong> agent{outdatedCount === 1 ? '' : 's'} out of date · manager is on <strong>{v(managerVersion)}</strong>. Each self-updates on its next heartbeat (~30 s).
           </span>
           <button
             onClick={doUpdateAll}
@@ -181,9 +189,9 @@ export default function Agents({ me }: { me: Me }) {
                 <td className="px-4 py-2 text-muted">
                   {a.agent_version ? (
                     a.agent_version === managerVersion ? (
-                      <span className="text-emerald-300" title="Agent is on the same version as the manager">v{a.agent_version}</span>
+                      <span className="text-emerald-300" title="Agent is on the same version as the manager">{v(a.agent_version)}</span>
                     ) : (
-                      <span className="text-amber-300" title={`Manager is v${managerVersion || '?'}`}>v{a.agent_version}</span>
+                      <span className="text-amber-300" title={`Manager is ${v(managerVersion) || '?'}`}>{v(a.agent_version)}</span>
                     )
                   ) : (
                     <span className="text-dim" title="Pre-v2.12.0 agent — doesn't report its build. Reinstall once to enable self-update.">unknown</span>
@@ -208,9 +216,9 @@ export default function Agents({ me }: { me: Me }) {
                           onClick={() => doUpdate(a)}
                           disabled={updating[a.id] || !!a.update_requested_at}
                           className="rounded-md border border-accent/40 bg-accent-soft px-2 py-1 text-[12.5px] text-accent hover:bg-accent hover:text-white disabled:opacity-50"
-                          title={`Push new binary (v${managerVersion}); agent applies on next heartbeat`}
+                          title={`Push new binary (${v(managerVersion)}); agent applies on next heartbeat`}
                         >
-                          {a.update_requested_at ? 'Queued' : updating[a.id] ? 'Queuing…' : `↑ Update to v${managerVersion}`}
+                          {a.update_requested_at ? 'Queued' : updating[a.id] ? 'Queuing…' : `↑ Update to ${v(managerVersion)}`}
                         </button>
                       )}
                       <button

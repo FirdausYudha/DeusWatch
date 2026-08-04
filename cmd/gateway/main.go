@@ -152,10 +152,11 @@ func main() {
 			restoreFunc = st.PendingRestores
 			healthFunc = es.MarkHealth
 			// v2.12.0: capture the agent's reported version + evaluate pending update directive so
-			// the heartbeat response can tell an out-of-date agent to self-upgrade. managerVersion
-			// is baked in at build time (matches the API/gateway release tag), and the manager
-			// serves the fresh agent binary at /api/agent/binary/{os}/{arch} via api-8080.
-			apiOrigin := getenv("DEUSWATCH_API_ORIGIN", "http://api:8080")
+			// the heartbeat response can tell an out-of-date agent to self-upgrade. v2.14.1 fix:
+			// serve the binary from the gateway itself (relative URL) instead of the internal
+			// Docker api hostname — agents on separate hosts can't resolve `api` DNS. Agent
+			// prefixes the relative URL with its own gateway URL (which it already trusts via
+			// mTLS) so no extra network path is needed.
 			healthVFunc = func(ctx context.Context, cn string, degraded bool, detail, version string) error {
 				return es.MarkHealthWithVersion(ctx, cn, degraded, detail, version, managerVersion)
 			}
@@ -164,10 +165,10 @@ func main() {
 				if err != nil || !pending {
 					return nil, err
 				}
-				// GOARCH is fixed on the manager but agents can be arm64 or amd64 — the URL
-				// path parameter selects at download time. Agent already knows its own arch.
+				// {arch} substituted by the agent on receipt so a single directive works across
+				// amd64 and arm64 fleets.
 				return &gateway.UpdateDirective{
-					URL:     apiOrigin + "/api/agent/binary/linux/{arch}",
+					URL:     "/v1/agent-binary/{arch}",
 					Version: managerVersion,
 				}, nil
 			}
@@ -338,6 +339,10 @@ func main() {
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
 	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandlerFull(seenFunc, healthFunc, healthVFunc, revoked, updateFunc))
+	// v2.14.1: self-update binary served over mTLS, same trust boundary as every other agent-
+	// facing endpoint. Points at /agents (baked into the runtime-cgo image by the api build
+	// stage in deploy/Dockerfile — same directory the api's /api/agent/binary route reads from).
+	mux.HandleFunc("GET /v1/agent-binary/{arch}", gateway.AgentBinaryHandler("/agents"))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistConfigHandler(blockCfgFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
 	mux.HandleFunc("GET /v1/containment", gateway.ContainmentHandler(containFunc))

@@ -42,7 +42,16 @@ RUN mkdir -p /agents && if [ "$CMD" = "api" ]; then \
 FROM builder-common AS build-cgo
 RUN apk add --no-cache gcc musl-dev yara-dev pkgconfig
 RUN CGO_ENABLED=1 go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" -o /out/app ./cmd/${CMD}
-RUN mkdir -p /agents
+# v2.14.1: gateway serves the agent self-update binary from /agents (agents can't reach the
+# api-8080 origin from separate hosts — Docker's internal DNS name isn't routable). So the
+# gateway image needs the same cross-compiled linux binaries the api's installer serves.
+# Only fires for CMD=gateway to keep worker/certgen images lean.
+RUN mkdir -p /agents && if [ "$CMD" = "gateway" ]; then \
+      for arch in amd64 arm64; do \
+        CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" \
+          -o "/agents/deuswatch-agent-linux-$arch" ./cmd/agent; \
+      done; \
+    fi
 
 # ── Static runtime (api/worker/certgen) ─────────────────────
 FROM gcr.io/distroless/static-debian12:nonroot AS runtime-static

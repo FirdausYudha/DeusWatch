@@ -222,11 +222,22 @@ type Health struct {
 
 // UpdateDirective is what the manager returned on a heartbeat when it wants this agent
 // to self-replace. URL may contain a literal "{arch}" that the caller substitutes for
-// the running GOARCH before downloading.
+// the running GOARCH before downloading. Values starting with "/" are relative to the
+// gateway URL the agent already connects to (recommended: keeps the download on the
+// same mTLS trust boundary as everything else, no separate api hostname to reach).
 type UpdateDirective struct {
 	URL     string `json:"url"`
 	Version string `json:"version"`
 }
+
+// GatewayURL exposes the mTLS gateway origin the shipper POSTs to. Used by the self-
+// updater to resolve a manager-issued relative directive URL like `/v1/agent-binary/amd64`.
+func (s *Shipper) GatewayURL() string { return s.url }
+
+// GatewayClient exposes the shipper's mTLS-enabled http client so the self-updater can
+// download the new binary on the same trust boundary as heartbeat / log-shipping,
+// without materialising a second cert-loading HTTP client.
+func (s *Shipper) GatewayClient() *http.Client { return s.client }
 
 // Heartbeat sends a liveness signal to POST {url}/v1/heartbeat (the manager updates
 // the agent's last_seen and records the self-reported health). Returns a non-nil

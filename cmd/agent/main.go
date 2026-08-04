@@ -770,7 +770,7 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 			return false
 		}
 		if directive != nil {
-			if uerr := performSelfUpdate(ctx, directive); uerr != nil {
+			if uerr := performSelfUpdate(ctx, shipper, directive); uerr != nil {
 				log.Printf("agent: self-update failed (staying on %s): %v", buildVersion, uerr)
 			} else {
 				log.Printf("agent: self-update to %s complete — exiting for systemd to restart", directive.Version)

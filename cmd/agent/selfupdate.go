@@ -29,7 +29,7 @@ import (
 // the operator has a TLS reverse proxy), we accept either HTTP or HTTPS. When HTTPS, we
 // pin against the CA the agent already trusts for gateway mTLS — so a compromised
 // intermediate can't hijack the update flow.
-func performSelfUpdate(ctx context.Context, directive *agent.UpdateDirective) error {
+func performSelfUpdate(ctx context.Context, shipper *agent.Shipper, directive *agent.UpdateDirective) error {
 	if directive == nil {
 		return fmt.Errorf("nil directive")
 	}
@@ -40,12 +40,22 @@ func performSelfUpdate(ctx context.Context, directive *agent.UpdateDirective) er
 		url += ".exe"
 	}
 
-	// Pin to the agent's own trusted CA when scheme is https, else plain HTTP. This mirrors
-	// how the installer curls the binary the first time (no client cert required).
-	client := &http.Client{Timeout: 5 * time.Minute}
-	if strings.HasPrefix(url, "https://") {
-		if pool, err := loadCACertPool(); err == nil {
-			client.Transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
+	// Client selection:
+	//   - Relative URL (v2.14.1+): agent's own mTLS gateway client. No extra network path,
+	//     agent already trusts the gateway, and the gateway image bundles the binary at
+	//     /agents thanks to the Dockerfile fix.
+	//   - Absolute URL (pre-v2.14.1 servers, or a hand-crafted directive): pin to the CA
+	//     the agent already trusts; the installer curls the binary the same way.
+	var client *http.Client
+	if strings.HasPrefix(url, "/") {
+		client = shipper.GatewayClient()
+		url = strings.TrimRight(shipper.GatewayURL(), "/") + url
+	} else {
+		client = &http.Client{Timeout: 5 * time.Minute}
+		if strings.HasPrefix(url, "https://") {
+			if pool, err := loadCACertPool(); err == nil {
+				client.Transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
+			}
 		}
 	}
 
