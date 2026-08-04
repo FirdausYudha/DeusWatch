@@ -67,13 +67,95 @@ sudo nft delete table inet deuswatch
 
 ## Troubleshooting
 
-- **`sudo nft list tables` shows only the defaults, no `deuswatch`**: check the agent log
-  for a line like `agent: firewall synced N blocked IP(s) into nft set deuswatch/blocklist`.
-  No such line means either (a) the integration is disabled, (b) the agent's CN isn't in
-  the scope, or (c) the poll hasn't fired yet — wait 30 s.
-- **`agent: apply blocklist: exit status 1`** — usually a permission problem. Verify the
-  agent runs as root (`systemctl show deuswatch-agent -p User`) and that `nft` is on PATH.
-- **A block set on the manager doesn't remove from the host** — the reconcile is atomic
-  (flush + re-add), so a removed IP is gone within the next poll. If it persists longer
-  than that, `nft list set inet deuswatch blocklist` on the host will tell you what's
-  actually loaded; likely another process is re-adding it.
+### The `deuswatch` table never appears on the agent host
+
+Work through this checklist in order — the four common failure modes below cover ~all
+"UI says enabled, host shows nothing" reports.
+
+**1. Is the manager running v2.11.0+?**
+
+Pre-v2.11 the UI stored the config but never delivered it to the agent — this doc's
+premise assumes the fix that lets the manager push. On the manager host:
+
+```bash
+docker compose -f deploy/docker-compose.yml exec api /app -version 2>/dev/null || \
+  docker compose -f deploy/docker-compose.yml logs api | grep "listening on"
+```
+
+If the reported version is older than 2.11.0, pull `main`, `docker compose up -d --build
+gateway api worker`, then continue.
+
+**2. Is the AGENT running v2.11.0+?**
+
+Server-side changes alone are not enough — the agent binary must parse the new
+`{enabled, table, set, ips}` response envelope (pre-v2.11 it only reads `ips` and gates
+activation on the `AGENT_FIREWALL` env var). On the agent host:
+
+```bash
+sudo systemctl restart deuswatch-agent   # if unit is already installed
+# or download & reinstall from the manager's Agents page → Install script
+```
+
+Check the agent log for a v2.11-era line (any of these confirms the new binary):
+
+```bash
+sudo journalctl -u deuswatch-agent -n 200 | grep -E "firewall synced|apply blocklist"
+```
+
+**3. Does the manager's gateway say the agent is matched?**
+
+The gateway logs one line per (agent, decision) transition, plus a heartbeat every 60 s
+per CN. On the manager host:
+
+```bash
+docker compose -f deploy/docker-compose.yml logs gateway | grep "nftables push"
+```
+
+Interpret what you see:
+
+- `enabled=true scope="linux2" ips=N reason="matched integration nftables"` → the agent
+  IS receiving the push; problem is on the endpoint (jump to #4).
+- `enabled=false ... reason="no enabled nftables_agent integration"` → toggle **Enabled**
+  in the Integrations panel.
+- `enabled=false ... reason="agent_scope did not match (scope=linux2)"` → your **Apply to
+  agents** value doesn't match the agent's CN. Names are **exact** match, case-insensitive.
+  Check the Agents page for the CN as DeusWatch enrolled it — hostnames with dots
+  (`linux2.local`) or a suffix from your enrollment token will NOT match `linux2`.
+- No line at all after ~30 s → the agent is not reaching the gateway. Check
+  `/v1/heartbeat` in the gateway log; if it's absent too, the agent-manager mTLS link
+  itself is down.
+
+**4. Agent runs, gateway confirms push, but `nft list tables` is still empty.**
+
+Almost always a permissions problem on the endpoint.
+
+```bash
+systemctl show deuswatch-agent -p User
+# → User=root  (correct)
+# → User=deuswatch  (WRONG — nftables needs CAP_NET_ADMIN, easiest as root)
+
+which nft
+# must resolve; on minimal Ubuntu run: sudo apt-get install nftables
+```
+
+If both look right, check the agent's own error output:
+
+```bash
+sudo journalctl -u deuswatch-agent -n 100 | grep -E "apply blocklist|firewall"
+```
+
+A line like `agent: apply blocklist: exit status 1` almost always means either `nft` isn't
+on `$PATH` for the service, or another firewall manager (ufw, firewalld) is rejecting the
+add. In that case, run the equivalent by hand as root to see the real error:
+
+```bash
+sudo nft add table inet deuswatch
+sudo nft add set inet deuswatch blocklist '{ type ipv4_addr; }'
+```
+
+### A block set on the manager doesn't remove from the host
+
+The reconcile is atomic (flush + re-add), so a removed IP is gone within the next poll.
+If it persists longer than that, `nft list set inet deuswatch blocklist` on the host will
+tell you what's actually loaded; likely another process (ufw, fail2ban, your own script)
+is re-adding it.

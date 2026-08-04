@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -25,6 +26,48 @@ import (
 	"deuswatch/internal/store"
 	"deuswatch/internal/yara"
 )
+
+// blockLogRate is the minimum interval between two "nftables push" log lines for the SAME
+// agent CN. Prevents a busy fleet's 30s poll cadence from spamming syslog while still giving
+// operators one line per minute per agent for at-a-glance troubleshooting.
+const blockLogRate = 60 * time.Second
+
+type blockLogState struct {
+	mu    sync.Mutex
+	lastT map[string]time.Time
+	lastK map[string]string // last decision key we logged for this CN — always log the FIRST different one
+}
+
+var blockLog = &blockLogState{lastT: map[string]time.Time{}, lastK: map[string]string{}}
+
+// logBlockDecision writes one INFO line per (agent, decision) transition, plus a heartbeat every
+// blockLogRate seconds even while nothing changes. Enables an operator staring at
+// `docker compose logs gateway` to see whether an agent is (a) polling at all, (b) matching an
+// integration's agent_scope, and (c) receiving IPs — the three failure modes the v2.11 UI
+// integration collapses into "the deuswatch table isn't appearing on my agent".
+func logBlockDecision(cn, scope string, nIPs int, enabled bool, reason string) {
+	if cn == "" {
+		cn = "(no-cn)"
+	}
+	key := reason // reason encodes enable + match + IP-count changes indirectly
+	if enabled {
+		key = "on:" + key
+	}
+	blockLog.mu.Lock()
+	prev, hadKey := blockLog.lastK[cn]
+	last := blockLog.lastT[cn]
+	changed := !hadKey || prev != key
+	timeToLog := changed || time.Since(last) >= blockLogRate
+	if timeToLog {
+		blockLog.lastT[cn] = time.Now()
+		blockLog.lastK[cn] = key
+	}
+	blockLog.mu.Unlock()
+	if !timeToLog {
+		return
+	}
+	log.Printf("gateway: nftables push cn=%q enabled=%v scope=%q ips=%d reason=%s", cn, enabled, scope, nIPs, reason)
+}
 
 func main() {
 	addr := getenv("GATEWAY_ADDR", ":8443")
@@ -190,16 +233,27 @@ func main() {
 				out := gateway.BlocklistConfig{Table: "deuswatch", Set: "blocklist", IPs: []string{}}
 				cfgs, err := integrations.ListEnabledConfigs(ctx, pool, "nftables_agent")
 				if err != nil {
+					logBlockDecision(agentCN, "", 0, false, "resolve integrations failed: "+err.Error())
 					return out, err
 				}
 				var match *integrations.EnabledConfig
+				var scopeSeen string
 				for i := range cfgs {
-					if integrations.AgentScopeMatches(cfgs[i].Config["agent_scope"], agentCN) {
+					sc := cfgs[i].Config["agent_scope"]
+					if scopeSeen == "" {
+						scopeSeen = sc
+					}
+					if integrations.AgentScopeMatches(sc, agentCN) {
 						match = &cfgs[i]
 						break
 					}
 				}
 				if match == nil {
+					reason := "no enabled nftables_agent integration"
+					if len(cfgs) > 0 {
+						reason = "agent_scope did not match (scope=" + scopeSeen + ")"
+					}
+					logBlockDecision(agentCN, scopeSeen, 0, false, reason)
 					return out, nil // Enabled stays false — agent will not touch its firewall
 				}
 				if v := strings.TrimSpace(match.Config["table"]); v != "" {
@@ -210,12 +264,14 @@ func main() {
 				}
 				ips, err := rs.ActiveBlocks(ctx)
 				if err != nil {
+					logBlockDecision(agentCN, match.Config["agent_scope"], 0, true, "ActiveBlocks failed: "+err.Error())
 					return out, err
 				}
 				out.Enabled = true
 				if ips != nil {
 					out.IPs = ips
 				}
+				logBlockDecision(agentCN, match.Config["agent_scope"], len(out.IPs), true, "matched integration "+match.Name)
 				return out, nil
 			}
 			// Endpoint file quarantine: only feed the known-bad file list when the admin has
