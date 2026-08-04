@@ -3,6 +3,15 @@
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
 > Last updated: 2026-08-04 (v2.13.0 Communication Graph + Src→Dest Graph shipped, v2.14.0 dashboard panel width customization shipped).
 
+## 2026-08-04 — v2.14.1 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.14.1))
+
+Fixes v2.12.0 self-update flow that never actually delivered new binary:
+- Directive URL was `http://api:8080/api/agent/binary/{arch}` — Docker-internal hostname unreachable from agents on separate hosts. Fix: gateway now serves `GET /v1/agent-binary/{arch}` over mTLS; directive URL is relative; agent resolves against its own gateway URL.
+- Dockerfile build-cgo stage now cross-compiles agent binaries when CMD=gateway (was only for CMD=api).
+- Double `vv` prefix in UI version labels — added `v()` helper that emits exactly one `v`.
+
+Upgrade caveat: pre-v2.14.1 agents (v2.12.0–v2.14.0) can't parse relative URL. Need one final manual reinstall. From v2.14.1 forward, one-click self-update works.
+
 ## 2026-08-04 — v2.13.0 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.13.0))
 
 Two node-link diagram widgets on dashboard (the two features operator asked for at v2.10 planning):
