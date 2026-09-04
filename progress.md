@@ -48,9 +48,35 @@ container width (`useElementWidth`), so 1 user unit = 1 CSS px and height depend
 node count. Measured: 1374×515px → **1374×240px** at full width, identical 240px at span-1.
 
 Verified: `go build ./...`, `go vet`, package tests green, `tsc --noEmit` clean, graph
-geometry checked numerically. **Not** verified in the running dashboard (no Docker on the
-dev machine), and the operator's live "never connected" instance is not yet confirmed to be
-this exact cause — the new 409 + startup CN line will say so outright on the next restart.
+geometry checked numerically. Not verified in the running dashboard (no Docker on the dev
+machine).
+
+### Outcome on the operator's server — read this before trusting the story above
+
+After deploying v2.14.6 the agent went **online** and the worker came **Up**. But
+`logs gateway | grep REJECTED` returned **nothing**, so:
+
+- **The unenrolled-CN bug was NOT the cause of this incident.** It is a real bug and the fix
+  stands on its own merit, but it did not fire here. Do not record it as the root cause.
+- **The missing worker WAS confirmed.** `update.sh` runs `compose up`, which created the
+  container that had never existed; it has been `Up` since.
+- **What actually fixed "never connected" is unidentified.** The agent had already been
+  re-pointed at the public IP and was *still* never connected; the only thing that changed
+  afterwards was `update.sh` recreating api/gateway/worker/web. Recreating the gateway
+  replaces its DB pool, which is the failure mode `store.ConnectSuperadmin`'s comment
+  already describes — but that path logs "heartbeat DB update failed" and returns 503, and
+  no such line was ever seen. So the pool theory does not fully fit either.
+
+Worth knowing: the gateway logged **nothing at all** between 00:52 and 08:45 on 2026-09-04
+while the agent was failing. An agent that cannot reach the gateway is invisible from the
+manager side by construction — there is no "an agent I know about has gone quiet" signal
+anywhere except the worker, and the worker was the component that was down.
+
+**Open gap this exposed (not yet built):** the manager has no worker-liveness surface.
+`/healthz` (cmd/api/main.go) only proves the api is alive, and it is the only thing the UI
+calls. The worker was absent for 11+ hours with the dashboard showing nothing wrong — and
+`AGENT_DISCONNECT_AFTER`, the alarm for exactly this, runs *inside the worker*. The
+component that reports trouble was the component that was missing.
 
 
 ## 2026-08-04 — v2.14.5 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.14.5))
