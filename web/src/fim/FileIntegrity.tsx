@@ -169,12 +169,14 @@ export default function FileIntegrity({
         })
         .catch((e) => !cancelled && setErr(String((e as Error).message ?? e)))
     }
-    load()
-    // Same 30s cadence as the geo map — fresh enough to watch an incident unfold without
-    // hammering the API while an operator reads a diff.
+    // Debounced by 300ms, matching the Dashboard's events table. Without it every keystroke in
+    // the search box fired its own 500-row query: typing "index.php" meant nine of them.
+    const debounce = setTimeout(load, 300)
+    // Then a 30s refresh, so an incident can be watched unfolding without a reload.
     const t = setInterval(load, 30_000)
     return () => {
       cancelled = true
+      clearTimeout(debounce)
       clearInterval(t)
     }
   }, [range.preset, range.from, range.to, q, agent])
