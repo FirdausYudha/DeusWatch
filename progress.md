@@ -1,7 +1,64 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-09-04 (v2.14.6 — the silent "never connected" agent + flow-graph sizing).
+> Last updated: 2026-09-04 (File Integrity page + editor-artifact rule).
+
+## 2026-09-04 (later) — File Integrity page, map clamp, editor-artifact rule
+
+Same day, after the v2.14.6 work below. All pushed and deployed; still untagged.
+
+**New page: File Integrity** (`web/src/fim/FileIntegrity.tsx`, nav above Snapshots). Operator's
+reason: file events were drowning in the Dashboard's mixed stream. Scope is every
+`event_category = "file"`, classified from the fields the rules actually key on — these rules
+carry **no `deuswatch.label`**, so classification reads `event.action = file_encrypted`
+(ransomware) and `deuswatch.file_hash.verdict = known_bad` (malware), with a rule-name match for
+webshell. Reuses `/api/events/search`, which already accepts `category`; no new endpoint.
+Read-only on purpose — restore/quarantine/rollback stay on Snapshots, and rows link across
+(`SnapshotBrowser` gained `initialPath` so the handoff lands on the right file). Documented in
+`docs/features/13-file-integrity.md`.
+
+Two follow-up fixes after the operator tried it, both the same disease as everything else this
+session — a correct system that says nothing about why it has nothing to show:
+
+- Only 1 of 9 rows had a caret, because the caret was gated on a diff existing. The other eight
+  were legitimately diff-less (created has no earlier version, deleted has no new content, `.swp`
+  is binary), but the page said none of that, so it read as broken. **Every row expands now**, the
+  panel always carries rule/technique/outcome/endpoint/SHA-256, and where there is no diff it
+  names the reason for *that* event, including `FIM_SNAPSHOT_MAX_BYTES` when the file is outside
+  the text/2 MiB snapshot window.
+- The open row was tracked by **list index** while the table re-polls every 30s, so an arriving
+  event silently re-pointed the panel at a different file — an operator could read one file's diff
+  under another file's row. Now keyed on row identity.
+
+**Attack-origin map** (`AttackGeoMap.tsx`): the drag handler wrote `tx`/`ty` straight from the
+pointer delta with no bound, so one drag slid the world out of the viewBox. Wheel zoom, both zoom
+buttons and my-location had the same hole. Added `clampView` and routed all five mutations
+through it: `MAP_WIDTH*(1-k) <= tx <= 0`, which collapses to `{0,0}` at k=1 — correct, since at
+natural size the map already fills the frame.
+
+**New rule: `rules/sigma/editor_artifact_in_webroot.yml`.** Operator asked whether excluding
+`.swp`/`.tmp` from FIM was safe. It is not, and the reasoning is worth keeping: an exclusion list
+in a public repo is a published blind spot (`name it .x.php.swp and this sensor ignores it`), and
+it would drop the first stage of staged webshell drops and of ransomware that writes `.tmp` before
+renaming. More importantly a `.swp` in a webroot is a **finding**, not noise — git/rsync/CI never
+produce one, so it is evidence of an interactive shell in the served directory.
+
+So the rule turns the noise into signal instead of hiding it. Shaped for minimal false positives
+per the operator's explicit requirement: `file_created` only (one alert per editing session, not
+three), web roots only, and only artifact names automation never emits — `.orig`, `.rej` and plain
+`~` backups are **deliberately excluded** because release tooling creates those, and Emacs
+auto-save is excluded because its only usable pattern is a leading `#`. It declares **no
+`mitigation_action`**, which is what keeps it inside the trusted-session gate
+(`makeTrustedSessionGate`, cmd/worker/main.go) so a whitelisted admin session suppresses it.
+`internal/detect/sigma/editor_artifact_rule_test.go` asserts the 16 negative cases (rsync temp
+files, patch leftovers, deploy backups, git lockfiles, names merely containing "swap" or "#") as
+the point of the test.
+
+**Still to verify live:** none of the web work was seen in a browser — the preview server was
+blocked for the whole session, so `tsc --noEmit` + `vite build` is all the frontend has behind it.
+And the editor-artifact rule is **in the DB but has never been observed firing**. Editing a file
+under `/var/www/html` with vim on an agent host should raise it; until someone does that, it is
+implemented, not verified.
 
 ## 2026-09-04 — v2.14.6 (not yet tagged)
 
