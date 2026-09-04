@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"deuswatch/internal/agentinstall"
@@ -1181,6 +1182,50 @@ func storageBudgetBytes() int64 {
 	return 0
 }
 
+// serviceDownLog throttles the "component is down" line to one per service per minute, and also
+// records the recovery — an operator reading the log after the fact needs the window, not just
+// that it happened once.
+var serviceDownLog = struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+	down map[string]bool
+}{last: map[string]time.Time{}, down: map[string]bool{}}
+
+func logServiceDown(s store.ServiceHealth) {
+	serviceDownLog.mu.Lock()
+	fresh := time.Since(serviceDownLog.last[s.Service]) >= time.Minute
+	if fresh {
+		serviceDownLog.last[s.Service] = time.Now()
+	}
+	serviceDownLog.down[s.Service] = true
+	serviceDownLog.mu.Unlock()
+	if !fresh {
+		return
+	}
+	if !s.EverSeen {
+		log.Printf("api: %s reported DOWN to the UI — no heartbeat has EVER been recorded, so the "+
+			"container has most likely never started. Check `docker compose ps -a`.", s.Service)
+		return
+	}
+	log.Printf("api: %s reported DOWN to the UI — last heartbeat %.0fs ago (stale after %.0fs), "+
+		"build %q. It writes one every 30s, so this means the process is stopped, wedged, or "+
+		"cannot reach the database.", s.Service, s.Age, store.WorkerStaleAfter.Seconds(), s.Version)
+}
+
+// logServiceRecovered prints the other end of the window, once, so the log shows how long the
+// outage lasted rather than only that one started.
+func logServiceRecovered(s store.ServiceHealth) {
+	serviceDownLog.mu.Lock()
+	wasDown := serviceDownLog.down[s.Service]
+	if wasDown {
+		serviceDownLog.down[s.Service] = false
+	}
+	serviceDownLog.mu.Unlock()
+	if wasDown {
+		log.Printf("api: %s is reporting again (heartbeat %.0fs old, build %q)", s.Service, s.Age, s.Version)
+	}
+}
+
 // serviceHealthHandler reports whether each backend component is still beating. Today that is the
 // worker, which is the only consumer of logs.normalized and the only writer of events — when it
 // stops, the UI keeps rendering happily over a database that has quietly stopped growing.
@@ -1195,6 +1240,15 @@ func serviceHealthHandler(st *store.Store) http.HandlerFunc {
 			log.Printf("api: service health lookup: %v", err)
 			http.Error(w, "cannot read service health", http.StatusServiceUnavailable)
 			return
+		}
+		// Leave a server-side trail whenever we tell the UI a component is down. Without this the
+		// banner is the only record it ever happened, so anyone investigating after the fact has
+		// nothing to read — the same blind spot this whole feature exists to remove. Throttled to
+		// one line a minute because every open browser tab polls this every 30s.
+		if !worker.Alive {
+			logServiceDown(worker)
+		} else {
+			logServiceRecovered(worker)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"services":         []store.ServiceHealth{worker},
