@@ -16,6 +16,28 @@ const DEFAULT_VIEW: View = { tx: 0, ty: 0, k: 1 }
 const MIN_K = 1.0
 const MAX_K = 8
 
+// clampView keeps the scaled map covering the whole viewBox, so no interaction can ever drag or
+// zoom the world off the frame and leave bare background behind it.
+//
+// After `translate(tx ty) scale(k)` the content spans tx … tx + MAP_WIDTH*k. For it to cover the
+// 0 … MAP_WIDTH viewport, the left edge must not fall right of 0 and the right edge must not fall
+// left of MAP_WIDTH — i.e. MAP_WIDTH*(1-k) <= tx <= 0, and likewise for ty. At k = 1 that collapses
+// to exactly {0,0}: at natural size the map already fills the frame, so there is nothing to pan to.
+//
+// Every mutation of `view` must go through this. Pre-v2.14.7 the drag handler wrote tx/ty straight
+// from the pointer delta with no bound at all, so a single drag slid the entire world out of view
+// and the only way back was the reset button.
+function clampView(v: View): View {
+  const k = Math.min(MAX_K, Math.max(MIN_K, v.k))
+  const minTx = MAP_WIDTH * (1 - k)
+  const minTy = MAP_HEIGHT * (1 - k)
+  return {
+    k,
+    tx: Math.min(0, Math.max(minTx, v.tx)),
+    ty: Math.min(0, Math.max(minTy, v.ty)),
+  }
+}
+
 // AttackGeoMap draws an equirectangular world map with animated attack arcs from every external
 // source IP in the current dashboard time window to the (statically configured) manager location.
 // docs/geo-map.md decision A1 + B1 (v1): country centroid bundle + one env-configured manager
@@ -89,7 +111,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
       // At MIN_K the view snaps back to origin so the map always covers the full frame instead
       // of drifting with a residual pan from earlier interactions.
       if (newK === MIN_K) return DEFAULT_VIEW
-      return { k: newK, tx: px - (px - v.tx) * ratio, ty: py - (py - v.ty) * ratio }
+      return clampView({ k: newK, tx: px - (px - v.tx) * ratio, ty: py - (py - v.ty) * ratio })
     })
   }
 
@@ -107,7 +129,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
     const rect = svg.getBoundingClientRect()
     const dx = ((e.clientX - d.x) / rect.width) * MAP_WIDTH
     const dy = ((e.clientY - d.y) / rect.height) * MAP_HEIGHT
-    setView((v) => ({ ...v, tx: d.tx + dx, ty: d.ty + dy }))
+    setView((v) => clampView({ ...v, tx: d.tx + dx, ty: d.ty + dy }))
   }
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     dragRef.current = null
@@ -128,7 +150,9 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
         const [mx, my] = project(pos.coords.latitude, pos.coords.longitude)
         setView((v) => {
           const k = Math.max(v.k, 2.5)
-          return { k, tx: MAP_WIDTH / 2 - mx * k, ty: MAP_HEIGHT / 2 - my * k }
+          // Clamped, so centring on a location near a map edge pans as far as it can rather than
+          // leaving dead space beyond the edge.
+          return clampView({ k, tx: MAP_WIDTH / 2 - mx * k, ty: MAP_HEIGHT / 2 - my * k })
         })
       },
       () => setLocating(false),
@@ -245,7 +269,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
               const newK = Math.min(MAX_K, v.k * 1.3)
               const ratio = newK / v.k
               const cx = MAP_WIDTH / 2, cy = MAP_HEIGHT / 2
-              return { k: newK, tx: cx - (cx - v.tx) * ratio, ty: cy - (cy - v.ty) * ratio }
+              return clampView({ k: newK, tx: cx - (cx - v.tx) * ratio, ty: cy - (cy - v.ty) * ratio })
             })}
             className="pointer-events-auto h-7 w-7 rounded-[6px] border border-border bg-surface/90 text-[14px] font-semibold text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2"
             title="Zoom in"
@@ -258,7 +282,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
               if (newK === MIN_K) return DEFAULT_VIEW
               const ratio = newK / v.k
               const cx = MAP_WIDTH / 2, cy = MAP_HEIGHT / 2
-              return { k: newK, tx: cx - (cx - v.tx) * ratio, ty: cy - (cy - v.ty) * ratio }
+              return clampView({ k: newK, tx: cx - (cx - v.tx) * ratio, ty: cy - (cy - v.ty) * ratio })
             })}
             className="pointer-events-auto h-7 w-7 rounded-[6px] border border-border bg-surface/90 text-[14px] font-semibold text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2 disabled:opacity-40"
             title="Zoom out"
