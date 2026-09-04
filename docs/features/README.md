@@ -17,6 +17,7 @@ ports it uses**, **what language/tech it's built with**, and **how to change its
 | 10 | [Network Containment](10-network-containment.md) | Isolate a compromised host from the LAN (host self-isolation + edge block) |
 | 11 | [Decoders](11-decoders.md) | Data-driven regex log parsing for sources without a built-in decoder (Wazuh-style) |
 | 12 | [Playbooks](12-playbooks.md) | Per-label remediation playbooks stamped onto every alert (UI-editable catalog) |
+| 13 | [File Integrity](13-file-integrity.md) | Dedicated monitoring for file changes, ransomware, malware and webshell drops |
 
 ---
 

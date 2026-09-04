@@ -131,7 +131,7 @@ export default function FileIntegrity({
     <div className="p-5">
       <PageHeader
         subtitle="File changes, ransomware and malware across every endpoint"
-        actions={<DocLink file="features/05-agents.md" />}
+        actions={<DocLink file="features/13-file-integrity.md" />}
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
