@@ -72,6 +72,40 @@ while the agent was failing. An agent that cannot reach the gateway is invisible
 manager side by construction — there is no "an agent I know about has gone quiet" signal
 anywhere except the worker, and the worker was the component that was down.
 
+### Measured resource footprint (2026-09-04)
+
+First real measurement of the running stack, taken with `docker stats --no-stream` on
+dev-server-firdaus with every service idle. Recorded here so the README's numbers have a
+dated provenance rather than floating free:
+
+```
+deuswatch-db-1        181.8 MiB / 1 GiB     1.00% CPU
+deuswatch-worker-1     26.1 MiB / 1 GiB     3.22%
+deuswatch-nats-1       19.5 MiB / 512 MiB   0.28%
+deuswatch-gateway-1    16.6 MiB / 512 MiB   0.93%
+deuswatch-web-1        12.5 MiB / 128 MiB   0.00%
+deuswatch-api-1        11.0 MiB / 512 MiB   0.00%
+                    = 267   MiB total,     ~5.4% CPU
+```
+
+Agent binaries, built stripped (`-ldflags="-s -w"`): **6.8 MB** linux/amd64, **7.1 MB**
+windows/amd64.
+
+Context worth keeping: the same host was simultaneously running Wazuh (indexer 2.128 GiB +
+manager 934.7 MiB + dashboard 259 MiB = **3.29 GiB**) and tenzir-node (1.241 GiB). Same
+hardware, same moment, both idle — DeusWatch used roughly **1/12** of Wazuh's memory.
+
+That comparison is deliberately **not** published anywhere. Two reasons, both worth
+remembering before someone reaches for it in a pitch: the workloads were not matched under
+controlled conditions, so "12x lighter" is not defensible under pressure; and DeusWatch
+*ingests* Wazuh alerts via the webhook feed, so positioning it as a Wazuh-killer is
+strategically wrong. The public materials state DeusWatch's own measured numbers and stop
+there. The exhibition deck carries one indirect line — "fits inside what a single JVM-based
+log indexer reserves for heap" — which makes the point without naming anyone.
+
+Caveat attached to the README table: these are idle figures at lab scale, not a capacity
+benchmark.
+
 ### Follow-on the same day: nftables_agent looked broken, was just a stale scope
 
 Operator: integration configured in the UI, but `nft list sets` on the agent host shows no

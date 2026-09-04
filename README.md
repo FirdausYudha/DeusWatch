@@ -99,6 +99,31 @@ Agent (Go) ──mTLS──> Ingest Gateway ──> NATS JetStream ──> Worke
 
 Full design details: see [DeusWatch.md](DeusWatch.md).
 
+### Resource footprint
+
+Every service is a statically linked Go binary on a distroless base image - no JVM, no
+interpreter, no package manager. Measured with `docker stats` on the project's own
+development server, **all services idle**:
+
+| Service | Memory |
+|---|---|
+| `db` (PostgreSQL 16 + TimescaleDB) | 181.8 MiB |
+| `worker` (enrich · detect · respond) | 26.1 MiB |
+| `nats` (JetStream) | 19.5 MiB |
+| `gateway` (mTLS ingest) | 16.6 MiB |
+| `web` (nginx + built UI) | 12.5 MiB |
+| `api` | 11.0 MiB |
+| **Whole stack** | **267 MiB** · ~5% CPU |
+
+The three Go services that carry the entire detection path - gateway, worker and api -
+total **54 MiB between them**. The endpoint agent is a single static binary: **6.8 MB** on
+Linux, **7.1 MB** on Windows, with no runtime to install.
+
+> These are **idle figures on a lab-scale deployment**, not a capacity benchmark. Sustained
+> high event rates raise the `worker` and `db` numbers; the compose file caps both at 1 GB
+> (`DEUSWATCH_WORKER_MEM`, `DEUSWATCH_DB_MEM`) so one runaway service cannot take the host
+> down. Measure your own deployment before sizing hardware for it.
+
 ## Integrations
 
 Connectors are added and configured from the **Integrations** menu in the UI (secrets are
