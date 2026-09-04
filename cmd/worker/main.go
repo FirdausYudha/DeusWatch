@@ -44,6 +44,11 @@ const aggInterval = 30 * time.Second
 // llmInterval: how often the LLM worker analyzes alerts without a verdict.
 const llmInterval = 20 * time.Second
 
+// buildVersion is baked in at build time (-ldflags -X main.buildVersion=…, see deploy/Dockerfile,
+// which already passes it for every cmd). Reported alongside the worker's heartbeat so the
+// dashboard can show WHICH build is running, not merely that something is.
+var buildVersion = "dev"
+
 func main() {
 	natsURL := getenv("NATS_URL", "nats://localhost:4222")
 	dsn := getenv("STORE_DSN", "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable")
@@ -342,6 +347,10 @@ func main() {
 	go runAgentHealth(ctx, st, onAlert, pbLive.Annotate)
 	go runDiskJanitor(ctx, st, onAlert, pbLive.Annotate)
 	go serveHealth(ctx, st, b)
+	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing
+	// did — this worker was once absent for 11+ hours with a clean-looking dashboard, because
+	// every alarm for that condition (including AGENT_DISCONNECT_AFTER) runs inside this process.
+	go runServiceHeartbeat(ctx, st)
 
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
@@ -441,6 +450,35 @@ func makeTrustedSessionGate(st *store.Store, engine *respond.Engine, window time
 			}
 		}
 		return false
+	}
+}
+
+// runServiceHeartbeat writes this worker's liveness into the database every 30s so the api — and
+// through it the dashboard — can tell the difference between "quiet because nothing is happening"
+// and "quiet because the detection pipeline is dead".
+//
+// Through the DB rather than an HTTP probe: both processes already hold this connection, so there
+// is no new network path, no service discovery, and it keeps working when the two run on separate
+// hosts. A failed write is logged and retried on the next tick — the api's staleness threshold
+// tolerates three misses, so a transient DB blip must not be allowed to look like a crash.
+func runServiceHeartbeat(ctx context.Context, st *store.Store) {
+	beat := func() {
+		wc, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		if err := st.UpsertServiceHeartbeat(wc, store.ServiceWorker, buildVersion, ""); err != nil {
+			log.Printf("worker: heartbeat write failed: %v", err)
+		}
+	}
+	beat() // immediately, so a restart clears the banner in seconds rather than after a full tick
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			beat()
+		}
 	}
 }
 

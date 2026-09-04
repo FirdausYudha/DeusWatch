@@ -18,6 +18,7 @@ import Workspaces from './workspaces/Workspaces'
 import Tenants from './tenants/Tenants'
 import Settings from './settings/Settings'
 import Login from './components/Login'
+import ServiceHealthBanner from './components/ServiceHealthBanner'
 import { fetchMe, getToken, can, type Me, type NewTicketInput } from './lib/api'
 import { useDashRange } from './lib/range'
 
@@ -78,6 +79,9 @@ export default function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar view={view} onMenu={() => setNavOpen(true)} range={range} />
         <main className="flex-1 overflow-y-auto">
+        {/* Above the page content on every view: a dead worker stops detection everywhere, so
+            this must not be something you only see if you happen to open the Dashboard. */}
+        <ServiceHealthBanner />
         {view === 'agents' ? (
           <Agents me={me} />
         ) : view === 'inventory' ? (

@@ -351,6 +351,10 @@ func main() {
 		mux.Handle("POST /api/kill-requests/approve", protect(auth.PermApproveRemediation, killDecisionHandler(st, true)))
 		mux.Handle("POST /api/kill-requests/dismiss", protect(auth.PermApproveRemediation, killDecisionHandler(st, false)))
 
+		// Backend component liveness. /healthz only proves THIS process is up; this reports the
+		// worker, whose absence silently stops the whole detection pipeline.
+		mux.Handle("GET /api/system/services", protect(auth.PermViewDashboard, serviceHealthHandler(st)))
+
 		// Log storage health (size, retention/compression, replication) for the dashboard.
 		mux.Handle("GET /api/storage/status", protect(auth.PermViewDashboard, storageStatusHandler(st)))
 		mux.Handle("PUT /api/storage/retention", protect(auth.PermManageSettings, storageRetentionHandler(st)))
@@ -1177,6 +1181,28 @@ func storageBudgetBytes() int64 {
 	return 0
 }
 
+// serviceHealthHandler reports whether each backend component is still beating. Today that is the
+// worker, which is the only consumer of logs.normalized and the only writer of events — when it
+// stops, the UI keeps rendering happily over a database that has quietly stopped growing.
+//
+// A lookup failure is returned as 503 rather than as "the worker is down": telling an operator to
+// go restart a healthy worker because the api could not reach Postgres would send them to the
+// wrong component entirely.
+func serviceHealthHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		worker, err := st.ServiceHealthFor(r.Context(), store.ServiceWorker, store.WorkerStaleAfter)
+		if err != nil {
+			log.Printf("api: service health lookup: %v", err)
+			http.Error(w, "cannot read service health", http.StatusServiceUnavailable)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"services":         []store.ServiceHealth{worker},
+			"stale_after_secs": store.WorkerStaleAfter.Seconds(),
+		})
+	}
+}
+
 func storageStatusHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, st.StorageStatus(r.Context(), storageBudgetBytes()))
@@ -1397,8 +1423,8 @@ func configImportHandler(st *store.Store) http.HandlerFunc {
 				AutoApprove bool  `json:"auto_approve"`
 			} `json:"ban_policy"`
 			Whitelist []struct{ CIDR, Note, Kind string } `json:"ip_whitelist"`
-			ReportAI  *store.ReportAIConfig         `json:"report_ai_config"`
-			Notify    *store.NotifyConfig           `json:"notify_config"`
+			ReportAI  *store.ReportAIConfig               `json:"report_ai_config"`
+			Notify    *store.NotifyConfig                 `json:"notify_config"`
 			Rules     []struct {
 				Name, Kind, YAML string
 				Enabled          bool

@@ -63,6 +63,43 @@ function rowKey(e: EventRow): string {
   return `${e.time}|${e.agent_id}|${e.file_path}|${e.event_action}`
 }
 
+// ── Editor sessions ─────────────────────────────────────────────────────────────
+// vim writes its working file next to the target as .<basename>.swp, falling back to .swo then
+// .swn when one is already taken. That file's lifetime IS the editing session: it appears when the
+// buffer opens and is removed when the editor exits cleanly. So "how long was this file open" is
+// already in the event stream — created → deleted on the swap file — and needs no new data.
+const SWAP_EXTS = ['.swp', '.swo', '.swn']
+
+function isSwapPath(p: string): boolean {
+  return SWAP_EXTS.some((ext) => p.endsWith(ext))
+}
+
+// swapCandidates returns the swap-file paths vim would use for a given file.
+function swapCandidates(filePath: string): string[] {
+  const cut = filePath.lastIndexOf('/')
+  const dir = cut >= 0 ? filePath.slice(0, cut + 1) : ''
+  const base = cut >= 0 ? filePath.slice(cut + 1) : filePath
+  return SWAP_EXTS.map((ext) => `${dir}.${base}${ext}`)
+}
+
+type EditorSession = { start?: string; end?: string; user?: string; process?: string }
+
+// duration renders a span the way an operator reads it. Sub-minute precision matters here: the
+// difference between a 3-second scripted write and a 4-minute hand edit is the whole signal.
+function duration(fromISO: string, toISO: string): string {
+  const secs = Math.max(0, Math.round((new Date(toISO).getTime() - new Date(fromISO).getTime()) / 1000))
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
+}
+
+function clockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString()
+}
+
 // noDiffReason explains, in the terms of THIS event, why there is no content diff. Most file
 // events legitimately have none — a created file has no earlier version, a deleted one has no new
 // content, and the agent only snapshots text files under FIM_SNAPSHOT_MAX_BYTES
@@ -163,6 +200,36 @@ export default function FileIntegrity({
     const list = rows ?? []
     return kind === 'all' ? list : list.filter((e) => kindOf(e) === kind)
   }, [rows, kind])
+
+  // Index every editor session in the fetched window, keyed by agent + swap path. Built from the
+  // unfiltered rows on purpose: the kind filter must not be able to hide the swap events that
+  // bound a session for a file the operator IS looking at.
+  const sessions = useMemo(() => {
+    const m = new Map<string, EditorSession>()
+    for (const e of rows ?? []) {
+      if (!e.file_path || !isSwapPath(e.file_path)) continue
+      const k = `${e.agent_id}|${e.file_path}`
+      const s = m.get(k) ?? {}
+      if (e.event_action === 'file_created') s.start = e.time
+      if (e.event_action === 'file_deleted') s.end = e.time
+      if (e.user_name) s.user = e.user_name
+      if (e.process_name) s.process = e.process_name
+      m.set(k, s)
+    }
+    return m
+  }, [rows])
+
+  // sessionFor resolves a row to its editing session — directly when the row IS the swap file,
+  // otherwise via the swap paths vim would have used for it.
+  const sessionFor = (e: EventRow): EditorSession | undefined => {
+    if (!e.file_path) return undefined
+    if (isSwapPath(e.file_path)) return sessions.get(`${e.agent_id}|${e.file_path}`)
+    for (const cand of swapCandidates(e.file_path)) {
+      const s = sessions.get(`${e.agent_id}|${cand}`)
+      if (s) return s
+    }
+    return undefined
+  }
 
   const cap = summary.capped ? '≥' : ''
 
@@ -338,6 +405,59 @@ export default function FileIntegrity({
                                 <DocLink file="whodata.md" label="docs" className="ml-2" />
                               </div>
                             )}
+                            {(() => {
+                              const s = sessionFor(e)
+                              if (!s || (!s.start && !s.end)) return null
+                              return (
+                                <div className="mb-2 rounded-[8px] border border-border bg-bg px-3 py-2 text-[12.5px]">
+                                  <span className="text-dim">editor session</span>{' '}
+                                  {s.start && s.end ? (
+                                    <>
+                                      <span className="font-mono text-fg">{clockTime(s.start)}</span>
+                                      <span className="text-dim"> → </span>
+                                      <span className="font-mono text-fg">{clockTime(s.end)}</span>
+                                      <span className="ml-2 font-mono text-accent">
+                                        {duration(s.start, s.end)}
+                                      </span>
+                                      <span className="text-dim"> open</span>
+                                    </>
+                                  ) : s.start ? (
+                                    <>
+                                      <span className="text-dim">opened </span>
+                                      <span className="font-mono text-fg">{clockTime(s.start)}</span>
+                                      <span className="ml-2 text-medium">
+                                        still open, or the editor did not exit cleanly — a leftover
+                                        swap file in a served directory leaks the file's contents
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-dim">closed </span>
+                                      <span className="font-mono text-fg">{clockTime(s.end!)}</span>
+                                      <span className="ml-2 text-dim">
+                                        (it was opened before this time range — widen the range for
+                                        the full duration)
+                                      </span>
+                                    </>
+                                  )}
+                                  {(s.user || s.process) && (
+                                    <span className="text-dim">
+                                      {' · '}
+                                      {s.process && <span className="font-mono text-fg">{s.process}</span>}
+                                      {s.user && (
+                                        <>
+                                          {s.process ? ' as ' : ''}
+                                          <span className="font-mono text-fg">{s.user}</span>
+                                        </>
+                                      )}
+                                    </span>
+                                  )}
+                                  <div className="mt-1 text-[11.5px] text-dim">
+                                    Derived from the editor's own working file, not from who-data.
+                                  </div>
+                                </div>
+                              )
+                            })()}
                             {e.dw_filehash_detail && (
                               <div className="mb-2 text-[12.5px]">
                                 <span className="text-dim">hash reputation:</span>{' '}

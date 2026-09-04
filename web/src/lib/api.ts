@@ -1802,3 +1802,24 @@ export async function saveReportAIConfig(c: ReportAIConfig): Promise<ReportAICon
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
 }
+
+// ── Backend component liveness ────────────────────────────
+// /healthz only proves the API process is up. This reports the worker, whose absence stops the
+// entire detection pipeline while the UI carries on rendering over a database that has quietly
+// stopped growing — the exact failure that went unnoticed for 11 hours on 2026-09-04.
+export type ServiceHealth = {
+  service: string
+  alive: boolean
+  last_seen_at: string | null
+  age_seconds: number
+  version?: string
+  detail?: string
+  /** false = never reported at all (fresh deploy, or never started) — different advice from "stopped". */
+  ever_seen: boolean
+}
+
+export async function fetchServiceHealth(): Promise<ServiceHealth[]> {
+  const res = await authFetch('/api/system/services')
+  if (!res.ok) throw new Error(`service health: HTTP ${res.status}`)
+  return (await res.json()).services ?? []
+}

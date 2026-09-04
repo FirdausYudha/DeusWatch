@@ -69,6 +69,31 @@ A single hit is surfaced; a burst authorizes automatic containment through the a
 5. Click **Snapshots ↗** on a row to jump to that file's version timeline, where you can diff
    older versions, restore one, or quarantine the file.
 
+### Editor session — how long the file was actually open
+
+When a file was edited with vim, the expanded row also shows the **editing session**: the clock
+time it was opened, the time it was closed, and the duration between them.
+
+This is derived, not reported. vim writes its working file next to the target as
+`.<name>.swp` (falling back to `.swo`, then `.swn`), and that file's lifetime *is* the session —
+it appears when the buffer opens and is removed when the editor exits cleanly. Both ends are
+already ordinary FIM events, so the page correlates them and needs no extra data source. It is
+labelled as derived in the UI precisely because it is not who-data: the process and user
+attribution comes from the Wazuh feed, this timing does not.
+
+Two partial cases are reported rather than hidden:
+
+- **Opened, never closed.** Either the editor is still running, or it exited uncleanly. A
+  leftover `.swp` in a served directory is also an information-disclosure finding in its own
+  right — the swap file contains the original file's contents, and a downloadable
+  `.index.php.swp` is a classic web-server finding.
+- **Closed, opening not in range.** The session started before the selected time window. Widen
+  the range to get the full duration.
+
+Only editors that use a side-car working file produce this. A change written by `sed`, a deploy
+script, a CMS or an attacker's `curl` has no session to measure, and none is shown — which is
+itself informative: a content change with no editing session behind it was not typed by hand.
+
 The table refreshes every 30 seconds, so an incident can be watched as it unfolds without
 reloading.
 
