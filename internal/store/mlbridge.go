@@ -9,7 +9,7 @@ import (
 )
 
 // IPFeature is the per-IP feature vector an external ML batch (e.g. an Isolation Forest) consumes
-// to detect low-and-slow scanners. These are RAW behavioral features over the window — the same
+// to detect low-and-slow scanners. These are RAW behavioral features over the window: the same
 // signals the built-in heuristic watchlist uses, exposed for a real model.
 type IPFeature struct {
 	IP            string    `json:"ip"`
@@ -20,7 +20,7 @@ type IPFeature struct {
 	Failures      int       `json:"failures"`        // blocked / denied / 4xx / auth-fail
 	SpanSecs      float64   `json:"span_secs"`       // last_seen - first_seen
 	AvgGapSecs    float64   `json:"avg_gap_secs"`    // mean inter-event gap (interval regularity…)
-	GapStddevSecs float64   `json:"gap_stddev_secs"` // …with its stddev — low CV = very regular
+	GapStddevSecs float64   `json:"gap_stddev_secs"` // …with its stddev, low CV = very regular
 	FirstSeen     time.Time `json:"first_seen"`
 	LastSeen      time.Time `json:"last_seen"`
 }

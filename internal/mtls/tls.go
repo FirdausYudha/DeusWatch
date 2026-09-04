@@ -13,8 +13,8 @@ import (
 //
 // The CN *is* the agent's identity on the wire: the gateway keys the heartbeat, the
 // pushed config, the blocklist scope and every ingested log line on it, and it must match
-// an enrolled `agents.name` row byte-for-byte. Nothing in the TLS handshake checks that —
-// any CA-signed certificate is accepted — so a wrong CN fails silently on the manager
+// an enrolled `agents.name` row byte-for-byte. Nothing in the TLS handshake checks that,
+// any CA-signed certificate is accepted, so a wrong CN fails silently on the manager
 // side. Exposed here so the agent can print what it is presenting at startup, which turns
 // "the dashboard says never connected" into a one-line journalctl answer.
 func ClientIdentity(p CertPaths) (cn string, notAfter time.Time, err error) {
@@ -47,7 +47,7 @@ func caPool(caCertPath string) (*x509.CertPool, error) {
 }
 
 // ServerConfig returns a *tls.Config for the server side that REQUIRES and verifies
-// the client certificate (full mTLS) — there is no plaintext path.
+// the client certificate (full mTLS). There is no plaintext path.
 func ServerConfig(p CertPaths) (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(p.ServerCert, p.ServerKey)
 	if err != nil {
@@ -68,7 +68,7 @@ func ServerConfig(p CertPaths) (*tls.Config, error) {
 // ClientConfig returns a *tls.Config for the client side that presents the client
 // certificate and verifies the server against the same CA.
 //
-// Trust is established by the private, per-deployment CA — NOT by the server's
+// Trust is established by the private, per-deployment CA, NOT by the server's
 // hostname/IP. So we verify the server cert's chain against our CA but skip the default
 // SAN name check; otherwise every manager IP/hostname an agent might dial would have to
 // be baked into the server cert (the cross-host "x509: certificate is valid for … not

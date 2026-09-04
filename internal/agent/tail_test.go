@@ -22,7 +22,7 @@ func contains(lines []string, want string) bool {
 // logrotate renames the file away and a fresh one takes its place, the tailer must follow the NEW
 // file rather than sitting on the old inode forever.
 func TestFollowFileRotation(t *testing.T) {
-	// logrotate's default is rename+create while the writer holds the file open — a Linux
+	// logrotate's default is rename+create while the writer holds the file open, a Linux
 	// filesystem semantic. Windows refuses to rename a file with an open handle, so the scenario
 	// this guards against cannot even be staged there. The agent's rotation handling targets Linux.
 	if runtime.GOOS == "windows" {
@@ -55,7 +55,7 @@ func TestFollowFileRotation(t *testing.T) {
 	if err := os.Rename(path, path+".1"); err != nil {
 		t.Fatal(err)
 	}
-	// Brief gap where the path does not exist — the tailer must tolerate this.
+	// Brief gap where the path does not exist, the tailer must tolerate this.
 	time.Sleep(200 * time.Millisecond)
 	if err := os.WriteFile(path, []byte("line-after-rotate\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestFollowFileRotation(t *testing.T) {
 		t.Fatalf("missing pre-rotation line; got %v", got)
 	}
 	if !contains(got, "line-after-rotate") {
-		t.Fatalf("tailer did not follow the rotated file — this is the production bug; got %v", got)
+		t.Fatalf("tailer did not follow the rotated file. This is the production bug; got %v", got)
 	}
 }
 

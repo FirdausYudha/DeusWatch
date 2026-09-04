@@ -4,7 +4,7 @@ import { fetchMyWorkspaces, getActiveWorkspace, setActiveWorkspace, type Workspa
 // WorkspaceSwitcher lets an operator who belongs to more than one workspace narrow their view to a
 // single workspace (or all of them). The choice is persisted and sent as X-Workspace-ID on every
 // request, so the API re-scopes the user's tenant access. Changing it reloads the app so every page
-// re-fetches under the new scope — simple and guaranteed-consistent (a reactive re-fetch of every
+// re-fetches under the new scope, simple and guaranteed-consistent (a reactive re-fetch of every
 // page's data can come later). It stays hidden for the common single-workspace operator.
 export default function WorkspaceSwitcher() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -26,7 +26,7 @@ export default function WorkspaceSwitcher() {
   }
 
   return (
-    <label className="flex items-center gap-1.5" title="Active workspace — narrows what you can see">
+    <label className="flex items-center gap-1.5" title="Active workspace, narrows what you can see">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-dim">
         <path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       </svg>

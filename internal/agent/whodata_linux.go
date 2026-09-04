@@ -20,7 +20,7 @@ import (
 // own who-data out of the shared audit stream.
 const auditKey = "deuswatch_fim"
 
-// whoTTL bounds how long a cached actor stays valid — a change is correlated with a who-data
+// whoTTL bounds how long a cached actor stays valid, a change is correlated with a who-data
 // record seen within this window. Kept short so a stale actor is never attributed to a change.
 const whoTTL = 30 * time.Second
 
@@ -45,7 +45,7 @@ func StartWhoData(ctx context.Context, dirs []string, logPath string) (WhoDataSo
 		return nil, fmt.Errorf("who-data needs root (audit rules); running as uid %d", os.Geteuid())
 	}
 	if _, err := exec.LookPath("auditctl"); err != nil {
-		return nil, fmt.Errorf("auditctl not found — install auditd for who-data")
+		return nil, fmt.Errorf("auditctl not found, install auditd for who-data")
 	}
 	if logPath == "" {
 		logPath = "/var/log/audit/audit.log"

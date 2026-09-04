@@ -15,9 +15,9 @@ import (
 func TestPerTenantScoringNoBlend(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	st, err := ConnectSuperadmin(ctx, dsn()) // the worker's role — spans all tenants
+	st, err := ConnectSuperadmin(ctx, dsn()) // the worker's role, spans all tenants
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 

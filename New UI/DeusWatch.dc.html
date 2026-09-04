@@ -157,7 +157,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
-            <div style="font-size:13.5px;font-weight:700;margin-bottom:10px">Top risky IPs <span style="font-weight:400;color:{{c.textFaint}};font-size:11.5px">— composite score 0–100</span></div>
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:10px">Top risky IPs <span style="font-weight:400;color:{{c.textFaint}};font-size:11.5px">, composite score 0–100</span></div>
             <sc-for list="{{ riskyIPs }}" as="rk" hint-placeholder-count="4">
               <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid {{c.border}}">
                 <span style="font-family:ui-monospace,monospace;font-size:12.5px;width:130px">{{ rk.ip }}</span>
@@ -234,7 +234,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
           <span style="font-size:16px">⚠</span>
           <div>
             <div style="font-size:13px;font-weight:700;color:#f59e0b">Nothing is currently wired to enforce a ban</div>
-            <div style="font-size:12.5px;color:{{c.textMuted}};margin-top:2px">Rows below are labelled <b>Dangerous IP</b>, not "Blocked" — DeusWatch does not claim an action it hasn't performed. <a href="#" onClick="{{ noop }}" style="color:#f59e0b">Connect a firewall bouncer ↗</a></div>
+            <div style="font-size:12.5px;color:{{c.textMuted}};margin-top:2px">Rows below are labelled <b>Dangerous IP</b>, not "Blocked". DeusWatch does not claim an action it hasn't performed. <a href="#" onClick="{{ noop }}" style="color:#f59e0b">Connect a firewall bouncer ↗</a></div>
           </div>
         </div>
 
@@ -251,7 +251,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
         <sc-if value="{{ showByIP }}" hint-placeholder-val="{{ true }}">
         <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid {{c.border}}">
-            <div style="font-size:13px;font-weight:700">Dangerous IPs — offenders aggregated</div>
+            <div style="font-size:13px;font-weight:700">Dangerous IPs, offenders aggregated</div>
             <div style="display:flex;gap:8px">
               <div style="{{ smallBtnMuted }}">Approve selected</div>
               <div style="{{ smallBtnMuted }}">Dismiss selected</div>
@@ -370,7 +370,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
           <div style="display:flex;flex-direction:column;gap:16px">
             <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px 18px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                <div style="font-size:13px;font-weight:700">Version timeline — {{ selectedFilePath }}</div>
+                <div style="font-size:13px;font-weight:700">Version timeline, {{ selectedFilePath }}</div>
                 <div style="display:flex;gap:8px">
                   <div style="{{ ghostBtn }}">Snapshot now</div>
                   <div style="{{ warnBtn }}">Quarantine file</div>
@@ -450,7 +450,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
         </div>
 
         <sc-if value="{{ showRulesTab }}" hint-placeholder-val="{{ true }}">
-          <div style="background:#38bdf814;border:1px solid #38bdf840;border-radius:10px;padding:10px 14px;font-size:12px;color:{{c.textMuted}}">Only Sigma-format rule packs install with one click here. Other engines (OWASP CRS, ET Open, YARA) run as sensors — DeusWatch just ingests their output.</div>
+          <div style="background:#38bdf814;border:1px solid #38bdf840;border-radius:10px;padding:10px 14px;font-size:12px;color:{{c.textMuted}}">Only Sigma-format rule packs install with one click here. Other engines (OWASP CRS, ET Open, YARA) run as sensors, DeusWatch just ingests their output.</div>
           <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;overflow:hidden">
             <table style="width:100%;border-collapse:collapse;font-size:12.5px">
               <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
@@ -541,13 +541,13 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <span style="width:16px;height:16px;border-radius:4px;background:#6366f122;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6366f1">✦</span>
             <div style="font-size:13px;font-weight:700">AI executive summary</div>
-            <span style="font-size:11px;color:{{c.textFaint}}">— {{ reportRange }}</span>
+            <span style="font-size:11px;color:{{c.textFaint}}">, {{ reportRange }}</span>
           </div>
           <p style="font-size:13px;line-height:1.7;color:{{c.textMuted}};margin:0">
             Between {{ reportRange }}, DeusWatch processed <b style="color:{{c.text}}">2.4M events</b> and raised
             <b style="color:{{c.text}}">18,204 alerts</b>, including <b style="color:#f43f5e">42 critical</b> findings.
             The dominant pattern was repeated <b style="color:{{c.text}}">SSH brute-force attempts</b> from
-            <b style="color:{{c.text}}">185.220.101.42</b>, mapped to MITRE <b style="color:#8b5cf6">T1110 — Brute Force</b>.
+            <b style="color:{{c.text}}">185.220.101.42</b>, mapped to MITRE <b style="color:#8b5cf6">T1110, Brute Force</b>.
             One host showed file-encryption behavior consistent with ransomware and was contained pending review.
           </p>
         </div>
@@ -563,7 +563,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
           </div>
           <div style="background:{{c.surface}};border:1px solid {{c.border}};border-radius:12px;padding:16px">
             <div style="font-size:12px;color:{{c.textFaint}};text-transform:uppercase;font-weight:600">Top technique</div>
-            <div style="font-size:14px;font-weight:700;margin-top:6px">T1110 — Brute Force</div>
+            <div style="font-size:14px;font-weight:700;margin-top:6px">T1110, Brute Force</div>
           </div>
         </div>
       </div>
@@ -618,7 +618,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
               <div style="font-size:14px;font-weight:700">Log subscriptions (API)</div>
               <div style="{{ primaryBtn }}">+ New subscriber</div>
             </div>
-            <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:14px">Sell or share rich, structured logs with a scoped API key. The key is shown once — store it safely.</div>
+            <div style="font-size:12.5px;color:{{c.textMuted}};margin-bottom:14px">Sell or share rich, structured logs with a scoped API key. The key is shown once, store it safely.</div>
             <table style="width:100%;border-collapse:collapse;font-size:12.5px">
               <thead><tr style="text-align:left;color:{{c.textFaint}};font-size:11px;text-transform:uppercase">
                 <th style="padding:8px 0">Name</th><th style="padding:8px 10px">Scopes</th><th style="padding:8px 10px">Requests</th><th style="padding:8px 10px">Last used</th><th style="padding:8px 0">Status</th>
@@ -639,7 +639,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
 
           <sc-if value="{{ showUpdateTab }}" hint-placeholder-val="{{ false }}">
             <div style="font-size:14px;font-weight:700;margin-bottom:10px">Software update</div>
-            <div style="font-size:12.5px;color:{{c.textMuted}}">Current version <b style="color:{{c.text}}">v1.18.0</b> — up to date. This check is read-only and never installs an update automatically.</div>
+            <div style="font-size:12.5px;color:{{c.textMuted}}">Current version <b style="color:{{c.text}}">v1.18.0</b>, up to date. This check is read-only and never installs an update automatically.</div>
           </sc-if>
 
         </div>
@@ -687,8 +687,8 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
             <div style="{{ primaryBtn }}">Add</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;font-family:ui-monospace,monospace;font-size:12.5px">
-            <div style="display:flex;justify-content:space-between;padding:8px 10px;background:{{c.surfaceAlt}};border-radius:7px"><span>10.0.0.0/16 — office network</span><span style="cursor:pointer;color:{{c.textFaint}}">✕</span></div>
-            <div style="display:flex;justify-content:space-between;padding:8px 10px;background:{{c.surfaceAlt}};border-radius:7px"><span>203.0.113.9 — CI runner</span><span style="cursor:pointer;color:{{c.textFaint}}">✕</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 10px;background:{{c.surfaceAlt}};border-radius:7px"><span>10.0.0.0/16, office network</span><span style="cursor:pointer;color:{{c.textFaint}}">✕</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 10px;background:{{c.surfaceAlt}};border-radius:7px"><span>203.0.113.9, CI runner</span><span style="cursor:pointer;color:{{c.textFaint}}">✕</span></div>
           </div>
         </sc-if>
 
@@ -720,7 +720,7 @@ body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto
       <div style="font-size:13px;color:{{c.textMuted}};line-height:1.6;margin-bottom:16px">
         This is your all-in-one security console. Start on <b>Dashboard</b> to see what's happening,
         check <b>Response</b> when something needs a decision, and use <b>Snapshots</b> if a file was
-        changed and you need to see exactly what happened — or undo it.
+        changed and you need to see exactly what happened, or undo it.
       </div>
       <div onClick="{{ closeTour }}" style="display:inline-flex;background:#6366f1;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Got it</div>
     </div>

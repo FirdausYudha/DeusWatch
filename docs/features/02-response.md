@@ -40,7 +40,7 @@ that: when a **plain file-change alert** fires (e.g. `index.php` edited), the wo
 whether that host had a **successful login from a whitelisted IP** within
 `FILE_CHANGE_TRUSTED_WINDOW`. If so, it is an **official change**: instead of alerting, the worker
 records a **low-severity `authorized_change` audit event** (the change is still logged with its
-file + who-data, but nothing notifies or responds) — so trusted edits leave a trail rather than
+file + who-data, but nothing notifies or responds), so trusted edits leave a trail rather than
 vanishing silently. A sudden change with **no** legitimate session alerts as normal. Two guardrails: it never gates
 alerts that authorize **containment** (a webshell in an uploads dir still fires), and it does
 nothing when the IP whitelist is empty. It relies on the login being reported to DeusWatch

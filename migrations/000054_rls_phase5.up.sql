@@ -3,11 +3,11 @@
 -- Phase 5. In Phase 2c these were deferred because the enroll and tickets packages queried their own
 -- pools without the request scope. They now route through a shared scoped transaction (the tenancy
 -- context key), so their tables can join the isolation regime with the same policy as everything else.
---   * agents / agent_enroll_tokens — the agent inventory and enrollment tokens. Gateway paths bypass
+--   * agents / agent_enroll_tokens, the agent inventory and enrollment tokens. Gateway paths bypass
 --     via the super-admin pool (ConnectSuperadmin); the public /api/enroll handler runs inside a
 --     super-admin scope; the session agent routes (list/config/revoke) now filter to the caller's
 --     tenants.
---   * tickets — DFIR cases. All ticket routes are session-scoped.
+--   * tickets, DFIR cases. All ticket routes are session-scoped.
 --
 -- response_actions / containment_actions (respond package) are intentionally NOT included: bans and
 -- the blocklist feed are a fleet-wide security control (block a malicious IP everywhere), not

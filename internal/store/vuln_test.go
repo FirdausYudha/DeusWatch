@@ -10,14 +10,14 @@ import (
 )
 
 // TestVulnMatchRoundTrip is the end-to-end store side of VA phase 2: load an agent's inventory,
-// cache advisories, run the matcher, and read back the findings — proving the whole join
+// cache advisories, run the matcher, and read back the findings, proving the whole join
 // (inventory × advisories → findings) against real Postgres and the dpkg version comparison.
 func TestVulnMatchRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 

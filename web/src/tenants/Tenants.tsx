@@ -47,7 +47,7 @@ export default function Tenants() {
   return (
     <div className="mx-auto max-w-3xl p-4 sm:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-[13.5px] text-dim">A tenant is a data-isolation boundary — agents and their telemetry belong to one tenant.</p>
+        <p className="text-[13.5px] text-dim">A tenant is a data-isolation boundary, agents and their telemetry belong to one tenant.</p>
         <DocLink file="multi-tenancy.md" />
       </div>
       <form onSubmit={submit} className="mb-6 flex flex-wrap items-end gap-2.5">

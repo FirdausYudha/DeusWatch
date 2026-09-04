@@ -157,7 +157,7 @@ func runSuspiciousScorer(ctx context.Context, st *store.Store) {
 // caches them, and re-matches every agent's inventory against them to produce CVE findings.
 //
 // Feeds need the internet; matching does not. A fetch failure is logged and the cached advisories
-// (and thus the last findings) are kept — the feature degrades to "last known" rather than going
+// (and thus the last findings) are kept, the feature degrades to "last known" rather than going
 // blank, in keeping with the offline design. Disabled with VULN_SCAN=0. Default cadence 12h
 // (VULN_SCAN_INTERVAL), matched hourly against inventory even without a fresh feed.
 func runVulnScanner(ctx context.Context, st *store.Store) {
@@ -169,7 +169,7 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 	log.Printf("worker: vulnerability assessment active (feed refresh every %s)", feedInterval)
 
 	// refreshFeeds pulls advisories for whatever distro releases are present in the fleet, then
-	// re-matches everyone. Bounded time — the Debian feed is large.
+	// re-matches everyone. Bounded time, the Debian feed is large.
 	refreshFeeds := func() {
 		// Generous: the USN notices API caps pages at 20, so a single Ubuntu release is ~120
 		// sequential requests (a few minutes); a multi-release fleet adds up.
@@ -205,7 +205,7 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 				continue
 			}
 			// Enrich USN entries with per-CVE Ubuntu priority (v2.8.0). The USN notices feed
-			// omits severity — without this step every USN finding shows as "unknown" in the UI.
+			// omits severity, without this step every USN finding shows as "unknown" in the UI.
 			// Cached in cve_priority_cache with a 30-day TTL, so a cold start is the only slow
 			// path; subsequent refreshes reuse the cache.
 			if source == "usn" {
@@ -221,9 +221,9 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 			}
 			log.Printf("worker: vuln: %s feed refreshed (%d advisories for %v)", source, len(advs), releases)
 		}
-		// Rematch gets its own fresh 5-min context. Sharing fc — already partially consumed by
+		// Rematch gets its own fresh 5-min context. Sharing fc, already partially consumed by
 		// USN pagination (~120 requests per release) + per-CVE severity enrichment (thousands of
-		// requests on cold cache) — starved this call in v2.8.0, so agent_vulnerabilities held
+		// requests on cold cache), starved this call in v2.8.0, so agent_vulnerabilities held
 		// stale empty-severity rows even though advisories.severity was correctly enriched.
 		rmCtx, rmCancel := context.WithTimeout(ctx, 5*time.Minute)
 		rematch(rmCtx, st)
@@ -251,7 +251,7 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 			// last feed pull, its advisories aren't cached yet and a bare re-match would find
 			// nothing. Fetch now rather than waiting up to the 12h feed cycle.
 			if fleetNeedsFeed(ctx, st) {
-				log.Printf("worker: vuln: a fleet release has no cached advisories yet — fetching off-cycle")
+				log.Printf("worker: vuln: a fleet release has no cached advisories yet, fetching off-cycle")
 				refreshFeeds()
 			} else {
 				mc, cancel := context.WithTimeout(ctx, 5*time.Minute)
@@ -263,7 +263,7 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 }
 
 // fleetNeedsFeed reports whether the fleet runs a distro release for which no advisories are cached
-// yet — the cold-start case where an agent's inventory arrived after the last feed pull. It keeps a
+// yet, the cold-start case where an agent's inventory arrived after the last feed pull. It keeps a
 // fresh setup from sitting blank until the next scheduled 12h refresh.
 func fleetNeedsFeed(ctx context.Context, st *store.Store) bool {
 	fc, cancel := context.WithTimeout(ctx, 30*time.Second)

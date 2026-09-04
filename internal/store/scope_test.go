@@ -15,7 +15,7 @@ func TestResolveUserScope(t *testing.T) {
 	defer cancel()
 	st, err := Connect(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 
@@ -95,7 +95,7 @@ func TestResolveUserScope(t *testing.T) {
 		t.Fatalf("narrowed-to-A scope wrong: %v", sortcopy(got))
 	}
 
-	// Ask to narrow to workspace C — the user is NOT a member → must yield NOTHING (a forged
+	// Ask to narrow to workspace C, the user is NOT a member → must yield NOTHING (a forged
 	// workspace id can't widen or grant access).
 	got, _ = st.ResolveUserScope(ctx, userID, wsC)
 	if len(got) != 0 {

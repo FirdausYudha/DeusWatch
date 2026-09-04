@@ -44,10 +44,10 @@ func (s *Store) q(ctx context.Context) Queryer {
 
 // WithTenantScope runs fn inside a transaction whose session GUCs carry the tenant scope, so
 // Postgres RLS (enabled in migration 000050) filters every query to these tenants. `set_config(...,
-// true)` makes the GUCs transaction-LOCAL, auto-reset on commit/rollback — no leakage across pooled
-// connections. superadmin=true (worker / platform admin) sets the bypass GUC; its SQL must still be
-// tenant-aware. fn receives a ctx carrying the transaction; store methods called with it run scoped.
-// The handler signals its own errors (HTTP status), so a nil return commits — partial writes on a
+// true)` makes the GUCs transaction-LOCAL, auto-reset on commit/rollback, no leakage across pooled
+// connections. Superadmin=true (worker / platform admin) sets the bypass GUC; its SQL must still be
+// tenant-aware. Fn receives a ctx carrying the transaction; store methods called with it run scoped.
+// The handler signals its own errors (HTTP status), so a nil return commits. Partial writes on a
 // mid-handler failure are no worse than today's autocommit-per-call behaviour.
 func (s *Store) WithTenantScope(ctx context.Context, tenantIDs []string, superadmin bool, fn func(context.Context) error) error {
 	tx, err := s.pool.Begin(ctx)
@@ -71,7 +71,7 @@ func (s *Store) WithTenantScope(ctx context.Context, tenantIDs []string, superad
 	}
 	// For a non-super-admin scope, drop to the restricted deuswatch_app role for the rest of this
 	// transaction (migration 000051). RLS is ignored for superusers/BYPASSRLS roles, and the app
-	// connects as a superuser bootstrap role — so without assuming a constrained role, scoped reads
+	// connects as a superuser bootstrap role, so without assuming a constrained role, scoped reads
 	// would silently bypass isolation. SET LOCAL reverts automatically on commit/rollback. Super-admin
 	// scopes (worker, gateway, platform admin, system feeds) intentionally keep the privileged role.
 	if !superadmin {
@@ -102,7 +102,7 @@ func Connect(ctx context.Context, dsn string) (*Store, error) {
 // ConnectSuperadmin is Connect for trusted system processes (worker, gateway) that legitimately span
 // every tenant. Each pooled connection is opened with the RLS super-admin bypass set at the session
 // level, so all their queries see and write across tenants without wrapping every call in a scope.
-// The super-admin GUC means "spans all tenants", NOT "may merge them" — tenant-partitioning SQL
+// The super-admin GUC means "spans all tenants", NOT "may merge them", tenant-partitioning SQL
 // (e.g. worker scorers GROUP BY tenant_id) is still required to avoid cross-tenant blending.
 // The API process must NOT use this: it connects with Connect and scopes each request transaction.
 func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
@@ -117,7 +117,7 @@ func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
 	// Proactively evict silently-broken connections (long idle → NAT/keepalive cut, Postgres
 	// idle_in_transaction timeouts, docker network hiccups). Without this the gateway's heartbeat
 	// UPDATE would hang or fail against a dead-but-cached conn, and only a container restart
-	// recovered — exactly the "agent stays offline until docker compose restart" symptom operators
+	// recovered: exactly the "agent stays offline until docker compose restart" symptom operators
 	// reported. Also cap connection lifetime so bad state doesn't survive indefinitely.
 	cfg.HealthCheckPeriod = 30 * time.Second
 	cfg.MaxConnIdleTime = 5 * time.Minute
@@ -135,7 +135,7 @@ func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
 
 // rlsForcedTables are the tenant-scoped data tables that migration 000050 puts under FORCE ROW LEVEL
 // SECURITY. All are reached exclusively through this store's s.q(ctx) plumbing, so a scoped request
-// transaction filters them and an unscoped path (empty GUC) sees zero rows — fail-closed. Tables
+// transaction filters them and an unscoped path (empty GUC) sees zero rows, fail-closed. Tables
 // owned by sibling packages that lack scope plumbing (respond → response_actions/containment_actions,
 // tickets → tickets, enroll → agents) are intentionally excluded until those packages are scoped.
 //
@@ -152,7 +152,7 @@ var rlsForcedTables = []string{
 }
 
 // AssertRLSEnforced verifies that every tenant-scoped table actually has ROW LEVEL SECURITY both
-// ENABLED and FORCED. The API connects as the table owner, for whom RLS is ignored unless FORCEd —
+// ENABLED and FORCED. The API connects as the table owner, for whom RLS is ignored unless FORCEd,
 // so a half-applied or missing migration 000050 would mean the store's scoped reads silently return
 // unfiltered, cross-tenant rows. This is the "silent total leak" footgun; the API calls this at boot
 // and refuses to start if isolation is not actually in force.
@@ -174,7 +174,7 @@ func (s *Store) AssertRLSEnforced(ctx context.Context) error {
 			return err
 		}
 		if !enabled || !forced {
-			return fmt.Errorf("store: table %q does not have RLS enabled+forced (enabled=%v forced=%v) — tenant isolation is NOT active; apply migration 000050", name, enabled, forced)
+			return fmt.Errorf("store: table %q does not have RLS enabled+forced (enabled=%v forced=%v), tenant isolation is NOT active; apply migration 000050", name, enabled, forced)
 		}
 		seen[name] = true
 	}
@@ -183,27 +183,27 @@ func (s *Store) AssertRLSEnforced(ctx context.Context) error {
 	}
 	for _, t := range rlsForcedTables {
 		if !seen[t] {
-			return fmt.Errorf("store: tenant-scoped table %q not found — cannot verify RLS; is the schema migrated?", t)
+			return fmt.Errorf("store: tenant-scoped table %q not found, cannot verify RLS; is the schema migrated?", t)
 		}
 	}
 	// The restricted role that scoped request transactions assume (migration 000051) must exist and
-	// must NOT be able to bypass RLS — a SUPERUSER or BYPASSRLS role would render every policy above
+	// must NOT be able to bypass RLS, a SUPERUSER or BYPASSRLS role would render every policy above
 	// inert (the "silent total leak" footgun). Refuse to run if it is missing or over-privileged.
 	var rolsuper, rolbypass bool
 	if err := s.pool.QueryRow(ctx,
 		`SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = 'deuswatch_app'`).
 		Scan(&rolsuper, &rolbypass); err != nil {
 		if err == pgx.ErrNoRows {
-			return fmt.Errorf("store: role deuswatch_app is missing — apply migration 000051; scoped reads cannot be isolated without it")
+			return fmt.Errorf("store: role deuswatch_app is missing, apply migration 000051; scoped reads cannot be isolated without it")
 		}
 		return fmt.Errorf("store: check app role: %w", err)
 	}
 	if rolsuper || rolbypass {
-		return fmt.Errorf("store: role deuswatch_app can bypass RLS (superuser=%v bypassrls=%v) — tenant isolation would be silently disabled", rolsuper, rolbypass)
+		return fmt.Errorf("store: role deuswatch_app can bypass RLS (superuser=%v bypassrls=%v), tenant isolation would be silently disabled", rolsuper, rolbypass)
 	}
 	// events cannot carry RLS (compression conflict); it is isolated by a security-barrier VIEW over
 	// the events_data hypertable (migration 000052). Verify `events` is a view AND that the barrier is
-	// on — a plain view would still let a leaky function read filtered-out rows, and a bare table
+	// on, a plain view would still let a leaky function read filtered-out rows, and a bare table
 	// (pre-000052) would not be isolated at all.
 	var relkind string
 	var reloptions []string
@@ -213,12 +213,12 @@ func (s *Store) AssertRLSEnforced(ctx context.Context) error {
 		JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE n.nspname = 'public' AND c.relname = 'events'`).Scan(&relkind, &reloptions); err != nil {
 		if err == pgx.ErrNoRows {
-			return fmt.Errorf("store: relation 'events' not found — cannot verify isolation; is the schema migrated?")
+			return fmt.Errorf("store: relation 'events' not found, cannot verify isolation; is the schema migrated?")
 		}
 		return fmt.Errorf("store: check events view: %w", err)
 	}
 	if relkind != "v" {
-		return fmt.Errorf("store: 'events' is not a view (relkind=%q) — apply migration 000052; events is not tenant-isolated", relkind)
+		return fmt.Errorf("store: 'events' is not a view (relkind=%q), apply migration 000052; events is not tenant-isolated", relkind)
 	}
 	hasBarrier := false
 	for _, o := range reloptions {
@@ -227,7 +227,7 @@ func (s *Store) AssertRLSEnforced(ctx context.Context) error {
 		}
 	}
 	if !hasBarrier {
-		return fmt.Errorf("store: 'events' view is missing security_barrier — its tenant filter could be bypassed by a leaky function")
+		return fmt.Errorf("store: 'events' view is missing security_barrier, its tenant filter could be bypassed by a leaky function")
 	}
 	return nil
 }
@@ -372,7 +372,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	}
 	if e.User != nil {
 		userName = strOrNil(e.User.Name)
-		// Only stored when it differs from the login account — an equal value carries no
+		// Only stored when it differs from the login account, an equal value carries no
 		// information and would make every row look like an escalation to a careless reader.
 		if e.User.Effective != "" && e.User.Effective != e.User.Name {
 			userEffective = e.User.Effective

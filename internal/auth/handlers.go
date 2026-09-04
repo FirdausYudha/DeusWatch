@@ -131,7 +131,7 @@ func (s *Store) LogoutHandler() http.HandlerFunc {
 }
 
 // UsersHandler: GET = list users, POST = create user. MUST be wrapped with
-// Middleware + RequirePermission(PermManageUsers) — admin only.
+// Middleware + RequirePermission(PermManageUsers), admin only.
 func (s *Store) UsersHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -265,7 +265,7 @@ func (s *Store) DeleteUserHandler() http.HandlerFunc {
 }
 
 // PermissionsHandler returns the permission catalog + each role's default permission
-// set — everything the UI needs to render and prefill the RBAC checklist.
+// set, everything the UI needs to render and prefill the RBAC checklist.
 func (s *Store) PermissionsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{

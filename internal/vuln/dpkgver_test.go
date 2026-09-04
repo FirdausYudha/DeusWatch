@@ -2,7 +2,7 @@ package vuln
 
 import "testing"
 
-// TestCompareVersions checks dpkg version ordering — the core correctness of the whole feature.
+// TestCompareVersions checks dpkg version ordering, the core correctness of the whole feature.
 // Cases include the dpkg-documented edge cases plus the real Ubuntu/Debian versions this project
 // actually sees.
 func TestCompareVersions(t *testing.T) {

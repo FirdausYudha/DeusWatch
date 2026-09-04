@@ -46,7 +46,7 @@ func New(dir string, flushEvery time.Duration, retentionDays int) (*Archiver, er
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("archive: mkdir %s: %w", dir, err)
 	}
-	// A shared stateless encoder (no dictionary) — EncodeAll produces one independent frame.
+	// A shared stateless encoder (no dictionary), EncodeAll produces one independent frame.
 	enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
 	if err != nil {
 		return nil, err

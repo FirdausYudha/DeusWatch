@@ -12,7 +12,7 @@ import (
 
 // Feed ingestion: fetch vendor security data and turn it into Advisory rows. Parsing is separated
 // from fetching so the parsers are pure and unit-tested against the documented schemas; the
-// fetchers are thin HTTP wrappers. Everything is scoped to a set of release codenames — there is no
+// fetchers are thin HTTP wrappers. Everything is scoped to a set of release codenames. There is no
 // point caching advisories for a distro release no agent runs.
 
 const (
@@ -70,7 +70,7 @@ func ParseUSN(data []byte, keep map[string]bool) ([]Advisory, int, error) {
 	return out, page.Total, nil
 }
 
-// usnMaxLimit is the largest page the notices API accepts — it returns HTTP 422 for anything above
+// usnMaxLimit is the largest page the notices API accepts. It returns HTTP 422 for anything above
 // 20 (confirmed against the live API). Pagination is therefore many small pages, so we fetch each
 // release with the server-side release filter to keep the page count down (jammy is ~2.4k notices,
 // not the full ~11k).

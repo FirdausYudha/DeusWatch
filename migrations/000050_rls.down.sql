@@ -1,6 +1,6 @@
 -- Reverse 000050_rls: drop the isolation policies, unforce/disable RLS, drop the helper functions.
 -- After this the tables are visible unscoped again (single-tenant behaviour), so only run it to roll
--- the enforcement flip back — the tenant_id columns from 000049 remain and keep being stamped.
+-- the enforcement flip back, the tenant_id columns from 000049 remain and keep being stamped.
 DO $$
 DECLARE t text;
 BEGIN

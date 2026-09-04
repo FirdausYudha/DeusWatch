@@ -1,4 +1,4 @@
--- Migration 000009 — Tier-2 DFIR ticketing / case management (TheHive/IRIS-style).
+-- Migration 000009, Tier-2 DFIR ticketing / case management (TheHive/IRIS-style).
 --
 -- An alert (or any finding) becomes a ticket that a Tier-2 analyst owns: open →
 -- in_progress → resolved → closed, with an assignee, case notes, and timestamps so

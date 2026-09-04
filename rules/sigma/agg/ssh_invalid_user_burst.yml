@@ -3,7 +3,7 @@ id: 1d7e9a52-4c33-4b8e-bb19-8f0c2a6d3e44
 status: experimental
 description: >
   A burst of SSH login attempts for non-existent users ("Failed ... for invalid user")
-  from a single IP — a sign of account enumeration / automated spraying. AGGREGATION rule
+  from a single IP, a sign of account enumeration / automated spraying. AGGREGATION rule
   on the SQL path: substring match on the raw log line, then count per source.ip.
 references:
   - https://attack.mitre.org/techniques/T1110/003/

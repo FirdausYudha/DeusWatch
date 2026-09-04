@@ -15,10 +15,10 @@ import (
 )
 
 type fakeNotifier struct {
-	mu    sync.Mutex
-	name  string
-	got   []Notification
-	err   error
+	mu   sync.Mutex
+	name string
+	got  []Notification
+	err  error
 }
 
 func (f *fakeNotifier) Name() string { return f.name }

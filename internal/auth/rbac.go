@@ -130,7 +130,7 @@ func ParsePermission(s string) (Permission, error) {
 	return p, nil
 }
 
-// Can reports whether the user may perform p — using the explicit per-user
+// Can reports whether the user may perform p, using the explicit per-user
 // permission set when present, otherwise falling back to the role's defaults.
 func (u *User) Can(p Permission) bool {
 	if u.Permissions != nil {

@@ -3,7 +3,7 @@ id: e4779365-bb4b-4420-9ba0-5e09945703b3
 status: experimental
 description: >
   ModSecurity / OWASP CRS blocked a path-traversal or local-file-inclusion attempt (CRS rule
-  family 930xxx) — an attempt to escape the web root and read files such as /etc/passwd.
+  family 930xxx), an attempt to escape the web root and read files such as /etc/passwd.
 references:
   - https://coreruleset.org/docs/rules/
   - https://attack.mitre.org/techniques/T1083/

@@ -1,4 +1,4 @@
--- Migration 000060 — self-update flow for the fleet.
+-- Migration 000060, self-update flow for the fleet.
 --
 -- agent_version: what the agent last reported on heartbeat (X-ish header repurposed as JSON
 -- body field). Lets the UI show "agent 2.11.0 · manager 2.12.0" and gate the Update button.

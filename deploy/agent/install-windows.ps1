@@ -17,7 +17,7 @@ Copy-Item $Binary "$dest\deuswatch-agent.exe" -Force
 [Environment]::SetEnvironmentVariable("CERT_DIR", $CertDir, "Machine")
 
 # Install as a native Windows Service (the agent registers itself with the SCM,
-# complete with a restart-on-failure recovery action — including when a config push bumps the version).
+# complete with a restart-on-failure recovery action, including when a config push bumps the version).
 & "$dest\deuswatch-agent.exe" -service install
 
 Write-Host ""

@@ -26,9 +26,9 @@ var defaultCVEClient = &http.Client{Timeout: 30 * time.Second}
 // format specifier consumes the CVE identifier (e.g. "CVE-2024-0001").
 var ubuntuCVEURL = "https://ubuntu.com/security/%s.json"
 
-// Test hooks — used by cve_test.go to redirect fetches at a test server without exporting the
+// Test hooks, used by cve_test.go to redirect fetches at a test server without exporting the
 // mutable var into the public API. Package-private on purpose.
-func ubuntuCVEURLTemplate() string      { return ubuntuCVEURL }
+func ubuntuCVEURLTemplate() string     { return ubuntuCVEURL }
 func setUbuntuCVEURLTemplate(t string) { ubuntuCVEURL = t }
 
 // PriorityCache is the subset of *store.Store this file needs; kept as an interface so the vuln
@@ -39,7 +39,7 @@ type PriorityCache interface {
 }
 
 // FetchUbuntuCVEPriority returns the "priority" field for a single CVE from Ubuntu's public CVE
-// JSON endpoint. Empty string is a valid answer — some CVEs have no assigned priority yet, and we
+// JSON endpoint. Empty string is a valid answer, some CVEs have no assigned priority yet, and we
 // preserve that instead of guessing. A missing CVE (404) returns "" with no error, so an unknown
 // identifier costs one request but doesn't fail the whole enrichment pass.
 func FetchUbuntuCVEPriority(ctx context.Context, client *http.Client, cve string) (string, error) {
@@ -87,7 +87,7 @@ func EnrichUSNSeverity(ctx context.Context, client *http.Client, cache PriorityC
 	if concurrency <= 0 {
 		concurrency = 4
 	}
-	// Deduplicate CVEs — a single CVE is emitted once per (release, package), so a 500-line USN
+	// Deduplicate CVEs: a single CVE is emitted once per (release, package), so a 500-line USN
 	// batch can easily be 30 distinct CVEs, and we only want one network round trip per CVE.
 	need := make(map[string]struct{})
 	for _, a := range advs {
@@ -100,7 +100,7 @@ func EnrichUSNSeverity(ctx context.Context, client *http.Client, cache PriorityC
 		return nil
 	}
 
-	// Cache lookup pass — resolves everything that's already known and shrinks `need` to real work.
+	// Cache lookup pass, resolves everything that's already known and shrinks `need` to real work.
 	priorities := make(map[string]string, len(need))
 	var priMu sync.Mutex
 	for cve := range need {
@@ -114,7 +114,7 @@ func EnrichUSNSeverity(ctx context.Context, client *http.Client, cache PriorityC
 		}
 	}
 
-	// Network pass — bounded fan-out over the remaining CVEs.
+	// Network pass, bounded fan-out over the remaining CVEs.
 	if len(need) > 0 {
 		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(concurrency)
@@ -123,7 +123,7 @@ func EnrichUSNSeverity(ctx context.Context, client *http.Client, cache PriorityC
 			g.Go(func() error {
 				p, err := FetchUbuntuCVEPriority(gctx, client, cve)
 				if err != nil {
-					// A single CVE failure shouldn't abort the whole enrichment — the advisory
+					// A single CVE failure shouldn't abort the whole enrichment, the advisory
 					// simply stays without severity, which is what happens today anyway. Log via
 					// caller? Return nil to preserve overall progress; the miss is naturally
 					// re-tried next feed cycle since we don't cache errors.
@@ -132,7 +132,7 @@ func EnrichUSNSeverity(ctx context.Context, client *http.Client, cache PriorityC
 				priMu.Lock()
 				priorities[cve] = p
 				priMu.Unlock()
-				// Cache the answer — including the legitimate empty string, so we don't re-fetch
+				// Cache the answer, including the legitimate empty string, so we don't re-fetch
 				// on every refresh for CVEs Ubuntu simply hasn't rated.
 				return cache.PutCVEPriority(gctx, cve, p, ttl)
 			})
@@ -142,7 +142,7 @@ func EnrichUSNSeverity(ctx context.Context, client *http.Client, cache PriorityC
 		}
 	}
 
-	// Apply pass — mutate the slice in place. Advisory.Severity is later fed through
+	// Apply pass, mutate the slice in place. Advisory.Severity is later fed through
 	// normalizeSeverity in match.go, which already knows the Ubuntu vocabulary.
 	for i := range advs {
 		if advs[i].Source != "usn" || strings.TrimSpace(advs[i].Severity) != "" {

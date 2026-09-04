@@ -106,7 +106,7 @@ func FlattenEvent(e *ingest.Event) map[string]any {
 			m["http.status_code"] = e.HTTP.StatusCode
 		}
 	}
-	// The rule identity carried BY the event (e.g. the OWASP CRS rule id a WAF blocked on),
+	// The rule identity carried BY the event (e.g. The OWASP CRS rule id a WAF blocked on),
 	// so rules can key off the upstream detector's verdict.
 	if e.Rule != nil {
 		put("rule.id", e.Rule.ID)

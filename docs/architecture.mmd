@@ -15,17 +15,17 @@ flowchart TB
     SUR["Suricata / Snort sensor<br/>eve.json (ET Open/Pro)"]
     WZ["Wazuh manager (external)<br/>alerts + FIM syscheck + who-data"]
     SYS["Network devices / appliances<br/>native syslog (RFC 3164/5424)"]
-    ESRC["Elasticsearch / OpenSearch<br/>(existing cluster — pull)"]
+    ESRC["Elasticsearch / OpenSearch<br/>(existing cluster, pull)"]
   end
 
   %% ══════════════ MANAGER ══════════════
-  subgraph MGR["🏰 MANAGER — one docker compose host"]
+  subgraph MGR["🏰 MANAGER: one docker compose host"]
     direction TB
     CG["certgen (init container)<br/>private CA + mTLS certificates"]
     GW["Ingest Gateway :9443 (mTLS only)<br/>enrollment: token → client cert (CN+serial pinning)<br/>config push · heartbeat · revocation<br/>custom decoders (regex→fields, live-reload)<br/>normalization → DCS event schema"]
     BUS["NATS JetStream<br/>durable event bus (logs.normalized)"]
 
-    subgraph WK["Worker — detection & response pipeline"]
+    subgraph WK["Worker, detection & response pipeline"]
       DET["Detection:<br/>Sigma single-event + aggregation → SQL<br/>DB-managed rules (UI-editable)<br/>auto MITRE ATT&CK labeling<br/>remediation playbooks per label"]
       ENR["CTI Enrichment + Composite Scoring<br/>abuse+otx+severity+fired+anomaly → 0-100<br/>GeoIP · escalation · scenario ban"]
       SUS["Suspicious-IP watchlist<br/>low-and-slow recon<br/>(fan-out · failure-ratio · spread)"]

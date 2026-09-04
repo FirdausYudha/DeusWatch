@@ -29,7 +29,7 @@ func (s *Store) ReplaceAdvisories(ctx context.Context, source string, advs []vul
 		return fmt.Errorf("store: clear advisories: %w", err)
 	}
 	if len(advs) > 0 {
-		// De-dup on the primary key (source, cve, package, release) — a feed can list the same
+		// De-dup on the primary key (source, cve, package, release), a feed can list the same
 		// tuple more than once; keep the last.
 		seen := make(map[string]int, len(advs))
 		rows := make([][]any, 0, len(advs))
@@ -55,7 +55,7 @@ func (s *Store) ReplaceAdvisories(ctx context.Context, source string, advs []vul
 	return tx.Commit(ctx)
 }
 
-// AdvisoryStats reports how many advisories are cached, per release — for the UI/health so an
+// AdvisoryStats reports how many advisories are cached, per release, for the UI/health so an
 // operator can see the feed is loaded and for which releases.
 func (s *Store) AdvisoryStats(ctx context.Context) (total int, byRelease map[string]int, err error) {
 	rows, err := s.q(ctx).Query(ctx, `SELECT release, count(*) FROM advisories GROUP BY release`)
@@ -119,7 +119,7 @@ func (s *Store) RematchAgent(ctx context.Context, agentName string) (int, error)
 		return 0, s.replaceFindings(ctx, agentName, nil)
 	}
 
-	// Load only the advisories for this release AND the agent's source packages — far smaller than
+	// Load only the advisories for this release AND the agent's source packages, far smaller than
 	// the whole release feed.
 	srcList := make([]string, 0, len(names))
 	for n := range names {
@@ -213,7 +213,7 @@ func (s *Store) RematchAll(ctx context.Context) (int, error) {
 }
 
 // VulnSummary is one agent's vulnerability headline: counts by severity. Negligible + Unknown are
-// broken out separately (v2.8.0) so the donut totals reconcile with Total — previously an agent's
+// broken out separately (v2.8.0) so the donut totals reconcile with Total, previously an agent's
 // USN findings with empty severity fell into a hidden bucket, leaving Critical+High+Medium+Low <
 // Total with no explanation.
 type VulnSummary struct {
@@ -308,7 +308,7 @@ func (s *Store) AgentVulnerabilities(ctx context.Context, agentName string) ([]A
 }
 
 // DistroReleasesInUse returns, per feed source ("usn"/"debian"), the distinct distro release
-// codenames the fleet is actually running — so the feed ingester only pulls advisories for
+// codenames the fleet is actually running, so the feed ingester only pulls advisories for
 // releases we have agents on. Distros with no supported feed (or no codename) are skipped.
 func (s *Store) DistroReleasesInUse(ctx context.Context) (map[string][]string, error) {
 	rows, err := s.q(ctx).Query(ctx, `

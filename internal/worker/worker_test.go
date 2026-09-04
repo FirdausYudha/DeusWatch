@@ -158,5 +158,5 @@ func TestPipelineEndToEnd(t *testing.T) {
 	if alerts < 1 {
 		t.Fatalf("brute-force alerts for %s = %d, want >= 1", ip, alerts)
 	}
-	t.Logf("OK: end-to-end — %d events from %s stored, %d brute-force alerts detected", total, ip, alerts)
+	t.Logf("OK: end-to-end, %d events from %s stored, %d brute-force alerts detected", total, ip, alerts)
 }

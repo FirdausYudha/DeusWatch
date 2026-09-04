@@ -25,7 +25,7 @@ const tailReopenPoll = 500 * time.Millisecond
 //   - LOG ROTATION. When logrotate renames auth.log -> auth.log.1 and the writer starts a fresh
 //     auth.log, an fd opened on the old inode would sit at EOF forever and the source would go
 //     quiet until the agent restarted. FollowFile drains the old file, notices (by inode identity)
-//     that the path now names a different file, and reopens it from the start. copytruncate-style
+//     that the path now names a different file, and reopens it from the start. Copytruncate-style
 //     rotation (same inode, size reset to 0) is detected as truncation and re-read from the top.
 //
 //   - A FILE THAT ISN'T THERE YET. A source path that doesn't exist at start (e.g. /var/log/ufw.log
@@ -60,8 +60,8 @@ func FollowFile(ctx context.Context, path string, fromStart bool, out chan<- str
 			if !os.IsNotExist(err) {
 				return nil, nil, 0, err
 			}
-			// A file we had to WAIT for has no accumulated history to skip — it comes into
-			// existence fresh — so read it from the start even when tailing "from end". Otherwise
+			// A file we had to WAIT for has no accumulated history to skip. It comes into
+			// existence fresh, so read it from the start even when tailing "from end". Otherwise
 			// a log that appears after switch-on (e.g. ufw.log) would lose its first entries.
 			seekEnd = false
 			if !announcedWait {
@@ -79,7 +79,7 @@ func FollowFile(ctx context.Context, path string, fromStart bool, out chan<- str
 	f, openInfo, offset, err := openFollow(!fromStart)
 	if err != nil {
 		if ctx.Err() != nil {
-			return nil // shutdown while waiting for the file — not an error
+			return nil // shutdown while waiting for the file, not an error
 		}
 		return err
 	}
@@ -148,7 +148,7 @@ const (
 
 // classifyPath compares the file currently open (openInfo, and how far we've read: offset) against
 // whatever the path names right now. A stat error (the file is briefly gone mid-rotation) is
-// treated as "same" so we simply wait and re-check — the new file will be picked up next round.
+// treated as "same" so we simply wait and re-check, the new file will be picked up next round.
 func classifyPath(path string, openInfo os.FileInfo, offset int64) pathState {
 	cur, err := os.Stat(path)
 	if err != nil {

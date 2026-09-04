@@ -3,7 +3,7 @@
 // (NSRL/CIRCL), known-bad (VirusTotal detections / CIRCL malicious set), or unknown.
 //
 // Results are cached as TTL-bearing Postgres rows (see cache.go), mirroring the CTI
-// cache pattern — never an in-memory cache, so look-ups are deterministic and the free
+// cache pattern: never an in-memory cache, so look-ups are deterministic and the free
 // VirusTotal rate limit (≈4/min) is respected by only querying changed/unknown hashes.
 package hashrep
 
@@ -80,7 +80,7 @@ func (p *CompositeProvider) LookupHash(ctx context.Context, sha256 string) (Indi
 			apply(v, detail, "virustotal")
 		}
 	}
-	// MalwareBazaar (known-bad only) — skip once something already flagged it bad.
+	// MalwareBazaar (known-bad only), skip once something already flagged it bad.
 	if p.MB != nil && ind.Verdict != VerdictKnownBad {
 		if v, detail, err := p.MB.Lookup(ctx, h); err != nil {
 			errs = append(errs, err.Error())
@@ -88,7 +88,7 @@ func (p *CompositeProvider) LookupHash(ctx context.Context, sha256 string) (Indi
 			apply(v, detail, "malwarebazaar")
 		}
 	}
-	// Skip CIRCL once something already flagged it bad — nothing it can add.
+	// Skip CIRCL once something already flagged it bad, nothing it can add.
 	if p.CIRCL != nil && ind.Verdict != VerdictKnownBad {
 		if v, detail, err := p.CIRCL.Lookup(ctx, h); err != nil {
 			errs = append(errs, err.Error())

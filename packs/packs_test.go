@@ -9,7 +9,7 @@ import (
 	"deuswatch/packs"
 )
 
-// Every bundled pack must parse — a pack rule that doesn't classify would break Install.
+// Every bundled pack must parse, a pack rule that doesn't classify would break Install.
 func TestCatalogRulesParse(t *testing.T) {
 	if len(packs.Catalog) == 0 {
 		t.Fatal("no bundled packs")
@@ -34,7 +34,7 @@ func TestCatalogRulesParse(t *testing.T) {
 }
 
 // The whole point of curation: a pack rule must actually FIRE on the event DeusWatch produces.
-// This guards the field taxonomy (http.uri / rule.id must be in sigma.FlattenEvent) — without
+// This guards the field taxonomy (http.uri / rule.id must be in sigma.FlattenEvent), without
 // it a pack would install cleanly and then never match, which is worse than not shipping it.
 func TestWAFPackFiresOnModSecurityEvent(t *testing.T) {
 	files, err := packs.Rules("waf-essentials")

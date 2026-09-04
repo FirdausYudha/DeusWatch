@@ -137,7 +137,7 @@ func TestKillRecommenderNilStoreIsInert(t *testing.T) {
 	}
 }
 
-// enableAuto returns a recommender with auto-approve on and a permissive policy — the
+// enableAuto returns a recommender with auto-approve on and a permissive policy, the
 // baseline configuration that the guard-rail tests below build on top of.
 func enableAuto(t *testing.T, f *fakeKillStore) *KillRecommender {
 	t.Helper()
@@ -250,7 +250,7 @@ func TestWhitelistBlocksAutoKill(t *testing.T) {
 }
 
 // TestPIDUnder100NeverAutoKilled: PID 42 is systemd/init territory on every distro DeusWatch
-// runs on — the numeric guard rail is stricter than the whitelist alone.
+// runs on, the numeric guard rail is stricter than the whitelist alone.
 func TestPIDUnder100NeverAutoKilled(t *testing.T) {
 	f := &fakeKillStore{}
 	k := enableAuto(t, f)
@@ -265,7 +265,7 @@ func TestPIDUnder100NeverAutoKilled(t *testing.T) {
 }
 
 // TestRateLimitDegradesToRecommend: after 3 auto-kills within one minute on the same agent, the
-// 4th falls back to recommend-only. The alert itself is still stored — dropping it would hide the
+// 4th falls back to recommend-only. The alert itself is still stored, dropping it would hide the
 // burst from the operator.
 func TestRateLimitDegradesToRecommend(t *testing.T) {
 	f := &fakeKillStore{}

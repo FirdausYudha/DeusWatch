@@ -37,7 +37,7 @@ type TypeInfo struct {
 	Category string  `json:"category"` // firewall | bouncer | cti
 	Desc     string  `json:"desc"`
 	Fields   []Field `json:"fields"`
-	Doc      string  `json:"doc,omitempty"` // docs/<file>.md — the UI links "See documentation" to it
+	Doc      string  `json:"doc,omitempty"` // docs/<file>.md, the UI links "See documentation" to it
 }
 
 // Catalog is the supported integration types. Adding a connector = adding an entry.
@@ -62,9 +62,9 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
-		Type: "nftables_agent", Label: "Linux firewall — nftables (agent-side)", Category: "firewall",
+		Type: "nftables_agent", Label: "Linux firewall, nftables (agent-side)", Category: "firewall",
 		Desc: "Auto-block on the endpoint: the agent adds blocking rules to a local nftables set. " +
-			"Enable this here and the agent picks it up on its next poll (~30 s) — no per-host env-var required.",
+			"Enable this here and the agent picks it up on its next poll (~30 s), no per-host env-var required.",
 		Doc: "nftables-agent.md",
 		Fields: []Field{
 			{Key: "table", Label: "nft table", Optional: true, Help: "default: deuswatch"},
@@ -90,7 +90,7 @@ var Catalog = []TypeInfo{
 	},
 	{
 		Type: "circl_hashlookup", Label: "CIRCL hashlookup (file-hash reputation)", Category: "fim",
-		Desc:   "Free, no API key — classify FIM file hashes as known-good (NSRL) / known-bad / unknown.",
+		Desc:   "Free, no API key, classify FIM file hashes as known-good (NSRL) / known-bad / unknown.",
 		Fields: []Field{},
 	},
 	{
@@ -134,12 +134,12 @@ var Catalog = []TypeInfo{
 		Type: "webhook_export", Label: "Webhook export (JSON)", Category: "export",
 		Desc: "Send events/alerts or a report to an external tool (SIEM, Slack, n8n, …) as JSON, on demand from the UI.",
 		Fields: []Field{
-			{Key: "url", Label: "Webhook URL", Help: "e.g. https://your-tool/ingest — receives a JSON POST"},
+			{Key: "url", Label: "Webhook URL", Help: "e.g. https://your-tool/ingest, receives a JSON POST"},
 		},
 	},
 	{
 		Type: "llm", Label: "LLM analyzer (AI)", Category: "llm", Doc: "llm-providers.md",
-		Desc: "AI analysis powered by a free self-hosted model (Ollama / any OpenAI-compatible endpoint), a hosted OpenAI-compatible provider (OpenAI, Gemini, Groq, OpenRouter), or Anthropic Claude. Pick whether this model powers per-alert triage, report summaries, or both. Changes apply within ~1 minute — no worker restart needed. NOTE: per-alert triage (a verdict on every alert) is OFF by default for cost control — set LLM_PER_ALERT=1 on the worker to turn it on. Report summaries appear on the Report page (Generate / scheduled) with no extra flag.",
+		Desc: "AI analysis powered by a free self-hosted model (Ollama / any OpenAI-compatible endpoint), a hosted OpenAI-compatible provider (OpenAI, Gemini, Groq, OpenRouter), or Anthropic Claude. Pick whether this model powers per-alert triage, report summaries, or both. Changes apply within ~1 minute, no worker restart needed. NOTE: per-alert triage (a verdict on every alert) is OFF by default for cost control, set LLM_PER_ALERT=1 on the worker to turn it on. Report summaries appear on the Report page (Generate / scheduled) with no extra flag.",
 		Fields: []Field{
 			{Key: "provider", Label: "Provider", Options: []string{"ollama", "openai-compatible", "anthropic"},
 				Help: "ollama = local; openai-compatible = OpenAI/Gemini/Groq/OpenRouter/vLLM (set Base URL); anthropic = Claude."},
@@ -165,7 +165,7 @@ func LLMPurposeMatches(configured, want string) bool {
 }
 
 // HasEnabled reports whether any enabled integration of the given type exists. It reads
-// no secrets, so callers (e.g. the gateway) can use it without a cipher.
+// no secrets, so callers (e.g. The gateway) can use it without a cipher.
 func HasEnabled(ctx context.Context, pool *pgxpool.Pool, typ string) (bool, error) {
 	var ok bool
 	err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM integrations WHERE type=$1 AND enabled)`, typ).Scan(&ok)
@@ -173,7 +173,7 @@ func HasEnabled(ctx context.Context, pool *pgxpool.Pool, typ string) (bool, erro
 }
 
 // EnabledConfig is one enabled integration's public (non-secret) config, keyed by field name.
-// The caller must know the type has no secret fields — nftables_agent, file_quarantine, etc.
+// The caller must know the type has no secret fields, nftables_agent, file_quarantine, etc.
 type EnabledConfig struct {
 	ID     string
 	Name   string

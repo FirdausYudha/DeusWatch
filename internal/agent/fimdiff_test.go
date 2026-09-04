@@ -25,7 +25,7 @@ func TestUnifiedDiff(t *testing.T) {
 
 func TestUnifiedDiffLargeFileSummary(t *testing.T) {
 	// Two large files (line counts whose product exceeds maxDiffCells) must NOT run the O(m*n)
-	// LCS — they get the cheap added/removed summary instead.
+	// LCS, they get the cheap added/removed summary instead.
 	var oldB, newB strings.Builder
 	for i := 0; i < 2000; i++ {
 		oldB.WriteString("original config line\n")
@@ -94,13 +94,13 @@ func TestParseSizeEnv(t *testing.T) {
 		val  string
 		want int64
 	}{
-		{"", 2 << 20},          // unset → default
-		{"4M", 4 << 20},        // 4 MiB
-		{"2MiB", 2 << 20},      // MiB suffix
-		{"512K", 512 << 10},    // 512 KiB
-		{"1048576", 1 << 20},   // plain bytes
-		{"bogus", 2 << 20},     // invalid → default
-		{"0", 2 << 20},         // non-positive → default
+		{"", 2 << 20},        // unset → default
+		{"4M", 4 << 20},      // 4 MiB
+		{"2MiB", 2 << 20},    // MiB suffix
+		{"512K", 512 << 10},  // 512 KiB
+		{"1048576", 1 << 20}, // plain bytes
+		{"bogus", 2 << 20},   // invalid → default
+		{"0", 2 << 20},       // non-positive → default
 	}
 	for _, c := range cases {
 		if c.val == "" {

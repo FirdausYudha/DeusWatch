@@ -28,7 +28,7 @@ func (f *fakeContainStore) InsertContainment(_ context.Context, c *Containment) 
 	defer f.mu.Unlock()
 	for _, e := range f.items {
 		if e.AgentID == c.AgentID && (e.Status == ContainRecommended || e.Status == ContainContained) {
-			return "", false, nil // active record exists — dedup
+			return "", false, nil // active record exists, dedup
 		}
 	}
 	f.seq++

@@ -8,7 +8,7 @@ import DocLink from '../components/DocLink'
  * FileIntegrity is the dedicated monitoring page for everything that happens to files on an
  * endpoint: ordinary FIM changes, ransomware encryption, known-bad hashes and webshell drops.
  *
- * It exists because these events were drowning in the main dashboard's mixed stream — one
+ * It exists because these events were drowning in the main dashboard's mixed stream: one
  * defacement is three rows among two hundred SSH failures. Here the domain gets its own summary
  * and its own columns (path, action, hash verdict, diff), which the shared Events table cannot
  * afford to spend width on.
@@ -67,7 +67,7 @@ function rowKey(e: EventRow): string {
 // vim writes its working file next to the target as .<basename>.swp, falling back to .swo then
 // .swn when one is already taken. That file's lifetime IS the editing session: it appears when the
 // buffer opens and is removed when the editor exits cleanly. So "how long was this file open" is
-// already in the event stream — created → deleted on the swap file — and needs no new data.
+// already in the event stream, created → deleted on the swap file, and needs no new data.
 const SWAP_EXTS = ['.swp', '.swo', '.swn']
 
 function isSwapPath(p: string): boolean {
@@ -101,7 +101,7 @@ function clockTime(iso: string): string {
 }
 
 // noDiffReason explains, in the terms of THIS event, why there is no content diff. Most file
-// events legitimately have none — a created file has no earlier version, a deleted one has no new
+// events legitimately have none, a created file has no earlier version, a deleted one has no new
 // content, and the agent only snapshots text files under FIM_SNAPSHOT_MAX_BYTES
 // (internal/agent/fimdiff.go). Saying which of those applies is the difference between "the
 // feature works and this case has nothing to show" and "the feature looks broken".
@@ -182,7 +182,7 @@ export default function FileIntegrity({
   }, [range.preset, range.from, range.to, q, agent])
 
   // Summary is computed from the rows actually fetched. That is honest only while the query fits
-  // under LIMIT — past that the server truncated and the counts are floors, which `capped` says
+  // under LIMIT, past that the server truncated and the counts are floors, which `capped` says
   // out loud rather than quietly under-reporting.
   const summary = useMemo(() => {
     const list = rows ?? []
@@ -221,7 +221,7 @@ export default function FileIntegrity({
     return m
   }, [rows])
 
-  // sessionFor resolves a row to its editing session — directly when the row IS the swap file,
+  // sessionFor resolves a row to its editing session, directly when the row IS the swap file,
   // otherwise via the swap paths vim would have used for it.
   const sessionFor = (e: EventRow): EditorSession | undefined => {
     if (!e.file_path) return undefined
@@ -246,7 +246,7 @@ export default function FileIntegrity({
         <StatCard
           label="File events"
           value={rows === null ? '…' : `${cap}${summary.total}`}
-          hint={summary.capped ? `newest ${LIMIT} in range — narrow the filters for exact counts` : 'in the selected range'}
+          hint={summary.capped ? `newest ${LIMIT} in range, narrow the filters for exact counts` : 'in the selected range'}
         />
         <StatCard
           label="Ransomware signals"
@@ -335,7 +335,7 @@ export default function FileIntegrity({
                       >
                         {/* Every row expands. Most file events legitimately carry no diff (created,
                             deleted, binary), and gating the caret on one being present made 8 of 9
-                            rows look inert — operators read that as a broken feature rather than as
+                            rows look inert, operators read that as a broken feature rather than as
                             "nothing to diff here". The panel now always has the hash, the rule and
                             an explicit reason instead. */}
                         <td className="px-2 py-2 align-middle">
@@ -394,7 +394,7 @@ export default function FileIntegrity({
                             </div>
                             {/* Who-data: the process and the human behind the change. Rendered as
                                 a labelled block rather than a sentence because these are the four
-                                things an analyst reads first — what ran it, under which pid, who
+                                things an analyst reads first, what ran it, under which pid, who
                                 is accountable, and whether root was involved. */}
                             {(e.process_name || e.user_name) ? (
                               <div className="mb-3 rounded-[8px] border border-border bg-bg px-3 py-2">
@@ -412,7 +412,7 @@ export default function FileIntegrity({
                                   // Only ever set when the effective account differs from the
                                   // login account, so its presence IS the escalation.
                                   <p className="mt-2 text-[12.5px] text-medium">
-                                    Privilege escalation — <span className="font-mono">{e.user_name}</span>{' '}
+                                    Privilege escalation, <span className="font-mono">{e.user_name}</span>{' '}
                                     made this change as <span className="font-mono">{e.user_effective}</span>{' '}
                                     (sudo, su, or a setuid binary).
                                   </p>
@@ -423,7 +423,7 @@ export default function FileIntegrity({
                               </div>
                             ) : (
                               <p className="mb-3 text-[12.5px] text-dim">
-                                No who-data for this change — the process and user behind it were not
+                                No who-data for this change: the process and user behind it were not
                                 recorded. On Linux this is opt-in and needs auditd:{' '}
                                 <code className="font-mono text-[11.5px]">AGENT_WHODATA=1</code> in the
                                 agent's environment, then restart it.{' '}
@@ -451,7 +451,7 @@ export default function FileIntegrity({
                                       <span className="text-dim">opened </span>
                                       <span className="font-mono text-fg">{clockTime(s.start)}</span>
                                       <span className="ml-2 text-medium">
-                                        still open, or the editor did not exit cleanly — a leftover
+                                        still open, or the editor did not exit cleanly, a leftover
                                         swap file in a served directory leaks the file's contents
                                       </span>
                                     </>
@@ -460,7 +460,7 @@ export default function FileIntegrity({
                                       <span className="text-dim">closed </span>
                                       <span className="font-mono text-fg">{clockTime(s.end!)}</span>
                                       <span className="ml-2 text-dim">
-                                        (it was opened before this time range — widen the range for
+                                        (it was opened before this time range, widen the range for
                                         the full duration)
                                       </span>
                                     </>

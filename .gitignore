@@ -20,7 +20,7 @@ web/dist/
 web/.vite/
 *.local
 
-# ── Secrets & certificates — NEVER commit ─────────────────
+# ── Secrets & certificates: NEVER commit ─────────────────
 *.pem
 *.key
 *.crt

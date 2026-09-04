@@ -45,7 +45,7 @@ type Scanner struct {
 func New() *Scanner { return &Scanner{} }
 
 // LoadFromDir compiles every *.yar / *.yara file in dir (non-recursive) into one ruleset, one
-// namespace per file (the file's base name without extension). An empty dir is not an error — the
+// namespace per file (the file's base name without extension). An empty dir is not an error, the
 // scanner is simply idle until rules appear, mirroring the "no CTI provider configured" behaviour
 // of the enricher. Returns the number of files consumed. On a parse error the previous ruleset is
 // kept in place, so a bad rule doesn't take the scanner down mid-flight.
@@ -66,7 +66,7 @@ func (s *Scanner) LoadFromDir(dir string) (int, error) {
 		return 0, fmt.Errorf("yara: compiler: %w", err)
 	}
 	// go-yara sets a finalizer on the compiler that calls Destroy when GC reclaims it, so we don't
-	// hold a manual Close/Destroy here — a defer would break the invariant that Rules keeps a
+	// hold a manual Close/Destroy here, a defer would break the invariant that Rules keeps a
 	// reference to the compiler's underlying arena.
 
 	for _, f := range files {
@@ -106,7 +106,7 @@ func (s *Scanner) Scan(data []byte) ([]Match, error) {
 		return nil, nil
 	}
 	// go-yara's ScanCallback is an interface (RuleMatching(*ScanContext, *Rule) (bool, error)),
-	// not a func — wrap our accumulator in a small struct that implements it. The library also
+	// not a func, wrap our accumulator in a small struct that implements it. The library also
 	// provides yara.MatchRules for the same purpose, but a local type keeps us free to enrich the
 	// Match struct later (score, tags, matched-string offsets) without leaking the library shape.
 	cb := &matchAccumulator{}
@@ -124,7 +124,7 @@ type matchAccumulator struct {
 }
 
 // RuleMatching is called by libyara for each rule that fires. Returning (false, nil) means
-// "continue scanning" — we always want the full set of matches (so the banlist REASON aggregation
+// "continue scanning", we always want the full set of matches (so the banlist REASON aggregation
 // downstream lists every rule, not just the first).
 func (m *matchAccumulator) RuleMatching(_ *yara.ScanContext, r *yara.Rule) (abort bool, err error) {
 	m.out = append(m.out, Match{
@@ -135,7 +135,7 @@ func (m *matchAccumulator) RuleMatching(_ *yara.ScanContext, r *yara.Rule) (abor
 	return false, nil
 }
 
-// HasRules reports whether the scanner has any compiled rules — the gateway uses this to decide
+// HasRules reports whether the scanner has any compiled rules, the gateway uses this to decide
 // whether YARA is effectively enabled (vs configured with an empty rules dir).
 func (s *Scanner) HasRules() bool {
 	s.mu.RLock()
@@ -143,7 +143,7 @@ func (s *Scanner) HasRules() bool {
 	return s.rules != nil
 }
 
-// Loaded returns the number of .yar files last successfully compiled + when — used by the boot
+// Loaded returns the number of .yar files last successfully compiled + when, used by the boot
 // log so the operator sees "yara: loaded N rulesets from …" at startup.
 func (s *Scanner) Loaded() (int, time.Time) {
 	s.mu.RLock()
@@ -152,7 +152,7 @@ func (s *Scanner) Loaded() (int, time.Time) {
 }
 
 // Close drops the reference to the compiled ruleset. go-yara sets a runtime finalizer on Rules
-// that calls Destroy() when GC reclaims it, so we don't need to (and can't) manually free — just
+// that calls Destroy() when GC reclaims it, so we don't need to (and can't) manually free: just
 // clear the field so a subsequent call sees "no rules".
 func (s *Scanner) Close() error {
 	s.mu.Lock()
@@ -162,7 +162,7 @@ func (s *Scanner) Close() error {
 }
 
 // listRuleFiles returns absolute paths to every *.yar / *.yara in dir, sorted so compilation is
-// deterministic (the rule namespace derives from the filename — deterministic order = deterministic
+// deterministic (the rule namespace derives from the filename, deterministic order = deterministic
 // namespaces). Missing dir is not an error; it's treated as "no rules".
 func listRuleFiles(dir string) ([]string, error) {
 	if dir == "" {

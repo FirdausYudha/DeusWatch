@@ -17,7 +17,7 @@ const isolationTable = "deuswatch_containment"
 
 // ApplyIsolation isolates the host from the network: it installs base chains (input/output/
 // forward) with a DROP policy that permit ONLY loopback, established/related flows, and the
-// allowIPs (the manager/gateway + allow-list) — everything else on the LAN is cut off. This
+// allowIPs (the manager/gateway + allow-list), everything else on the LAN is cut off. This
 // stops a compromised host from reaching servers, storage or peers while keeping its link to
 // the manager alive. Idempotent (re-applying replaces the ruleset atomically). Linux only,
 // requires root / CAP_NET_ADMIN.
@@ -36,7 +36,7 @@ func ApplyIsolation(allowIPs []string) error {
 	}
 
 	var b strings.Builder
-	// Atomic idempotent flush: ensure the table exists, delete it, then recreate — all in one
+	// Atomic idempotent flush: ensure the table exists, delete it, then recreate, all in one
 	// `nft -f` transaction so there is never a window with half a ruleset.
 	fmt.Fprintf(&b, "add table inet %s\n", isolationTable)
 	fmt.Fprintf(&b, "delete table inet %s\n", isolationTable)

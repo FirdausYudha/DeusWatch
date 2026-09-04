@@ -80,7 +80,7 @@ func (s *Store) AgentsHandler() http.HandlerFunc {
 }
 
 // RequestUpdateHandler (admin) marks an agent for a self-update on its next heartbeat.
-// Path: POST /api/agents/{name}/update — {name} is the agent's CN, matching how the
+// Path: POST /api/agents/{name}/update, {name} is the agent's CN, matching how the
 // gateway identifies it on the wire.
 func (s *Store) RequestUpdateHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

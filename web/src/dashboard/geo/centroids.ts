@@ -1,14 +1,14 @@
-// Country centroids for ISO-3166 alpha-2 codes — the lat/lon of a representative point per
+// Country centroids for ISO-3166 alpha-2 codes, the lat/lon of a representative point per
 // country, used by AttackGeoMap to place markers and draw arcs. Roughly the geographic centroid
 // (or a well-known population centre for archipelagos). Coordinates are decimal degrees, WGS84
-// (lat first, lon second — same order the SVG projection helper expects).
+// (lat first, lon second, same order the SVG projection helper expects).
 //
 // Source: derived from Natural Earth 1:110m and CIA World Factbook. This is v1 (docs/geo-map.md
 // decision A1); accuracy is country-level only, which is enough for the "where in the world is
 // this attack coming from" question the dashboard answers. If per-city precision is ever needed
 // switch to MaxMind GeoLite2-City enrichment (decision A2 in the contract).
 //
-// Undefined for very rare codes (Antarctica territories, disputed regions) — the widget falls
+// Undefined for very rare codes (Antarctica territories, disputed regions), the widget falls
 // back to the equator-Greenwich origin (0, 0) so the marker still renders, just at the map's
 // centre. Unknown ISO strings behave the same way.
 
@@ -83,7 +83,7 @@ export const CENTROIDS: Record<string, LatLon> = {
 
 /**
  * lookupCentroid returns the [lat, lon] for an ISO-3166 alpha-2 country code, or the origin (0,0)
- * when the code is unknown or empty — the widget renders that at the map's centre rather than
+ * when the code is unknown or empty, the widget renders that at the map's centre rather than
  * dropping the marker, so the operator still sees "some attacker with no geo tag" as a hint.
  */
 export function lookupCentroid(iso: string): LatLon {

@@ -3,8 +3,8 @@
 A dedicated monitoring page for everything that happens to files on an endpoint: ordinary FIM
 changes, ransomware encryption, known-bad hashes and webshell drops.
 
-It exists because these events drown in the Dashboard's mixed stream — one defacement is three
-rows among two hundred SSH failures — and because the shared Events table cannot spend column
+It exists because these events drown in the Dashboard's mixed stream: one defacement is three
+rows among two hundred SSH failures, and because the shared Events table cannot spend column
 width on file path, hash verdict and content diff. Here the domain gets its own summary and its
 own columns.
 
@@ -17,7 +17,7 @@ action.
 
 The page queries `/api/events/search` with `category=file`, which is the category the
 normalizer stamps on every FIM event (`internal/ingest/normalize.go`, and `internal/ingest/wazuh.go`
-for FIM events arriving from a Wazuh manager). No separate endpoint and no separate storage —
+for FIM events arriving from a Wazuh manager). No separate endpoint and no separate storage,
 what you see here is the same event stream the Dashboard reads, filtered to one domain.
 
 Each row is classified from the fields the detection rules actually key on, **not** from a label
@@ -32,8 +32,8 @@ string (these rules carry no `deuswatch.label` of their own):
 
 One more rule worth knowing about lands in the **file change** bucket:
 `rules/sigma/editor_artifact_in_webroot.yml` fires when a vim swap/undo file or an Emacs lock
-file is created inside a web root. Nobody edits production web content by hand — git, rsync and
-CI never produce those names — so the artifact is evidence that someone had an interactive shell
+file is created inside a web root. Nobody edits production web content by hand, git, rsync and
+CI never produce those names, so the artifact is evidence that someone had an interactive shell
 in the served directory. It is scoped for a very low false-positive rate: creation events only,
 inside a web root only, and only on artifact names automation does not generate (`.orig`, `.rej`
 and plain `~` backups are deliberately excluded because release tooling does create those). It
@@ -42,7 +42,7 @@ editing from a whitelisted IP is treated as an official change and stays silent.
 
 `file_encrypted` is not a guess about the file extension. The agent computes the
 **Shannon entropy** of a watched text file and flags the jump when the content turns into
-high-entropy random data — encrypted and compressed data sits near 8.0, ordinary config and
+high-entropy random data, encrypted and compressed data sits near 8.0, ordinary config and
 source sits far below (`internal/agent/fim.go`). A file that was readable a minute ago and is
 now indistinguishable from noise has been encrypted in place, which is the ransomware signal.
 A single hit is surfaced; a burst authorizes automatic containment through the aggregation rule.
@@ -57,26 +57,26 @@ A single hit is surfaced; a burst authorizes automatic containment through the a
 2. The four tiles answer the "is anything on fire" question without reading the table:
    file events, ransomware signals, known-bad files, and how many distinct endpoints are
    involved.
-3. Narrow with the controls in the table header — free-text search over path/hash/host, a
+3. Narrow with the controls in the table header, free-text search over path/hash/host, a
    **kind** selector, and an **agent** selector.
 4. **Click any row** to expand it. You get, when the data is present:
-   - **who-data** — the process, its PID, and both accounts behind the change (see below)
-   - the **editing session** — how long the file was actually open (see below)
+   - **who-data**: the process, its PID, and both accounts behind the change (see below)
+   - the **editing session**, how long the file was actually open (see below)
    - the **hash reputation** detail behind a `known bad` verdict
    - the file's **SHA-256**
-   - the **content diff** — the exact lines added and removed, which is what tells you whether
+   - the **content diff**, the exact lines added and removed, which is what tells you whether
      a change was a deployment or a defacement
 
-### Who-data — and whether sudo was involved
+### Who-data, and whether sudo was involved
 
 The expanded row shows four things as a labelled block, because these are what an analyst reads
 first: **Process**, **PID**, **Logged in as**, and **Ran as**.
 
 The last two are deliberately kept apart. Linux audit records carry two accounts:
 
-- **`auid`** — the account the human authenticated as. It survives `sudo` and `su` unchanged, so
+- **`auid`**: the account the human authenticated as. It survives `sudo` and `su` unchanged, so
   it is the person to hold responsible.
-- **`uid`** — the account the process actually ran as.
+- **`uid`**: the account the process actually ran as.
 
 Collapsing them into one value, which DeusWatch did before v2.14.7, throws away the only evidence
 that privilege escalation was involved: `auid=1000 uid=0` was reported as plain `1000`, so a
@@ -84,22 +84,22 @@ change made with **full root privilege looked like an ordinary user edit**.
 
 Now `user_effective` (migration `000063`) carries the effective account and is set **only when it
 differs from the login account**. Its presence is therefore the escalation itself, and the row
-says so in words: *"Privilege escalation — firdaus(1000) made this change as root(0) (sudo, su, or
+says so in words: *"Privilege escalation, firdaus(1000) made this change as root(0) (sudo, su, or
 a setuid binary)."*
 
 Who-data is **opt-in on Linux and needs auditd** on the endpoint. Without it the block is replaced
 by an explicit note saying the process and user were not recorded, rather than silently showing
-nothing — see [`whodata.md`](../whodata.md) for the setup.
+nothing, see [`whodata.md`](../whodata.md) for the setup.
 5. Click **Snapshots ↗** on a row to jump to that file's version timeline, where you can diff
    older versions, restore one, or quarantine the file.
 
-### Editor session — how long the file was actually open
+### Editor session, how long the file was actually open
 
 When a file was edited with vim, the expanded row also shows the **editing session**: the clock
 time it was opened, the time it was closed, and the duration between them.
 
 This is derived, not reported. vim writes its working file next to the target as
-`.<name>.swp` (falling back to `.swo`, then `.swn`), and that file's lifetime *is* the session —
+`.<name>.swp` (falling back to `.swo`, then `.swn`), and that file's lifetime *is* the session,
 it appears when the buffer opens and is removed when the editor exits cleanly. Both ends are
 already ordinary FIM events, so the page correlates them and needs no extra data source. It is
 labelled as derived in the UI precisely because it is not who-data: the process and user
@@ -109,13 +109,13 @@ Two partial cases are reported rather than hidden:
 
 - **Opened, never closed.** Either the editor is still running, or it exited uncleanly. A
   leftover `.swp` in a served directory is also an information-disclosure finding in its own
-  right — the swap file contains the original file's contents, and a downloadable
+  right, the swap file contains the original file's contents, and a downloadable
   `.index.php.swp` is a classic web-server finding.
 - **Closed, opening not in range.** The session started before the selected time window. Widen
   the range to get the full duration.
 
 Only editors that use a side-car working file produce this. A change written by `sed`, a deploy
-script, a CMS or an attacker's `curl` has no session to measure, and none is shown — which is
+script, a CMS or an attacker's `curl` has no session to measure, and none is shown, which is
 itself informative: a content change with no editing session behind it was not typed by hand.
 
 The table refreshes every 30 seconds, so an incident can be watched as it unfolds without
@@ -135,7 +135,7 @@ counts. The page will not quietly under-report.
 | Event query | `GET /api/events/search?category=file&…` (permission `view_dashboard`) |
 | Filters sent | `category`, `q`, `agent`, `from`, `to`, `limit` (500) |
 | Page source | `web/src/fim/FileIntegrity.tsx` |
-| Storage | none of its own — reads the `events` hypertable like every other view |
+| Storage | none of its own, reads the `events` hypertable like every other view |
 | Relevant columns | `event_category`, `event_action`, `file_path`, `file_hash_sha256`, `dw_filehash_verdict`, `dw_filehash_detail`, `file_diff`, `process_name`, `user_name` |
 
 ## What feeds it
@@ -150,13 +150,13 @@ Two consequences worth knowing:
 - **An empty page is the good outcome.** It means nothing changed, not that monitoring is
   broken. To tell the two apart, check that the endpoint has watched paths configured.
 - **A content diff needs stored content.** A metadata-only watch, or a binary file, produces an
-  event with no diff — the expanded row says so explicitly rather than showing an empty box.
+  event with no diff, the expanded row says so explicitly rather than showing an empty box.
 
 ## Related
 
-- [Agents](05-agents.md) — configuring FIM watches, snapshot mode and retention
-- [Network Containment](10-network-containment.md) — what a webshell drop can trigger
-- [Playbooks](12-playbooks.md) — the remediation steps stamped onto these alerts
-- [`whodata.md`](../whodata.md) — attributing a change to a process and user
-- [`adr/0002-versioned-fim-snapshots.md`](../adr/0002-versioned-fim-snapshots.md) — the snapshot
+- [Agents](05-agents.md), configuring FIM watches, snapshot mode and retention
+- [Network Containment](10-network-containment.md), what a webshell drop can trigger
+- [Playbooks](12-playbooks.md), the remediation steps stamped onto these alerts
+- [`whodata.md`](../whodata.md), attributing a change to a process and user
+- [`adr/0002-versioned-fim-snapshots.md`](../adr/0002-versioned-fim-snapshots.md), the snapshot
   design behind the Snapshots page

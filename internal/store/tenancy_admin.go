@@ -20,7 +20,7 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// isForeignKeyViolation reports whether err is a Postgres FK violation (SQLSTATE 23503) — e.g.
+// isForeignKeyViolation reports whether err is a Postgres FK violation (SQLSTATE 23503), e.g.
 // deleting a tenant that still has agents (agents.tenant_id RESTRICTs the delete).
 func isForeignKeyViolation(err error) bool {
 	var pgErr *pgconn.PgError
@@ -154,7 +154,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, name string) (Workspace, er
 }
 
 // DeleteTenant removes a tenant. The Default tenant is protected. workspace_tenants mappings cascade
-// away, but agents / enrollment tokens RESTRICT the delete (agents.tenant_id FK) — a tenant that
+// away, but agents / enrollment tokens RESTRICT the delete (agents.tenant_id FK), a tenant that
 // still owns agents can't be deleted until they're revoked or re-homed, surfaced as a friendly error.
 // Denormalized telemetry (events, scores, …) is left as-is; it simply becomes unreachable once no
 // workspace maps the tenant.
@@ -165,7 +165,7 @@ func (s *Store) DeleteTenant(ctx context.Context, id string) error {
 	ct, err := s.q(ctx).Exec(ctx, `DELETE FROM tenants WHERE id = $1::uuid`, id)
 	if err != nil {
 		if isForeignKeyViolation(err) {
-			return fmt.Errorf("this tenant still has agents or enrollment tokens — revoke or re-home them first")
+			return fmt.Errorf("this tenant still has agents or enrollment tokens, revoke or re-home them first")
 		}
 		return fmt.Errorf("store: delete tenant: %w", err)
 	}

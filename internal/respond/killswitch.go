@@ -21,7 +21,7 @@ import (
 //   2. Evaluate takes that + the KillPolicy + the guard rails (PID floor, process whitelist,
 //      attribution mandatory, rate limit) and chooses recommend-only vs auto-execute.
 //
-// The gates only ever REDUCE what happens. Every "no" here is a "no" — there is no fall-through
+// The gates only ever REDUCE what happens. Every "no" here is a "no". There is no fall-through
 // path that quietly promotes a soft signal to an auto-kill.
 
 // KillStore is the subset of the store the recommender needs.
@@ -35,8 +35,8 @@ type KillRecommender struct {
 	// envAuto is the KILL_SWITCH_AUTO env override; on = "force auto regardless of DB policy".
 	envAuto bool
 
-	mu       sync.RWMutex
-	policy   KillPolicy
+	mu     sync.RWMutex
+	policy KillPolicy
 	// recent tracks per-agent auto-kill timestamps for the sliding-window rate limiter (in-memory:
 	// crossing 3/min per agent is rare, doesn't need persistence, and any pending kill is already
 	// stored in agent_file_actions anyway).
@@ -44,7 +44,7 @@ type KillRecommender struct {
 }
 
 // NewKillRecommender builds the recommender. envAuto=true forces auto-approve on regardless of the
-// DB policy — the explicit deploy-declared override, mirroring the ban engine's RESPONSE_AUTO_APPROVE.
+// DB policy, the explicit deploy-declared override, mirroring the ban engine's RESPONSE_AUTO_APPROVE.
 func NewKillRecommender(st KillStore, envAuto bool) *KillRecommender {
 	if st == nil {
 		return nil
@@ -87,15 +87,15 @@ func (k *KillRecommender) Auto() bool {
 	return k.policy.AutoApprove
 }
 
-// Trigger is a stable identifier for what raised the kill recommendation — recorded in the audit
+// Trigger is a stable identifier for what raised the kill recommendation, recorded in the audit
 // column requested_by ("auto:yara") so an operator can filter their history by cause.
 type Trigger string
 
 const (
-	TriggerRansomware  Trigger = "ransomware"  // agent-measured entropy jump on a file change
-	TriggerYARA        Trigger = "yara"        // manager-side YARA match on FIM upload (docs/yara.md)
-	TriggerKnownBad    Trigger = "filehash"    // file hash flagged by ≥ knownBadVendorFloor engines
-	TriggerRansomRule  Trigger = "ransom_rule" // detection rule tagged as ransomware-class w/ containment
+	TriggerRansomware Trigger = "ransomware"  // agent-measured entropy jump on a file change
+	TriggerYARA       Trigger = "yara"        // manager-side YARA match on FIM upload (docs/yara.md)
+	TriggerKnownBad   Trigger = "filehash"    // file hash flagged by ≥ knownBadVendorFloor engines
+	TriggerRansomRule Trigger = "ransom_rule" // detection rule tagged as ransomware-class w/ containment
 )
 
 // knownBadVendorFloor is the minimum "N/M engines flagged" count on the file-hash detail we accept
@@ -104,7 +104,7 @@ const knownBadVendorFloor = 10
 
 // killWorthy classifies an alert. Returns the trigger, whether that trigger is *inherently*
 // auto-approvable (community-verified / measured directly on the host), and a human-readable
-// reason for the audit trail. worthy=false means "not kill-eligible at all".
+// reason for the audit trail. Worthy=false means "not kill-eligible at all".
 func killWorthy(alert *ingest.Event) (worthy bool, trigger Trigger, autoApprovable bool, reason string) {
 	if alert == nil {
 		return false, "", false, ""
@@ -124,12 +124,12 @@ func killWorthy(alert *ingest.Event) (worthy bool, trigger Trigger, autoApprovab
 	// publishYARAAlert when a rule fires. The community-authored rule IS the confidence.
 	if alert.DeusWatch.Label == "yara_malicious" {
 		return true, TriggerYARA, true,
-			"YARA rule match on file content — " + alert.DeusWatch.FileHash.Detail
+			"YARA rule match on file content, " + alert.DeusWatch.FileHash.Detail
 	}
 
 	// 3. File hash reputation with enough vendor consensus. The detail is "N/M engines flagged";
 	// we parse the leading N and require ≥ knownBadVendorFloor. If the format doesn't match we
-	// don't auto-elevate — better to recommend than to over-trust a vendor-mystery verdict.
+	// don't auto-elevate, better to recommend than to over-trust a vendor-mystery verdict.
 	if alert.DeusWatch.FileHash.Verdict == "known_bad" {
 		n, ok := parseLeadingInt(alert.DeusWatch.FileHash.Detail)
 		if ok && n >= knownBadVendorFloor {
@@ -181,7 +181,7 @@ func (k *KillRecommender) Evaluate(ctx context.Context, alert *ingest.Event) (bo
 		return false, nil
 	}
 
-	// Attribution gates — same as before, plus we make them explicit as guard rails so a future
+	// Attribution gates, same as before, plus we make them explicit as guard rails so a future
 	// change can't quietly relax them.
 	if alert.Process == nil || alert.Process.PID <= 0 {
 		return false, nil
@@ -202,10 +202,10 @@ func (k *KillRecommender) Evaluate(ctx context.Context, alert *ingest.Event) (bo
 	k.mu.RUnlock()
 	if policy.AutoApprove && autoApprovable {
 		if block, why := blockedByGuardRails(alert.Process.PID, alert.Process.Name, policy.Whitelist); block {
-			log.Printf("respond: auto-kill blocked by guard rail (%s) — falling back to recommend-only for %q pid=%d",
+			log.Printf("respond: auto-kill blocked by guard rail (%s), falling back to recommend-only for %q pid=%d",
 				why, alert.Process.Name, alert.Process.PID)
 		} else if !k.allowRate(alert.Agent.ID, policy.RateLimitPerMin, time.Now()) {
-			log.Printf("respond: auto-kill rate limit hit for agent %q (>%d/min) — falling back to recommend-only",
+			log.Printf("respond: auto-kill rate limit hit for agent %q (>%d/min), falling back to recommend-only",
 				alert.Agent.ID, policy.RateLimitPerMin)
 		} else {
 			auto = true

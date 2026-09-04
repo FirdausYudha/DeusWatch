@@ -1,8 +1,8 @@
 # ML anomaly bridge (external Isolation Forest → composite score)
 
 DeusWatch ships a built-in **heuristic** watchlist for low-and-slow reconnaissance
-([suspicious IPs](suspicious-ips.md)). If you want a real **machine-learning** model instead — an
-hourly batch such as an Isolation Forest — DeusWatch exposes a two-endpoint bridge: your model
+([suspicious IPs](suspicious-ips.md)). If you want a real **machine-learning** model instead, an
+hourly batch such as an Isolation Forest, DeusWatch exposes a two-endpoint bridge: your model
 **pulls per-IP features**, and **writes an anomaly_score back**, which DeusWatch folds into the
 composite threat score.
 
@@ -55,7 +55,7 @@ same as the others). The composite scorer then blends the ML anomaly with fired-
 + OTX + severity on its next run, and the score shows up as usual (dashboard doughnut, scenario
 ban, etc.).
 
-## Example — a minimal hourly batch
+## Example, a minimal hourly batch
 
 ```python
 import requests
@@ -80,5 +80,5 @@ and response.
 ## Note
 
 The endpoints are **token-authed** (a machine credential), not tied to a UI session, so a cron job
-can call them. Keep the token secret and serve over HTTPS / a trusted network — the feature export
+can call them. Keep the token secret and serve over HTTPS / a trusted network, the feature export
 is your enriched telemetry.

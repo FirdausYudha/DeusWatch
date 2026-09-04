@@ -102,7 +102,7 @@ func buildSigmaAlert(r *sigma.Rule, src *ingest.Event) *ingest.Event {
 	if src.Host != nil {
 		alert.Host = &ingest.Host{Name: src.Host.Name, OSType: src.Host.OSType, IP: src.Host.IP}
 	}
-	// Carry the agent identity over — the response engine needs it to isolate the host.
+	// Carry the agent identity over, the response engine needs it to isolate the host.
 	if src.Agent != nil {
 		alert.Agent = &ingest.Agent{ID: src.Agent.ID, Version: src.Agent.Version}
 	}

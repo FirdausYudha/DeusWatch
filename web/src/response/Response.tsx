@@ -75,7 +75,7 @@ export default function Response({ me }: { me: Me }) {
   const [view, setView] = useState<View>('ip')
   const [actions, setActions] = useState<ResponseAction[]>([])
   const [offenders, setOffenders] = useState<Offender[]>([])
-  // Whether a ban can actually reach a firewall — drives the "blocked" vs "Dangerous IP" label.
+  // Whether a ban can actually reach a firewall, drives the "blocked" vs "Dangerous IP" label.
   const [enforcement, setEnforcement] = useState<Enforcement | null>(null)
   const [filter, setFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -316,11 +316,11 @@ export default function Response({ me }: { me: Me }) {
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
 
       {/* Honesty guard: if nothing is wired up to enforce a ban, say so rather than badging
-          IPs "blocked" — DeusWatch would be claiming an action it never performed. */}
+          IPs "blocked", DeusWatch would be claiming an action it never performed. */}
       {enforcement && !enforcement.enforcing && (
         <div className="mt-4 rounded-[8px] border border-amber-900/50 bg-amber-500/5 p-3">
           <p className="text-[13.5px] text-amber-200">
-            No enforcement configured — these IPs are <span className="font-medium">flagged, not blocked</span>.
+            No enforcement configured, these IPs are <span className="font-medium">flagged, not blocked</span>.
           </p>
           <p className="mt-1 text-[12.5px] text-muted">
             DeusWatch is recording the decisions, but nothing pushes them to a firewall yet.
@@ -407,10 +407,10 @@ function OffendersTable({
                       blocked{o.blocked_until ? '' : ' · permanent'}
                     </span>
                   ) : (
-                    // Nothing enforces the ban — the decision is recorded, the IP is not blocked.
+                    // Nothing enforces the ban, the decision is recorded, the IP is not blocked.
                     <span
                       className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[12.5px] font-medium text-amber-300"
-                      title="Flagged for blocking, but no firewall/responder is connected — the IP is NOT actually blocked. Connect a responder or enable the blocklist feed."
+                      title="Flagged for blocking, but no firewall/responder is connected: the IP is NOT actually blocked. Connect a responder or enable the blocklist feed."
                     >
                       Dangerous IP
                     </span>
@@ -696,7 +696,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
               Automatic ban (no manual approval)
               <span className="mt-0.5 block text-[12.5px] text-dim">
                 When on, the engine bans the IP automatically and escalates the duration on each
-                repeat — no analyst approval needed. When off, every block waits for approval.
+                repeat, no analyst approval needed. When off, every block waits for approval.
               </span>
             </span>
           </label>
@@ -883,14 +883,14 @@ function BlocklistFeedPanel({ canManage }: { canManage: boolean }) {
 
 // ── IP whitelist editor ─────────────────────────────────────
 // Trusted IPs/CIDRs that the response engine never bans. Detection, alerting
-// and notifications still fire for them — only the ban is skipped.
+// and notifications still fire for them: only the ban is skipped.
 
 function WhitelistEditor({ canManage }: { canManage: boolean }) {
   const [entries, setEntries] = useState<WhitelistEntry[]>([])
   const [cidr, setCidr] = useState('')
   const [note, setNote] = useState('')
-  // Kind: 'internal' (our network — counts as our side for the direction classifier) or 'external'
-  // (a trusted third party — never banned, but not our side). Default: internal, the historical
+  // Kind: 'internal' (our network, counts as our side for the direction classifier) or 'external'
+  // (a trusted third party: never banned, but not our side). Default: internal, the historical
   // interpretation of the whitelist.
   const [kind, setKind] = useState<'internal' | 'external'>('internal')
   const [loaded, setLoaded] = useState(false)
@@ -957,7 +957,7 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
         <div className="space-y-4 border-t border-border px-4 py-4">
           <p className="text-[12.5px] text-dim">
             A matching source IP is never banned (single IP like <code className="text-muted">192.168.81.10</code> or a
-            range like <code className="text-muted">10.0.0.0/8</code>). Alerts and notifications still fire — only the
+            range like <code className="text-muted">10.0.0.0/8</code>). Alerts and notifications still fire: only the
             block is skipped.
           </p>
 
@@ -1095,7 +1095,7 @@ function DecisionTablePanel() {
         <div>
           <h2 className="text-[13.5px] font-semibold text-fg">Decision table</h2>
           <p className="mt-0.5 text-[12.5px] text-dim">
-            What DeusWatch does with each entity type — the policy alerts are routed by.
+            What DeusWatch does with each entity type: the policy that alerts are routed by.
           </p>
         </div>
         <span className="text-dim">{open ? '▾' : '▸'}</span>
@@ -1400,7 +1400,7 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
 // KillPolicyEditor exposes the auto-approval policy for the ransomware kill-switch (docs/auto-kill.md).
 // It sits next to BanPolicyEditor because the mental model is identical: default off, opt-in via a
 // toggle, and the worker picks up changes within ~30s (same reload cadence as the ban policy). The
-// destructive nature of auto-kill vs auto-ban is called out inline — bulk of the copy is honest
+// destructive nature of auto-kill vs auto-ban is called out inline, bulk of the copy is honest
 // warnings so an operator doesn't flip the toggle without understanding it.
 function KillPolicyEditor({ canManage }: { canManage: boolean }) {
   const [policy, setPolicy] = useState<KillPolicy | null>(null)
@@ -1502,7 +1502,7 @@ function KillPolicyEditor({ canManage }: { canManage: boolean }) {
 
           <label className="mb-3 block">
             <span className="mb-1 block text-[12.5px] font-medium text-muted">
-              Process whitelist (one per line, case-insensitive) — never auto-killed
+              Process whitelist (one per line, case-insensitive): never auto-killed
             </span>
             <textarea
               value={wlText}
@@ -1525,7 +1525,7 @@ function KillPolicyEditor({ canManage }: { canManage: boolean }) {
             </button>
           ) : (
             <p className="text-[12.5px] text-dim">
-              Read-only — needs the <code>manage_settings</code> permission to edit.
+              Read-only, needs the <code>manage_settings</code> permission to edit.
             </p>
           )}
         </div>

@@ -148,7 +148,7 @@ function IngestWebhookPanel() {
         <DocLink file="wazuh-webhook.md" className="ml-auto shrink-0" />
       </div>
       <p className="mb-3 mt-0.5 text-[13px] text-muted">
-        A token-gated endpoint that external systems POST raw logs or Wazuh alerts to — they flow
+        A token-gated endpoint that external systems POST raw logs or Wazuh alerts to, they flow
         through the normal pipeline (normalize → detect → playbooks → response). Point a Wazuh
         manager's integrator at this URL, or <span className="font-mono text-[12.5px]">curl</span> lines to it.
       </p>
@@ -170,7 +170,7 @@ function IngestWebhookPanel() {
           <p className="mt-2 text-[12.5px] text-dim">
             Replace <span className="font-mono">&lt;name&gt;</span> with the source agent name (shown in the Agent column) and
             <span className="font-mono"> dataset</span> with the log type (<span className="font-mono">wazuh</span>, <span className="font-mono">web</span>, …).
-            The token is in the URL — serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
+            The token is in the URL, serve it over HTTPS / a trusted tunnel. Regenerating invalidates the old token.
           </p>
 
           {/* v2.9.0: bind inbound events to a specific workspace so unenrolled sources ("wazuh-agent/*")
@@ -183,7 +183,7 @@ function IngestWebhookPanel() {
               onChange={(e) => saveTenant(e.target.value)}
               className="rounded-[6px] border border-border bg-surface px-2 py-1 text-[12.5px] text-fg outline-none"
             >
-              <option value="">— fall back to agent lookup / Default tenant —</option>
+              <option value="">, fall back to agent lookup / Default tenant, </option>
               {tenants.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -460,7 +460,7 @@ export default function Integrations() {
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-[13.5px] font-semibold text-fg">
-                Edit — <span className="text-accent">{editing.name}</span>
+                Edit, <span className="text-accent">{editing.name}</span>
                 <span className="ml-2 text-[12.5px] font-normal text-dim">{editType.label}</span>
               </h3>
               {editType.doc && <DocLink file={editType.doc} className="shrink-0" />}

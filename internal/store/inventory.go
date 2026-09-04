@@ -27,7 +27,7 @@ type InventorySummary struct {
 
 // ReplaceInventory stores an agent's full inventory, replacing any previous one atomically. An
 // inventory is a point-in-time SNAPSHOT (not an append log), so the package set is swapped wholesale
-// inside a transaction — a package the agent no longer has simply disappears.
+// inside a transaction, a package the agent no longer has simply disappears.
 func (s *Store) ReplaceInventory(ctx context.Context, agentName string, inv agent.Inventory) error {
 	if agentName == "" {
 		return fmt.Errorf("store: inventory needs an agent name")

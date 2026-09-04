@@ -1,4 +1,4 @@
--- Migration 000002 — authentication, sessions, and audit log (design doc section 4).
+-- Migration 000002, authentication, sessions, and audit log (design doc section 4).
 
 -- Users. Passwords are hashed with Argon2id (see internal/auth). totp_secret for 2FA.
 CREATE TABLE IF NOT EXISTS users (

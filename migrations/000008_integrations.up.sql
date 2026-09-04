@@ -1,8 +1,8 @@
--- Migration 000008 — integrations registry (firewalls, bouncers, CTI providers).
+-- Migration 000008, integrations registry (firewalls, bouncers, CTI providers).
 --
 -- Admin-managed connectors added & configured from the UI (Integrations menu).
 -- Secret fields inside `config` (API keys, device passwords) are encrypted at rest
--- (see internal/secret) and never returned through the API — they are write-only.
+-- (see internal/secret) and never returned through the API. They are write-only.
 
 CREATE TABLE IF NOT EXISTS integrations (
     id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),

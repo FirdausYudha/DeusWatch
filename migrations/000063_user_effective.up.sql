@@ -1,4 +1,4 @@
--- Migration 000063 — the effective user behind a change, so "via sudo" is visible.
+-- Migration 000063, the effective user behind a change, so "via sudo" is visible.
 --
 -- Linux who-data reads two accounts from every audit record: auid, the account the human
 -- authenticated as (it survives sudo/su unchanged), and uid, the account the process actually
@@ -13,7 +13,7 @@ ALTER TABLE events_data
 
 -- FOOTGUN, as documented in migration 000061: the `events` VIEW froze its column list at
 -- CREATE-time via SELECT *, so ALTERing events_data alone leaves the new column invisible to
--- every caller — including InsertEvent's parameterised INSERT, where the extra placeholder
+-- every caller, including InsertEvent's parameterised INSERT, where the extra placeholder
 -- collapses the whole tenant-scoped transaction. Recreate the view so the column surfaces.
 CREATE OR REPLACE VIEW events WITH (security_barrier = true) AS
     SELECT * FROM events_data

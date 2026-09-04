@@ -10,7 +10,7 @@ import (
 
 // spawnUninstaller writes a batch cleaner and launches it detached. After a short delay
 // (so the agent process exits first) it stops & deletes the Windows service, removes the
-// install dirs, machine env vars, and the firewall rule — then deletes itself. Paths mirror
+// install dirs, machine env vars, and the firewall rule, then deletes itself. Paths mirror
 // internal/agentinstall/install.ps1.
 func spawnUninstaller() error {
 	bat := filepath.Join(os.TempDir(), "deuswatch-uninstall.bat")

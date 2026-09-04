@@ -1,15 +1,15 @@
 package respond
 
-// Network Containment (host isolation) — the DeusWatch response to a *compromised host*
+// Network Containment (host isolation), the DeusWatch response to a *compromised host*
 // (a user opened malware / clicked phishing / ransomware behaviour on an endpoint). Unlike
 // the perimeter IP-ban engine (engine.go), which blocks an external attacker's source IP,
-// containment isolates one of OUR OWN agent hosts from the LAN — everything except the
-// manager — to stop lateral spread to servers, storage and other users.
+// containment isolates one of OUR OWN agent hosts from the LAN, everything except the
+// manager, to stop lateral spread to servers, storage and other users.
 //
 // Two enforcement points ("both"), applied together and best-effort:
 //   1. Host self-isolation: the agent applies its own firewall (nftables/netsh) to drop all
 //      traffic except the manager + an allow-list. Delivered as a per-agent directive the
-//      agent polls (derived from the active containment row — see Store.ActiveContainmentByAgent
+//      agent polls (derived from the active containment row, see Store.ActiveContainmentByAgent
 //      and the gateway ContainmentHandler). This is the PRIMARY control: it always works and
 //      needs no network gear.
 //   2. Edge block: the host's IP is also blocked at the network edge via the existing
@@ -45,7 +45,7 @@ const (
 type Containment struct {
 	ID             string            `json:"id"`
 	CreatedAt      time.Time         `json:"created_at"`
-	AgentID        string            `json:"agent_id"`   // agent CN / name — key into `agents`
+	AgentID        string            `json:"agent_id"`   // agent CN / name, key into `agents`
 	HostName       string            `json:"host_name"`  // reported hostname (context)
 	IP             string            `json:"ip_address"` // host IP for the edge block (may be empty)
 	Reason         string            `json:"reason"`
@@ -68,7 +68,7 @@ func (c Containment) BanDuration() time.Duration {
 // ContainmentStore is the persistence the containment engine needs (satisfied by *Store).
 type ContainmentStore interface {
 	// InsertContainment inserts a recommended containment for an agent, but only if that
-	// agent has no active (recommended/contained) one — the anti-double-containment guard.
+	// agent has no active (recommended/contained) one, the anti-double-containment guard.
 	// created=false means a duplicate was skipped (no error).
 	InsertContainment(ctx context.Context, c *Containment) (id string, created bool, err error)
 	GetContainment(ctx context.Context, id string) (*Containment, error)
@@ -94,8 +94,8 @@ type ContainmentEngine struct {
 	managerNet []*net.IPNet // hosts that must NEVER be contained (the manager itself)
 }
 
-// NewContainmentEngine builds a containment engine. edge may be nil (host self-isolation
-// still works — it's the primary control). auto=false means every qualifying alert becomes
+// NewContainmentEngine builds a containment engine. Edge may be nil (host self-isolation
+// still works, it's the primary control). auto=false means every qualifying alert becomes
 // a recommendation awaiting approval.
 func NewContainmentEngine(store ContainmentStore, edge Responder, auto bool) *ContainmentEngine {
 	return &ContainmentEngine{store: store, edge: edge, auto: auto}
@@ -183,7 +183,7 @@ func (e *ContainmentEngine) Evaluate(ctx context.Context, ev *ingest.Event) (*Co
 		return nil, err
 	}
 	if !created {
-		return nil, nil // already contained / pending — collapse to the existing action
+		return nil, nil // already contained / pending, collapse to the existing action
 	}
 	rec.ID = id
 
@@ -255,7 +255,7 @@ func (e *ContainmentEngine) SweepExpired(ctx context.Context) (int, error) {
 }
 
 // contain marks the record contained (which is what the agent's directive is derived from)
-// and applies the best-effort edge block. Host self-isolation needs no push — the agent
+// and applies the best-effort edge block. Host self-isolation needs no push, the agent
 // polls its directive and sees the now-active containment.
 func (e *ContainmentEngine) contain(ctx context.Context, c *Containment, by string) error {
 	var expiresAt *time.Time

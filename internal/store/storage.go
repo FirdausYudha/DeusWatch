@@ -15,7 +15,7 @@ type ReplStatus struct {
 
 // StorageStatus is the log-storage health shown on the dashboard. DeusWatch stores logs
 // in PostgreSQL + TimescaleDB; lifecycle is handled by TimescaleDB retention (auto-drop of
-// old chunks) + compression — the relational equivalent of Elasticsearch ILM.
+// old chunks) + compression, the relational equivalent of Elasticsearch ILM.
 type StorageStatus struct {
 	Reachable       bool       `json:"reachable"`        // the log DB answered
 	Host            string     `json:"host"`             // DB host (e.g. "db", or Server B's address)
@@ -104,7 +104,7 @@ func (s *Store) SetLifecycle(ctx context.Context, retentionDays, compressionDays
 }
 
 // tsPolicyDays reads a TimescaleDB background-job policy interval (e.g. retention's
-// drop_after) and returns it in whole days. key is a fixed internal field name, not user
+// drop_after) and returns it in whole days. Key is a fixed internal field name, not user
 // input. Returns nil when the policy/view is absent (e.g. plain PostgreSQL).
 func tsPolicyDays(ctx context.Context, pool *pgxpool.Pool, proc, key string) *int {
 	var days float64

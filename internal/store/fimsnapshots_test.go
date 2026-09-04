@@ -8,13 +8,13 @@ import (
 )
 
 // TestFIMSnapshots exercises record (with de-dup), the timeline, the path list, and retention
-// pruning against a real Postgres. Integration — skipped if Postgres is down.
+// pruning against a real Postgres. Integration, skipped if Postgres is down.
 func TestFIMSnapshots(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 
@@ -64,7 +64,7 @@ func TestManagerStoredSnapshotContent(t *testing.T) {
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 
@@ -96,7 +96,7 @@ func TestFileActions(t *testing.T) {
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 
@@ -155,7 +155,7 @@ func TestBulkRestoreVersions(t *testing.T) {
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 

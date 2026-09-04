@@ -1,5 +1,5 @@
 // Package syslogin is a native syslog listener (UDP + TCP) that ingests logs from devices
-// with no DeusWatch agent — routers, switches, firewalls, appliances — straight into the
+// with no DeusWatch agent, routers, switches, firewalls, appliances, straight into the
 // pipeline. Each message becomes a RawLog, is normalized to DCS (the built-in + custom
 // decoders apply, keyed off the syslog TAG so an "sshd" line hits the sshd parser), and is
 // published to logs.normalized, exactly like an agent-shipped line.
@@ -20,7 +20,7 @@ type Message struct {
 }
 
 // Parse parses one syslog line. It returns ok=false only for an empty line; otherwise it
-// always yields a Message — falling back to the whole line as Content — so a format we don't
+// always yields a Message, falling back to the whole line as Content, so a format we don't
 // fully understand is still ingested (raw) rather than dropped.
 func Parse(line string, now time.Time) (Message, bool) {
 	line = strings.TrimRight(line, "\r\n")
@@ -114,7 +114,7 @@ func parse3164(s string, now time.Time) (Message, bool) {
 	if err != nil {
 		return Message{}, false
 	}
-	// RFC 3164 carries no year — assume the current one, in the server's location.
+	// RFC 3164 carries no year, assume the current one, in the server's location.
 	t = time.Date(now.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, now.Location())
 
 	host, rest, ok := field(strings.TrimLeft(s[15:], " "))
@@ -126,8 +126,8 @@ func parse3164(s string, now time.Time) (Message, bool) {
 }
 
 // splitTag pulls the program tag off the front: "sshd[1234]: msg" -> ("sshd", "msg");
-// "kernel: msg" -> ("kernel", "msg"). A colon that isn't a tag separator — deep in the line,
-// or preceded by non-tag characters like a JSON message — yields ("", whole line).
+// "kernel: msg" -> ("kernel", "msg"). A colon that isn't a tag separator, deep in the line,
+// or preceded by non-tag characters like a JSON message, yields ("", whole line).
 func splitTag(s string) (tag, content string) {
 	colon := strings.IndexByte(s, ':')
 	if colon < 0 || colon > 48 {
@@ -139,7 +139,7 @@ func splitTag(s string) (tag, content string) {
 	}
 	cand = strings.TrimSpace(cand)
 	if cand == "" || !isTagToken(cand) {
-		return "", strings.TrimSpace(s) // not a real tag (e.g. JSON) — keep the whole line
+		return "", strings.TrimSpace(s) // not a real tag (e.g. JSON), keep the whole line
 	}
 	return cand, strings.TrimSpace(s[colon+1:])
 }

@@ -1,6 +1,6 @@
 # ADR 0002 - Versioned FIM Snapshots & Restore-by-Date
 
-- Status: **Complete (build)** — all phases built: 1 (manager config/schema/UI), 2 (agent capture
+- Status: **Complete (build)**, all phases built: 1 (manager config/schema/UI), 2 (agent capture
   + upload; live-verified on the user's agent), 3 (snapshot-now, quarantine-for-analysis, old-vs-
   new diff), restore-by-version, 4 (authorized_change audit event), 5 (manager-side content
   storage, admin-chosen). Manager side verified throughout; the agent-executed pieces (capture,
@@ -12,21 +12,21 @@
 
 ## Context & problem
 
-Today FIM keeps **one** "known-good" snapshot per watched file — captured the first time the
-file is seen — and offers a one-click restore to that single baseline. Two gaps in real use:
+Today FIM keeps **one** "known-good" snapshot per watched file, captured the first time the
+file is seen, and offers a one-click restore to that single baseline. Two gaps in real use:
 
 1. **No history.** You can only revert to the original first-seen version, not to "how it was
    last Tuesday". Operators want a **timeline of dated versions** and a **restore-by-date**.
 2. **Trusted changes are silently suppressed.** The trusted-session gate hides a file-change
    alert when the change happened during a login from a whitelisted admin/IP. That is right for
    *alerting*, but the change should still be **recorded as an authorized-change warning** so
-   there is an audit trail — while a sudden change with **no** legitimate session still alarms.
+   there is an audit trail, while a sudden change with **no** legitimate session still alarms.
 
 ## Decision (agreed with the product owner)
 
 Both major axes are **admin-configurable in DeusWatch**, not hard-coded:
 
-### 1. Snapshot storage location — selectable per deployment (and overridable per watch path)
+### 1. Snapshot storage location, selectable per deployment (and overridable per watch path)
 - **Agent-local** (default): version content is stored on the agent, content-addressed by
   SHA-256 (identical content never duplicated). Only **metadata** (path, hash, size,
   `captured_at`) is shipped to the manager. Restore = the manager sends a "restore path→hash"
@@ -36,7 +36,7 @@ Both major axes are **admin-configurable in DeusWatch**, not hard-coded:
   Restore = the manager sends the content back. History survives host loss; old versions are
   viewable in the UI. Cost: bandwidth + central storage; sensitive file content leaves the host.
 
-### 2. Snapshot trigger — selectable per deployment
+### 2. Snapshot trigger, selectable per deployment
 - **On every detected change** (with a per-file version cap / age retention).
 - **Scheduled** (e.g. daily) snapshot of all watched files.
 - **Both** (daily baseline + extra version on each change).
@@ -56,19 +56,19 @@ Sudden changes without a legitimate session keep their normal alert severity.
   for manager-mode, a content blob store (or object path). Migration required.
 - New API + UI: a per-file **snapshot timeline** with a date picker and a one-click Restore.
 - Honesty: the whole path must be **verified on a real Linux agent** before it is claimed
-  working (implemented ≠ verified) — the reason this is staged, not built blind.
+  working (implemented ≠ verified), the reason this is staged, not built blind.
 
 ## Limits & tuning (large HTML/PHP)
 
-- **Snapshot size ceiling** — only TEXT files up to `maxSnapshotBytes` are versioned (diff +
+- **Snapshot size ceiling**: only TEXT files up to `maxSnapshotBytes` are versioned (diff +
   restore); larger files are still change-DETECTED by hash, but get no version/diff/restore.
   Default **2 MiB** (was 256 KiB), overridable with **`FIM_SNAPSHOT_MAX_BYTES`** (plain bytes or a
   `K`/`M` suffix, e.g. `4M`). Raising it costs agent memory (the file is read whole) and, in
-  manager-storage mode, upload bandwidth + central DB space — the admin's call.
-- **Diff safety** — the old-vs-new diff is a full O(m·n) LCS. To keep it from exhausting memory on
+  manager-storage mode, upload bandwidth + central DB space, the admin's call.
+- **Diff safety**: the old-vs-new diff is a full O(m·n) LCS. To keep it from exhausting memory on
   a large file, when `lines_old × lines_new > maxDiffCells` (2M) it falls back to a cheap O(m+n)
   "~X added / ~Y removed" summary. The version + restore are unaffected (both are O(size)).
-- **Manager-mode upload cap** — the agent's snapshot uploader flushes by accumulated bytes so a
+- **Manager-mode upload cap**: the agent's snapshot uploader flushes by accumulated bytes so a
   batch of large files never exceeds the gateway's 8 MiB body limit. A single manager-stored
   version's content is therefore practically bounded to ~7 MiB; agent-mode uploads only metadata,
   so it has no wire limit (bounded only by agent memory / the size ceiling above).

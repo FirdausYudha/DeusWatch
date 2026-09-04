@@ -46,7 +46,7 @@ func (s *Store) CollectionHandler() http.HandlerFunc {
 	}
 }
 
-// PacksHandler: GET /api/rules/packs — the rule-pack marketplace (installed + catalog).
+// PacksHandler: GET /api/rules/packs, the rule-pack marketplace (installed + catalog).
 func (s *Store) PacksHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -62,7 +62,7 @@ func (s *Store) PacksHandler() http.HandlerFunc {
 	}
 }
 
-// PackToggleHandler: POST /api/rules/packs/{id}/toggle {enabled} — enable/disable a whole
+// PackToggleHandler: POST /api/rules/packs/{id}/toggle {enabled}, enable/disable a whole
 // installed pack (rule category) at once.
 func (s *Store) PackToggleHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -89,14 +89,14 @@ func (s *Store) PackToggleHandler() http.HandlerFunc {
 		}
 		if n == 0 {
 			// No rules changed: either an external/catalog pack, or an unknown id.
-			http.Error(w, "not an installed pack (external rulesets are imported manually — see the pack's link)", http.StatusBadRequest)
+			http.Error(w, "not an installed pack (external rulesets are imported manually, see the pack's link)", http.StatusBadRequest)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"updated": n, "enabled": req.Enabled})
 	}
 }
 
-// PackInstallHandler: POST /api/rules/packs/{id}/install — one-click import of a bundled
+// PackInstallHandler: POST /api/rules/packs/{id}/install: one-click import of a bundled
 // curated pack (no network; the rules ship inside DeusWatch).
 func (s *Store) PackInstallHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +114,7 @@ func (s *Store) PackInstallHandler() http.HandlerFunc {
 	}
 }
 
-// PackUninstallHandler: POST /api/rules/packs/{id}/uninstall — remove a curated pack's rules.
+// PackUninstallHandler: POST /api/rules/packs/{id}/uninstall, remove a curated pack's rules.
 func (s *Store) PackUninstallHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

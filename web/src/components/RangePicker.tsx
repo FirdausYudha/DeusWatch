@@ -11,7 +11,7 @@ export default function RangePicker({ range }: { range: DashRangeState }) {
   const [openCustom, setOpenCustom] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
 
-  // Dismiss the popover on outside click or Escape — a picker that traps you is worse than none.
+  // Dismiss the popover on outside click or Escape, a picker that traps you is worse than none.
   useEffect(() => {
     if (!openCustom) return
     const onDown = (e: MouseEvent) => {

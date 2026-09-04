@@ -179,7 +179,7 @@ function WorkspaceEditor({ workspace }: { workspace: Workspace }) {
               {t.name}
             </label>
           ))}
-          {tenants.length === 0 && <span className="text-[13.5px] text-dim">No tenants — create one on the Tenants page.</span>}
+          {tenants.length === 0 && <span className="text-[13.5px] text-dim">No tenants, create one on the Tenants page.</span>}
         </div>
       </section>
 

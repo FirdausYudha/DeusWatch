@@ -119,7 +119,7 @@ export default function Rules() {
       .filter(({ r }) =>
         statusFilter === 'all' || (statusFilter === 'enabled' ? r.enabled : !r.enabled),
       )
-      // every whitespace-separated term must appear (AND) — lets you narrow with "judi gacor".
+      // every whitespace-separated term must appear (AND), lets you narrow with "judi gacor".
       .filter(({ hay }) => terms.every((t) => hay.includes(t)))
       .map(({ r }) => r)
   }, [indexed, query, kindFilter, statusFilter, categoryFilter])
@@ -278,7 +278,7 @@ export default function Rules() {
       )}
       {editing && (
         <RuleEditor
-          title={`Edit — ${editing.name}`}
+          title={`Edit, ${editing.name}`}
           initialName={editing.name}
           initialYaml={editing.yaml}
           onClose={() => setEditing(null)}
@@ -352,7 +352,7 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
         <div className="mt-4 space-y-5">
           {err && <p className="text-[13.5px] text-rose-400">{err}</p>}
 
-          {/* Installed packs — toggle the real bundled rules */}
+          {/* Installed packs, toggle the real bundled rules */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {installed.map((p) => {
               const allOn = p.rule_count > 0 && p.enabled === p.rule_count
@@ -373,7 +373,7 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                         <button
                           onClick={() => install(p)}
                           disabled={busy === p.id}
-                          title="Re-fetch from the feed — adds any rules published since you installed"
+                          title="Re-fetch from the feed, adds any rules published since you installed"
                           className="rounded-md border border-border px-2.5 py-1 text-[12.5px] text-fg hover:bg-surface-2 disabled:opacity-50"
                         >
                           {busy === p.id ? '…' : 'Update'}
@@ -402,7 +402,7 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
             })}
           </div>
 
-          {/* Bundled curated packs not installed yet — real one-click Install, no network */}
+          {/* Bundled curated packs not installed yet, real one-click Install, no network */}
           {available.length > 0 && (
             <div>
               <h3 className="mb-2 text-[12.5px] font-medium uppercase tracking-wider text-dim">Available to install</h3>
@@ -431,13 +431,13 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                 ))}
               </div>
               <p className="mt-2 text-[12.5px] text-dim">
-                Packs without an <span className="text-muted">online</span> tag are bundled with DeusWatch — Install works with no internet.
+                Packs without an <span className="text-muted">online</span> tag are bundled with DeusWatch, Install works with no internet.
                 Online packs are fetched from the DeusWatch feed so they can be added or refreshed without upgrading (set <span className="font-mono">PACKS_FEED_URL=off</span> to disable).
               </p>
             </div>
           )}
 
-          {/* External catalog — real-world rulesets you bring in (link-out) */}
+          {/* External catalog, real-world rulesets you bring in (link-out) */}
           {external.length > 0 && (
             <div>
               <h3 className="mb-2 text-[12.5px] font-medium uppercase tracking-wider text-dim">From the community & vendors</h3>
@@ -460,7 +460,7 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
                 ))}
               </div>
               <p className="mt-2 text-[12.5px] text-dim">
-                External rulesets are brought in via <span className="text-muted">New rule</span> (paste Sigma YAML) or the matching sensor input — not one-click yet.
+                External rulesets are brought in via <span className="text-muted">New rule</span> (paste Sigma YAML) or the matching sensor input, not one-click yet.
               </p>
             </div>
           )}

@@ -21,10 +21,10 @@ type Line struct {
 //   - "journald"    : systemd journal (Linux only); Path = unit (optional)
 //   - "wineventlog" : Windows Event Log (Windows only); Path = channel name
 //   - "fim"         : File Integrity Monitoring (cross-OS); Path = file/directory
-//                     (several comma-separated) — see fim.go
+//     (several comma-separated), see fim.go
 //
 // The native collector is selected at COMPILE time via build tags (see collect_*_*.go),
-// so each OS has its own implementation — similar to the Wazuh agent architecture.
+// so each OS has its own implementation, similar to the Wazuh agent architecture.
 type Source struct {
 	Dataset string `json:"dataset"`
 	Type    string `json:"type"`

@@ -312,7 +312,7 @@ export default function Users({ me }: { me: Me }) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="mb-4 text-[13.5px] font-semibold text-fg">
-              Edit access — <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span>
+              Edit access, <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span>
             </h3>
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <select

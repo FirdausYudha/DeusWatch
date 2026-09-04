@@ -16,7 +16,7 @@ import (
 // ScoreConfig is the UI-managed configuration for both IP scorers. Composite = the current-threat
 // score (fired times + AbuseIPDB + OTX + severity); Suspicion = the low-and-slow watchlist
 // (fan-out + failure ratio + time spread + volume). The windows control how far back each scorer
-// looks — a longer composite window keeps the dashboard doughnut on an event for longer.
+// looks, a longer composite window keeps the dashboard doughnut on an event for longer.
 type ScoreConfig struct {
 	Composite score.Weights          `json:"composite"`
 	Suspicion score.SuspicionWeights `json:"suspicion"`

@@ -1,8 +1,8 @@
 // Package packs embeds the curated, INSTALLABLE Sigma rule packs that ship inside DeusWatch.
 //
 // These are the "bundled" half of the rule-pack marketplace: clicking Install imports the
-// pack's rules into the DB and enables them — no network access, so it works on an air-gapped
-// deployment. (The remote half — fetching a pack over HTTPS so it can auto-update — layers on
+// pack's rules into the DB and enables them, no network access, so it works on an air-gapped
+// deployment. (The remote half, fetching a pack over HTTPS so it can auto-update, layers on
 // top of the same import path.)
 //
 // Curation rule: only ship rules that match fields DeusWatch actually populates (see

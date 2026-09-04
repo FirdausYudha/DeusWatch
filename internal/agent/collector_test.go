@@ -49,6 +49,6 @@ func TestUnsupportedSourceType(t *testing.T) {
 
 func TestDefaultSourcesNonEmptyOnHostOS(t *testing.T) {
 	// On Linux & Windows DefaultSources must be populated (build tag).
-	// On other OSes it may be empty — just make sure it doesn't panic.
+	// On other OSes it may be empty: just make sure it doesn't panic.
 	_ = DefaultSources()
 }

@@ -157,9 +157,9 @@ var packOrder = []string{"web-attack", "deface", "fim", "endpoint", "windows", "
 // link-outs (bring-your-own via rule import / the matching sensor input) - honestly not
 // one-click installs yet - so the marketplace shows the wider ecosystem without faking it.
 var externalPacks = []Pack{
-	{ID: "sigmahq", Name: "SigmaHQ Community Rules", Description: "Thousands of community detections in Sigma format — import the ones you need as YAML in New rule.", Source: "SigmaHQ", URL: "https://github.com/SigmaHQ/sigma"},
+	{ID: "sigmahq", Name: "SigmaHQ Community Rules", Description: "Thousands of community detections in Sigma format, import the ones you need as YAML in New rule.", Source: "SigmaHQ", URL: "https://github.com/SigmaHQ/sigma"},
 	{ID: "sysmon-modular", Name: "Sysmon-modular (Windows)", Description: "Olaf Hartong's Sysmon config + mapped Windows telemetry detections.", Source: "olafhartong", URL: "https://github.com/olafhartong/sysmon-modular"},
-	{ID: "et-open", Name: "Emerging Threats Open (IDS)", Description: "Suricata / Snort IDS ruleset — pair it with the Suricata sensor input.", Source: "Proofpoint ET", URL: "https://rules.emergingthreats.net/"},
+	{ID: "et-open", Name: "Emerging Threats Open (IDS)", Description: "Suricata / Snort IDS ruleset, pair it with the Suricata sensor input.", Source: "Proofpoint ET", URL: "https://rules.emergingthreats.net/"},
 	{ID: "owasp-crs", Name: "OWASP Core Rule Set (WAF)", Description: "ModSecurity WAF ruleset. Run it inline; DeusWatch ingests its alerts and bans the source IP.", Source: "OWASP", URL: "https://coreruleset.org/"},
 	{ID: "yara-forge", Name: "YARA Forge", Description: "Aggregated YARA rules for malware file scanning (roadmap: YARA on FIM-changed files).", Source: "YARA-HQ", URL: "https://yarahq.github.io/"},
 	{ID: "mitre-attack", Name: "MITRE ATT&CK", Description: "The technique knowledge base DeusWatch rules map to (threat.technique.*).", Source: "MITRE", URL: "https://attack.mitre.org/"},
@@ -261,12 +261,12 @@ func (s *Store) Packs(ctx context.Context) ([]Pack, error) {
 }
 
 // InstallPack imports a bundled curated pack's rules into the DB (category = pack id) and
-// enables them — the one-click "Install". Rules already present (matched by name) are skipped,
+// enables them, the one-click "Install". Rules already present (matched by name) are skipped,
 // so re-installing is safe and never duplicates. Returns how many were added.
 func (s *Store) InstallPack(ctx context.Context, id string) (int, error) {
 	p, ok := packs.Find(id)
 	if !ok {
-		// Not shipped in the binary — try the online feed (same validated import path).
+		// Not shipped in the binary, try the online feed (same validated import path).
 		return s.InstallRemotePack(ctx, id)
 	}
 	files, err := packs.Rules(p.ID)
@@ -277,7 +277,7 @@ func (s *Store) InstallPack(ctx context.Context, id string) (int, error) {
 	for fname, data := range files {
 		kind, cerr := sigma.Classify(data)
 		if cerr != nil {
-			// A pack rule that doesn't parse is a packaging bug — skip it rather than fail the
+			// A pack rule that doesn't parse is a packaging bug, skip it rather than fail the
 			// whole install, but say so.
 			return added, fmt.Errorf("rules: pack %q: %s: %w", id, fname, cerr)
 		}
@@ -302,7 +302,7 @@ func (s *Store) InstallPack(ctx context.Context, id string) (int, error) {
 // can be uninstalled this way, so a core category (fim/auth/…) can never be wiped by mistake.
 func (s *Store) UninstallPack(ctx context.Context, id string) (int64, error) {
 	// Guard the core categories (fim/auth/web-attack/…): those ship as part of DeusWatch and
-	// must never be removable by a pack action. Anything else — bundled or feed — may go.
+	// must never be removable by a pack action. Anything else, bundled or feed, may go.
 	if _, core := packMeta[id]; core {
 		if _, curated := packs.Find(id); !curated {
 			return 0, fmt.Errorf("rules: %q is a core category, not an uninstallable pack", id)
@@ -400,14 +400,14 @@ func (s *Store) SyncBuiltinsFromDir(ctx context.Context, dir string) (int, error
 		var id, category string
 		err = s.pool.QueryRow(ctx, `SELECT id, category FROM rules WHERE name=$1`, name).Scan(&id, &category)
 		if err == nil {
-			// Already present — backfill its category if it predates this feature.
+			// Already present, backfill its category if it predates this feature.
 			if category == "" && f.category != "" {
 				_, _ = s.pool.Exec(ctx, `UPDATE rules SET category=$1 WHERE id=$2`, f.category, id)
 			}
 			continue
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
-			continue // a real error — skip this file
+			continue // a real error, skip this file
 		}
 		if _, err := s.pool.Exec(ctx,
 			`INSERT INTO rules (name, kind, category, yaml, enabled, builtin) VALUES ($1,$2,$3,$4,true,true)`,

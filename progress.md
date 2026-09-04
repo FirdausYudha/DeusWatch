@@ -1,7 +1,48 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-09-04 (worker liveness, who-data sudo attribution, editor sessions).
+> Last updated: 2026-09-05 (repo-wide em dash sweep, zero left in tracked files).
+
+## 2026-09-05, em dash sweep across the whole repository
+
+The operator regards heavy em dash use as a recognisable AI signature that undermines DeusWatch
+as their own work, and asked for it removed. **Done, and the count is now zero** in every tracked
+file (progress.md keeps its historical entries; 74 placeholder dashes are deliberately kept).
+
+Worth knowing before judging the scale: **996 of these predated any AI involvement.** It was the
+project's established comment style, not something introduced recently.
+
+| Area | Was | Now |
+|---|---|---|
+| `cmd/` + `internal/` (comments, log lines, error strings) | 528 | 0 |
+| `web/src` (UI strings and comments) | 257 | 0 prose, 50 placeholders kept |
+| `docs/**/*.md` | 317 | 0 |
+| `migrations/`, `deploy/`, `rules/`, `packs/`, `tools/`, `New UI/` | ~350 | 0 |
+| The standalone `'—'` empty-value marker | 74 | **kept**, it is a typographic convention, not prose |
+
+Method, which matters more than the count if this is ever repeated:
+
+1. Never blanket-replace. Choose punctuation from context: `,` for an appositive, `:` for an
+   expansion or a definition list, `.` for a second independent clause.
+2. **Match the dash together with the whitespace on both sides, newline included.** The first
+   attempt matched ` — ` only, so a dash wrapping to the next line left a dangling " ," and turned
+   the continuation into a fragment.
+3. Capitalise after any full stop introduced, but keep a skip-list: intentionally lowercase terms
+   (`vim`, `auditd`, `nftables`, `pfBlockerNG`) and, in Go, **doc-comment parameter names**, where
+   "NewDispatcher creates a dispatcher. throttle<=0 disables dedup." is correct godoc style.
+4. **Protect the placeholder dash.** A mid-sweep blanket `replace()` turned `'—'` into a literal
+   `", "` in 30 places, so tables would have rendered a comma where an empty-value dash belongs.
+   Caught by comparing the placeholder count before and after; `web/src` was reverted and redone.
+5. Then read the diff. Both markdown and UI passes needed hand-fixes afterwards: a definition-list
+   idiom (`- **Term**, x` should be `- **Term**: x`, 70 of those) and comma splices in toast
+   messages ("Snapshot requested, the agent captures it" should be a full stop).
+
+Also fixed while in there: the two **Indonesian comments** in `deploy/docker-compose.yml`
+("aktifkan JetStream", "disajikan nginx"), flagged at the start of the previous session and never
+acted on. See the repo's English-only naming rule.
+
+Verified after the sweep: all five commands cross-compile for linux, `go vet` clean, full Go test
+suite green, `tsc --noEmit` clean, `vite build` succeeds.
 
 ## 2026-09-04 (evening) — worker liveness, sudo attribution, editor sessions
 

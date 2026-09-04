@@ -23,7 +23,7 @@ func TestDefaultSourcesFor(t *testing.T) {
 		t.Fatalf("windows defaults must include the Security event log; got %+v", win)
 	}
 
-	// An unknown OS must yield nil rather than a wrong guess — the agent then has no seeded config
+	// An unknown OS must yield nil rather than a wrong guess, the agent then has no seeded config
 	// and its own runtime defaults apply.
 	if got := DefaultSourcesFor("plan9"); got != nil {
 		t.Fatalf("unknown OS must return nil, got %+v", got)

@@ -18,7 +18,7 @@ import (
 var ErrNotFound = errors.New("store: not found")
 
 // Subscription is one external subscriber of the rich-log API. The plaintext API key is never
-// stored — only its SHA-256 (TokenHash). Usage counters support billing and revocation.
+// stored: only its SHA-256 (TokenHash). Usage counters support billing and revocation.
 type Subscription struct {
 	ID          string     `json:"id"`
 	Name        string     `json:"name"`

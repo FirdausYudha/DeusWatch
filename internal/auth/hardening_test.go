@@ -67,12 +67,12 @@ func TestValidatePassword(t *testing.T) {
 		ok       bool
 	}{
 		{"alice", "correct horse battery staple", true},
-		{"alice", "short7!", false},              // under min length
-		{"alice", "password123", false},          // common list
-		{"alice", "ALICE", false},                // too short AND username; rejected
-		{"christopher", "Christopher", false},    // equals username (case-insensitive)
-		{"alice", "aaaaaaaaaa", false},           // one repeated character
-		{"alice", "thewatcher", false},           // shipped default must not be reused
+		{"alice", "short7!", false},           // under min length
+		{"alice", "password123", false},       // common list
+		{"alice", "ALICE", false},             // too short AND username; rejected
+		{"christopher", "Christopher", false}, // equals username (case-insensitive)
+		{"alice", "aaaaaaaaaa", false},        // one repeated character
+		{"alice", "thewatcher", false},        // shipped default must not be reused
 		{"alice", "N0t-common-at-all", true},
 	}
 	for _, c := range cases {

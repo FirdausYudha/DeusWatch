@@ -14,11 +14,11 @@ func TestValidate(t *testing.T) {
 		t.Fatalf("valid spec rejected: %v", err)
 	}
 	bad := []Spec{
-		{Label: "", Steps: []string{"a"}},              // no label
-		{Label: "two words", Steps: []string{"a"}},     // label with spaces
-		{Label: "x"},                                   // no steps
-		{Label: "x", Steps: make([]string, 21)},        // too many steps
-		{Label: "x", Steps: []string{"   "}},           // empty step
+		{Label: "", Steps: []string{"a"}},          // no label
+		{Label: "two words", Steps: []string{"a"}}, // label with spaces
+		{Label: "x"},                            // no steps
+		{Label: "x", Steps: make([]string, 21)}, // too many steps
+		{Label: "x", Steps: []string{"   "}},    // empty step
 	}
 	for i, sp := range bad {
 		if err := Validate(sp); err == nil {

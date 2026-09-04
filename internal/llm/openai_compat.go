@@ -11,8 +11,8 @@ import (
 )
 
 // OpenAICompatAnalyzer triages alerts via any OpenAI-compatible Chat Completions API.
-// This single driver covers free/open-source, self-hosted models — Ollama, LM Studio,
-// vLLM, LocalAI — as well as hosted OpenAI-compatible endpoints (OpenRouter, Groq, …).
+// This single driver covers free/open-source, self-hosted models, Ollama, LM Studio,
+// vLLM, LocalAI, as well as hosted OpenAI-compatible endpoints (OpenRouter, Groq, …).
 // For Ollama the base URL is like http://host:11434/v1 and no API key is needed.
 type OpenAICompatAnalyzer struct {
 	baseURL string // includes the /v1 prefix, e.g. http://host:11434/v1

@@ -9,8 +9,8 @@
 
 This contract defines two major feature additions to DeusWatch v2.3.0:
 
-1. **Android Agent for Mobile Security** — Jailbreak/root detection with banking app integration
-2. **Process-Level Malware Detection (Linux/Windows)** — Backend-driven threat analysis
+1. **Android Agent for Mobile Security**, Jailbreak/root detection with banking app integration
+2. **Process-Level Malware Detection (Linux/Windows)**, Backend-driven threat analysis
 
 Both features follow a **lightweight agent + heavyweight manager** architecture to minimize endpoint overhead.
 

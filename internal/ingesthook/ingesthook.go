@@ -134,7 +134,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve the tenant binding once per request — the worker's InsertEvent uses this to skip its
+	// Resolve the tenant binding once per request, the worker's InsertEvent uses this to skip its
 	// agent-name-based tenant lookup (which lands unenrolled ingest sources in the Default tenant
 	// and hides them from the operator's workspace behind the events RLS view).
 	tenantID := ""

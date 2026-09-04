@@ -1,4 +1,4 @@
-// TEMPORARILY EXCLUDED FROM THE BUILD — the "process threats" API (this file) references
+// TEMPORARILY EXCLUDED FROM THE BUILD, the "process threats" API (this file) references
 // tenancy.TenantIDFromContext and store.GetAgents, which do NOT exist in this codebase (tenant
 // scoping goes through store.WithTenantScope + the request-scoped tx, not a plain context tenant
 // id). The file shipped with the YARA process-detection feature but its API layer was never

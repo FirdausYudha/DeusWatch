@@ -1,7 +1,7 @@
 # ClickHouse analytics sink
 
 DeusWatch can stream every normalized event into a **ClickHouse** table for large-scale,
-columnar analytics — top talkers over months, rarest user-agents, arbitrary slice-and-dice —
+columnar analytics, top talkers over months, rarest user-agents, arbitrary slice-and-dice,
 that return in milliseconds without loading the operational hot path.
 
 ClickHouse is a **secondary, optional store.** TimescaleDB stays the source of truth for
@@ -11,7 +11,7 @@ analytics layer. The sink is **off unless `CLICKHOUSE_URL` is set.**
 ## How it works
 
 - A dedicated consumer on `logs.normalized` flattens each event into a wide row (one column per
-  useful field — see the schema below) and **batches** inserts over the ClickHouse **HTTP
+  useful field, see the schema below) and **batches** inserts over the ClickHouse **HTTP
   interface** (`INSERT … FORMAT JSONEachRow`). No third-party driver is used, so any ClickHouse
   works: self-hosted, `clickhouse-local`, or a managed endpoint.
 - On startup the sink **creates the database and table if they don't exist** (idempotent). The
@@ -80,6 +80,6 @@ The row layout and the `CREATE TABLE` DDL live together in
   ClickHouse sink keeps **structured, queryable** columns. Use both, or either, independently.
 - Point ClickHouse at cheap/large storage for long retention; set `CLICKHOUSE_RETENTION_DAYS` to
   age rows out automatically.
-- The sink is fire-and-forget from the pipeline's perspective — if ClickHouse is down, events
+- The sink is fire-and-forget from the pipeline's perspective, if ClickHouse is down, events
   still flow to TimescaleDB and the batch is retried; ClickHouse being unavailable never blocks
   ingestion.

@@ -52,7 +52,7 @@ func parseSizeEnv(key string, def int64) int64 {
 }
 
 // entropyThreshold: content at/above this Shannon entropy (bits/byte, max 8.0) is treated as
-// encrypted/random — the ransomware signal. Encrypted (and compressed) data sits near 7.9-8.0;
+// encrypted/random, the ransomware signal. Encrypted (and compressed) data sits near 7.9-8.0;
 // source/config text is ~4-5. Override with FIM_ENTROPY_THRESHOLD (default 7.2). Set to 0 or a
 // value > 8 to disable entropy-based encryption detection.
 var entropyThreshold = parseFloatEnv("FIM_ENTROPY_THRESHOLD", 7.2)
@@ -174,7 +174,7 @@ done:
 }
 
 // diffSummary is a cheap O(m+n) fallback for large files: it counts added/removed lines via a
-// line multiset (positional context is lost, but "how much changed" is preserved) — safe to run
+// line multiset (positional context is lost, but "how much changed" is preserved), safe to run
 // on multi-megabyte files where the full LCS would exhaust memory.
 func diffSummary(a, b []string) string {
 	old := make(map[string]int, len(a))

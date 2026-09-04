@@ -81,7 +81,7 @@ func main() {
 			st = s
 			defer s.Close()
 			log.Printf("api: store connected")
-			// Automatic migration runner (idempotent) — unless RUN_MIGRATIONS=0.
+			// Automatic migration runner (idempotent), unless RUN_MIGRATIONS=0.
 			if run, _ := strconv.ParseBool(getenv("RUN_MIGRATIONS", "1")); run {
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				if n, merr := migrate.Apply(ctx, s.Pool(), migrations.FS); merr != nil {
@@ -94,7 +94,7 @@ func main() {
 				cancel()
 			}
 			// Fail-closed boot gate for tenant isolation. The API connects as the table owner, for
-			// whom RLS is ignored unless FORCEd — so if migration 000050 is missing or half-applied,
+			// whom RLS is ignored unless FORCEd, so if migration 000050 is missing or half-applied,
 			// every scoped read would silently return unfiltered, cross-tenant rows. Refuse to start
 			// rather than run with isolation off. (Set DEUSWATCH_SKIP_RLS_CHECK=1 only for a
 			// deliberate pre-000050 rollback.)
@@ -223,7 +223,7 @@ func main() {
 		protect := func(p auth.Permission, h http.HandlerFunc) http.Handler {
 			return authStore.Middleware(auth.RequirePermission(p, withScope(h)))
 		}
-		// sys wraps a non-session system endpoint (token-authed integration feeds — the ML bridge and
+		// sys wraps a non-session system endpoint (token-authed integration feeds, the ML bridge and
 		// subscription pull) in a super-admin scope so its store reads/writes bypass RLS. These feeds
 		// legitimately span all tenants today; per-credential tenant scoping is future work. Without
 		// this they would hit the unscoped fail-closed path and return zero rows once RLS is forced.
@@ -252,11 +252,11 @@ func main() {
 
 		// Agent enrollment (needs the CA to issue a per-agent unique certificate).
 		if ca, err := mtls.LoadCA(getenv("CERT_DIR", "deploy/certs")); err != nil {
-			log.Printf("api: CA not loaded — enrollment disabled: %v", err)
+			log.Printf("api: CA not loaded, enrollment disabled: %v", err)
 		} else {
 			enrollStore := enroll.NewStore(st.Pool(), ca)
 			// PUBLIC (the enrollment token is the credential). It writes agents + claims a token, both
-			// now RLS-forced, so it runs inside a super-admin scope — the enrolling agent's tenant comes
+			// now RLS-forced, so it runs inside a super-admin scope, the enrolling agent's tenant comes
 			// from the token, and the row is stamped with it regardless of any caller scope.
 			mux.HandleFunc("/api/enroll", sys(enrollStore.EnrollHandler()))
 			mux.Handle("/api/agents/tokens", protect(auth.PermManageAgents, enrollStore.TokenHandler()))
@@ -268,7 +268,7 @@ func main() {
 			mux.Handle("POST /api/agents/{name}/update", protect(auth.PermManageAgents, enrollStore.RequestUpdateHandler()))
 		}
 
-		// Process-level malware detection (Phase 6): WIP — the handlers in
+		// Process-level malware detection (Phase 6): WIP, the handlers in
 		// cmd/api/process_threats_handlers.go reference symbols (tenancy.TenantIDFromContext,
 		// store.GetAgents) that don't exist in this codebase, so that file carries the
 		// `//go:build wip_process_threats` tag and its routes stay disabled here until the API
@@ -277,7 +277,7 @@ func main() {
 		// mux.Handle("GET /api/threats", protect(auth.PermViewDashboard, getProcessThreatsHandler(st)))
 		// mux.Handle("GET /api/agents/{id}/threats", protect(auth.PermViewDashboard, getAgentThreatsHandler(st)))
 		// mux.Handle("POST /api/threats/{id}/resolve", protect(auth.PermManageTickets, resolveThreatHandler(st)))
-		// Response store — declared early so the events/alerts/search handlers can read the internal
+		// Response store, declared early so the events/alerts/search handlers can read the internal
 		// whitelist for the INBOUND/OUTBOUND/LATERAL direction tag. Its engine is built later.
 		respStore := respond.NewStore(st.Pool())
 		mux.Handle("/api/events", protect(auth.PermViewDashboard, eventsHandler(st, respStore)))
@@ -364,7 +364,7 @@ func main() {
 		mux.Handle("GET /api/update-check", protect(auth.PermViewDashboard, updateCheckHandler()))
 		// v2.12.0: lightweight local-only "what version is this manager running?" for the UI
 		// to gate the per-agent Update button. Distinct from /api/update-check which reaches
-		// out to GitHub — that one is slow and unnecessary just to fill a table cell.
+		// out to GitHub, that one is slow and unnecessary just to fill a table cell.
 		mux.Handle("GET /api/manager-version", protect(auth.PermViewDashboard, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"version": appVersion()})
 		})))
@@ -388,7 +388,7 @@ func main() {
 		mux.Handle("DELETE /api/dashboard/layout", protect(auth.PermViewDashboard, deleteLayoutHandler(st)))
 
 		// Response engine: the block approval workflow (executed via the same responder
-		// as the worker — RESPONDER/RESPONSE_LIVE). See internal/respond. respStore was created
+		// as the worker, RESPONDER/RESPONSE_LIVE). See internal/respond. respStore was created
 		// earlier (needed by the events handlers for direction tagging).
 		respEngine := respond.NewEngine(respStore, respond.ResponderFromEnv(), respond.DefaultBanPolicy(), false)
 		// Blocklist feed (pull model): a token-gated, unauthenticated URL that serves the active
@@ -415,7 +415,7 @@ func main() {
 		}
 		if natsURL := os.Getenv("NATS_URL"); natsURL != "" {
 			if b, berr := bus.Connect(context.Background(), natsURL); berr != nil {
-				log.Printf("api: ingest webhook disabled — NATS unavailable: %v", berr)
+				log.Printf("api: ingest webhook disabled, NATS unavailable: %v", berr)
 			} else {
 				hook := ingesthook.New(b, st.WebhookToken).WithTenant(st.WebhookDefaultTenantID)
 				mux.Handle("POST /api/ingest/webhook", hook)
@@ -468,10 +468,10 @@ func main() {
 		// Integrations registry (firewalls, bouncers, CTI providers). Secret config
 		// fields are encrypted at rest with the secrets cipher.
 		if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
-			log.Printf("api: secrets cipher unavailable — integrations disabled: %v", cerr)
+			log.Printf("api: secrets cipher unavailable, integrations disabled: %v", cerr)
 		} else {
 			if dev {
-				log.Printf("api: SECRETS_KEY not set — using a DEV key (set SECRETS_KEY for production!)")
+				log.Printf("api: SECRETS_KEY not set, using a DEV key (set SECRETS_KEY for production!)")
 			}
 			intStore := integrations.NewStore(st.Pool(), cipher)
 			mux.Handle("/api/integrations/types", protect(auth.PermManageIntegrations, intStore.TypesHandler()))
@@ -547,7 +547,7 @@ func reloadAPIDecoders(ctx context.Context, ds *decoders.Store) {
 }
 
 // connectStoreWithRetry dials the store, retrying with backoff so the API survives
-// starting before Postgres is ready — e.g. after a host/Docker Desktop reboot, where
+// starting before Postgres is ready, e.g. after a host/Docker Desktop reboot, where
 // compose `depends_on` ordering is NOT honored and the API can win the race against
 // the DB. Without this, a one-shot connect failure leaves every DB-backed route
 // (including /api/login) unregistered → 404 until a manual restart. Returns nil only
@@ -567,7 +567,7 @@ func connectStoreWithRetry(dsn string) *store.Store {
 			log.Printf("api: store connect gave up after %s: %v", maxWait, err)
 			return nil
 		}
-		log.Printf("api: store not ready (attempt %d): %v — retrying in %s", attempt, err, delay)
+		log.Printf("api: store not ready (attempt %d): %v, retrying in %s", attempt, err, delay)
 		time.Sleep(delay)
 		if delay < 8*time.Second {
 			delay *= 2
@@ -581,7 +581,7 @@ func seedAdmin(authStore *auth.Store) {
 	pass := os.Getenv("ADMIN_PASSWORD")
 	if pass == "" {
 		pass = "thewatcher"
-		log.Printf("api: ADMIN_PASSWORD empty — using the dev default (CHANGE it for production!)")
+		log.Printf("api: ADMIN_PASSWORD empty, using the dev default (CHANGE it for production!)")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -762,7 +762,7 @@ func exportEventsHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := apiResolveWebhook(r.Context(), st)
 		if url == "" {
-			http.Error(w, "no export webhook configured — add a 'Webhook export' integration", http.StatusBadRequest)
+			http.Error(w, "no export webhook configured, add a 'Webhook export' integration", http.StatusBadRequest)
 			return
 		}
 		rows, err := st.SearchEvents(r.Context(), parseEventFilter(r))
@@ -784,7 +784,7 @@ func exportReportHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := apiResolveWebhook(r.Context(), st)
 		if url == "" {
-			http.Error(w, "no export webhook configured — add a 'Webhook export' integration", http.StatusBadRequest)
+			http.Error(w, "no export webhook configured, add a 'Webhook export' integration", http.StatusBadRequest)
 			return
 		}
 		hours, err := strconv.Atoi(r.URL.Query().Get("hours"))
@@ -971,7 +971,7 @@ func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		analyzer, ok := apiResolveAnalyzer(r.Context(), st)
 		if !ok {
-			http.Error(w, "no LLM configured — add an LLM integration (Ollama/Claude) or set LLM_BASE_URL / ANTHROPIC_API_KEY", http.StatusBadRequest)
+			http.Error(w, "no LLM configured, add an LLM integration (Ollama/Claude) or set LLM_BASE_URL / ANTHROPIC_API_KEY", http.StatusBadRequest)
 			return
 		}
 		// Summarize the SAME window the page shows: an explicit from–to range wins over ?hours=,
@@ -1011,7 +1011,7 @@ func reportSummaryGenerateHandler(st *store.Store) http.HandlerFunc {
 }
 
 // mlAuthorized checks the ML_API_TOKEN (query ?token= or Authorization: Bearer) in constant time.
-// Returns false — and writes the response — when the token is unset (feature off) or wrong.
+// Returns false, and writes the response, when the token is unset (feature off) or wrong.
 func mlAuthorized(w http.ResponseWriter, r *http.Request) bool {
 	want := strings.TrimSpace(os.Getenv("ML_API_TOKEN"))
 	if want == "" {
@@ -1133,7 +1133,7 @@ func reportAIConfigGetHandler(st *store.Store) http.HandlerFunc {
 		}
 		// Return the built-in default too so the UI can show it / offer "reset to default".
 		// server_time tells the UI which clock at_hour refers to (the server's, not the
-		// browser's) — without it "run at 08:00" is ambiguous on a UTC container.
+		// browser's), without it "run at 08:00" is ambiguous on a UTC container.
 		now := time.Now()
 		zone, _ := now.Zone()
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -1169,9 +1169,9 @@ func reportAIConfigSetHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
-// configExportHandler returns a portable JSON profile of this server's configuration —
+// configExportHandler returns a portable JSON profile of this server's configuration,
 // detection rules, ban policy, IP whitelist, the AI-report schedule, and integrations
-// (secret values masked out) — so it can be imported on another DeusWatch server.
+// (secret values masked out), so it can be imported on another DeusWatch server.
 // storageBudgetBytes reads the configured log-storage soft cap (STORAGE_BUDGET_GB).
 func storageBudgetBytes() int64 {
 	if v := os.Getenv("STORAGE_BUDGET_GB"); v != "" {
@@ -1183,7 +1183,7 @@ func storageBudgetBytes() int64 {
 }
 
 // serviceDownLog throttles the "component is down" line to one per service per minute, and also
-// records the recovery — an operator reading the log after the fact needs the window, not just
+// records the recovery, an operator reading the log after the fact needs the window, not just
 // that it happened once.
 var serviceDownLog = struct {
 	mu   sync.Mutex
@@ -1203,11 +1203,11 @@ func logServiceDown(s store.ServiceHealth) {
 		return
 	}
 	if !s.EverSeen {
-		log.Printf("api: %s reported DOWN to the UI — no heartbeat has EVER been recorded, so the "+
+		log.Printf("api: %s reported DOWN to the UI, no heartbeat has EVER been recorded, so the "+
 			"container has most likely never started. Check `docker compose ps -a`.", s.Service)
 		return
 	}
-	log.Printf("api: %s reported DOWN to the UI — last heartbeat %.0fs ago (stale after %.0fs), "+
+	log.Printf("api: %s reported DOWN to the UI, last heartbeat %.0fs ago (stale after %.0fs), "+
 		"build %q. It writes one every 30s, so this means the process is stopped, wedged, or "+
 		"cannot reach the database.", s.Service, s.Age, store.WorkerStaleAfter.Seconds(), s.Version)
 }
@@ -1227,7 +1227,7 @@ func logServiceRecovered(s store.ServiceHealth) {
 }
 
 // serviceHealthHandler reports whether each backend component is still beating. Today that is the
-// worker, which is the only consumer of logs.normalized and the only writer of events — when it
+// worker, which is the only consumer of logs.normalized and the only writer of events, when it
 // stops, the UI keeps rendering happily over a database that has quietly stopped growing.
 //
 // A lookup failure is returned as 503 rather than as "the worker is down": telling an operator to
@@ -1243,7 +1243,7 @@ func serviceHealthHandler(st *store.Store) http.HandlerFunc {
 		}
 		// Leave a server-side trail whenever we tell the UI a component is down. Without this the
 		// banner is the only record it ever happened, so anyone investigating after the fact has
-		// nothing to read — the same blind spot this whole feature exists to remove. Throttled to
+		// nothing to read: the same blind spot this whole feature exists to remove. Throttled to
 		// one line a minute because every open browser tab polls this every 30s.
 		if !worker.Alive {
 			logServiceDown(worker)
@@ -1290,7 +1290,7 @@ func storageRetentionHandler(st *store.Store) http.HandlerFunc {
 }
 
 // updateCheckHandler compares the running build against the latest commit on GitHub's main
-// branch (read-only). It never executes an update — that stays a host operation
+// branch (read-only). It never executes an update. That stays a host operation
 // (./scripts/update.sh) so the web container needs no Docker/host access.
 // parseSemver extracts the major/minor/patch from a tag like "v1.2.3" (any pre-release or
 // "-N-gsha" build suffix after the patch is ignored). ok=false when it doesn't parse.
@@ -1465,7 +1465,7 @@ func configExportHandler(st *store.Store) http.HandlerFunc {
 }
 
 // configImportHandler applies a config profile (from configExportHandler) onto this server.
-// Secret values are NOT part of the profile — re-enter them after import. Rules and
+// Secret values are NOT part of the profile, re-enter them after import. Rules and
 // integrations are upserted by name; ban policy / whitelist / schedule are replaced/merged.
 func configImportHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -1571,7 +1571,7 @@ func dashboardDataHandler(st *store.Store) http.HandlerFunc {
 }
 
 // dashboardTenantTimelineHandler serves the per-tenant event trend (v2.10.0). Gated by
-// manage_tenants because the whole point is a superadmin's cross-tenant view — a regular
+// manage_tenants because the whole point is a superadmin's cross-tenant view, a regular
 // tenant-scoped user would see one series that duplicates the plain timeline.
 func dashboardTenantTimelineHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -1899,7 +1899,7 @@ func blocklistRegenerateHandler(s blocklistFeedConfig) http.HandlerFunc {
 
 // enforcementHandler (GET /api/response/enforcement) reports whether a ban can ACTUALLY reach a
 // firewall. Without it the Response page would badge an IP "blocked" even when nothing is wired
-// up to enforce it — DeusWatch would be claiming an action it never performed. The UI uses this
+// up to enforce it, DeusWatch would be claiming an action it never performed. The UI uses this
 // to relabel such rows as "Dangerous IP" instead.
 //
 // A ban reaches a firewall when either:
@@ -2088,7 +2088,7 @@ func vulnRematchHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 		defer cancel()
-		// Cross-tenant admin action — same as the worker, run under superadmin so the write to
+		// Cross-tenant admin action, same as the worker, run under superadmin so the write to
 		// agent_vulnerabilities isn't filtered by the caller's workspace scope.
 		var n int
 		if err := st.WithTenantScope(ctx, nil, true, func(sctx context.Context) error {
@@ -2199,7 +2199,7 @@ func fimRestoreVersionHandler(st *store.Store) http.HandlerFunc {
 }
 
 // fimBulkRestoreHandler (POST /api/fim/bulk-restore {agent, path, as_of}) queues a point-in-time
-// revert of every watched file (optionally under `path`) to its version as of `as_of` — the
+// revert of every watched file (optionally under `path`) to its version as of `as_of`, the
 // ransomware "roll everything back to before the attack" action (ADR 0002).
 func fimBulkRestoreHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -2229,7 +2229,7 @@ func fimBulkRestoreHandler(st *store.Store) http.HandlerFunc {
 // decisionTableHandler (GET /api/response/decision-table) returns the explicit entity_type →
 // response policy mapping (external_ip → block, host → network_containment, user/hash →
 // alert-only). It is the same table the worker routes alerts by, so the UI and an LLM analyst
-// can read exactly what DeusWatch does with each kind of entity — and see which actions are
+// can read exactly what DeusWatch does with each kind of entity, and see which actions are
 // automatically enforced today versus surfaced for review.
 func decisionTableHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -2573,7 +2573,7 @@ func approveResponseHandler(e *respond.Engine) http.HandlerFunc {
 }
 
 // banIPHandler (POST /api/responses/ban) manually adds an IP to the ban list on an admin's explicit
-// request. Body: {"ip":"1.2.3.4","minutes":60} — minutes omitted/0 uses the progressive-ban ladder.
+// request. Body: {"ip":"1.2.3.4","minutes":60}, minutes omitted/0 uses the progressive-ban ladder.
 // The API's engine doesn't live-reload, so refresh the whitelist + ban policy from the DB per call:
 // this guarantees a just-whitelisted IP is still refused and the configured ladder is used.
 func banIPHandler(e *respond.Engine, s *respond.Store) http.HandlerFunc {

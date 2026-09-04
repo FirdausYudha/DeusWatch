@@ -75,10 +75,10 @@ func main() {
 	// take precedence over env vars. nil if the secrets cipher can't be built.
 	var intStore *integrations.Store
 	if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
-		log.Printf("worker: secrets cipher unavailable — using env-only integration config: %v", cerr)
+		log.Printf("worker: secrets cipher unavailable, using env-only integration config: %v", cerr)
 	} else {
 		if dev {
-			log.Printf("worker: SECRETS_KEY not set — using a DEV key (set SECRETS_KEY for production!)")
+			log.Printf("worker: SECRETS_KEY not set, using a DEV key (set SECRETS_KEY for production!)")
 		}
 		intStore = integrations.NewStore(st.Pool(), cipher)
 	}
@@ -100,18 +100,18 @@ func main() {
 		if ar, derr := sigma.LoadAggDir(sigmaDir); derr == nil {
 			agg = ar
 		}
-		log.Printf("worker: DB rules empty — loaded from disk %q", sigmaDir)
+		log.Printf("worker: DB rules empty, loaded from disk %q", sigmaDir)
 	}
 	sigmaDet := detect.NewSigmaDetector(single)
 	aggRunner := detect.NewAggregateRunner(st, agg, 0)
 	log.Printf("worker: %d single-event + %d aggregation rules loaded", sigmaDet.RuleCount(), aggRunner.RuleCount())
 
 	// CTI enrichment: TTL cache in Postgres + a real provider when AbuseIPDB/OTX keys are
-	// configured — from the Integrations registry first, then env (GEOIP via env), else mock.
+	// configured, from the Integrations registry first, then env (GEOIP via env), else mock.
 	abuseKey, otxKey := resolveCTIKeys(ctx, intStore)
 	// v2.10.0: ip-api.com defaults ON so operators without AbuseIPDB/OTX keys still get country
 	// on external IPs (the reported gap for 37.48.254.107 / 167.148.33.174). Opt out with
-	// GEOIP_ENABLED=0. GEOIP_MMDB_PATH points at a MaxMind GeoLite2-Country.mmdb — when set,
+	// GEOIP_ENABLED=0. GEOIP_MMDB_PATH points at a MaxMind GeoLite2-Country.mmdb, when set,
 	// that offline lookup is tried first (no rate limit, works air-gapped).
 	geoOn := true
 	if v := os.Getenv("GEOIP_ENABLED"); v != "" {
@@ -188,14 +188,14 @@ func main() {
 	// (independent of CTI/WAF), for the dashboard + the AI report.
 	go runSuspiciousScorer(ctx, st)
 
-	// Slow-scanner watchlist: the multi-DAY view — sources that keep coming back at a volume too
+	// Slow-scanner watchlist: the multi-DAY view, sources that keep coming back at a volume too
 	// low for any burst rule (2 probes today, none tomorrow, 5 the day after).
 	go runSlowScanScorer(ctx, st)
 	// Vulnerability Assessment (phase 2): fetch vendor advisory feeds for the fleet's distros and
 	// match them against each agent's software inventory to produce CVE findings.
 	go runVulnScanner(ctx, st)
 
-	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. the Wazuh
+	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. The Wazuh
 	// indexer) into the pipeline. No-op when no such integration is enabled.
 	go runESPull(ctx, intStore, b, st)
 
@@ -304,14 +304,14 @@ func main() {
 
 	// LLM worker (Phase 3): the analyzer powers report summaries (cost-controlled) and,
 	// only when explicitly enabled, continuous per-alert triage. Per-alert triage is OFF
-	// by default (LLM_PER_ALERT=1 to enable) so a paid API isn't called on every alert —
+	// by default (LLM_PER_ALERT=1 to enable) so a paid API isn't called on every alert.
 	// AI is primarily a periodic/on-demand report (see the Report page + scheduler).
 	// The "Use for" dropdown on the LLM integration decides which model powers which task, so
 	// triage and report analyzers are resolved independently (they may be the same model when
 	// purpose=both, or two different models).
 	// The triage & report analyzers live in swappable holders so a UI change to the LLM
 	// integration (add/edit/disable, or flip its "Use for") takes effect within ~1 min WITHOUT
-	// restarting the worker — runLLMReload re-resolves them on a timer, like the CTI reload.
+	// restarting the worker, runLLMReload re-resolves them on a timer, like the CTI reload.
 	triageH, reportH := &analyzerHolder{}, &analyzerHolder{}
 	if a, ok := resolveAnalyzer(ctx, intStore, "triage"); ok {
 		triageH.set(a)
@@ -330,7 +330,7 @@ func main() {
 	} else {
 		log.Printf("worker: LLM per-alert triage OFF by default (set LLM_PER_ALERT=1 to enable). AI report summaries still work on the Report page.")
 	}
-	// Scheduled AI report summaries — always running; a nil holder (no report LLM configured) is
+	// Scheduled AI report summaries, always running; a nil holder (no report LLM configured) is
 	// a no-op until one is added.
 	go runReportScheduler(ctx, st, reportH)
 
@@ -348,7 +348,7 @@ func main() {
 	go runDiskJanitor(ctx, st, onAlert, pbLive.Annotate)
 	go serveHealth(ctx, st, b)
 	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing
-	// did — this worker was once absent for 11+ hours with a clean-looking dashboard, because
+	// did, this worker was once absent for 11+ hours with a clean-looking dashboard, because
 	// every alarm for that condition (including AGENT_DISCONNECT_AFTER) runs inside this process.
 	go runServiceHeartbeat(ctx, st)
 
@@ -356,7 +356,7 @@ func main() {
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
 	go runCTIProviderReload(ctx, intStore, enricher, geoOn, mmdbPath, asnMMDBPath, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
 
-	log.Printf("DeusWatch worker (detect) ready — consuming %q", bus.SubjectLogsNormalized)
+	log.Printf("DeusWatch worker (detect) ready, consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
 	log.Println("worker: shutdown")
 }
@@ -378,7 +378,7 @@ func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, k
 		}
 		// Route by the entity_type decision-table (internal/respond/decision.go): each entity the
 		// alert concerns is dispatched to the engine that owns its action. This is behaviour-
-		// preserving — the engines self-gate on exactly what respond.Entities classifies — but it
+		// preserving, the engines self-gate on exactly what respond.Entities classifies, but it
 		// makes the routing explicit and keeps it aligned with the policy the API/UI expose.
 		//   external_ip → ban engine   host → containment engine   user/hash → alert-only (below)
 		for _, ent := range respond.Entities(alert) {
@@ -391,14 +391,14 @@ func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, k
 				}
 			case respond.EntityHost:
 				// Isolate the compromised host when a rule authorized it. Cheap for the common
-				// case — Evaluate returns immediately unless the alert carries a containment directive.
+				// case. Evaluate returns immediately unless the alert carries a containment directive.
 				if contain != nil {
 					if _, err := contain.Evaluate(ctx, alert); err != nil {
 						log.Printf("worker: containment evaluation failed: %v", err)
 					}
 				}
 			}
-			// EntityUser / EntityHash are alert-only today — the notification dispatch below
+			// EntityUser / EntityHash are alert-only today, the notification dispatch below
 			// carries their context; no automated enforcement action is taken.
 		}
 		if dispatcher.Enabled() {
@@ -453,13 +453,13 @@ func makeTrustedSessionGate(st *store.Store, engine *respond.Engine, window time
 	}
 }
 
-// runServiceHeartbeat writes this worker's liveness into the database every 30s so the api — and
-// through it the dashboard — can tell the difference between "quiet because nothing is happening"
+// runServiceHeartbeat writes this worker's liveness into the database every 30s so the api, and
+// through it the dashboard, can tell the difference between "quiet because nothing is happening"
 // and "quiet because the detection pipeline is dead".
 //
 // Through the DB rather than an HTTP probe: both processes already hold this connection, so there
 // is no new network path, no service discovery, and it keeps working when the two run on separate
-// hosts. A failed write is logged and retried on the next tick — the api's staleness threshold
+// hosts. A failed write is logged and retried on the next tick, the api's staleness threshold
 // tolerates three misses, so a transient DB blip must not be allowed to look like a crash.
 func runServiceHeartbeat(ctx context.Context, st *store.Store) {
 	beat := func() {
@@ -659,7 +659,7 @@ func runStorageMonitor(ctx context.Context, st *store.Store, dispatcher *notify.
 }
 
 // runNotifyScheduler live-reloads the alert severity threshold into the dispatcher and
-// delivers a scheduled report to the channels (Telegram/email) per notify_config —
+// delivers a scheduled report to the channels (Telegram/email) per notify_config,
 // independent of the AI-summary schedule. Checks every minute; only sends when due.
 func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify.Dispatcher, reportH *analyzerHolder) {
 	t := time.NewTicker(1 * time.Minute)
@@ -669,7 +669,7 @@ func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			analyzer := reportH.get() // may be nil — the plain report is still delivered
+			analyzer := reportH.get() // may be nil, the plain report is still delivered
 			cfg, err := st.LoadNotifyConfig(ctx)
 			if err != nil {
 				continue
@@ -711,7 +711,7 @@ func runNotifyScheduler(ctx context.Context, st *store.Store, dispatcher *notify
 // reportDue decides whether the scheduled AI summary should run now.
 //
 // atHour < 0 keeps the classic drifting interval: fire once intervalHours have passed since the
-// last summary. atHour 0..23 pins it to that hour of the day (server local time) — the run
+// last summary. atHour 0..23 pins it to that hour of the day (server local time), the run
 // happens on the first tick inside that hour, and only if the previous summary is old enough
 // that we're not repeating within the same window. Pure so the timing rules are testable.
 func reportDue(now, lastAt time.Time, hasLast bool, intervalHours, atHour int) bool {
@@ -912,7 +912,7 @@ func reloadConfig(ctx context.Context, store *rules.Store, det *detect.SigmaDete
 			if err := pbLive.Reload(ctx, pbStore); err != nil {
 				log.Printf("worker: reload playbooks: %v", err)
 			}
-			// Kill policy live-reload — same cadence as the ban policy so an admin's UI toggle
+			// Kill policy live-reload, same cadence as the ban policy so an admin's UI toggle
 			// takes effect without a worker restart.
 			if kp, kerr := respStore.LoadKillPolicy(ctx); kerr != nil {
 				log.Printf("worker: reload kill policy: %v", kerr)
@@ -1087,7 +1087,7 @@ func runBlocklistSync(ctx context.Context, respStore *respond.Store, responder r
 }
 
 // archiveHandler appends each normalized event's RAW original (or the whole event JSON when
-// there is no original — structured FIM/Windows events) to the per-source daily zstd archive.
+// there is no original, structured FIM/Windows events) to the per-source daily zstd archive.
 // The source key is the agent/sender; the dataset groups by log type.
 func archiveHandler(arc *archive.Archiver) bus.Handler {
 	return func(_ string, data []byte) error {
@@ -1104,7 +1104,7 @@ func archiveHandler(arc *archive.Archiver) bus.Handler {
 		dataset := ev.Event.Dataset
 		line := ev.Event.Original
 		if line == "" {
-			line = string(data) // no raw text (structured event) — archive the normalized JSON
+			line = string(data) // no raw text (structured event), archive the normalized JSON
 		}
 		ts := ev.Timestamp
 		if ts.IsZero() {
@@ -1116,7 +1116,7 @@ func archiveHandler(arc *archive.Archiver) bus.Handler {
 }
 
 // clickhouseHandler flattens each normalized event into a row and buffers it for the batched
-// ClickHouse insert. Parse failures are skipped (never Nak — that would redeliver forever).
+// ClickHouse insert. Parse failures are skipped (never Nak, that would redeliver forever).
 func clickhouseHandler(sink *clickhouse.Sink) bus.Handler {
 	return func(_ string, data []byte) error {
 		var ev ingest.Event

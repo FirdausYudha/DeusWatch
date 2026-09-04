@@ -34,7 +34,7 @@ func (s *Store) Insert(ctx context.Context, a *Action) (string, error) {
 	return id, nil
 }
 
-// Offenses counts how many times this IP has ALREADY been blocked (status executed) —
+// Offenses counts how many times this IP has ALREADY been blocked (status executed),
 // used for the progressive ban. When `since` is non-zero, only offenses within that
 // window are counted (the ban policy's observation window).
 func (s *Store) Offenses(ctx context.Context, ip string, since time.Time) (int, error) {
@@ -69,12 +69,12 @@ func (s *Store) DismissPendingForIP(ctx context.Context, ip, by string) (int, er
 
 // HasOpenAction reports whether an IP already has an "open" action: a pending
 // recommendation, or an active block (approved/executed whose ban window has not
-// expired; ban_seconds = 0 = permanent). Used to dedup — one open action per IP —
+// expired; ban_seconds = 0 = permanent). Used to dedup: one open action per IP,
 // so a brute-force burst doesn't pile up hundreds of identical rows. Once the ban
 // expires, the next event produces a fresh (escalated) recommendation.
 // AppendReason merges reason into the OPEN action's reason CSV for the given IP (case-insensitive
 // dedup, order preserved). When a brute-force burst triggers multiple different alerts on the same
-// IP the ban action collapses to one row for dedup — but its REASON column would only show the FIRST
+// IP the ban action collapses to one row for dedup, but its REASON column would only show the FIRST
 // alert's name, losing the picture. Appending yields e.g.
 // "Failed SSH Login as root, SSH Login Attempt for Invalid User, WAF SQLi Block". No-op when reason
 // is empty or already present. Only updates rows the HasOpenAction filter would call "open".

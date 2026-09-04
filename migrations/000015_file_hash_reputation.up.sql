@@ -1,4 +1,4 @@
--- Migration 000015 — file-hash reputation cache (FIM hash-reputation).
+-- Migration 000015, file-hash reputation cache (FIM hash-reputation).
 --
 -- Results of looking a file's SHA-256 up against reputation sources (CIRCL hashlookup,
 -- VirusTotal) are cached as TTL-bearing rows, mirroring cti_indicators. The worker checks

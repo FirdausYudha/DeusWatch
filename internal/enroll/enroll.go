@@ -33,7 +33,7 @@ var ErrToken = errors.New("enroll: invalid / expired / already-used token")
 // ErrUnknownAgent is returned by the heartbeat writers when the certificate CN they were
 // handed matches no row in `agents`. Postgres reports a zero-row UPDATE as success, so
 // before v2.14.6 this case returned nil: the gateway answered 204, the agent logged a
-// clean heartbeat, and last_seen_at stayed NULL forever — the "never connected" badge with
+// clean heartbeat, and last_seen_at stayed NULL forever, the "never connected" badge with
 // no error anywhere to explain it. Callers must treat it as a hard configuration fault,
 // not a transient one; retrying cannot fix a CN that was never enrolled.
 var ErrUnknownAgent = errors.New("enroll: no agent enrolled under that certificate CN")
@@ -137,7 +137,7 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 	// Seed the agent with the sensible default sources for its OS, so a freshly-enrolled host is
 	// already watching the right logs (SSH/syslog/firewall/web on Linux; the Event Log on Windows)
 	// AND those sources are visible and editable in the UI from the start. Previously a new agent
-	// had an empty config and only fell back to defaults IMPLICITLY inside the agent binary — the
+	// had an empty config and only fell back to defaults IMPLICITLY inside the agent binary, the
 	// manager showed no sources, so an admin who then configured e.g. a FIM watch would replace the
 	// invisible defaults without realizing, and the host would silently stop watching its logs.
 	// An unknown OS yields nil, which we store as NULL (no seeding) so the agent's own runtime
@@ -155,7 +155,7 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 	// old mTLS cert stays cryptographically valid until it expires, and the gateway's
 	// serial check against this row is what keeps it locked out. An ACTIVE agent's
 	// name stays taken (the DO UPDATE is gated on agents.revoked -> no row -> error).
-	// config is only seeded when the row has none — re-enrolling a host that an admin
+	// config is only seeded when the row has none, re-enrolling a host that an admin
 	// already customized must never wipe that customization (COALESCE keeps the existing one).
 	// The agent inherits the token's tenant. On a revoked-name re-enroll, the new token's tenant is
 	// authoritative (a host may be re-homed to a different tenant); past events keep the tenant they
@@ -259,7 +259,7 @@ func (s *Store) IsRevoked(ctx context.Context, name, certSerial string) (bool, e
 	err := s.q(ctx).QueryRow(ctx, `SELECT revoked, cert_serial FROM agents WHERE name = $1`, name).
 		Scan(&revoked, &storedSerial)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil // agent not registered (e.g. old/shared cert) — don't block here
+		return false, nil // agent not registered (e.g. old/shared cert), don't block here
 	}
 	if err != nil {
 		return false, err
@@ -276,7 +276,7 @@ func (s *Store) IsRevoked(ctx context.Context, name, certSerial string) (bool, e
 }
 
 // MarkSeen updates the agent's last_seen_at (used by heartbeat / ingest). A name that
-// matches no row yields ErrUnknownAgent rather than a silent success — see that sentinel.
+// matches no row yields ErrUnknownAgent rather than a silent success, see that sentinel.
 func (s *Store) MarkSeen(ctx context.Context, name string) error {
 	tag, err := s.q(ctx).Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
 	if err != nil {
@@ -287,7 +287,7 @@ func (s *Store) MarkSeen(ctx context.Context, name string) error {
 
 // unknownIfNoRows converts "the UPDATE matched nothing" into ErrUnknownAgent. Every
 // heartbeat writer keys on agents.name, so zero rows can only mean the presented CN is not
-// an enrolled agent — a fault worth reporting, never a no-op worth swallowing.
+// an enrolled agent, a fault worth reporting, never a no-op worth swallowing.
 func unknownIfNoRows(tag pgconn.CommandTag) error {
 	if tag.RowsAffected() == 0 {
 		return ErrUnknownAgent
@@ -296,7 +296,7 @@ func unknownIfNoRows(tag pgconn.CommandTag) error {
 }
 
 // MarkHealth updates last_seen_at plus the agent's self-reported health from the
-// heartbeat body (degraded = e.g. the offline buffer is piling up). The worker's
+// heartbeat body (degraded = e.g. The offline buffer is piling up). The worker's
 // health checker folds this into the agent's status.
 func (s *Store) MarkHealth(ctx context.Context, name string, degraded bool, detail string) error {
 	tag, err := s.q(ctx).Exec(ctx,
@@ -356,7 +356,7 @@ func (s *Store) RequestAgentUpdate(ctx context.Context, name string) error {
 }
 
 // PendingAgentUpdate reports whether name has an unfulfilled update request within the
-// staleness window (older requests are ignored — if the agent has been offline for 24h+
+// staleness window (older requests are ignored, if the agent has been offline for 24h+
 // and the operator forgot they clicked, we don't want to auto-fire on the next reappearance).
 // Returns (false, nil) when no request or when the agent's version already matches managerVersion.
 func (s *Store) PendingAgentUpdate(ctx context.Context, name, managerVersion string) (bool, error) {

@@ -1,9 +1,9 @@
 package enrich
 
 // Real CTI/GeoIP clients (replacing MockProvider in production):
-//   - AbuseIPDB  : IP reputation (abuseConfidenceScore + countryCode)  — needs API key
-//   - OTX        : AlienVault OTX pulse count                          — needs API key
-//   - ip-api.com : free GeoIP (countryCode + city), no key             — opt-in
+//   - AbuseIPDB  : IP reputation (abuseConfidenceScore + countryCode), needs API key
+//   - OTX        : AlienVault OTX pulse count, needs API key
+//   - ip-api.com : free GeoIP (countryCode + city), no key, opt-in
 //
 // CompositeProvider merges the configured sub-clients into a single Indicator.
 // Private/loopback IPs are skipped (no external calls). A single source's failure is
@@ -30,7 +30,7 @@ const defaultHTTPTimeout = 8 * time.Second
 
 func newHTTPClient() *http.Client { return &http.Client{Timeout: defaultHTTPTimeout} }
 
-// isPrivateIP reports whether ip is private/loopback/link-local/invalid — skipped.
+// isPrivateIP reports whether ip is private/loopback/link-local/invalid, skipped.
 func isPrivateIP(ip string) bool {
 	p := net.ParseIP(ip)
 	if p == nil {
@@ -158,9 +158,9 @@ func (c *GeoClient) Geo(ctx context.Context, ip string) (country, city string, e
 type CompositeProvider struct {
 	Abuse      *AbuseIPDBClient
 	OTX        *OTXClient
-	Geo        *GeoClient        // ip-api.com — online, rate-limited (45/min free)
-	MaxMind    *MaxMindClient    // MaxMind GeoLite2-Country .mmdb — offline (preferred for country)
-	MaxMindASN *MaxMindASNClient // MaxMind GeoLite2-ASN .mmdb    — offline (only source of ASN)
+	Geo        *GeoClient        // ip-api.com, online, rate-limited (45/min free)
+	MaxMind    *MaxMindClient    // MaxMind GeoLite2-Country .mmdb, offline (preferred for country)
+	MaxMindASN *MaxMindASNClient // MaxMind GeoLite2-ASN .mmdb, offline (only source of ASN)
 	Blocklist  *blocklist.Set    // community blocklist (optional)
 }
 
@@ -180,7 +180,7 @@ func (p *CompositeProvider) Lookup(ctx context.Context, ip string) (Indicator, e
 		ind.AbuseConfidence = 100
 		feeds, ok = append(feeds, "blocklist"), true
 	}
-	// MaxMind (offline .mmdb) gets first crack at the country — no external call, no rate limit,
+	// MaxMind (offline .mmdb) gets first crack at the country, no external call, no rate limit,
 	// works in air-gapped deployments. This addresses the operator-reported case where AbuseIPDB
 	// + OTX were both down and public IPs came in without country codes.
 	if p.MaxMind != nil {
@@ -277,7 +277,7 @@ func ProviderFromEnv() (Provider, bool) {
 // BuildProvider assembles a CTI provider from explicit config (used by ProviderFromEnv
 // and by the worker when the keys come from the Integrations registry instead of env).
 // mmdbPath is the MaxMind GeoLite2-Country.mmdb path; asnMMDBPath the GeoLite2-ASN.mmdb path
-// — "" disables the respective offline lookup.
+// , "" disables the respective offline lookup.
 // Returns the demo provider + false when nothing is configured.
 func BuildProvider(abuseKey, otxKey string, geoOn bool, mmdbPath, asnMMDBPath string, blURLs []string) (Provider, bool) {
 	if abuseKey == "" && otxKey == "" && !geoOn && mmdbPath == "" && asnMMDBPath == "" && len(blURLs) == 0 {

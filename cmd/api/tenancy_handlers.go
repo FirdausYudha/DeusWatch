@@ -14,7 +14,7 @@ import (
 // memberships (managed by manage_workspaces). Listing tenants and one's own workspaces only needs
 // view_dashboard so the workspace switcher and the enrollment tenant picker work for every operator.
 
-// tenantsListHandler (GET /api/tenants) lists all tenants — for the Tenants admin page, the workspace
+// tenantsListHandler (GET /api/tenants) lists all tenants, for the Tenants admin page, the workspace
 // tenant-mapping UI, and the enrollment tenant picker.
 func tenantsListHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +58,7 @@ func tenantDeleteHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
-// myWorkspacesHandler (GET /api/workspaces) lists the workspaces the CURRENT user belongs to — this
+// myWorkspacesHandler (GET /api/workspaces) lists the workspaces the CURRENT user belongs to, this
 // drives the workspace switcher (the X-Workspace-ID the client then sends narrows their tenant scope).
 func myWorkspacesHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +183,7 @@ func workspaceMembersHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
-// statusForCreate maps a create error to 409 (duplicate) or 400 (validation) — anything else is 500.
+// statusForCreate maps a create error to 409 (duplicate) or 400 (validation), anything else is 500.
 func statusForCreate(err error) int {
 	msg := err.Error()
 	switch {
@@ -197,7 +197,7 @@ func statusForCreate(err error) int {
 }
 
 // statusForDelete maps a delete error to 409 (still referenced), 400 (protected/invalid), 404 (not
-// found) — anything else is 500.
+// found), anything else is 500.
 func statusForDelete(err error) int {
 	msg := err.Error()
 	switch {

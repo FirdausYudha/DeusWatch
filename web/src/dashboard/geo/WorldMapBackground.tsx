@@ -1,7 +1,7 @@
 import { MAP_WIDTH, MAP_HEIGHT } from './projection'
 import { WORLD_PATHS } from './worldPaths'
 
-// WorldMapBackground draws the world underneath the attack arcs using REAL country boundaries —
+// WorldMapBackground draws the world underneath the attack arcs using REAL country boundaries , 
 // Natural Earth 1:110m, pre-projected to this viewport by tools/worldmapgen and committed as plain
 // SVG path strings (web/src/dashboard/geo/worldPaths.ts).
 //
@@ -9,10 +9,10 @@ import { WORLD_PATHS } from './worldPaths'
 // and the bundle shouldn't carry a projection library for one widget. The generator does the
 // topology decoding + projection + simplification once; the frontend just renders <path d> strings.
 //
-// Styling: a clean blue treatment — deep ocean, lighter blue landmasses, hairline borders. No
+// Styling: a clean blue treatment, deep ocean, lighter blue landmasses, hairline borders. No
 // graticule, no equator/meridian guides: the map is context, the attack arcs are the content.
 // Colours are literal (not theme variables) because this is a deliberate "dark blue map" surface
-// that should look the same regardless of the app's light/dark setting — the arcs and markers on
+// that should look the same regardless of the app's light/dark setting, the arcs and markers on
 // top carry the semantic colour. Pointer events are off; the markers above handle interaction.
 
 const OCEAN_TOP = '#0d1a30'

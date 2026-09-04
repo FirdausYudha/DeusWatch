@@ -16,7 +16,7 @@ import (
 
 // isInotifyLimit reports whether err is the kernel refusing another inotify instance/watch because
 // a per-user limit is exhausted: EMFILE/ENFILE (max_user_instances, out of instance slots) or
-// ENOSPC (max_user_watches). Used only to print a more actionable hint — the constants exist on
+// ENOSPC (max_user_watches). Used only to print a more actionable hint, the constants exist on
 // every platform, so this compiles everywhere and is simply never true off Linux.
 func isInotifyLimit(err error) bool {
 	return errors.Is(err, syscall.EMFILE) ||

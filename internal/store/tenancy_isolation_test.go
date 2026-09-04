@@ -11,16 +11,16 @@ import (
 
 // TestRLSTenantIsolation is the end-to-end proof of Phase-2c enforcement: with migration 000050
 // applied, Postgres itself filters every row to the caller's tenant scope. It connects with the
-// regular (non-super-admin) pool — the same role the API uses — so FORCE ROW LEVEL SECURITY applies.
+// regular (non-super-admin) pool: the same role the API uses, so FORCE ROW LEVEL SECURITY applies.
 // It uses suspicious_ips (a plain forced table) and asserts: a scope sees only its own tenant's rows;
 // the union of two scopes sees both; an unscoped path (empty GUC) is fail-closed to zero rows; and a
 // super-admin scope spans all tenants.
 func TestRLSTenantIsolation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn()) // regular owner pool — subject to FORCE RLS, no bypass
+	st, err := Connect(ctx, dsn()) // regular owner pool, subject to FORCE RLS, no bypass
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 
@@ -108,7 +108,7 @@ func TestRLSTenantIsolation(t *testing.T) {
 	if v := visibleIPs([]string{tenA, tenB}, false); !(len(v) == 2 && v[ipA] && v[ipB]) {
 		t.Fatalf("scope {A,B} must see both, got %v", v)
 	}
-	// A request path that forgot to open a scope must be fail-closed — never a silent leak.
+	// A request path that forgot to open a scope must be fail-closed: never a silent leak.
 	if v := visibleIPs(nil, false); len(v) != 0 {
 		t.Fatalf("empty scope must be fail-closed (0 rows), got %v", v)
 	}
@@ -124,9 +124,9 @@ func TestRLSTenantIsolation(t *testing.T) {
 func TestEventsViewIsolation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn()) // regular owner pool — scoped reads drop to deuswatch_app
+	st, err := Connect(ctx, dsn()) // regular owner pool. Scoped reads drop to deuswatch_app
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 	if aerr := st.AssertRLSEnforced(ctx); aerr != nil {

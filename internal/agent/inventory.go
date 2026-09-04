@@ -12,7 +12,7 @@ import (
 
 // Software inventory (Vulnerability Assessment, phase 1). The agent enumerates installed packages
 // and the OS/kernel release and ships them to the manager, which later (phase 2) matches them
-// against vendor OVAL/USN vulnerability data. Nothing here evaluates vulnerabilities — this is
+// against vendor OVAL/USN vulnerability data. Nothing here evaluates vulnerabilities. This is
 // purely the "what is installed" collection, the equivalent of Wazuh's syscollector.
 //
 // The data model captures exactly what OVAL matching needs: the SOURCE package (advisories are

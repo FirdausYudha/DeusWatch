@@ -14,8 +14,8 @@ reaches the pipeline is appended to a file laid out by source and log type, one 
 - Each file holds the **raw original lines** (or the normalized JSON for structured events that
   have no original text, e.g. FIM / Windows).
 
-This gives you a faithful, cheap-to-store copy of the raw telemetry — a source for rich,
-exportable logs — separate from the queryable enriched events in the database.
+This gives you a faithful, cheap-to-store copy of the raw telemetry, a source for rich,
+exportable logs, separate from the queryable enriched events in the database.
 
 ## Enable
 
@@ -29,7 +29,7 @@ ARCHIVE_RETENTION_DAYS=0   # delete files older than N days; 0 = keep forever
 ```
 
 ```yaml
-# deploy/docker-compose.yml — worker service
+# deploy/docker-compose.yml, worker service
   worker:
     # …
     volumes:
@@ -41,7 +41,7 @@ shows `worker: raw archive active (/archive, retention=0d)`.
 
 ## Read it back
 
-The files are standard zstd — concatenated frames, which any zstd reader decompresses
+The files are standard zstd, concatenated frames, which any zstd reader decompresses
 transparently:
 
 ```bash
@@ -52,9 +52,9 @@ zstdgrep 'id "942' /archive/opnsense-a/modsecurity/2026-07-17.log.zst
 
 ## Notes
 
-- Storage is separate from the database retention (`docs/storage.md`) — the archive is raw text,
+- Storage is separate from the database retention (`docs/storage.md`): the archive is raw text,
   the DB holds enriched/queryable events. Point `ARCHIVE_DIR` at a big/cheap disk for long keep.
 - Writes are append-only zstd frames, flushed every `ARCHIVE_FLUSH`, so a crash only loses the
-  last unsynced buffer — never a whole file.
+  last unsynced buffer: never a whole file.
 - Source/dataset names are sanitized into safe path segments (no traversal), so an attacker
   can't steer a write outside `ARCHIVE_DIR` via a crafted agent name.

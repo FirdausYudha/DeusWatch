@@ -1,7 +1,7 @@
 // Command agent is the DeusWatch endpoint log collector (Linux & Windows).
 //
 // Default sources are selected per-OS at compile time (Linux: auth/syslog files;
-// Windows: Event Log) — see internal/agent. Override with a single source via
+// Windows: Event Log), see internal/agent. Override with a single source via
 // LOG_FILE. All lines are sent to the manager (gateway) over mTLS.
 package main
 
@@ -64,7 +64,7 @@ func main() {
 	uninstall := flag.Bool("uninstall", false, "stop the agent service and remove all installed files, then exit")
 	// -version prints the buildVersion (baked in via -ldflags at build time) and exits.
 	// v2.14.2 addition: operators diagnosing self-update failures previously had to `strings`
-	// the binary to check what it thought it was — this makes that a one-liner.
+	// the binary to check what it thought it was. This makes that a one-liner.
 	versionFlag := flag.Bool("version", false, "print the agent build version and exit")
 	flag.Parse()
 
@@ -73,7 +73,7 @@ func main() {
 		return
 	}
 	// Log the build version on every start so `journalctl -u deuswatch-agent` always shows what
-	// binary is currently loaded — matters for self-update debugging where "did the swap happen?"
+	// binary is currently loaded, matters for self-update debugging where "did the swap happen?"
 	// is otherwise invisible until an alert flows.
 	log.Printf("DeusWatch agent %s starting", agentVersion())
 
@@ -93,7 +93,7 @@ func main() {
 		return
 	}
 
-	// Service control (install/uninstall/start/stop) — per-OS implementation.
+	// Service control (install/uninstall/start/stop), per-OS implementation.
 	if *serviceCmd != "" {
 		if err := controlService(*serviceCmd); err != nil {
 			log.Fatalf("agent: service %s: %v", *serviceCmd, err)
@@ -116,7 +116,7 @@ func main() {
 
 // runAgent runs the agent collector loop until ctx is cancelled. onConfigChange is
 // called when the manager pushes a new config version (triggers shutdown so the
-// supervisor — systemd/SCM — restarts the agent with the new config).
+// supervisor, systemd/SCM, restarts the agent with the new config).
 func runAgent(ctx context.Context, onConfigChange func()) {
 	gatewayURL := getenv("GATEWAY_URL", "https://localhost:8443")
 	certDir := getenv("CERT_DIR", "deploy/certs")
@@ -149,7 +149,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 			agent.SetFIMSnapshotSink(func(m agent.SnapshotMeta) {
 				select {
 				case snapCh <- m:
-				default: // uploader is behind — drop this metadata rather than block the scan
+				default: // uploader is behind, drop this metadata rather than block the scan
 				}
 			})
 			go runSnapshotUploader(ctx, shipper, snapCh)
@@ -166,7 +166,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		log.Printf("agent: pushed config v%d applied from the manager", cfg.Version)
 	}
 	if len(sources) == 0 {
-		log.Fatalf("agent: no log sources — set LOG_FILE or run on a supported OS")
+		log.Fatalf("agent: no log sources, set LOG_FILE or run on a supported OS")
 	}
 
 	// Watch for config changes; a new version -> shutdown so the service-manager restarts & applies it.
@@ -175,8 +175,8 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	go drainBuffer(ctx, shipper, buf)
 	go heartbeatLoop(ctx, shipper, buf, onConfigChange)
 	// Agent-side firewall auto-block. v2.11.0: the manager's nftables_agent integration is the
-	// source of truth — the poll loop always runs, but ApplyBlocklist only fires when the
-	// server envelope says Enabled=true (i.e. the operator configured the integration AND its
+	// source of truth, the poll loop always runs, but ApplyBlocklist only fires when the
+	// server envelope says Enabled=true (i.e. The operator configured the integration AND its
 	// agent_scope covers this CN). AGENT_FIREWALL=nftables is kept as a local force-on for
 	// operators who prefer env-driven activation (e.g. air-gapped or IaC-driven deployments).
 	if runtime.GOOS == "linux" {
@@ -206,7 +206,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	}
 
 	// FIM who-data (opt-in via AGENT_WHODATA=1, Linux + root + auditd): attribute each file
-	// change to the process/user that made it, via the audit subsystem. Best-effort — if it
+	// change to the process/user that made it, via the audit subsystem. Best-effort, if it
 	// can't be enabled, FIM keeps working without the "who". Set before Collect so the FIM
 	// scanner picks it up.
 	if b, _ := strconv.ParseBool(os.Getenv("AGENT_WHODATA")); b {
@@ -222,7 +222,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 			}
 		}
 		if len(fimRoots) == 0 {
-			log.Printf("agent: AGENT_WHODATA set but no FIM sources — who-data idle")
+			log.Printf("agent: AGENT_WHODATA set but no FIM sources, who-data idle")
 		} else if wd, werr := agent.StartWhoData(ctx, fimRoots, os.Getenv("AGENT_AUDIT_LOG")); werr != nil {
 			log.Printf("agent: who-data disabled: %v", werr)
 		} else {
@@ -249,7 +249,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		if body, err := json.Marshal(batch); err == nil {
 			if serr := shipper.SendRaw(ctx, body); serr != nil {
 				if berr := buf.Save(body); berr == nil {
-					log.Printf("agent: manager offline — %d lines buffered (%v)", len(batch), serr)
+					log.Printf("agent: manager offline, %d lines buffered (%v)", len(batch), serr)
 				} else {
 					log.Printf("agent: failed to send & buffer: %v / %v", serr, berr)
 				}
@@ -285,8 +285,8 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 }
 
 // logClientIdentity prints the CommonName the agent will present to the gateway, plus the
-// certificate's expiry. The CN is the agent's whole identity on the manager — heartbeat,
-// pushed config, blocklist scope and every ingested log line are keyed on it — yet nothing
+// certificate's expiry. The CN is the agent's whole identity on the manager, heartbeat,
+// pushed config, blocklist scope and every ingested log line are keyed on it, yet nothing
 // in the TLS handshake validates that it corresponds to an enrolled agent. A wrong CN
 // therefore fails only on the manager side, as a permanently "never connected" row with no
 // error on either end. Printing it at startup makes that diagnosable from the agent's own
@@ -300,7 +300,7 @@ func logClientIdentity(certDir string) {
 	}
 	log.Printf("agent: presenting client certificate CN=%q (expires %s)", cn, expires.Format(time.RFC3339))
 	if cn == mtls.SharedClientCN {
-		log.Printf("agent: WARNING — %q is the shared development certificate written by certgen, "+
+		log.Printf("agent: WARNING. %q is the shared development certificate written by certgen, "+
 			"not an enrolled agent identity. The gateway will complete the TLS handshake but reject "+
 			"every heartbeat, and this host will stay \"never connected\" on the dashboard. Re-run the "+
 			"one-line installer from the manager's Agents page to enroll it properly.", cn)
@@ -308,7 +308,7 @@ func logClientIdentity(certDir string) {
 }
 
 // runInventory reports the host's software inventory (installed packages + OS release) shortly
-// after startup and then on a slow interval — inventory changes rarely, so the default is 12h
+// after startup and then on a slow interval, inventory changes rarely, so the default is 12h
 // (INVENTORY_INTERVAL overrides, Go duration). A collect/ship failure is logged and retried next
 // tick; it never blocks the agent.
 func runInventory(ctx context.Context, shipper *agent.Shipper) {
@@ -367,7 +367,7 @@ func watchConfig(ctx context.Context, shipper *agent.Shipper, current int, stop 
 				continue
 			}
 			if cfg.Version > current {
-				log.Printf("agent: new config v%d detected — restarting to apply", cfg.Version)
+				log.Printf("agent: new config v%d detected, restarting to apply", cfg.Version)
 				stop()
 				return
 			}
@@ -408,7 +408,7 @@ func drainBuffer(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffer)
 // nftables. Behaviour (v2.11.0):
 //
 //   - envelope.Enabled=false → skip (do NOT touch the firewall; leave any pre-existing rules
-//     alone — teardown is the operator's call, we never rm the table under them)
+//     alone. Teardown is the operator's call, we never rm the table under them)
 //   - envelope.Enabled=true → ensure the table/chain/set exist and reconcile the IP set
 //
 // envForceOn=true (AGENT_FIREWALL=nftables env var set) forces Enabled=true regardless of
@@ -426,7 +426,7 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper, envForceOn bool) {
 	// note logs a firewall state change once, then repeats it every 10 minutes while the state
 	// holds. Two problems it solves: the poll runs every 30s, so an unthrottled success line
 	// buried the journal under ~2900 entries a day; and the "not enabled for me" branch used to
-	// return in complete silence. That silence was the worst of the two — the manager knows why
+	// return in complete silence. That silence was the worst of the two, the manager knows why
 	// the firewall is idle (the gateway logs the scope decision), but the host where the operator
 	// actually runs `nft list` said nothing at all, so a stale agent_scope looked identical to a
 	// broken agent. State keys carry the IP count, so a real change is always logged immediately.
@@ -448,11 +448,11 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper, envForceOn bool) {
 			return
 		}
 		if !cfg.Enabled && !envForceOn {
-			// Never touch the firewall — but say so, and say what would change it.
+			// Never touch the firewall, but say so, and say what would change it.
 			note("idle", "idle: the manager's nftables_agent integration does not cover this "+
 				"agent, so nothing is written to nftables. Either no nftables_agent integration "+
 				"is enabled, or its agent scope does not list this agent's certificate CN "+
-				"(an exact match is required — a scope left over from a previous enrollment "+
+				"(an exact match is required, a scope left over from a previous enrollment "+
 				"name will not match). Fix it under Integrations in the manager UI; an empty "+
 				"agent scope means every agent.")
 			return
@@ -530,14 +530,14 @@ func runContainment(ctx context.Context, shipper *agent.Shipper, gatewayURL stri
 					continue
 				}
 				isolated, lastKey = true, key
-				log.Printf("agent: HOST ISOLATED (reason=%q; %d allow IP(s)) — LAN cut except manager", d.Reason, len(allow))
+				log.Printf("agent: HOST ISOLATED (reason=%q; %d allow IP(s)), LAN cut except manager", d.Reason, len(allow))
 			} else if isolated {
 				if err := agent.ClearIsolation(); err != nil {
 					log.Printf("agent: clear isolation: %v", err)
 					continue
 				}
 				isolated, lastKey = false, ""
-				log.Printf("agent: isolation lifted — connectivity restored")
+				log.Printf("agent: isolation lifted, connectivity restored")
 			}
 		}
 	}
@@ -695,7 +695,7 @@ func runFileActions(ctx context.Context, snaps *agent.SnapshotStore, shipper *ag
 						break
 					}
 					// Safety: capture the CURRENT content as a version first, so restoring never
-					// loses the pre-restore state (best-effort — ignored if not a small text file).
+					// loses the pre-restore state (best-effort, ignored if not a small text file).
 					if meta, ok := agent.CaptureVersionNow(a.Path); ok {
 						_ = shipper.PostSnapshots(ctx, []agent.SnapshotMeta{meta})
 					}
@@ -755,7 +755,7 @@ func runFileActions(ctx context.Context, snaps *agent.SnapshotStore, shipper *ag
 	}
 }
 
-// maxSnapshotUploadBytes keeps each snapshot POST safely under the gateway's 8 MiB body cap —
+// maxSnapshotUploadBytes keeps each snapshot POST safely under the gateway's 8 MiB body cap,
 // important in manager-storage mode, where each version carries its (up to multi-MiB) content.
 const maxSnapshotUploadBytes = 7 << 20
 
@@ -783,7 +783,7 @@ func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan 
 		}
 		if err := shipper.PostSnapshots(ctx, batch); err != nil {
 			log.Printf("agent: upload snapshots (%d): %v", len(batch), err)
-			// Keep the batch to retry on the next tick (bounded — drop if it grows too large).
+			// Keep the batch to retry on the next tick (bounded, drop if it grows too large).
 			if len(batch) > 2000 {
 				batch = batch[len(batch)-2000:]
 			}
@@ -799,7 +799,7 @@ func runSnapshotUploader(ctx context.Context, shipper *agent.Shipper, in <-chan 
 			flush()
 			return
 		case m := <-in:
-			// Flush first if adding this item (esp. its manager-mode content) would push the
+			// Flush first if adding this item (esp. Its manager-mode content) would push the
 			// batch over the wire limit.
 			if len(batch) > 0 && batchBytes+metaBytes(m) > maxSnapshotUploadBytes {
 				flush()
@@ -838,15 +838,15 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 	// startup (no more waiting a full 30s for the row to flip to online in the dashboard).
 	// connected tracks whether the last heartbeat was accepted, so the transition into a
 	// working state is logged exactly once instead of never. "No errors in the journal" is
-	// not the same as "the manager has seen this host" — an agent presenting an unenrolled
-	// CN used to produce precisely that ambiguity — so the agent now states it outright.
+	// not the same as "the manager has seen this host", an agent presenting an unenrolled
+	// CN used to produce precisely that ambiguity, so the agent now states it outright.
 	connected := false
 	beat := func() (stopLooping bool) {
 		directive, err := shipper.Heartbeat(ctx, health())
 		if err != nil {
 			connected = false
 			if errors.Is(err, agent.ErrRevoked) {
-				log.Printf("agent: this agent was revoked by the manager — self-uninstalling")
+				log.Printf("agent: this agent was revoked by the manager, self-uninstalling")
 				selfUninstall()
 				stop()
 				return true
@@ -856,13 +856,13 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 		}
 		if !connected {
 			connected = true
-			log.Printf("agent: heartbeat accepted by the manager — this host is now visible as connected")
+			log.Printf("agent: heartbeat accepted by the manager, this host is now visible as connected")
 		}
 		if directive != nil {
 			if uerr := performSelfUpdate(ctx, shipper, directive); uerr != nil {
 				log.Printf("agent: self-update failed (staying on %s): %v", agentVersion(), uerr)
 			} else {
-				log.Printf("agent: self-update to %s complete — exiting for systemd to restart", directive.Version)
+				log.Printf("agent: self-update to %s complete, exiting for systemd to restart", directive.Version)
 				stop() // graceful shutdown; systemd Restart=always brings up the new binary
 				return true
 			}
@@ -870,7 +870,7 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 		return false
 	}
 	// Fire the first heartbeat immediately so the manager sees the agent online within seconds of
-	// service start, not up to 30s later — previously time.NewTicker's first tick was the FIRST
+	// service start, not up to 30s later, previously time.NewTicker's first tick was the FIRST
 	// heartbeat, which is exactly the "agent takes forever to appear online" symptom operators hit.
 	if beat() {
 		return

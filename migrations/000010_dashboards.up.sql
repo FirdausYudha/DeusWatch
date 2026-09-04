@@ -1,4 +1,4 @@
--- Migration 000010 — per-user customizable dashboard layouts.
+-- Migration 000010, per-user customizable dashboard layouts.
 -- Each user stores their own widget layout (Kibana-style) as opaque JSON.
 
 CREATE TABLE IF NOT EXISTS user_dashboards (

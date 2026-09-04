@@ -18,7 +18,7 @@ import (
 
 // performSelfUpdate downloads the binary the manager pointed at, atomically replaces the
 // currently-running executable, and returns nil. The caller is responsible for exiting so
-// systemd (or the Windows Service Manager, or a supervisor) can restart the process — the
+// systemd (or the Windows Service Manager, or a supervisor) can restart the process, the
 // new binary picks up on the next start.
 //
 // URL from the directive may contain the literal token "{arch}", which is substituted for
@@ -27,7 +27,7 @@ import (
 //
 // TLS trust: since the update URL is served by the manager's API port (plain HTTP unless
 // the operator has a TLS reverse proxy), we accept either HTTP or HTTPS. When HTTPS, we
-// pin against the CA the agent already trusts for gateway mTLS — so a compromised
+// pin against the CA the agent already trusts for gateway mTLS, so a compromised
 // intermediate can't hijack the update flow.
 func performSelfUpdate(ctx context.Context, shipper *agent.Shipper, directive *agent.UpdateDirective) error {
 	if directive == nil {
@@ -72,7 +72,7 @@ func performSelfUpdate(ctx context.Context, shipper *agent.Shipper, directive *a
 		return fmt.Errorf("download: HTTP %d", resp.StatusCode)
 	}
 
-	// Where does the current binary live? os.Executable is the reliable way — installer paths
+	// Where does the current binary live? os.Executable is the reliable way, installer paths
 	// vary (Linux /usr/local/bin/deuswatch-agent, Windows Program Files\DeusWatch\agent.exe).
 	current, err := os.Executable()
 	if err != nil {
@@ -85,7 +85,7 @@ func performSelfUpdate(ctx context.Context, shipper *agent.Shipper, directive *a
 		return fmt.Errorf("create tmp in %s: %w", dir, err)
 	}
 	tmpPath := tmp.Name()
-	// Best-effort cleanup on any failure path — an orphaned .new-* file is harmless but ugly.
+	// Best-effort cleanup on any failure path, an orphaned .new-* file is harmless but ugly.
 	success := false
 	defer func() {
 		if !success {
@@ -106,16 +106,16 @@ func performSelfUpdate(ctx context.Context, shipper *agent.Shipper, directive *a
 	// Atomic swap. On POSIX rename(2) is atomic within a single filesystem, which is why we
 	// created the temp file in the same directory as the current binary above. On Windows
 	// os.Rename over an EXISTING file is not permitted while it's running, so we rename the
-	// current binary aside first, then rename the new one into place — the just-moved old
+	// current binary aside first, then rename the new one into place, the just-moved old
 	// binary can then be deleted once the process exits.
 	if runtime.GOOS == "windows" {
 		aside := current + ".old"
-		_ = os.Remove(aside) // stale from a previous update — remove or Rename will fail
+		_ = os.Remove(aside) // stale from a previous update, remove or Rename will fail
 		if err := os.Rename(current, aside); err != nil {
 			return fmt.Errorf("rename current aside: %w", err)
 		}
 		if err := os.Rename(tmpPath, current); err != nil {
-			// Best-effort rollback — swap the old binary back into place before returning.
+			// Best-effort rollback, swap the old binary back into place before returning.
 			_ = os.Rename(aside, current)
 			return fmt.Errorf("rename new into place: %w", err)
 		}

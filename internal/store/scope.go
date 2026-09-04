@@ -7,7 +7,7 @@ import (
 
 // ResolveUserScope returns the set of tenant IDs a user may access: the union of the tenants reached
 // by every workspace they belong to (User → Workspace → Tenant). When workspaceID is non-empty the
-// set is narrowed to that single workspace — but only if the user is actually a member of it (the
+// set is narrowed to that single workspace, but only if the user is actually a member of it (the
 // membership join enforces that), so a forged X-Workspace-ID header cannot widen access.
 //
 // This reads the access-control tables (workspace_members / workspace_tenants), which are NOT

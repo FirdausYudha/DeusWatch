@@ -1,4 +1,4 @@
-# Auto-kill PID — contract
+# Auto-kill PID, contract
 
 **Status:** contract locked, implementation pending.
 
@@ -6,10 +6,10 @@
 
 Extend the existing kill-switch so it can kill a malicious process **automatically** for
 high-confidence triggers (ransomware, YARA-matched malware, known-bad file hashes) without waiting
-for a human to click Approve — while keeping the guard rails that stop it from ever killing
+for a human to click Approve, while keeping the guard rails that stop it from ever killing
 sshd/systemd/dockerd or firing on unattributed processes.
 
-The infrastructure already exists (`internal/respond/killswitch.go` — `killWorthy` decision,
+The infrastructure already exists (`internal/respond/killswitch.go`, `killWorthy` decision,
 `RecommendKill(auto bool)` interface). Only the decision, the policy toggle, and the guard rails
 need to be added.
 
@@ -25,7 +25,7 @@ need to be added.
 
 An auto-kill is only issued when **all three** hold:
 1. The trigger sits in the auto-approvable set above.
-2. The alert carries an attributed PID + process start-time (auditd/who-data — no attribution = no
+2. The alert carries an attributed PID + process start-time (auditd/who-data: no attribution = no
    kill target).
 3. The target passes every guard rail below.
 
@@ -33,7 +33,7 @@ An auto-kill is only issued when **all three** hold:
 
 - **PID ≤ 100 is never auto-killed.** Kernel threads, init, systemd, early-boot daemons live below
   that watermark on every Linux distro DeusWatch runs on.
-- **Process whitelist** — a default list of names never auto-killed:
+- **Process whitelist**: a default list of names never auto-killed:
   `systemd`, `init`, `sshd`, `dockerd`, `containerd`, `postgres`, `mysqld`, `nginx`, `apache2`,
   `nats-server`, `deuswatch-agent`, `deuswatch-worker`, `deuswatch-api`, `deuswatch-gateway`.
   Admin-editable via `KILL_WHITELIST` env (comma-separated) or the Response page (`manage_settings`).
@@ -48,9 +48,9 @@ An auto-kill is only issued when **all three** hold:
 
 Two overlapping toggles (mirroring the ban engine, so operators find them familiar):
 
-- Env `KILL_AUTO_APPROVE=1` on the worker — forces on regardless of DB policy (declarative deploy,
+- Env `KILL_AUTO_APPROVE=1` on the worker, forces on regardless of DB policy (declarative deploy,
   survives DB rewrites).
-- DB `kill_policy` row (new table) — has `auto_approve boolean`, `whitelist text[]`,
+- DB `kill_policy` row (new table), has `auto_approve boolean`, `whitelist text[]`,
   `rate_limit_per_min integer`. Managed via UI (Response page → new "Kill policy" editor, gated by
   `manage_settings`). Env, when set to 1, wins.
 
@@ -73,18 +73,18 @@ CREATE TABLE IF NOT EXISTS kill_policy (
 INSERT INTO kill_policy (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 ```
 
-Add columns to existing `agent_file_actions` — none needed. The column is `requested_by` (not
+Add columns to existing `agent_file_actions`, none needed. The column is `requested_by` (not
 `decided_by`; verified against `migrations/000042_file_actions.up.sql`); auto-kills write
 `requested_by = 'auto:<trigger>'` while human approvals write the operator's username. Existing
 `RecommendKill(ctx, agentName, pid, procName, exe, procStart, reason, requestedBy, auto)` interface
-already carries both the string and the bool — no signature change needed.
+already carries both the string and the bool: no signature change needed.
 
 ## API + UI
 
-- `GET /api/kill-policy` (view_dashboard) — read the current policy.
-- `PUT /api/kill-policy` (manage_settings) — replace it (validates whitelist non-empty, rate limit
+- `GET /api/kill-policy` (view_dashboard), read the current policy.
+- `PUT /api/kill-policy` (manage_settings), replace it (validates whitelist non-empty, rate limit
   between 1–60).
-- **Response page** — a new "Kill policy" card next to the existing "Ban policy" editor. Same shape:
+- **Response page**: a new "Kill policy" card next to the existing "Ban policy" editor. Same shape:
   auto-approve toggle + rate-limit stepper + whitelist textarea (one process per line) + "Save".
 
 ## Audit
@@ -98,21 +98,21 @@ Every auto-kill records:
 
 Unit tests in `internal/respond/killswitch_test.go`:
 
-- `TestAutoApproveOnYARAMatch` — event with `dw_label=yara_malicious` + attributed PID → auto=true.
-- `TestAutoApproveOnRansomware` — `action=file_encrypted` + attribution → auto=true.
-- `TestAutoApproveOnKnownBadHash` — `dw_filehash_verdict=known_bad` + attribution → auto=true.
-- `TestAutoApproveOffWithoutAttribution` — YARA match but empty `procStart` → recommend-only.
-- `TestWhitelistBlocksAutoKill` — YARA match against `sshd` PID → recommend-only + log.
-- `TestPIDUnder100NeverAutoKilled` — target PID = 42 → recommend-only + log.
-- `TestRateLimitDegradesToRecommend` — 4th auto-kill in 60s → recommend-only + rate-limit alert.
-- `TestPolicyDefaultsFailClosed` — no policy row → auto disabled.
+- `TestAutoApproveOnYARAMatch`: event with `dw_label=yara_malicious` + attributed PID → auto=true.
+- `TestAutoApproveOnRansomware`: `action=file_encrypted` + attribution → auto=true.
+- `TestAutoApproveOnKnownBadHash`: `dw_filehash_verdict=known_bad` + attribution → auto=true.
+- `TestAutoApproveOffWithoutAttribution`: YARA match but empty `procStart` → recommend-only.
+- `TestWhitelistBlocksAutoKill`: YARA match against `sshd` PID → recommend-only + log.
+- `TestPIDUnder100NeverAutoKilled`: target PID = 42 → recommend-only + log.
+- `TestRateLimitDegradesToRecommend`: 4th auto-kill in 60s → recommend-only + rate-limit alert.
+- `TestPolicyDefaultsFailClosed`: no policy row → auto disabled.
 
-Store test `internal/respond/kill_policy_test.go` — Load/Save round trip + validation errors.
+Store test `internal/respond/kill_policy_test.go`, Load/Save round trip + validation errors.
 
 ## Rollout
 
 - Migration is additive (new table, no ALTERs on existing tables).
-- Default `auto_approve=false` — existing behaviour unchanged for operators who don't opt in.
+- Default `auto_approve=false`, existing behaviour unchanged for operators who don't opt in.
 - Docs update: `docs/kill-switch-demo.md` gets an "Auto mode" section explaining the trade-offs and
   how to enable safely (fill whitelist first, verify attribution on a test host, then flip the
   toggle).
@@ -120,4 +120,4 @@ Store test `internal/respond/kill_policy_test.go` — Load/Save round trip + val
 ## Estimated size
 
 ~300 lines Go across engine + store + API + UI + tests, one migration, one docs update. One commit,
-one release (patch or minor — user's call).
+one release (patch or minor, user's call).

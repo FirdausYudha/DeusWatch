@@ -7,7 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 declare const process: { env: Record<string, string | undefined> }
 
 // DeusWatch publishes its services on non-default host ports so they don't collide with
-// whatever else the host runs: web 9173, API 9080, gateway 9443 (see deploy/docker-compose.yml —
+// whatever else the host runs: web 9173, API 9080, gateway 9443 (see deploy/docker-compose.yml,
 // the API listens on 8080 *inside* its container, but 9080 is what's exposed to the host).
 // The dev server must therefore proxy to 9080, not 8080.
 //

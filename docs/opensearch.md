@@ -1,9 +1,9 @@
-# Pull logs from OpenSearch / Elasticsearch (incl. the Wazuh indexer)
+# Pull logs from OpenSearch / Elasticsearch (incl. The Wazuh indexer)
 
 DeusWatch can **tail an existing OpenSearch / Elasticsearch index** and feed every document
 into the normal pipeline (normalize → detect → playbooks → response). The headline use case:
 the **Wazuh indexer *is* OpenSearch**, so DeusWatch reads `wazuh-alerts-*` directly and maps
-each alert to its dashboard — no agent, no webhook wiring on the Wazuh side.
+each alert to its dashboard: no agent, no webhook wiring on the Wazuh side.
 
 This is the **pull** counterpart to the [ingest webhook](wazuh-webhook.md) (push). Pick whichever
 your environment allows; you can run both.
@@ -20,7 +20,7 @@ your environment allows; you can run both.
 | `api_key` | ES/OpenSearch API key | Alternative to username/password. |
 | `mode` | `auto` (default) | `auto` = map as a Wazuh alert if it looks like one, else a raw line; `wazuh` = always the Wazuh mapping; `raw` = always a raw log line (your decoders apply). |
 | `timestamp_field` | `@timestamp` (default) | The field the tail sorts/pages on. |
-| `query` | `rule.level:>=7` | Optional Lucene filter — pull only what you care about. |
+| `query` | `rule.level:>=7` | Optional Lucene filter, pull only what you care about. |
 | `poll_interval` | `30s` (default) | Go duration. |
 | `insecure_tls` | `true` for a self-signed cluster cert | Safe over a trusted network/tunnel. |
 
@@ -38,7 +38,7 @@ ones (Wazuh alerts carry their own source IP, MITRE technique, severity, and `wa
 
 DeusWatch sorts by `timestamp_field` ascending and pages forward with `search_after`, persisting
 the last position as a **cursor** (`ingest_cursor` table, keyed per integration). A worker restart
-**resumes where it left off** — no replay, no gap. With no cursor yet, it starts from a short
+**resumes where it left off**: no replay, no gap. With no cursor yet, it starts from a short
 look-back window (5 minutes) so enabling the connector doesn't replay the whole index.
 
 > **Limitation (honest note):** progress is timestamp-based. A document indexed *late* with an

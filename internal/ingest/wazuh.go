@@ -183,8 +183,8 @@ func NormalizeWazuh(data []byte) (*Event, bool) {
 		if u := a.Data.Audit.EffectiveUser.Name; u != "" && e.User == nil {
 			e.User = &User{Name: u}
 		}
-		e.DeusWatch.Label = ""     // let DeusWatch's FIM rules decide, not Wazuh's level
-		e.Rule = nil               // a plain file event, not a pre-fired alert
+		e.DeusWatch.Label = "" // let DeusWatch's FIM rules decide, not Wazuh's level
+		e.Rule = nil           // a plain file event, not a pre-fired alert
 		if e.Event.Severity > SeverityMedium {
 			e.Event.Severity = SeverityMedium
 		}

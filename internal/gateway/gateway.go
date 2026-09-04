@@ -27,7 +27,7 @@ var ErrUnknownAgent = errors.New("gateway: certificate CN is not an enrolled age
 
 // unknownAgentLog throttles the "unknown agent" line to one per CN per minute. The state is
 // broken and unrecoverable without operator action, so it must be visible on every log
-// tail — but a fleet misconfigured by one bad image shouldn't emit 2 lines/agent/minute
+// tail, but a fleet misconfigured by one bad image shouldn't emit 2 lines/agent/minute
 // forever. Same shape as the nftables push throttle in cmd/gateway.
 var unknownAgentLog = struct {
 	mu   sync.Mutex
@@ -44,7 +44,7 @@ func logUnknownAgent(cn string) {
 	if !fresh {
 		return
 	}
-	log.Printf("gateway: heartbeat from cn=%q REJECTED — no agent is enrolled under that name. "+
+	log.Printf("gateway: heartbeat from cn=%q REJECTED, no agent is enrolled under that name. "+
 		"The certificate is CA-signed so the TLS handshake succeeds, but every manager-side "+
 		"lookup keys on agents.name and matches nothing, so this host can never leave "+
 		"\"never connected\". Re-run the one-line installer on the endpoint so it enrolls and "+
@@ -89,7 +89,7 @@ type HeartbeatResponse struct {
 }
 
 // UpdateDirective tells the agent to fetch a new binary from URL and restart. Version is
-// informational — the agent will always use whatever URL returns.
+// informational, the agent will always use whatever URL returns.
 type UpdateDirective struct {
 	URL     string `json:"url"`
 	Version string `json:"version"`
@@ -111,7 +111,7 @@ type UpdateDirectiveFunc func(ctx context.Context, agentName string) (*UpdateDir
 type BlocklistFunc func(ctx context.Context) ([]string, error)
 
 // BlocklistConfig is what a single agent should apply to its local firewall. Enabled=false
-// means the manager has NOT configured the nftables_agent integration for this CN — the
+// means the manager has NOT configured the nftables_agent integration for this CN, the
 // agent must NOT touch its firewall (leave any pre-existing rules alone; no auto-teardown,
 // operators dislike surprises). Table/Set are the integration's chosen names, defaulted
 // server-side so the agent never has to know the defaults.
@@ -183,7 +183,7 @@ func QuarantineHandler(fn QuarantineFunc) http.HandlerFunc {
 // apply the IPs to their local nftables set.
 //
 // LEGACY handler kept for older agents whose parser only expects {"ips": [...]}. New
-// deployments should mount BlocklistConfigHandler at the same path instead — it returns the
+// deployments should mount BlocklistConfigHandler at the same path instead. It returns the
 // same "ips" field for old agents PLUS enabled/table/set for new ones.
 func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +200,7 @@ func BlocklistHandler(fn BlocklistFunc) http.HandlerFunc {
 
 // BlocklistConfigHandler is the v2.11.0 replacement: response envelope carries not just the
 // IPs but the enable flag and the table/set names, so the agent no longer needs a local
-// AGENT_FIREWALL env var to activate — the manager's nftables_agent integration is the
+// AGENT_FIREWALL env var to activate, the manager's nftables_agent integration is the
 // source of truth. Backwards-compatible on the wire: the "ips" field is unchanged, older
 // agents ignore the new fields (they simply won't know to activate their firewall from the
 // server side, which is the pre-v2.11 behaviour anyway).
@@ -399,7 +399,7 @@ func InventoryHandler(fn InventoryFunc, revoked RevokedFunc) http.HandlerFunc {
 }
 
 // AgentBinaryHandler serves the fresh agent binary the self-update flow points at. Lives
-// on the gateway (not the api) so agents don't need a second network path — they already
+// on the gateway (not the api) so agents don't need a second network path, they already
 // trust the gateway via mTLS. `binDir` is the directory the Dockerfile bakes the
 // cross-compiled binaries into (/agents). {arch} path param picks amd64 / arm64;
 // {os} is fixed to linux because Windows agents use their own service update pattern.
@@ -427,7 +427,7 @@ func AgentBinaryHandler(binDir string) http.HandlerFunc {
 
 // HeartbeatHandler marks the agent's last_seen (identified by the mTLS CN) and records
 // the agent's self-reported health from the optional JSON body (degraded + detail, e.g.
-// "217 batches buffered"). A revoked agent gets HTTP 410 Gone — the signal for the
+// "217 batches buffered"). A revoked agent gets HTTP 410 Gone, the signal for the
 // agent to self-uninstall and stop. When updFn is non-nil and returns a pending directive
 // for the calling CN, the response becomes 200 + JSON {"update":{...}} so the agent can
 // atomically self-replace its binary (v2.12.0+).
@@ -454,7 +454,7 @@ func HeartbeatHandlerFull(seen SeenFunc, health HealthFunc, healthV HealthWithVe
 		if cn != "" {
 			_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&hb) // empty body = healthy
 			// Persist the heartbeat, and let the agent KNOW when we couldn't (was silently discarded
-			// before — an operator would then see the agent "offline" on the dashboard even though
+			// before, an operator would then see the agent "offline" on the dashboard even though
 			// `journalctl -u deuswatch-agent` said the heartbeat was sent, because gateway pool
 			// connections that had gone bad returned an error on UPDATE that we then ignored; a
 			// `docker compose restart` "fixed" it by re-creating the pool. Now we log and return 503
@@ -475,7 +475,7 @@ func HeartbeatHandlerFull(seen SeenFunc, health HealthFunc, healthV HealthWithVe
 			// log the rejection every heartbeat, so both sides tell the same story.
 			if errors.Is(err, ErrUnknownAgent) {
 				logUnknownAgent(cn)
-				http.Error(w, "unknown agent: this certificate's CN is not enrolled — re-run the installer to enroll this host", http.StatusConflict)
+				http.Error(w, "unknown agent: this certificate's CN is not enrolled, re-run the installer to enroll this host", http.StatusConflict)
 				return
 			}
 			if err != nil {
@@ -597,7 +597,7 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 
 		ctx := r.Context()
 
-		// Reject revoked agents — even if their certificate is still cryptographically valid.
+		// Reject revoked agents, even if their certificate is still cryptographically valid.
 		if revoked != nil && certCN != "" {
 			if rev, err := revoked(ctx, certCN, certSerial); err == nil && rev {
 				http.Error(w, "agent revoked", http.StatusForbidden)

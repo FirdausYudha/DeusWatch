@@ -31,7 +31,7 @@ func execRunner(ctx context.Context, name string, args ...string) error {
 
 // ── DryRun ────────────────────────────────────────────────
 
-// DryRunResponder only logs the action it WOULD run — the safe default.
+// DryRunResponder only logs the action it WOULD run, the safe default.
 type DryRunResponder struct{ backend string }
 
 func NewDryRunResponder(backend string) *DryRunResponder {
@@ -124,7 +124,7 @@ type MikrotikResponder struct {
 	hc      *http.Client
 }
 
-// NewMikrotikResponder builds a responder for one router. insecure=true skips TLS
+// NewMikrotikResponder builds a responder for one router. Insecure=true skips TLS
 // certificate verification - RouterOS ships a self-signed cert, so this is the common
 // setting when the router is reached over a trusted tunnel (WireGuard/IPsec). Leave it
 // false when the router presents a CA-trusted certificate.
@@ -157,7 +157,7 @@ func (m *MikrotikResponder) Block(ctx context.Context, ip string, dur time.Durat
 }
 
 func (m *MikrotikResponder) Unblock(ctx context.Context, ip string) error {
-	// RouterOS: removing by .id query; kept simple here — POST remove by address.
+	// RouterOS: removing by .id query; kept simple here, POST remove by address.
 	body, _ := json.Marshal(map[string]string{"list": m.list, "address": ip})
 	return m.do(ctx, http.MethodPost, "/rest/ip/firewall/address-list/remove", body)
 }
@@ -328,7 +328,7 @@ func ResponderFromEnv() Responder {
 			os.Getenv("MIKROTIK_URL"), os.Getenv("MIKROTIK_USER"),
 			os.Getenv("MIKROTIK_PASS"), os.Getenv("MIKROTIK_LIST"), insecure))
 	default:
-		log.Printf("respond: unknown RESPONDER %q — using dry-run", os.Getenv("RESPONDER"))
+		log.Printf("respond: unknown RESPONDER %q, using dry-run", os.Getenv("RESPONDER"))
 		return NewDryRunResponder("none")
 	}
 }

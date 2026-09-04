@@ -53,7 +53,7 @@ func (m *MockProvider) Lookup(_ context.Context, ip string) (Indicator, error) {
 // integration (or env keys) for real lookups. Replaced by real CTI clients in production.
 func NewDemoProvider() *MockProvider {
 	return &MockProvider{
-		Default: Indicator{}, // unknown: shown as "—" in the UI, not a fake score/country
+		Default: Indicator{}, // unknown: shown as ", " in the UI, not a fake score/country
 		Results: map[string]Indicator{
 			"45.155.205.99": {AbuseConfidence: 95, OTXPulseCount: 8, CountryISO: "RU", FeedName: "mock"},
 			"185.220.101.1": {AbuseConfidence: 100, OTXPulseCount: 12, CountryISO: "DE", FeedName: "mock"},

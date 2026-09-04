@@ -2,8 +2,8 @@ package sigma
 
 // The Sigma → SQL AGGREGATION path (Zircolite/pySigma model, see ADR 0001).
 //
-// Single-event rules (sigma.go) are evaluated per-event in memory. AGGREGATION rules —
-// piped conditions like `selection | count() by source.ip > 5` — cannot be answered by
+// Single-event rules (sigma.go) are evaluated per-event in memory. AGGREGATION rules,
+// piped conditions like `selection | count() by source.ip > 5`, cannot be answered by
 // one event; they need state/correlation. Here we compile an aggregation rule into a
 // single SQL query against the TimescaleDB `events` hypertable, and a periodic runner
 // executes it (see internal/detect/aggregate.go). This is the generalization of the
@@ -99,10 +99,10 @@ func isAggregation(data []byte) bool {
 // ParseAggRule parses + compiles an aggregation Sigma rule from YAML.
 func ParseAggRule(data []byte) (*AggRule, error) {
 	var raw struct {
-		ID        string            `yaml:"id"`
-		Title     string            `yaml:"title"`
-		Level     string            `yaml:"level"`
-		Tags      []string          `yaml:"tags"`
+		ID         string            `yaml:"id"`
+		Title      string            `yaml:"title"`
+		Level      string            `yaml:"level"`
+		Tags       []string          `yaml:"tags"`
 		LogSource  map[string]string `yaml:"logsource"`
 		Detection  map[string]any    `yaml:"detection"`
 		Mitigation *struct {
@@ -388,7 +388,7 @@ func (c column) compare(mod, v string, args *[]any) (string, error) {
 }
 
 // fieldColumns maps dotted ECS fields to events-hypertable columns. This is the SQL
-// mirror of FlattenEvent (mapping.go) — both MUST stay in sync with schema.go.
+// mirror of FlattenEvent (mapping.go). Both MUST stay in sync with schema.go.
 var fieldColumns = map[string]column{
 	"event.category":       {expr: "event_category"},
 	"event.action":         {expr: "event_action"},

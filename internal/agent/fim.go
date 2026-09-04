@@ -1,6 +1,6 @@
 package agent
 
-// File Integrity Monitoring (FIM) — design doc agent roadmap.
+// File Integrity Monitoring (FIM), design doc agent roadmap.
 //
 // A source of type "fim" monitors files/directories: every interval they are hashed
 // (SHA-256) and compared to a baseline. Changes (created/modified/deleted) are emitted
@@ -42,7 +42,7 @@ type SnapshotMeta struct {
 	Trigger string `json:"trigger"`        // on_change | scheduled | manual
 	Diff    string `json:"diff,omitempty"` // unified diff vs the previously captured version
 	// Content is the full version content, uploaded ONLY when the source is configured for
-	// manager-side storage (ADR 0002 Phase 5) — the admin's explicit choice to keep a central
+	// manager-side storage (ADR 0002 Phase 5), the admin's explicit choice to keep a central
 	// copy. Empty for agent-side storage (content stays on the host, content-addressed).
 	Content string `json:"content,omitempty"`
 }
@@ -77,7 +77,7 @@ var fimSnapshotSink func(SnapshotMeta)
 // SetFIMSnapshotSink wires the uploader that ships captured version metadata to the manager.
 func SetFIMSnapshotSink(fn func(SnapshotMeta)) { fimSnapshotSink = fn }
 
-// snapshotEnabled reports whether a source captures dated versions (vs. the legacy single
+// snapshotEnabled reports whether a source captures dated versions (vs. The legacy single
 // baseline). "" and "baseline" keep the old behaviour.
 func (s Source) snapshotOnChange() bool {
 	return s.SnapshotMode == "on_change" || s.SnapshotMode == "both"
@@ -125,7 +125,7 @@ type fileState struct {
 	// the next change and, later, one-click restore. Empty for binaries/large files.
 	content string
 	isText  bool
-	// entropy is the byte-level Shannon entropy (bits/byte) of the file's content sample — high
+	// entropy is the byte-level Shannon entropy (bits/byte) of the file's content sample, high
 	// values (near 8) mean encrypted/random data, the ransomware signal.
 	entropy float64
 }
@@ -248,7 +248,7 @@ func (s *FIMScanner) Scan() ([]FIMChange, error) {
 			changes = append(changes, c)
 		case prev.sha256 != cur.sha256 || prev.size != cur.size || prev.mode != cur.mode:
 			// A text file that turned into high-entropy random data was almost certainly
-			// ENCRYPTED (ransomware), not just edited — flag it distinctly for precise detection.
+			// ENCRYPTED (ransomware), not just edited, flag it distinctly for precise detection.
 			action := "modified"
 			if prev.isText && cur.looksEncrypted() {
 				action = "encrypted"
@@ -288,7 +288,7 @@ func (s *FIMScanner) walk(root string, dst map[string]fileState) error {
 	info, err := os.Lstat(root)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // root doesn't exist yet — change detected when created later
+			return nil // root doesn't exist yet, change detected when created later
 		}
 		return err
 	}
@@ -423,7 +423,7 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 			return // unchanged since the last captured version
 		}
 		// Diff vs the previously captured version of this file (old vs new), when we still have
-		// its content blob. Best-effort — empty on the first version or if the blob is gone.
+		// its content blob. Best-effort, empty on the first version or if the blob is gone.
 		diff := ""
 		if prev := lastHash[path]; prev != "" {
 			if prevContent, ok := fimSnapshots.ReadVersion(prev); ok {
@@ -484,14 +484,14 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	realtime := false
 	if os.Getenv("FIM_REALTIME") != "0" {
 		if closeWatcher, err := startFIMWatcher(ctx, roots, 500*time.Millisecond, trigger); err != nil {
-			// Poll-only still detects changes, just up to a minute late instead of instantly — so a
+			// Poll-only still detects changes, just up to a minute late instead of instantly, so a
 			// ransomware burst is caught slower. The usual cause is the kernel's inotify limit
 			// (EMFILE / "too many open files"), which is a host tuning issue, not an agent bug, so
 			// name the fix rather than leaving a bare error.
 			log.Printf("agent: fim %q: real-time watch UNAVAILABLE, falling back to poll-only (changes detected up to %v late): %v",
 				s.Dataset, s.scanInterval(fimScanInterval), err)
 			if isInotifyLimit(err) {
-				log.Printf("agent: fim %q: this looks like the kernel inotify limit — raise fs.inotify.max_user_instances / max_user_watches (see docs/agent-troubleshooting.md)", s.Dataset)
+				log.Printf("agent: fim %q: this looks like the kernel inotify limit, raise fs.inotify.max_user_instances / max_user_watches (see docs/agent-troubleshooting.md)", s.Dataset)
 			}
 		} else {
 			defer closeWatcher()

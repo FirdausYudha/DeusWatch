@@ -205,7 +205,7 @@ func (ca *CA) CACertPEM() []byte {
 //
 // That distinction matters because the mismatch is otherwise invisible. A cert signed by
 // our CA passes RequireAndVerifyClientCert, so an agent misconfigured to use this bundle
-// completes the handshake, ships logs, and heartbeats — while every `WHERE name = $1`
+// completes the handshake, ships logs, and heartbeats, while every `WHERE name = $1`
 // lookup on the manager matches nothing. Before v2.14.6 that produced a permanently
 // "never connected" agent whose own journal showed no error at all. The agent now warns
 // at startup (cmd/agent/main.go) and the gateway rejects the heartbeat outright

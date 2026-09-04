@@ -23,7 +23,7 @@ func TestPublishConsumeRoundTrip(t *testing.T) {
 
 	b, err := Connect(ctx, natsURL())
 	if err != nil {
-		t.Skipf("NATS unavailable at %s — skipping: %v", natsURL(), err)
+		t.Skipf("NATS unavailable at %s, skipping: %v", natsURL(), err)
 	}
 	defer b.Close()
 

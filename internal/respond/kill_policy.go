@@ -31,7 +31,7 @@ func DefaultKillPolicy() KillPolicy {
 }
 
 // LoadKillPolicy reads the singleton row. Missing table or missing row → the fail-closed default,
-// not an error — otherwise a fresh install or a rollback would fatal the worker at boot.
+// not an error, otherwise a fresh install or a rollback would fatal the worker at boot.
 func (s *Store) LoadKillPolicy(ctx context.Context) (KillPolicy, error) {
 	p := DefaultKillPolicy()
 	err := s.pool.QueryRow(ctx,

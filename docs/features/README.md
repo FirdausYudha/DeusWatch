@@ -18,7 +18,7 @@ ports it uses**, **what language/tech it's built with**, and **how to change its
 | 11 | [Decoders](11-decoders.md) | Data-driven regex log parsing for sources without a built-in decoder (Wazuh-style) |
 | 12 | [Playbooks](12-playbooks.md) | Per-label remediation playbooks stamped onto every alert (UI-editable catalog) |
 | 13 | [File Integrity](13-file-integrity.md) | Dedicated monitoring for file changes, ransomware, malware and webshell drops |
-| 14 | [Self-monitoring](14-self-monitoring.md) | Agent liveness, worker liveness, disk watermark — the platform watching itself |
+| 14 | [Self-monitoring](14-self-monitoring.md) | Agent liveness, worker liveness, disk watermark, the platform watching itself |
 
 ---
 

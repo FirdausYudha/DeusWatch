@@ -32,7 +32,7 @@ func TestNormalizeModSecurity(t *testing.T) {
 }
 
 func TestNormalizeModSecuritySniffAnyLabelAndSeverity(t *testing.T) {
-	// Arrives under an OPNsense/syslog dataset label, not "modsecurity" — must still parse.
+	// Arrives under an OPNsense/syslog dataset label, not "modsecurity", must still parse.
 	crit := strings.Replace(modsecLine, `[severity "WARNING"]`, `[severity "CRITICAL"]`, 1)
 	e, ok := Normalize(RawLog{Dataset: "opnsense", Message: crit})
 	if !ok || e.Event.Action != "waf_block" {
@@ -44,7 +44,7 @@ func TestNormalizeModSecuritySniffAnyLabelAndSeverity(t *testing.T) {
 }
 
 func TestNormalizeModSecurityIgnoresNoise(t *testing.T) {
-	// The "Producer:" line and the modsecurity[…] "Apache-Error" copy carry no [client] —
+	// The "Producer:" line and the modsecurity[…] "Apache-Error" copy carry no [client].
 	// they must NOT be parsed as WAF blocks (that's how cross-line duplicates are avoided).
 	producer := `modsecurity[56631]: Producer: ModSecurity for Apache/2.9.13; OWASP_CRS/4.23.0.`
 	if e, ok := Normalize(RawLog{Dataset: "modsecurity", Message: producer}); ok && e.Event.Action == "waf_block" {
@@ -78,7 +78,7 @@ func TestNormalizeSSHDFailed(t *testing.T) {
 	}
 }
 
-// Real auth.log lines carry a syslog prefix (timestamp, host, "sshd[pid]:") — the
+// Real auth.log lines carry a syslog prefix (timestamp, host, "sshd[pid]:"), the
 // source IP must still be extracted from anywhere in the line.
 func TestNormalizeSSHDWithSyslogPrefix(t *testing.T) {
 	for _, msg := range []string{
@@ -103,7 +103,7 @@ func TestNormalizeSSHDInvalidUser(t *testing.T) {
 }
 
 // TestNormalizeSSHDProbe covers the pre-auth recon lines. The whole point is that they now yield a
-// source IP (so they feed scoring) while staying Info telemetry and NOT an auth failure — a scanner
+// source IP (so they feed scoring) while staying Info telemetry and NOT an auth failure, a scanner
 // must not be indistinguishable from a real password attempt.
 func TestNormalizeSSHDProbe(t *testing.T) {
 	cases := []struct {
@@ -154,7 +154,7 @@ func TestNormalizeSSHDProbe(t *testing.T) {
 			if e.Event.Severity != SeverityInfo {
 				t.Fatalf("a probe must stay Info telemetry, got severity %v", e.Event.Severity)
 			}
-			// Critical: a probe is NOT an auth failure — it must not carry a failure outcome, or it
+			// Critical: a probe is NOT an auth failure. It must not carry a failure outcome, or it
 			// would be counted as a brute-force attempt by the suspicious-IP failure signal.
 			if e.Event.Outcome == "failure" {
 				t.Fatalf("a probe must not be recorded as an auth failure: %+v", e.Event)

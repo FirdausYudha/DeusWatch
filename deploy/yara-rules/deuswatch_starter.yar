@@ -1,7 +1,7 @@
 /*
  * DeusWatch starter YARA rules.
  *
- * These are a minimal, universally-safe starter set so a fresh install has SOMETHING firing —
+ * These are a minimal, universally-safe starter set so a fresh install has SOMETHING firing,
  * proof-of-life for the manager-side scan path. They are not a substitute for a real ruleset;
  * see docs/yara.md for pointers to community-maintained repositories.
  */

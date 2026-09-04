@@ -61,10 +61,10 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time, bucketOve
 	}
 	d := DashboardData{Series: map[string][]Count{}}
 
-	// Counters — all three windowed to [since, until] so a range change (1h → 6h → 24h) doesn't
+	// Counters, all three windowed to [since, until] so a range change (1h → 6h → 24h) doesn't
 	// silently scan the whole events hypertable every time. The Timescale chunk-time index prunes
 	// off-window chunks, so a 1h refresh reads a couple of chunks instead of millions of rows.
-	// TotalEvents/TotalAlerts used to be all-time counters — v2.11.1 rescopes them to the range
+	// TotalEvents/TotalAlerts used to be all-time counters, v2.11.1 rescopes them to the range
 	// picker's window because that's what an operator toggling ranges actually cares about
 	// (and the old unbounded queries dominated the dashboard's tail latency).
 	for _, q := range []struct {
@@ -143,7 +143,7 @@ func (s *Store) Dashboard(ctx context.Context, since, until time.Time, bucketOve
 	if slow, serr := s.TopSlowScanners(ctx, 10); serr == nil {
 		d.SlowScanners = slow
 	}
-	// v2.13.0 graph widgets — best-effort, log-and-continue so a heavy CTE failing (e.g. on a
+	// v2.13.0 graph widgets, best-effort, log-and-continue so a heavy CTE failing (e.g. on a
 	// pre-migration DB) never blanks the whole dashboard.
 	if cf, cerr := s.CommunicationFlow(ctx, since, until, 60); cerr == nil {
 		d.CommFlow = cf
@@ -331,8 +331,8 @@ type TenantTimeline struct {
 }
 
 // TenantTimelines returns per-tenant timelines for the window. Requires the calling scope to be
-// superadmin (RLS bypass) — otherwise the events view only exposes the caller's own tenant and
-// the result trivially collapses to one series (i.e. the same shape as the plain timeline).
+// superadmin (RLS bypass), otherwise the events view only exposes the caller's own tenant and
+// the result trivially collapses to one series (i.e. The same shape as the plain timeline).
 // bucketOverride uses the same whitelist as dashTimeline.
 func (s *Store) TenantTimelines(ctx context.Context, since, until time.Time, bucketOverride string) ([]TenantTimeline, error) {
 	if until.IsZero() {
@@ -419,9 +419,9 @@ ORDER BY at.name, bk.b`
 // Unknown and returns tallies for the traffic-direction pie widget. Matches AttachDirection's
 // logic (internal/store/direction.go) but runs in SQL so the pie summarizes the full window, not
 // just the sample the events view returned. Internal-nets bootstrap uses RFC1918 + loopback only
-// — a per-tenant custom whitelist is left for a future release.
+// , a per-tenant custom whitelist is left for a future release.
 func (s *Store) dashDirectionCounts(ctx context.Context, since, until time.Time) ([]Count, error) {
-	// Pure boolean expression — no CTE, no correlated EXISTS. Faster because Postgres can push
+	// Pure boolean expression, no CTE, no correlated EXISTS. Faster because Postgres can push
 	// the internal-net checks into the same seq/index scan as the time-window filter, instead of
 	// materialising a "classified" intermediate row set with 2 subquery lookups per event. On a
 	// 24h window with 100k+ events this alone shaved multiple seconds off the dashboard fetch.
@@ -555,7 +555,7 @@ func (s *Store) SaveDashboardLayout(ctx context.Context, userID string, layout [
 }
 
 // DeleteDashboardLayout removes a user's saved layout, so the dashboard falls back to the default
-// PANELS order. Idempotent — no error when the row doesn't exist.
+// PANELS order. Idempotent, no error when the row doesn't exist.
 func (s *Store) DeleteDashboardLayout(ctx context.Context, userID string) error {
 	_, err := s.q(ctx).Exec(ctx, `DELETE FROM user_dashboards WHERE user_id=$1`, userID)
 	if err != nil {

@@ -44,10 +44,10 @@ and push config. This is the **only** feature that uses the Gateway (mTLS), not 
 ## Superior FIM: content diff + one-click restore
 
 For FIM sources, the agent snapshots each small text file (≤256 KiB) it watches:
-- **Content diff** — when a file is modified, the alert shows a **"File change"** block with
+- **Content diff**: when a file is modified, the alert shows a **"File change"** block with
   the exact lines that changed (`+`green / `-`red), so during a defacement you see the code
   that was injected, not just "file modified".
-- **One-click restore** — the agent keeps the file's original **known-good** copy (persisted
+- **One-click restore**: the agent keeps the file's original **known-good** copy (persisted
   under `%ProgramData%\DeusWatch\fim-snapshots` · `/var/lib/deuswatch/fim-snapshots`, written
   the first time the file is seen and never auto-overwritten). On a file alert, click
   **Restore file** (needs the `execute_block` permission) → the agent writes the good copy

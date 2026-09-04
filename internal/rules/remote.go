@@ -14,7 +14,7 @@ import (
 	"deuswatch/internal/detect/sigma"
 )
 
-// Remote rule-pack feed — the "online" half of the marketplace.
+// Remote rule-pack feed, the "online" half of the marketplace.
 //
 // Bundled packs (the packs package) install with no network at all. A remote feed adds packs
 // that can appear or be refreshed WITHOUT upgrading DeusWatch: a small catalog.json lists each
@@ -23,7 +23,7 @@ import (
 //
 // Trust: the default feed is the DeusWatch repo itself, so the operator controls the content.
 // Set PACKS_FEED_URL to point somewhere else, or to "" / "off" to disable all egress. Only
-// Sigma YAML is ever fetched, and every file must classify before it is stored — a rule that
+// Sigma YAML is ever fetched, and every file must classify before it is stored, a rule that
 // doesn't parse is rejected rather than imported.
 
 // defaultFeedURL is the curated feed shipped with DeusWatch (the project's own repo).
@@ -143,7 +143,7 @@ func (s *Store) InstallRemotePack(ctx context.Context, id string) (int, error) {
 			return added, qerr
 		}
 		if exists {
-			continue // already have it — this is what makes re-install an update
+			continue // already have it. This is what makes re-install an update
 		}
 		if _, ierr := s.pool.Exec(ctx,
 			`INSERT INTO rules (name, kind, category, yaml, enabled, builtin) VALUES ($1,$2,$3,$4,true,true)`,

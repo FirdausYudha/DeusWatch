@@ -192,7 +192,7 @@ func (s *Store) SyncBuiltinsFromDir(ctx context.Context, dir string) (int, error
 		var id string
 		err := s.pool.QueryRow(ctx, `SELECT id FROM playbooks WHERE label=$1`, sp.Label).Scan(&id)
 		if err == nil {
-			continue // already present (possibly operator-edited) — leave it alone
+			continue // already present (possibly operator-edited), leave it alone
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			continue
@@ -257,7 +257,7 @@ func (l *Live) Len() int {
 
 // Annotate stamps the matching playbook onto an alert as its remediation
 // recommendation. It never overwrites a recommendation that is already present
-// (e.g. one set by the LLM or the response engine) and is a no-op for events
+// (e.g. One set by the LLM or the response engine) and is a no-op for events
 // without a label or without a matching playbook.
 func (l *Live) Annotate(e *ingest.Event) {
 	if e == nil || e.DeusWatch.Label == "" || e.DeusWatch.Remediation.Action != "" {

@@ -42,11 +42,11 @@ func RenderMarkdown(r Report) string {
 	var b strings.Builder
 	if !r.Until.IsZero() {
 		// Explicit range: name the actual dates rather than a misleading "last N hours".
-		fmt.Fprintf(&b, "# DeusWatch Report — %s to %s\n\n",
+		fmt.Fprintf(&b, "# DeusWatch Report, %s to %s\n\n",
 			r.Since.UTC().Format("2006-01-02 15:04"), r.Until.UTC().Format("2006-01-02 15:04"))
 		fmt.Fprintf(&b, "_Generated %s (UTC)_\n\n", r.Generated.UTC().Format(time.RFC3339))
 	} else {
-		fmt.Fprintf(&b, "# DeusWatch Report — last %d hours\n\n", r.WindowHours)
+		fmt.Fprintf(&b, "# DeusWatch Report, last %d hours\n\n", r.WindowHours)
 		fmt.Fprintf(&b, "_Generated %s · since %s_\n\n",
 			r.Generated.UTC().Format(time.RFC3339), r.Since.UTC().Format(time.RFC3339))
 	}
@@ -78,7 +78,7 @@ func SummaryPrompt(r Report) string {
 	promptLine(&b, "Top agents (affected hosts)", r.TopAgents)
 	promptLine(&b, "Top rules", r.TopRules)
 	promptLine(&b, "Top MITRE techniques", r.TopTechniques)
-	promptLine(&b, "Suspicious IPs — low-and-slow recon, scanner-like behavior not flagged by CTI/WAF", r.SuspiciousIPs)
+	promptLine(&b, "Suspicious IPs, low-and-slow recon, scanner-like behavior not flagged by CTI/WAF", r.SuspiciousIPs)
 	promptLine(&b, "Verdicts", r.ByVerdict)
 	return b.String()
 }
@@ -109,7 +109,7 @@ func section(b *strings.Builder, title string, rows []Count) {
 		if label == "" {
 			label = "(empty)"
 		}
-		fmt.Fprintf(b, "- %s — %d\n", label, c.Count)
+		fmt.Fprintf(b, "- %s, %d\n", label, c.Count)
 	}
 	b.WriteByte('\n')
 }

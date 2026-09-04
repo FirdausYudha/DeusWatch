@@ -14,7 +14,7 @@ type Signals struct {
 	MaxSeverity int // worst DCS severity seen 0-4 (info..critical)
 	Anomaly     int // 0-100 ML anomaly score written back by the external Isolation Forest batch
 	// Agents is how many DISTINCT agents/endpoints this IP touched in the window. One source
-	// hitting many of our hosts is campaign behaviour, not a stray probe — it deserves a higher
+	// hitting many of our hosts is campaign behaviour, not a stray probe, it deserves a higher
 	// score than the same volume aimed at a single host.
 	Agents int
 }
@@ -28,7 +28,7 @@ type Weights struct {
 	OTX        float64 `json:"otx"`
 	Severity   float64 `json:"severity"`
 	// Anomaly weight for the ML anomaly_score. Default 0 so folding in the ML signal is opt-in
-	// (raise it in Settings once the external Isolation Forest batch is writing scores back) —
+	// (raise it in Settings once the external Isolation Forest batch is writing scores back).
 	// this keeps existing deployments' scores unchanged.
 	Anomaly float64 `json:"anomaly"`
 	// FanOut weights how many distinct agents the IP touched (see Signals.Agents).
@@ -120,7 +120,7 @@ func clamp100(f float64) float64 {
 // ── Suspicious-IP (low-and-slow) behavioral scoring ─────────────────────────
 //
 // Separate from the composite score above: this catches reconnaissance that stays UNDER the
-// radar of CTI feeds, WAF signatures and short-window rules — an IP that touches you a handful
+// radar of CTI feeds, WAF signatures and short-window rules, an IP that touches you a handful
 // of times over hours or days. It is deliberately CTI-INDEPENDENT (that's the point) and keys
 // off behaviour: how many DISTINCT things it probed (fan-out = the scanner tell), how much of
 // its traffic failed / was blocked, how spread out in time it was, and raw volume.

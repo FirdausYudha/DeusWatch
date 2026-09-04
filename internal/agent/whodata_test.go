@@ -86,7 +86,7 @@ const auditKeyForTest = "deuswatch_fim"
 // v2.14.7 both were collapsed into one value and a change made with full root privilege was
 // reported as an ordinary user edit.
 func TestWhoDataSeparatesLoginAndEffectiveUser(t *testing.T) {
-	// auid=0 uid=0 — root logged in directly. Not an escalation.
+	// auid=0 uid=0, root logged in directly. Not an escalation.
 	direct := parseAuditEvent([]string{
 		`type=SYSCALL msg=audit(1:1): syscall=257 pid=11 comm="vim" exe="/usr/bin/vim" auid=0 uid=0 key="deuswatch_fim"`,
 	}, "deuswatch_fim")
@@ -94,7 +94,7 @@ func TestWhoDataSeparatesLoginAndEffectiveUser(t *testing.T) {
 		t.Errorf("auid=uid=0 is a direct root login, not an escalation")
 	}
 
-	// auid=1000 uid=0 — a human logged in as themselves and acted as root. This IS sudo, and is
+	// auid=1000 uid=0, a human logged in as themselves and acted as root. This IS sudo, and is
 	// exactly the case the old single-value field hid.
 	sudo := parseAuditEvent([]string{
 		`type=SYSCALL msg=audit(1:2): syscall=257 pid=22 comm="vim" exe="/usr/bin/vim" auid=1000 uid=0 key="deuswatch_fim"`,

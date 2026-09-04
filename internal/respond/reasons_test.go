@@ -51,7 +51,7 @@ func TestAppendReasonAccumulates(t *testing.T) {
 	for _, r := range []string{
 		"SSH Login Attempt for Invalid User",
 		"WAF SQLi Block",
-		"failed ssh login as root", // dup, different casing — must NOT be re-added
+		"failed ssh login as root", // dup, different casing, must NOT be re-added
 	} {
 		if err := s.AppendReason(ctx, ip, r); err != nil {
 			t.Fatalf("append %q: %v", r, err)

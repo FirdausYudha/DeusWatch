@@ -2,7 +2,7 @@
 //
 // Its purpose is to prove feasibility & understand the cost: parse a Sigma rule, match
 // against DCS events, extract MITRE tags. This is a deliberate SUBSET (see docs/adr/
-// 0001-sigma-detection-engine.md) — not a full Sigma implementation. Correlation/
+// 0001-sigma-detection-engine.md), not a full Sigma implementation. Correlation/
 // aggregation (e.g. brute-force "count() > N") is NOT supported here and is routed
 // to the SQL path (Zircolite/pySigma model).
 //
@@ -93,7 +93,7 @@ func ParseRule(data []byte) (*Rule, error) {
 		return nil, fmt.Errorf("sigma: a list-form condition is not supported yet (subset)")
 	}
 	if strings.Contains(cond, "|") {
-		return nil, fmt.Errorf("sigma: aggregation condition (|) is not supported here — use the SQL path")
+		return nil, fmt.Errorf("sigma: aggregation condition (|) is not supported here, use the SQL path")
 	}
 
 	sels, err := parseSelections(raw.Detection)
@@ -162,7 +162,7 @@ var logsourceCategory = map[string]string{
 // AppliesTo reports whether the event is in scope for this rule's logsource. A rule with no
 // logsource is global (applies to every event). When a logsource category or product is
 // declared, the event MUST match it before the rule is evaluated - this is the guard that
-// stops a web rule from firing on an sshd/FIM/firewall line (and vice-versa), i.e. it places
+// stops a web rule from firing on an sshd/FIM/firewall line (and vice-versa), i.e. It places
 // each rule on its proper source (network vs FIM vs endpoint).
 func (r *Rule) AppliesTo(event map[string]any) bool {
 	if len(r.LogSource) == 0 {
@@ -212,7 +212,7 @@ func (r *Rule) MITRE() (techniqueID, tactic string) { return mitreFromTags(r.Tag
 func (r *Rule) Severity() ingest.Severity { return severityFromLevel(r.Level) }
 
 // mitreFromTags & severityFromLevel are shared by Rule (single-event) and AggRule
-// (aggregation) — see aggregate.go.
+// (aggregation), see aggregate.go.
 func mitreFromTags(tags []string) (techniqueID, tactic string) {
 	for _, t := range tags {
 		low := strings.ToLower(t)
@@ -267,7 +267,7 @@ func (s selection) match(event map[string]any) bool {
 //
 // Standard Sigma keyword semantics scan the raw message, not the parsed structured fields.
 // Matching against every string value of the event (source.ip, source.port, host.name,
-// file hash, ...) produced false positives: a short or leetspeak keyword (e.g. the judi
+// file hash, ...) produced false positives: a short or leetspeak keyword (e.g. The judi
 // term '5107'/'510t' for "slot") collided with an IP octet, a port, a PID or a hash on an
 // unrelated event, and synthetic detection events (event.dataset=deuswatch.detect, which
 // carry NO event.original) could self-trigger keyword rules. Scoping to event.original

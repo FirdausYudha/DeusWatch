@@ -1,4 +1,4 @@
--- Migration 000006 — response engine (Phase 2): block actions with an approval workflow
+-- Migration 000006, response engine (Phase 2): block actions with an approval workflow
 -- & progressive ban (design doc section 9, namespace deuswatch.remediation.*).
 --
 -- Each block recommendation is recorded here as 'recommended'. An analyst/admin

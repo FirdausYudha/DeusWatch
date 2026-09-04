@@ -2,14 +2,14 @@ package respond
 
 import "deuswatch/internal/ingest"
 
-// The response decision-table — the explicit mapping from an alert's *entity type* to the
+// The response decision-table, the explicit mapping from an alert's *entity type* to the
 // response DeusWatch takes for it. One alert can concern several entities at once (an external
 // IP attacking one of our hosts over a request that carried a known-bad file hash), and each
 // entity type has its own policy and its own owning engine. This file is the single source of
 // truth: the alert dispatcher routes by it and the API/UI display it, so the policy a user
 // sees is exactly the policy that runs.
 
-// EntityType is the kind of security entity an alert concerns — the axis the decision-table
+// EntityType is the kind of security entity an alert concerns, the axis the decision-table
 // is keyed on.
 type EntityType string
 
@@ -32,7 +32,7 @@ type Decision struct {
 }
 
 // DefaultDecisionTable is the canonical entity_type → response mapping. external_ip and host
-// are enforced by their engines; user and hash are alert-only today — they are surfaced with
+// are enforced by their engines; user and hash are alert-only today. They are surfaced with
 // full context (a known-bad hash already raises the event to High via hash reputation), but
 // DeusWatch does not yet auto-disable accounts or quarantine files. Documenting them here
 // keeps the policy honest and gives those actions a defined home when enforcement is added.

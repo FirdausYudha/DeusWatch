@@ -7,8 +7,8 @@ import (
 )
 
 // The request-scoped transaction is carried in the context so that EVERY package touching
-// tenant-scoped tables — not just internal/store, but the sibling stores (enroll, tickets) that own
-// their own pools — runs its queries inside the same scoped transaction opened by
+// tenant-scoped tables, not just internal/store, but the sibling stores (enroll, tickets) that own
+// their own pools, runs its queries inside the same scoped transaction opened by
 // store.WithTenantScope. That transaction has the tenant GUCs + the restricted deuswatch_app role set
 // (SET LOCAL), so RLS filters every query. Keeping the key here (a leaf package with no deps but pgx)
 // lets those packages share it without importing internal/store and creating an import cycle.

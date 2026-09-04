@@ -13,7 +13,7 @@
 --     before the WHERE is applied.
 --   * the view is auto-updatable (single base table, no aggregation), so InsertEvent and SetLLMVerdict
 --     keep working; base-table access happens as the view owner while the WHERE is evaluated with the
---     CALLER's GUCs — so isolation still tracks the per-request scope.
+--     CALLER's GUCs, so isolation still tracks the per-request scope.
 --   * WITH CHECK OPTION keeps a write from landing a row outside the writer's scope.
 --
 -- Reads/writes remain unfiltered for the worker/gateway/system feeds because they run with
@@ -21,7 +21,7 @@
 --
 -- FOOTGUN: `events` is now a VIEW. Any FUTURE migration that changes the events schema MUST alter
 -- `events_data`, then re-run `CREATE OR REPLACE VIEW events AS SELECT * FROM events_data WHERE ...` to
--- surface the change — a plain `SELECT *` view freezes its column list at creation time.
+-- surface the change, a plain `SELECT *` view freezes its column list at creation time.
 
 ALTER TABLE events RENAME TO events_data;
 

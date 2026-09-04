@@ -3,7 +3,7 @@ package detect
 // AGGREGATION detection runner: it runs aggregation Sigma rules (compiled to SQL by
 // internal/detect/sigma) periodically against the events hypertable, then fires alerts
 // for groups crossing the threshold. This is the Zircolite-style SQL path from ADR
-// 0001 — generalizing the hardcoded brute-force detector to Sigma-based rules.
+// 0001, generalizing the hardcoded brute-force detector to Sigma-based rules.
 
 import (
 	"context"
@@ -48,7 +48,7 @@ type AggregateRunner struct {
 	lastAlert map[string]time.Time // "ruleID\x00group" -> last alert time
 }
 
-// NewAggregateRunner creates a runner. cooldown<=0 uses DefaultAggCooldown.
+// NewAggregateRunner creates a runner. Cooldown<=0 uses DefaultAggCooldown.
 func NewAggregateRunner(exec AggExecutor, rules []*sigma.AggRule, cooldown time.Duration) *AggregateRunner {
 	if cooldown <= 0 {
 		cooldown = DefaultAggCooldown
@@ -102,7 +102,7 @@ func (r *AggregateRunner) RunOnce(ctx context.Context, now time.Time) ([]*ingest
 }
 
 // DryRun runs one rule against history (over the rule's own window) without cooldown
-// and without creating alerts — for testing rules on past data (design doc section 10).
+// and without creating alerts, for testing rules on past data (design doc section 10).
 func (r *AggregateRunner) DryRun(ctx context.Context, rule *sigma.AggRule) ([]AggGroup, error) {
 	query, args := rule.CompileSQL()
 	return r.exec.QueryAgg(ctx, query, args)

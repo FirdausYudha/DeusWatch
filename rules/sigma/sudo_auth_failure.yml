@@ -2,7 +2,7 @@ title: Sudo Authentication Failure
 id: 7c2d1f08-3a6b-4e15-9d27-b0e4a1c8f562
 status: experimental
 description: >
-  A failed sudo authentication (pam_unix(sudo:auth)) — repeated failures can indicate an
+  A failed sudo authentication (pam_unix(sudo:auth)), repeated failures can indicate an
   attacker or malware attempting privilege escalation with a wrong/guessed password.
 references:
   - https://attack.mitre.org/techniques/T1548/003/

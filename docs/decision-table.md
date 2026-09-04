@@ -1,7 +1,7 @@
 # Response decision table
 
 DeusWatch routes every alert by an explicit **decision table** keyed on the alert's **entity
-type** — the kind of security entity the alert concerns. One alert can touch several entities at
+type**, the kind of security entity the alert concerns. One alert can touch several entities at
 once (an external IP attacking one of your hosts over a request that carried a known-bad file
 hash), and each entity type has its own response policy and its own owning engine.
 
@@ -18,7 +18,7 @@ Response page / API display it, so the policy you see is exactly the policy that
 | `hash`        | `alert`               | alert-only             | A known-bad file hash raises the event to **High** via hash reputation; the file itself is not auto-quarantined. |
 
 **Enforced** entities are executed automatically by their engine (subject to that engine's own
-gating — auto-approve policy, severity thresholds, whitelist, dedup). **Alert-only** entities
+gating, auto-approve policy, severity thresholds, whitelist, dedup). **Alert-only** entities
 are surfaced with full context but carry **no automated enforcement action** today; documenting
 them here keeps the policy honest and gives those actions a defined home when enforcement is
 added.
@@ -27,10 +27,10 @@ added.
 
 An alert concerns an entity when the corresponding field is present:
 
-- `external_ip` — the event has a `source.ip`.
-- `host` — the event has an `agent.id` (one of your own endpoints).
-- `user` — the event has a `user.name`.
-- `hash` — the event has a `file.hash.sha256`.
+- `external_ip`: the event has a `source.ip`.
+- `host`: the event has an `agent.id` (one of your own endpoints).
+- `user`: the event has a `user.name`.
+- `hash`: the event has a `file.hash.sha256`.
 
 The worker walks the entities in table order and dispatches each to the engine that owns its
 action. This is behaviour-preserving: the engines already self-gate on exactly these conditions;

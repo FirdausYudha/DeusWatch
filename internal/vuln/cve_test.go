@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// fakeCache is an in-memory PriorityCache — good enough for the unit test and independent of the
+// fakeCache is an in-memory PriorityCache, good enough for the unit test and independent of the
 // real Postgres-backed one in internal/store.
 type fakeCache struct {
 	mu   sync.Mutex
@@ -35,7 +35,7 @@ func (f *fakeCache) PutCVEPriority(_ context.Context, cve, priority string, _ ti
 }
 
 // TestFetchUbuntuCVEPriority covers the three shapes the endpoint returns: normal 200 with a
-// priority, 404 (unknown CVE — must be silent), and 5xx (must surface as an error so a transient
+// priority, 404 (unknown CVE, must be silent), and 5xx (must surface as an error so a transient
 // network issue doesn't get cached as "no priority").
 func TestFetchUbuntuCVEPriority(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +86,7 @@ func TestEnrichUSNSeverity(t *testing.T) {
 		case "/CVE-2024-0002.json":
 			fmt.Fprint(w, `{"priority":"low"}`)
 		case "/CVE-2024-0003.json":
-			// Deliberately blank — the CVE is real but Ubuntu hasn't rated it.
+			// Deliberately blank, the CVE is real but Ubuntu hasn't rated it.
 			fmt.Fprint(w, `{"priority":""}`)
 		default:
 			http.NotFound(w, r)
@@ -98,12 +98,12 @@ func TestEnrichUSNSeverity(t *testing.T) {
 	defer setUbuntuCVEURLTemplate(orig)
 
 	advs := []Advisory{
-		// Same CVE emitted twice (per (release,package)) — dedup must yield ONE network call.
+		// Same CVE emitted twice (per (release,package)). dedup must yield ONE network call.
 		{Source: "usn", CVE: "CVE-2024-0001", Package: "openssl", Release: "jammy"},
 		{Source: "usn", CVE: "CVE-2024-0001", Package: "openssl", Release: "focal"},
 		{Source: "usn", CVE: "CVE-2024-0002", Package: "bash", Release: "jammy"},
 		{Source: "usn", CVE: "CVE-2024-0003", Package: "curl", Release: "jammy"},
-		// Non-USN advisory — must NOT be touched.
+		// Non-USN advisory, must NOT be touched.
 		{Source: "debian", CVE: "CVE-2024-9999", Package: "nginx", Release: "bookworm", Severity: "medium"},
 		// USN advisory that already carries a severity (shouldn't in real life, but is a safe no-op).
 		{Source: "usn", CVE: "CVE-2024-0007", Package: "ssh", Release: "jammy", Severity: "high"},
@@ -125,7 +125,7 @@ func TestEnrichUSNSeverity(t *testing.T) {
 		}
 	}
 
-	// Second pass — no new network calls; the cache serves everything (including the empty answer
+	// Second pass, no new network calls; the cache serves everything (including the empty answer
 	// for CVE-2024-0003, which is what protects Ubuntu from being hammered every refresh cycle).
 	before := atomic.LoadInt32(&calls)
 	// Clear the pre-filled severities so we can prove the cache re-fills them.

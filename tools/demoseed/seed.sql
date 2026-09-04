@@ -41,7 +41,7 @@ SELECT
   -- Each actor runs a short CAMPAIGN rather than trickling for a fortnight: it is active on a
   -- couple of adjacent days, starting on a day derived from its address. Different actors start
   -- on different days, so the timeline is populated across the whole window while no loud actor
-  -- looks like a patient multi-day scanner. That keeps the slow-scanner watchlist meaningful —
+  -- looks like a patient multi-day scanner. That keeps the slow-scanner watchlist meaningful.
   -- it must surface the ONE stealthy source, not everybody.
   now()
     - (((('x' || substr(md5(host(a.ip)), 1, 4))::bit(16)::int % 12) + (g % 2)) || ' days')::interval

@@ -3,8 +3,8 @@ import type { DashRange } from './api'
 
 // The dashboard's time range lives here rather than inside the Dashboard page, because the picker
 // is rendered by the Topbar (the prototype puts it in the header) while the data is fetched by the
-// page. Two components reading the same persisted key would NOT stay in step — each
-// usePersistedState call owns its own React state — so the range is owned once, here, and passed
+// page. Two components reading the same persisted key would NOT stay in step: each
+// usePersistedState call owns its own React state, so the range is owned once, here, and passed
 // down to both.
 
 export const RANGE_PRESETS: { label: string; hours: number }[] = [

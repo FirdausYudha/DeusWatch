@@ -1,4 +1,4 @@
--- Migration 000018 — schedule for the AI report summary.
+-- Migration 000018, schedule for the AI report summary.
 -- interval_hours = how often the worker auto-generates a summary (0 = disabled).
 -- period_hours   = the time window each summary covers.
 CREATE TABLE IF NOT EXISTS report_ai_config (

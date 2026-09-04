@@ -63,7 +63,7 @@ export function Card({
 //
 // `accentClass` is a text-colour utility rather than a raw colour so a stat can carry meaning
 // (an alert count in amber) while still following the theme in both light and dark. It defaults
-// to plain foreground — a number is only coloured when the colour says something.
+// to plain foreground, a number is only coloured when the colour says something.
 export function StatCard({
   label,
   value,
@@ -120,7 +120,7 @@ export function BandBadge({ band, score }: { band: string; score?: number }) {
   )
 }
 
-// Action / lifecycle status. "recommended" and "pending" are deliberately amber, never green —
+// Action / lifecycle status. "recommended" and "pending" are deliberately amber, never green , 
 // the UI must not imply an action already happened (honesty principle).
 const STATUS_STYLE: Record<string, string> = {
   recommended: 'bg-medium/15 text-medium',
@@ -220,7 +220,7 @@ export function ErrorText({ children }: { children: ReactNode }) {
 }
 
 /**
- * Honesty banner — used wherever DeusWatch must NOT imply it did something it didn't
+ * Honesty banner, used wherever DeusWatch must NOT imply it did something it didn't
  * (e.g. "nothing enforces this ban yet", "recommend-only", "not verified live").
  */
 export function NoticeBanner({

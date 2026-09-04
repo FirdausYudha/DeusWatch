@@ -1,13 +1,13 @@
 -- 000051_app_role: a restricted DB role that actually obeys Row-Level Security.
 --
 -- The footgun 000050 alone does not close: a PostgreSQL SUPERUSER (and any role with BYPASSRLS)
--- ignores RLS entirely — even FORCE ROW LEVEL SECURITY. The application connects as the bootstrap
+-- ignores RLS entirely, even FORCE ROW LEVEL SECURITY. The application connects as the bootstrap
 -- role `deuswatch`, which is a superuser (it must be, to CREATE EXTENSION timescaledb etc. on a fresh
 -- install). If scoped request queries ran as that role they would silently see every tenant's rows.
 --
 -- Fix: a dedicated NOSUPERUSER NOBYPASSRLS role, `deuswatch_app`, that RLS DOES constrain. It is
 -- NOLOGIN and reached only via `SET LOCAL ROLE deuswatch_app` inside store.WithTenantScope's
--- non-super-admin request transactions (transaction-local, auto-reverting on commit) — so migrations,
+-- non-super-admin request transactions (transaction-local, auto-reverting on commit), so migrations,
 -- the worker, the gateway, seeding, and super-admin scopes keep the privileged role, while ordinary
 -- scoped reads drop to a role the database will filter. It needs plain DML on every table the request
 -- paths touch (RLS, not permissions, does the isolation); missing a grant would surface as a loud

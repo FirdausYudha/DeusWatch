@@ -89,7 +89,7 @@ export default function Inventory({ me }: { me: Me }) {
         <div className="mb-4 rounded-[12px] border border-amber-700/40 bg-amber-500/10 px-4 py-2.5 text-[13px] text-amber-200">
           No advisories loaded yet. The worker fetches vendor feeds (Ubuntu USN / Debian) for your
           fleet's releases shortly after startup, then every 12h. Findings appear once a feed is
-          cached — this needs internet access on the manager.
+          cached. this needs internet access on the manager.
         </div>
       )}
 
@@ -176,7 +176,7 @@ const SEV_CLS: Record<string, string> = {
 }
 
 // SEV_COLOR is the hex-only palette for the SeverityDonut, keyed by severity. The tones mirror
-// SEV_CLS above so the donut slices match their badge in the row table — critical=rose,
+// SEV_CLS above so the donut slices match their badge in the row table, critical=rose,
 // high=orange, medium=amber, low=sky, negligible+unknown=slate. Keeping the mapping literal (not
 // derived from tailwind classes) lets DonutChart take it via its `colors` prop without extra work.
 const SEV_COLOR: Record<string, string> = {
@@ -190,7 +190,7 @@ const SEV_COLOR: Record<string, string> = {
 const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'negligible', 'unknown'] as const
 
 // SeverityDonut is a compact per-agent breakdown of vulnerability counts by severity, tinted with
-// the SEV_COLOR palette. Non-zero slices only — an empty summary or a totally-safe agent renders
+// the SEV_COLOR palette. Non-zero slices only, an empty summary or a totally-safe agent renders
 // nothing (the DetailPanel header stays clean).
 function SeverityDonut({ summary }: { summary: VulnSummary }) {
   const data = SEV_ORDER

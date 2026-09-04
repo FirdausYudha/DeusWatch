@@ -1,6 +1,6 @@
 -- Migration 000045 - slow-scanner watchlist (low-and-slow reconnaissance across DAYS).
 -- The composite score looks at minutes and the suspicious-IP watchlist at ~24h, so a source that
--- probes twice today, nothing tomorrow and five times the day after slips past both — and past
+-- probes twice today, nothing tomorrow and five times the day after slips past both, and past
 -- every static burst rule, because its whole point is staying under the threshold. This table
 -- holds the multi-day view: how many separate days an IP came back, how quietly, over how long.
 CREATE TABLE IF NOT EXISTS slow_scanners (

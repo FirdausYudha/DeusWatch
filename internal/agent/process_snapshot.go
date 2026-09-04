@@ -13,11 +13,11 @@ import (
 // These snapshots are shipped to the manager for malware analysis.
 type ProcessSnapshot struct {
 	PID       int       `json:"pid"`
-	Name      string    `json:"name"`       // e.g. "svchost.exe", "chrome"
+	Name      string    `json:"name"` // e.g. "svchost.exe", "chrome"
 	ParentPID int       `json:"parent_pid"`
 	Cmdline   string    `json:"cmdline"`
-	User      string    `json:"user"`       // owner of process (UID on Linux, username on Windows)
-	Path      string    `json:"path"`       // full path to executable
+	User      string    `json:"user"` // owner of process (UID on Linux, username on Windows)
+	Path      string    `json:"path"` // full path to executable
 	StartTime time.Time `json:"start_time"`
 	MemoryMB  uint64    `json:"memory_mb"`
 	FileHash  string    `json:"file_hash"` // MD5 of executable
@@ -77,9 +77,9 @@ func computeFileHash(path string) (string, error) {
 // collectProcesses is implemented by the platform-specific files with matching //go:build tags:
 //   - process_snapshot_linux.go   (linux)
 //   - process_snapshot_windows.go (windows)
-//   - process_snapshot_other.go   (everything else — no-op fallback)
+//   - process_snapshot_other.go   (everything else, no-op fallback)
 // Go has no forward-declaration syntax, so this cross-OS package works purely by build-tag
-// selection — DO NOT add a body-less declaration of collectProcesses here or every OS will
+// selection, DO NOT add a body-less declaration of collectProcesses here or every OS will
 // double-define the symbol and the build fails.
 
 // CollectProcessSnapshotBatch gathers all processes and wraps them in a timestamped batch.

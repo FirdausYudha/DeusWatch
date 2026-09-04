@@ -33,13 +33,13 @@ export default function App() {
   // Owned here because the Topbar renders the picker while the Dashboard fetches the data.
   const range = useDashRange()
 
-  // Triggered from an alert ("Create ticket") — jump to Tickets with the form prefilled.
+  // Triggered from an alert ("Create ticket"), jump to Tickets with the form prefilled.
   const createTicketFrom = (prefill: NewTicketInput) => {
     setTicketPrefill(prefill)
     setView('tickets')
   }
 
-  // Triggered from a File Integrity row — jump to Snapshots already pointed at that endpoint and
+  // Triggered from a File Integrity row, jump to Snapshots already pointed at that endpoint and
   // file, so acting on what you just read takes one click instead of two dropdowns.
   const openSnapshotsFor = (agent: string, path: string) => {
     setSnapshotTarget({ agent, path })
@@ -75,7 +75,7 @@ export default function App() {
         onClose={() => setNavOpen(false)}
       />
       {/* Column so the topbar stays a fixed 60px band and only the page content scrolls
-          underneath it — the prototype's shell. */}
+          underneath it, the prototype's shell. */}
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar view={view} onMenu={() => setNavOpen(true)} range={range} />
         <main className="flex-1 overflow-y-auto">

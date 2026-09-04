@@ -63,7 +63,7 @@ func TestScannerLoadAndMatch(t *testing.T) {
 }
 
 // TestScannerEmptyDirIsSilent guards the "fresh install with no rules" boot path: an empty or
-// missing rules directory must not error — the scanner is simply idle.
+// missing rules directory must not error, the scanner is simply idle.
 func TestScannerEmptyDirIsSilent(t *testing.T) {
 	s := New()
 	defer s.Close()

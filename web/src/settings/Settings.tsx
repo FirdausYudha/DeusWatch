@@ -7,7 +7,7 @@ const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
 // ScoringWeightsPanel tunes the two IP scorers. Each group's four weights are shown as their
 // NORMALIZED share (they're divided by their sum on the server), so the operator reasons in
-// percentages. Changes apply live — the worker re-reads the weights on its next scoring tick.
+// percentages. Changes apply live, the worker re-reads the weights on its next scoring tick.
 function ScoringWeightsPanel() {
   const [cfg, setCfg] = useState<ScoreConfig | null>(null)
   const [defaults, setDefaults] = useState<ScoreConfig | null>(null)
@@ -22,7 +22,7 @@ function ScoringWeightsPanel() {
 
   const save = async (next: ScoreConfig) => {
     setBusy(true); setErr(''); setMsg('')
-    try { setCfg(await saveScoreConfig(next)); setMsg('Saved — applies on the next scoring run.') }
+    try { setCfg(await saveScoreConfig(next)); setMsg('Saved, applies on the next scoring run.') }
     catch (e) { setErr((e as Error).message) }
     finally { setBusy(false) }
   }
@@ -79,7 +79,7 @@ function ScoringWeightsPanel() {
               className="w-20 rounded border border-border bg-surface-2 px-2 py-1 text-right text-fg outline-none focus:border-accent"
             />
             minutes
-            <span className="text-dim">— how long an event keeps its score doughnut (longer = stays visible on older alerts)</span>
+            <span className="text-dim">, how long an event keeps its score doughnut (longer = stays visible on older alerts)</span>
           </label>
 
           <h3 className="mb-2 mt-4 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Suspicious-IP watchlist</h3>
@@ -92,7 +92,7 @@ function ScoringWeightsPanel() {
               className="w-20 rounded border border-border bg-surface-2 px-2 py-1 text-right text-fg outline-none focus:border-accent"
             />
             hours
-            <span className="text-dim">— how far back low-and-slow behaviour is measured</span>
+            <span className="text-dim">, how far back low-and-slow behaviour is measured</span>
           </label>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -110,7 +110,7 @@ function ScoringWeightsPanel() {
             {err && <span className="text-[12.5px] text-rose-400">{err}</span>}
           </div>
           <p className="mt-2 text-[12.5px] text-dim">
-            Weights are relative — each is divided by its group's total, so only the ratios matter. The caps
+            Weights are relative: each is divided by its group's total, so only the ratios matter. The caps
             (e.g. how many fired-times saturate to 100) keep their built-in values. See docs/suspicious-ips.md.
           </p>
         </div>
@@ -178,7 +178,7 @@ function SubscriptionsPanel() {
       </button>
       <p className="mb-4 mt-0.5 text-[13px] text-muted">
         Issue per-subscriber API keys so external customers can PULL enriched events / threat
-        indicators — the sellable rich-log product. Each key is shown once; usage is tracked.
+        indicators: the sellable rich-log product. Each key is shown once; usage is tracked.
       </p>
 
       {open && (
@@ -215,7 +215,7 @@ function SubscriptionsPanel() {
 
           {newKey && (
             <div className="mb-4 rounded-[8px] border border-emerald-900/50 bg-emerald-500/5 p-3">
-              <p className="text-[12.5px] text-emerald-200">New API key — copy it now, it is shown only once:</p>
+              <p className="text-[12.5px] text-emerald-200">New API key, copy it now, it is shown only once:</p>
               <code className="mt-1 block break-all rounded bg-bg px-2 py-1 font-mono text-[12.5px] text-emerald-300">{newKey}</code>
             </div>
           )}
@@ -605,7 +605,7 @@ export default function Settings() {
         <h2 className="text-[13.5px] font-medium text-fg">Software updates</h2>
         <p className="mb-4 mt-0.5 text-[13px] text-muted">
           Check whether a newer DeusWatch build is available on GitHub. Updates run on the host
-          with <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">./scripts/update.sh</code> —
+          with <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">./scripts/update.sh</code> , 
           the web app never controls Docker, which keeps the attack surface small.
         </p>
         <button onClick={checkUpdate} disabled={updBusy}
@@ -615,14 +615,14 @@ export default function Settings() {
         {updErr && <p className="mt-3 text-[13.5px] text-rose-400">{updErr}</p>}
         {upd && (upd.update_available ? (
           <div className="mt-3 text-[13.5px] text-amber-300">
-            Update available — running <span className="font-mono">{upd.current}</span>, latest <span className="font-mono">{upd.latest}</span>
+            Update available, running <span className="font-mono">{upd.current}</span>, latest <span className="font-mono">{upd.latest}</span>
             {upd.latest_date && <span className="text-dim"> ({new Date(upd.latest_date).toLocaleString('en-US')})</span>}.
             <div className="mt-1 text-muted">On the host run: <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">{upd.update_command}</code></div>
           </div>
         ) : (
           <p className="mt-3 text-[13.5px] text-emerald-400">
             {upd.current === 'dev'
-              ? `Latest on GitHub: ${upd.latest}. (This build has no version stamp — deploy via ./scripts/update.sh to enable comparison.)`
+              ? `Latest on GitHub: ${upd.latest}. (This build has no version stamp, deploy via ./scripts/update.sh to enable comparison.)`
               : `Up to date (${upd.current}).`}
           </p>
         ))}
@@ -670,9 +670,9 @@ export default function Settings() {
       <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
         <h2 className="text-[13.5px] font-medium text-fg">Config profile</h2>
         <p className="mb-4 mt-0.5 text-[13px] text-muted">
-          Export this server's settings — detection rules, ban policy, IP whitelist, the AI-report
+          Export this server's settings, detection rules, ban policy, IP whitelist, the AI-report
           schedule, alert/notification settings (severity threshold + report delivery schedule), and
-          integrations — as JSON to clone onto another DeusWatch server. Secrets (API keys /
+          integrations, as JSON to clone onto another DeusWatch server. Secrets (API keys /
           passwords) are not included; re-enter them after import.
         </p>
         <div className="flex flex-wrap items-center gap-3">

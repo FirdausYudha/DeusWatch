@@ -96,7 +96,7 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 	}
 
 	// Dedup: if the IP already has a pending recommendation or an active block, don't create a new
-	// row — a brute-force burst collapses to one open action. BUT merge the new alert's reason into
+	// row, a brute-force burst collapses to one open action. BUT merge the new alert's reason into
 	// the existing action's REASON so the banlist row reflects every distinct rule that fired for
 	// that IP ("Failed SSH Login as root, SSH Login Attempt for Invalid User, WAF SQLi Block"),
 	// which is what an analyst needs to see when triaging.
@@ -152,7 +152,7 @@ func (e *Engine) Recommend(ctx context.Context, ev *ingest.Event) (*Action, erro
 // BanIP manually blocks an IP on an admin's explicit request (no alert). It creates a block action
 // and executes it immediately via the responder, recording the admin as the decider for the audit
 // trail. The duration is the caller's choice, or the progressive ladder for the IP's offense count
-// when dur <= 0. A whitelisted IP is refused (the whitelist is the stronger "never ban" guarantee —
+// when dur <= 0. A whitelisted IP is refused (the whitelist is the stronger "never ban" guarantee,
 // remove it there first), and an IP that already has an open/active block is refused (dedup).
 func (e *Engine) BanIP(ctx context.Context, ip string, dur time.Duration, by string) (*Action, error) {
 	ip = strings.TrimSpace(ip)
@@ -168,7 +168,7 @@ func (e *Engine) BanIP(ctx context.Context, ip string, dur time.Duration, by str
 	e.mu.RUnlock()
 
 	if ipInNets(ip, wl) {
-		return nil, fmt.Errorf("%s is whitelisted — remove it from the IP whitelist before banning it", ip)
+		return nil, fmt.Errorf("%s is whitelisted, remove it from the IP whitelist before banning it", ip)
 	}
 	if open, err := e.store.HasOpenAction(ctx, ip); err != nil {
 		return nil, err

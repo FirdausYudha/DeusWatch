@@ -17,7 +17,7 @@ import (
 // or unreadable, Open returns an error and the composite provider falls through to the online
 // sources (AbuseIPDB/OTX country → ip-api.com).
 //
-// Only the Country database is used — City accuracy needs the paid GeoIP2-City DB. City data still
+// Only the Country database is used, City accuracy needs the paid GeoIP2-City DB. City data still
 // comes from ip-api.com or a paid provider if wired.
 type MaxMindClient struct {
 	reader *maxminddb.Reader
@@ -73,7 +73,7 @@ func (c *MaxMindClient) Country(_ context.Context, ip string) (string, error) {
 	if rdr == nil {
 		return "", errors.New("maxmind: reader closed")
 	}
-	// The Country database schema — we only need ISO code, so decode into a minimal struct rather
+	// The Country database schema, we only need ISO code, so decode into a minimal struct rather
 	// than the library's full City record. This keeps allocs bounded per event.
 	var rec struct {
 		Country struct {

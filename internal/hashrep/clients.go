@@ -15,7 +15,7 @@ const defaultHTTPTimeout = 10 * time.Second
 func newHTTPClient() *http.Client { return &http.Client{Timeout: defaultHTTPTimeout} }
 
 // ── CIRCL hashlookup (free, no API key, no rate limit) ────
-// https://hashlookup.circl.lu — aggregates NSRL (known-good) plus known-bad sets.
+// https://hashlookup.circl.lu, aggregates NSRL (known-good) plus known-bad sets.
 // A 200 means the hash is KNOWN; a "KnownMalicious" marker makes it known-bad, otherwise
 // it is treated as known-good. 404 means the hash is unknown to CIRCL.
 
@@ -123,7 +123,7 @@ func (c *VirusTotalClient) Lookup(ctx context.Context, sha256 string) (Verdict, 
 }
 
 // ── MalwareBazaar (abuse.ch; a database of KNOWN malware samples) ──
-// https://bazaar.abuse.ch — a hit means the exact file is a catalogued malware sample, so it is
+// https://bazaar.abuse.ch, a hit means the exact file is a catalogued malware sample, so it is
 // always known-bad; a miss is "unknown" (MB never asserts known-good). The API needs a free
 // Auth-Key (abuse.ch account); without one it is left disabled.
 const defaultMBBase = "https://mb-api.abuse.ch"

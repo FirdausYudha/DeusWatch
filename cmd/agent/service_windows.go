@@ -155,7 +155,7 @@ func installService() error {
 	}
 	defer s.Close()
 
-	// Recovery: restart on failure (including the config-change exit code) — 5s interval,
+	// Recovery: restart on failure (including the config-change exit code), 5s interval,
 	// reset the failure count every 1 hour.
 	if err := s.SetRecoveryActions([]mgr.RecoveryAction{
 		{Type: mgr.ServiceRestart, Delay: 5 * time.Second},

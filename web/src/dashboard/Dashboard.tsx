@@ -34,8 +34,8 @@ function SeverityBadge({ sev }: { sev: number }) {
 // out (C2/exfil). Hidden when the API couldn't classify (empty).
 const DIRECTION_BADGE: Record<string, { label: string; cls: string; title: string }> = {
   inbound: { label: 'INBOUND', cls: 'text-sky-300 bg-sky-500/15', title: 'External source hitting one of our hosts (typical attack pattern)' },
-  outbound: { label: 'OUTBOUND', cls: 'text-amber-300 bg-amber-500/15', title: 'Internal source reaching an external destination — possible C2 or data exfil' },
-  lateral: { label: 'LATERAL', cls: 'text-rose-300 bg-rose-500/15', title: 'Internal ↔ internal — attacker moving inside our network' },
+  outbound: { label: 'OUTBOUND', cls: 'text-amber-300 bg-amber-500/15', title: 'Internal source reaching an external destination, possible C2 or data exfil' },
+  lateral: { label: 'LATERAL', cls: 'text-rose-300 bg-rose-500/15', title: 'Internal ↔ internal, attacker moving inside our network' },
 }
 function DirectionBadge({ d }: { d?: string }) {
   if (!d) return null
@@ -59,7 +59,7 @@ function FileHashBadge({ a }: { a: EventRow }) {
   if (!v || v === 'unknown') return null
   const bad = v === 'known_bad'
   const cls = bad ? 'text-rose-300 bg-rose-500/15' : 'text-emerald-300 bg-emerald-500/15'
-  const title = `${a.file_path || 'file'}${a.dw_filehash_detail ? ` — ${a.dw_filehash_detail}` : ''}`
+  const title = `${a.file_path || 'file'}${a.dw_filehash_detail ? `, ${a.dw_filehash_detail}` : ''}`
   return (
     <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${cls}`} title={title}>
       {bad ? '☣ malware' : '✓ known-good'}
@@ -88,7 +88,7 @@ function ScoreDoughnut({ score, band, title }: { score: number; band: string; ti
 // classifyThreatFamily surfaces ransomware / malware / virus / trojan directly on the events
 // feed. Rather than adding a schema column, it derives the family from the fields already
 // carried on the event (YARA rule names, VirusTotal verdicts, filehash detail, dw_label). This
-// keeps the feature migration-free while still catching the flows that matter — YARA hits set
+// keeps the feature migration-free while still catching the flows that matter, YARA hits set
 // rule_name/dw_label, VirusTotal enrichment sets dw_filehash_verdict/detail.
 function classifyThreatFamily(a: EventRow): { label: string; cls: string } | null {
   const hay = `${a.rule_name || ''} ${a.dw_label || ''} ${a.dw_filehash_verdict || ''} ${a.dw_filehash_detail || ''} ${a.event_action || ''}`.toLowerCase()
@@ -224,24 +224,24 @@ function reconcileOrder(savedIds: readonly string[] | undefined, current: Panel[
 }
 
 const PANELS: Panel[] = [
-  // Headline numbers — one row of three.
+  // Headline numbers: one row of three.
   { kind: 'stat', source: 'total_events', title: 'Total events', color: '#6366f1', span: 1 },
   { kind: 'stat', source: 'total_alerts', title: 'Total alerts', color: '#fb923c', span: 1 },
   { kind: 'stat', source: 'alerts_24h', title: 'Alerts (24h)', color: '#f43f5e', span: 1 },
   // The prototype's 2fr/1fr pairing: a trend beside the breakdown that explains it.
   { kind: 'line', source: 'timeline', title: 'Events over time', color: '#6366f1', span: 2 },
   { kind: 'bar', source: 'severity', title: 'Severity breakdown', color: '#6366f1', span: 1 },
-  // Who is hitting us — three comparable lists side by side.
+  // Who is hitting us: three comparable lists side by side.
   { kind: 'bar', source: 'source_ips', title: 'Top source IPs', color: '#38bdf8', span: 1 },
   { kind: 'risk', source: 'risky_ips', title: 'Top risky IPs', color: '#f43f5e', span: 1 },
   { kind: 'watch', source: 'suspicious_ips', title: 'Suspicious IPs (recon)', color: '#f59e0b', span: 1 },
-  // Where the attacks LAND — helps operators see whether attention is concentrated on one port or
+  // Where the attacks LAND, helps operators see whether attention is concentrated on one port or
   // fanning across web/DB/SSH, and which asset/IP is currently the bullseye. Auto-grows as the data
   // grows (the BarChart tops the list at whatever LIMIT the SQL returns).
   { kind: 'bar', source: 'destination_ports', title: 'Top destination ports', color: '#22d3ee', span: 1 },
   { kind: 'bar', source: 'destination_ips', title: 'Top destination IPs / agents', color: '#22d3ee', span: 2 },
   // Traffic direction pie (v2.10.0): Inbound / Outbound / Lateral / Unknown. Lateral is the
-  // highest-value signal — an attacker already past the perimeter. Classification uses
+  // highest-value signal, an attacker already past the perimeter. Classification uses
   // RFC1918/loopback as "internal"; per-tenant custom subnets deferred to v2.11.
   { kind: 'donut', source: 'direction', title: 'Traffic direction', color: '#a3e635', span: 1 },
   // Communication Graph (v2.13.0): where events flow FROM (grouped by ASN / country / internal
@@ -249,12 +249,12 @@ const PANELS: Panel[] = [
   // each side plus their edges have room to breathe.
   { kind: 'comm_flow', source: 'comm_flow', title: 'Communication graph (Zone & Direction)', color: '#22d3ee', span: 3 },
   // Source→Destination Graph (v2.13.0): attacker IP → agent it hit. Simpler than the
-  // Communication Graph — no direction colouring, no ASN dependency.
+  // Communication Graph, no direction colouring, no ASN dependency.
   { kind: 'src_dst_flow', source: 'src_dst_flow', title: 'Source → Destination', color: '#22d3ee', span: 3 },
   // The slow-scanner table needs width for its columns; the donut is happy small.
   { kind: 'slow', source: 'slow_scanners', title: 'Slow scanners (multi-day)', color: '#38bdf8', span: 2 },
   { kind: 'donut', source: 'verdicts', title: 'LLM verdicts', color: '#8b5cf6', span: 1 },
-  // Fleet health at a glance — sits after the "who is attacking us" row, before the map, so the
+  // Fleet health at a glance, sits after the "who is attacking us" row, before the map, so the
   // operator can spot a silent endpoint (never-connected / stale / offline) without leaving the
   // dashboard. Full width for legibility across long agent names + status pill.
   { kind: 'agents', source: 'agents', title: 'Agents', color: '#10b981', span: 3 },
@@ -301,7 +301,7 @@ function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: Dashboa
       return <AgentsWidget />
     case 'tenant_lines':
       // Superadmin-only (v2.10.0). Widget self-hides on 403 so a regular operator sees only the
-      // panel frame + "requires manage_tenants" — the panel is filtered out of PANELS below in
+      // panel frame + "requires manage_tenants", the panel is filtered out of PANELS below in
       // that case, so it should never actually mount.
       return <TenantLinesWidget range={geoRange} />
     case 'comm_flow':
@@ -335,14 +335,14 @@ export default function Dashboard({
   // "no data yet" (data===null) which persists until the first successful fetch.
   const [loading, setLoading] = useState(false)
   // Feature flag for the animated geo map. Persisted per-browser so an operator's choice survives
-  // reloads. Off in v1 — flip via the toggle in the header (state key: dashboard.geo_map).
+  // reloads. Off in v1, flip via the toggle in the header (state key: dashboard.geo_map).
   const [geoEnabled, setGeoEnabled] = usePersistedState<boolean>('dashboard.geo_map', false)
   // Operator override for the incident timeline's bucket width; '' = server auto-picks based
   // on the selected window. Persisted per-browser so a wide/short zoom preference sticks.
   const [timelineBucket, setTimelineBucket] = usePersistedState<TimelineBucket>('dashboard.timeline_bucket', '')
 
   // Layout customization: operator can enter edit mode, drag panels to reorder, save or reset.
-  // `panels` is the effective render order — starts as the default PANELS, replaced with the
+  // `panels` is the effective render order, starts as the default PANELS, replaced with the
   // reconciled saved order once fetchLayout resolves. Reconciler tolerates historical shapes so a
   // pre-v2.0 saved layout still lands cleanly (see reconcileOrder + DashLayout in lib/api.ts).
   const [panels, setPanels] = useState<Panel[]>(PANELS) // reset in load useEffect to effectivePanels
@@ -370,7 +370,7 @@ export default function Dashboard({
           undefined
         const reconciled = ids && ids.length > 0 ? reconcileOrder(ids, effectivePanels) : effectivePanels
         // v2.14.0: apply width overrides on top of the reconciled order. Missing keys keep the
-        // coded default — that way if we change a panel's default span later, untouched panels
+        // coded default, that way if we change a panel's default span later, untouched panels
         // pick up the new value automatically instead of freezing on the operator's saved copy.
         const spans = (l.spans ?? {}) as Record<string, 1 | 2 | 3>
         const withSpans = reconciled.map((p) => {
@@ -379,7 +379,7 @@ export default function Dashboard({
         })
         setPanels(withSpans)
       })
-      .catch(() => { /* no saved layout, no problem — stick with defaults */ })
+      .catch(() => { /* no saved layout, no problem, stick with defaults */ })
     // Ensure the tenant-lines panel appears on first mount for superadmin even before a saved layout
     // reconciles (or when there is no saved layout at all).
     setPanels((cur) => (cur === PANELS ? effectivePanels : cur))
@@ -458,7 +458,7 @@ export default function Dashboard({
 
   // Poll live data for the selected time range. Re-subscribes when the range changes; a custom
   // range with incomplete inputs simply skips the data fetch. Fires the three independent
-  // fetches (health / storage / dashboard) IN PARALLEL — waiting on fetchHealth serially before
+  // fetches (health / storage / dashboard) IN PARALLEL, waiting on fetchHealth serially before
   // even asking the DB was measurably delaying the panels the operator actually looks at.
   useEffect(() => {
     let active = true
@@ -640,7 +640,7 @@ export default function Dashboard({
                     {geoEnabled ? '🗺 map' : '⚑ list'}
                   </button>
                 )}
-                {/* Timeline bucket picker on the "Events over time" panel — '' = server auto-picks. */}
+                {/* Timeline bucket picker on the "Events over time" panel, '' = server auto-picks. */}
                 {w.kind === 'line' && w.source === 'timeline' && (
                   <select
                     value={timelineBucket}
@@ -667,7 +667,7 @@ export default function Dashboard({
         })}
       </section>
 
-      {/* Searchable events & alerts — filter by IP / rule / MITRE / level / time */}
+      {/* Searchable events & alerts, filter by IP / rule / MITRE / level / time */}
       <EventsPanel onCreateTicket={onCreateTicket} apiDown={health?.api === 'down'} />
 
       {/* System Health (fixed) */}
@@ -731,10 +731,10 @@ function StoragePanel({ s }: { s: StorageStatus | null }) {
           </div>
           <div className="mt-1 text-[12.5px] text-dim">TimescaleDB retention + compression</div>
           <div className="mt-3 font-mono text-[13.5px] text-fg">
-            {s?.retention_days != null ? `retention ${s.retention_days}d` : 'retention: —'}
+            {s?.retention_days != null ? `retention ${s.retention_days}d` : 'retention:, '}
           </div>
           <div className="font-mono text-[12.5px] text-dim">
-            {s?.compression_days != null ? `compress after ${s.compression_days}d` : 'compression: —'}
+            {s?.compression_days != null ? `compress after ${s.compression_days}d` : 'compression:, '}
           </div>
         </div>
 
@@ -794,7 +794,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   const [rule, setRule] = useState('')
   const [technique, setTechnique] = useState('')
   // Preference-like filters are persisted so they survive leaving the page (the free-text
-  // search above stays transient — a hidden search that came back would confuse more than help).
+  // search above stays transient, a hidden search that came back would confuse more than help).
   const [severity, setSeverity] = usePersistedState('events.severity', -1)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -998,7 +998,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                           <div className="mb-3 rounded-[8px] border border-amber-900/50 bg-amber-500/5 p-3">
                             <div className="mb-1 flex items-center justify-between">
                               <span className="text-[12.5px] font-medium uppercase tracking-wider text-amber-300">
-                                File change{a.file_path ? ` — ${a.file_path}` : ''}
+                                File change{a.file_path ? `, ${a.file_path}` : ''}
                               </span>
                               {a.file_path && a.agent_id && <RestoreButton agent={a.agent_id} path={a.file_path} />}
                             </div>
@@ -1038,7 +1038,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
             ) : (
               <tr>
                 <td colSpan={onCreateTicket ? 9 : 8} className="px-4 py-6 text-center text-[13.5px] text-dim">
-                  {apiDown ? 'API unreachable — run docker compose up' : hasFilter || q ? 'No events match these filters.' : 'No events yet.'}
+                  {apiDown ? 'API unreachable, run docker compose up' : hasFilter || q ? 'No events match these filters.' : 'No events yet.'}
                 </td>
               </tr>
             )}

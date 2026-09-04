@@ -67,7 +67,7 @@ export default function Snapshots({ me, initialAgent, initialPath }: { me: Me; i
           </Card>
 
           {/* Timeline for the chosen endpoint */}
-          <Card title={selected ? `Watched files — ${selected}` : 'Watched files'}>
+          <Card title={selected ? `Watched files, ${selected}` : 'Watched files'}>
             {selected ? (
               <SnapshotBrowser
                 agentName={selected}

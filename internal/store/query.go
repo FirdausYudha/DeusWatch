@@ -63,7 +63,7 @@ type EventRow struct {
 	ThreatBand  string `json:"threat_band"`
 	// Direction of the event relative to our network (attached by the API using the internal-tagged
 	// IP whitelist ∪ RFC1918 loopback). "inbound" = external hitting us (the common attack); "lateral"
-	// = internal ↔ internal (very concerning — attacker already inside); "outbound" = an internal
+	// = internal ↔ internal (very concerning, attacker already inside); "outbound" = an internal
 	// source reaching an external destination (possible C2/exfil); empty when it can't be classified.
 	Direction string `json:"direction"`
 }

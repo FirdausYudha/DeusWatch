@@ -113,7 +113,7 @@ func queryWinEvents(ctx context.Context, channel string, max int) ([]winEvent, e
 		// is benign; "Attempted to perform an unauthorized operation" = not elevated).
 		if ee, ok := err.(*exec.ExitError); ok {
 			msg := strings.TrimSpace(string(ee.Stderr))
-			// Benign: an empty/quiet channel makes Get-WinEvent "fail" with this — not
+			// Benign: an empty/quiet channel makes Get-WinEvent "fail" with this, not
 			// an error, just nothing new to ship.
 			if strings.Contains(msg, "No events were found") {
 				return nil, nil

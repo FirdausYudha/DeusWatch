@@ -17,14 +17,14 @@ func dsn() string {
 }
 
 // TestInsertAndCount proves InsertEvent writes to the events hypertable and
-// CountByLabel can read labeled events. Integration — skipped if Postgres is down.
+// CountByLabel can read labeled events. Integration, skipped if Postgres is down.
 func TestInsertAndCount(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 

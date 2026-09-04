@@ -1,4 +1,4 @@
-# DeusWatch — docker-compose easy mode: one command to bring up the foundation stack.
+# DeusWatch, docker-compose easy mode: one command to bring up the foundation stack.
 #   docker compose -f deploy/docker-compose.yml up --build
 #
 # Contains: PostgreSQL+TimescaleDB, NATS JetStream, and a hello-world Go service (api)
@@ -35,7 +35,7 @@ services:
 
   nats:
     image: nats:2.10.22-alpine
-    # -js: aktifkan JetStream, -sd: direktori penyimpanan, -m: port monitoring (healthz).
+    # -js: enable JetStream, -sd: storage directory, -m: monitoring port (healthz).
     command: ["-js", "-sd", "/data", "-m", "8222"]
     # Loopback only: nothing outside this host ever talks to NATS directly
     # (agents go through the mTLS gateway); the mapping is for local debugging.
@@ -57,7 +57,7 @@ services:
           memory: 512m
     restart: unless-stopped
 
-  # Init container: generate the mTLS certificates into ./certs once (idempotent —
+  # Init container: generate the mTLS certificates into ./certs once (idempotent,
   # skipped if ca.crt already exists). api & gateway wait for this to finish.
   certgen:
     build:
@@ -91,7 +91,7 @@ services:
     # NewAnalyzer in cmd/api/main.go), so it needs to reach a host-local Ollama on :11434 just
     # as much as the worker does for scheduled reports. Without this the api resolves nothing
     # for host.docker.internal and every UI-triggered analysis fails with "no such host",
-    # while the worker's scheduled run against the very same URL succeeds — a split-brain that
+    # while the worker's scheduled run against the very same URL succeeds, a split-brain that
     # makes the integration look intermittently broken rather than misconfigured.
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -108,7 +108,7 @@ services:
       # The initial admin is seeded when the users table is empty. CHANGE for production.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-thewatcher}"
-      # Self-registration on the login page — off by default (admins add users in the UI).
+      # Self-registration on the login page, off by default (admins add users in the UI).
       REGISTRATION_ENABLED: "${REGISTRATION_ENABLED:-0}"
       # CA for issuing agent certificates during enrollment (mounted read-only).
       CERT_DIR: "/certs"
@@ -235,12 +235,12 @@ services:
       ABUSEIPDB_API_KEY: "${ABUSEIPDB_API_KEY:-}"
       OTX_API_KEY: "${OTX_API_KEY:-}"
       # v2.10.0: default to ON so operators without paid CTI keys still get country codes on
-      # external IPs (ip-api.com free tier, 45 req/min — the enricher cache dedups repeats).
+      # external IPs (ip-api.com free tier, 45 req/min, the enricher cache dedups repeats).
       GEOIP_ENABLED: "${GEOIP_ENABLED:-1}"
-      # Optional MaxMind GeoLite2-Country .mmdb — offline, no rate limit, tried BEFORE ip-api.
-      # Set the path (inside the container) and mount the .mmdb via `volumes:` — see docs/geoip.md.
+      # Optional MaxMind GeoLite2-Country .mmdb, offline, no rate limit, tried BEFORE ip-api.
+      # Set the path (inside the container) and mount the .mmdb via `volumes:`, see docs/geoip.md.
       GEOIP_MMDB_PATH: "${GEOIP_MMDB_PATH:-}"
-      # v2.13.0: MaxMind GeoLite2-ASN .mmdb — required for the Communication Graph widget's
+      # v2.13.0: MaxMind GeoLite2-ASN .mmdb, required for the Communication Graph widget's
       # ASN grouping. Same mount pattern as the Country DB (see docs/geoip.md).
       GEOIP_ASN_MMDB_PATH: "${GEOIP_ASN_MMDB_PATH:-}"
       # Community blocklist (optional): comma-separated IP/CIDR feed URLs.
@@ -300,7 +300,7 @@ services:
           memory: ${DEUSWATCH_WORKER_MEM:-1g}
     restart: unless-stopped
 
-  # Web UI (React+Vite) disajikan nginx; proxy /api ke service api.
+  # Web UI (React+Vite) served by nginx; /api is proxied to the api service.
   web:
     build:
       context: ../web

@@ -7,11 +7,11 @@ env-var dance required.
 
 ## Setup
 
-1. **Integrations → Add → Linux firewall — nftables (agent-side)**.
+1. **Integrations → Add → Linux firewall, nftables (agent-side)**.
 2. Fields:
-   - **nft table** (optional, default `deuswatch`) — the nftables table the agent creates.
-   - **nft set** (optional, default `blocklist`) — the set inside that table.
-   - **Apply to agents** (optional) — comma-separated agent names to scope the rules to.
+   - **nft table** (optional, default `deuswatch`), the nftables table the agent creates.
+   - **nft set** (optional, default `blocklist`), the set inside that table.
+   - **Apply to agents** (optional), comma-separated agent names to scope the rules to.
      Blank means every enrolled agent.
 3. Save with **Enabled** ticked. The agent polls every 30 s, so allow up to ~30 s for the
    first sync to appear on the host.
@@ -36,7 +36,7 @@ env-var dance required.
 
 ## Why "Apply to agents" matters
 
-An empty scope means the manager pushes the enable flag to **every** agent — including
+An empty scope means the manager pushes the enable flag to **every** agent, including
 Windows hosts, which will simply ignore it (nftables is Linux-only). When you scope to
 specific names (e.g. `linux2, web-01`), only those receive the enable flag; other agents
 see `enabled=false` and leave their firewall untouched.
@@ -58,7 +58,7 @@ and take precedence over the server envelope:
 ## Teardown
 
 Disabling the integration in the UI stops the agent from ADDING to the set on the next
-poll, but the existing table/rules are **not** removed — cleanup is a manual step, so an
+poll, but the existing table/rules are **not** removed. Cleanup is a manual step, so an
 operator toggling the integration off doesn't accidentally unblock everyone:
 
 ```bash
@@ -69,12 +69,12 @@ sudo nft delete table inet deuswatch
 
 ### The `deuswatch` table never appears on the agent host
 
-Work through this checklist in order — the four common failure modes below cover ~all
+Work through this checklist in order, the four common failure modes below cover ~all
 "UI says enabled, host shows nothing" reports.
 
 **1. Is the manager running v2.11.0+?**
 
-Pre-v2.11 the UI stored the config but never delivered it to the agent — this doc's
+Pre-v2.11 the UI stored the config but never delivered it to the agent, this doc's
 premise assumes the fix that lets the manager push. On the manager host:
 
 ```bash
@@ -87,7 +87,7 @@ gateway api worker`, then continue.
 
 **2. Is the AGENT running v2.11.0+?**
 
-Server-side changes alone are not enough — the agent binary must parse the new
+Server-side changes alone are not enough, the agent binary must parse the new
 `{enabled, table, set, ips}` response envelope (pre-v2.11 it only reads `ips` and gates
 activation on the `AGENT_FIREWALL` env var). On the agent host:
 
@@ -119,7 +119,7 @@ Interpret what you see:
   in the Integrations panel.
 - `enabled=false ... reason="agent_scope did not match (scope=linux2)"` → your **Apply to
   agents** value doesn't match the agent's CN. Names are **exact** match, case-insensitive.
-  Check the Agents page for the CN as DeusWatch enrolled it — hostnames with dots
+  Check the Agents page for the CN as DeusWatch enrolled it, hostnames with dots
   (`linux2.local`) or a suffix from your enrollment token will NOT match `linux2`.
 - No line at all after ~30 s → the agent is not reaching the gateway. Check
   `/v1/heartbeat` in the gateway log; if it's absent too, the agent-manager mTLS link
@@ -132,7 +132,7 @@ Almost always a permissions problem on the endpoint.
 ```bash
 systemctl show deuswatch-agent -p User
 # → User=root  (correct)
-# → User=deuswatch  (WRONG — nftables needs CAP_NET_ADMIN, easiest as root)
+# → User=deuswatch  (WRONG. nftables needs CAP_NET_ADMIN, easiest as root)
 
 which nft
 # must resolve; on minimal Ubuntu run: sudo apt-get install nftables

@@ -36,7 +36,7 @@ const blockLogRate = 60 * time.Second
 type blockLogState struct {
 	mu    sync.Mutex
 	lastT map[string]time.Time
-	lastK map[string]string // last decision key we logged for this CN — always log the FIRST different one
+	lastK map[string]string // last decision key we logged for this CN, always log the FIRST different one
 }
 
 var blockLog = &blockLogState{lastT: map[string]time.Time{}, lastK: map[string]string{}}
@@ -44,7 +44,7 @@ var blockLog = &blockLogState{lastT: map[string]time.Time{}, lastK: map[string]s
 // logBlockDecision writes one INFO line per (agent, decision) transition, plus a heartbeat every
 // blockLogRate seconds even while nothing changes. Enables an operator staring at
 // `docker compose logs gateway` to see whether an agent is (a) polling at all, (b) matching an
-// integration's agent_scope, and (c) receiving IPs — the three failure modes the v2.11 UI
+// integration's agent_scope, and (c) receiving IPs, the three failure modes the v2.11 UI
 // integration collapses into "the deuswatch table isn't appearing on my agent".
 func logBlockDecision(cn, scope string, nIPs int, enabled bool, reason string) {
 	if cn == "" {
@@ -72,7 +72,7 @@ func logBlockDecision(cn, scope string, nIPs int, enabled bool, reason string) {
 
 // buildVersion is injected at compile time via -ldflags="-X main.buildVersion=<tag>" from
 // deploy/Dockerfile. NOTE: Go silently ignores -X for a symbol that does not exist, so this
-// declaration is load-bearing — without it the Dockerfile's ldflag was a no-op for the
+// declaration is load-bearing, without it the Dockerfile's ldflag was a no-op for the
 // gateway (the bug fixed in v2.14.5).
 var buildVersion = ""
 
@@ -104,7 +104,7 @@ func main() {
 	//
 	// v2.14.5 fix: this used to read ONLY the DEUSWATCH_VERSION env var, which compose never
 	// set on the gateway container (it was passed as a *build* arg, not an environment entry).
-	// So managerVersion was permanently "dev" — the compare against an agent that ALSO reported
+	// So managerVersion was permanently "dev", the compare against an agent that ALSO reported
 	// "dev" matched, silently clearing the update flag while nothing had actually upgraded.
 	// That is the "badge disappears, version unchanged" symptom. Resolution order is now
 	// ldflag → env → compiled-in const, so no single missing wire can degrade it to "dev".
@@ -136,7 +136,7 @@ func main() {
 
 	// YARA scanner (optional; ADR: manager-side scan on FIM snapshot upload). Loads *.yar files
 	// from YARA_RULES_DIR (default /rules/yara). Silently no-ops when the dir is missing, empty, or
-	// the binary was built without CGO (Windows dev). Live-reload isn't wired yet — restart the
+	// the binary was built without CGO (Windows dev). Live-reload isn't wired yet, restart the
 	// gateway to pick up new rules. Content that matches yields an alert event with dw_label =
 	// "yara_malicious" so the whole existing enrichment/alert/response pipeline picks it up.
 	yaraScanner := yara.New()
@@ -168,9 +168,9 @@ func main() {
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		// The gateway serves every agent regardless of tenant (mTLS CN auth, config, revocation,
 		// heartbeat, FIM snapshots, file-action results), so it connects with the RLS super-admin
-		// bypass — it must see/write across all tenants' agent data.
+		// bypass. It must see/write across all tenants' agent data.
 		if st, err := store.ConnectSuperadmin(ctx, dsn); err != nil {
-			log.Printf("gateway: store unavailable — revocation/config/heartbeat disabled: %v", err)
+			log.Printf("gateway: store unavailable, revocation/config/heartbeat disabled: %v", err)
 		} else {
 			defer st.Close()
 			// Custom decoders from the DB, live-reloaded so UI edits take effect without a
@@ -181,7 +181,7 @@ func main() {
 			cfgFunc = es.GetConfigByName
 			restoreFunc = st.PendingRestores
 			// The heartbeat writers are wrapped so enroll's "that CN isn't enrolled" sentinel
-			// reaches the handler as the gateway package's own. internal/gateway talks to the
+			// reaches the handler as the gateway package's own. Internal/gateway talks to the
 			// store purely through func types (no enroll import), so this composition root is
 			// the right place to bridge the two.
 			seenFunc = func(ctx context.Context, cn string) error {
@@ -193,7 +193,7 @@ func main() {
 			// v2.12.0: capture the agent's reported version + evaluate pending update directive so
 			// the heartbeat response can tell an out-of-date agent to self-upgrade. v2.14.1 fix:
 			// serve the binary from the gateway itself (relative URL) instead of the internal
-			// Docker api hostname — agents on separate hosts can't resolve `api` DNS. Agent
+			// Docker api hostname, agents on separate hosts can't resolve `api` DNS. Agent
 			// prefixes the relative URL with its own gateway URL (which it already trusts via
 			// mTLS) so no extra network path is needed.
 			healthVFunc = func(ctx context.Context, cn string, degraded bool, detail, version string) error {
@@ -201,7 +201,7 @@ func main() {
 			}
 			// updateLog throttles the per-directive log line to once per (CN, decision) transition
 			// + a heartbeat every minute per CN, so the log tells the story without spamming (the
-			// heartbeat cadence is 30 s per agent — unthrottled would be 2 lines/agent/minute).
+			// heartbeat cadence is 30 s per agent, unthrottled would be 2 lines/agent/minute).
 			var updateLogMu sync.Mutex
 			updateLogLast := map[string]time.Time{}
 			updateFunc = func(ctx context.Context, cn string) (*gateway.UpdateDirective, error) {
@@ -253,7 +253,7 @@ func main() {
 					}, content); err != nil {
 						return err
 					}
-					// YARA scan (only when we actually HAVE content — agent-storage mode ships
+					// YARA scan (only when we actually HAVE content, agent-storage mode ships
 					// only metadata). Errors are logged, not returned: the snapshot itself is
 					// already recorded, so a scanner glitch mustn't fail the upload.
 					if len(content) > 0 && yaraScanner.HasRules() {
@@ -266,7 +266,7 @@ func main() {
 							if perr := publishYARAAlert(ctx, b, cn, sm, matches); perr != nil {
 								log.Printf("gateway: yara alert publish %s@%s: %v", cn, sm.Path, perr)
 							} else {
-								log.Printf("gateway: yara MATCH %s@%s: %d rule(s) — %s",
+								log.Printf("gateway: yara MATCH %s@%s: %d rule(s), %s",
 									cn, sm.Path, len(matches), matchNames(matches))
 							}
 						}
@@ -288,7 +288,7 @@ func main() {
 						PID: a.PID, ProcName: a.ProcName, ProcStart: a.ProcStart,
 					}
 					// For a manager-stored version, ship the content so the agent can restore even
-					// if it no longer has the local blob (durability — survives host reprovision).
+					// if it no longer has the local blob (durability, survives host reprovision).
 					if a.Action == "restore_version" && a.VersionSHA != "" {
 						if content, ok, cerr := st.SnapshotContent(ctx, cn, a.Path, a.VersionSHA); cerr == nil && ok {
 							item.Content = string(content)
@@ -309,7 +309,7 @@ func main() {
 				return st.ReplaceInventory(ctx, cn, inv)
 			}
 			// Agent-side auto-block: return a per-agent envelope. The manager's nftables_agent
-			// integration is the source of truth — agent_scope filters which CNs it applies to;
+			// integration is the source of truth, agent_scope filters which CNs it applies to;
 			// table/set from the integration config override the agent's defaults. Pre-v2.11
 			// this only returned IPs and the agent had to have AGENT_FIREWALL=nftables set
 			// locally to do anything, which meant the UI integration was silently useless if
@@ -342,7 +342,7 @@ func main() {
 						reason = "agent_scope did not match (scope=" + scopeSeen + ")"
 					}
 					logBlockDecision(agentCN, scopeSeen, 0, false, reason)
-					return out, nil // Enabled stays false — agent will not touch its firewall
+					return out, nil // Enabled stays false. Agent will not touch its firewall
 				}
 				if v := strings.TrimSpace(match.Config["table"]); v != "" {
 					out.Table = v
@@ -401,7 +401,7 @@ func main() {
 	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandlerFull(seenFunc, healthFunc, healthVFunc, revoked, updateFunc))
 	// v2.14.1: self-update binary served over mTLS, same trust boundary as every other agent-
 	// facing endpoint. Points at /agents (baked into the runtime-cgo image by the api build
-	// stage in deploy/Dockerfile — same directory the api's /api/agent/binary route reads from).
+	// stage in deploy/Dockerfile, same directory the api's /api/agent/binary route reads from).
 	mux.HandleFunc("GET /v1/agent-binary/{arch}", gateway.AgentBinaryHandler("/agents"))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistConfigHandler(blockCfgFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))
@@ -499,7 +499,7 @@ func splitCSV(s string) []string {
 //   - event.severity starts at HIGH: a YARA match on a file dropped/changed on one of our hosts is
 //     never routine noise. It stays at HIGH here and the enricher can escalate to critical if the
 //     file hash also matches a known-bad reputation (community consensus).
-//   - dw_filehash_verdict/detail carry the match — the FIM verdict column on the Events & Alerts
+//   - dw_filehash_verdict/detail carry the match, the FIM verdict column on the Events & Alerts
 //     table already renders these, so the UI shows the YARA verdict with zero UI changes.
 //   - action = "yara_match" is a stable string the response layer can decision-table on later.
 func publishYARAAlert(ctx context.Context, b *bus.Bus, agentName string, sm gateway.SnapshotMeta, matches []yara.Match) error {

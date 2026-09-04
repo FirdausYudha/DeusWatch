@@ -1,7 +1,7 @@
 package score
 
 // Slow-scan scoring: catching the reconnaissance that deliberately stays under every static
-// threshold — 2 probes today, nothing tomorrow, 5 the day after. No burst rule will ever fire on
+// threshold, 2 probes today, nothing tomorrow, 5 the day after. No burst rule will ever fire on
 // that, because the signal is not volume, it is RECURRENCE AT LOW VOLUME over many days.
 //
 // The composite score (score.go) looks at a short window and the suspicious-IP watchlist looks at
@@ -11,10 +11,10 @@ package score
 
 // SlowScanSignals are the multi-day inputs for one source IP.
 type SlowScanSignals struct {
-	ActiveDays int // distinct days this IP was seen at all — the recurrence signal
+	ActiveDays int // distinct days this IP was seen at all, the recurrence signal
 	SpanDays   int // days between first and last sighting (how long it has been coming back)
 	Events     int // total events in the window
-	Targets    int // distinct things probed (URIs/ports/agents) — breadth of the sweep
+	Targets    int // distinct things probed (URIs/ports/agents), breadth of the sweep
 }
 
 // SlowScanWeights control the mix. Recurrence dominates: coming back on many separate days is
@@ -28,7 +28,7 @@ type SlowScanWeights struct {
 	DaysCap    int `json:"days_cap"`    // active days that already count as "always coming back"
 	SpanCap    int `json:"span_cap"`    // span that counts as a long campaign
 	TargetsCap int `json:"targets_cap"` // breadth saturation
-	// LoudPerDay is the events/day at which a source stops being "slow" — at or above this the
+	// LoudPerDay is the events/day at which a source stops being "slow", at or above this the
 	// stealth contribution is zero, because a burst detector already covers it.
 	LoudPerDay int `json:"loud_per_day"`
 	// MinActiveDays is the qualification floor: fewer separate days than this is not a pattern,

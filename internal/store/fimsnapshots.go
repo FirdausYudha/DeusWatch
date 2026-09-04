@@ -11,7 +11,7 @@ import (
 )
 
 // FIMSnapshot is one dated version of a watched file (ADR 0002). Content is never returned by
-// the timeline queries — only metadata — so listing a file's history stays cheap.
+// the timeline queries: only metadata, so listing a file's history stays cheap.
 type FIMSnapshot struct {
 	ID         int64     `json:"id"`
 	AgentName  string    `json:"agent_name"`
@@ -49,7 +49,7 @@ func (s *Store) RecordSnapshot(ctx context.Context, snap FIMSnapshot, content []
 		`SELECT sha256 FROM fim_snapshots WHERE agent_name=$1 AND path=$2 ORDER BY captured_at DESC LIMIT 1`,
 		snap.AgentName, snap.Path).Scan(&latest)
 	if err == nil && latest == snap.SHA256 {
-		return false, nil // unchanged since the last version — skip
+		return false, nil // unchanged since the last version, skip
 	}
 	var diff *string
 	if snap.Diff != "" {
@@ -192,7 +192,7 @@ func (s *Store) RequestRestoreVersion(ctx context.Context, agentName, path, vers
 
 // BulkRestoreVersions queues a point-in-time revert: for every watched file on the agent (optionally
 // under pathPrefix), it finds that file's latest captured version AT OR BEFORE asOf and queues a
-// restore_version action for it. This is the ransomware recovery action — "roll everything back to
+// restore_version action for it. This is the ransomware recovery action, "roll everything back to
 // just before the attack". De-duplicated against identical still-pending requests. Returns the
 // number of files queued.
 func (s *Store) BulkRestoreVersions(ctx context.Context, agentName, pathPrefix string, asOf time.Time, requestedBy string) (int, error) {

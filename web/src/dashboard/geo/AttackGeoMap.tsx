@@ -10,7 +10,7 @@ import WorldMapBackground from './WorldMapBackground'
 type View = { tx: number; ty: number; k: number }
 const DEFAULT_VIEW: View = { tx: 0, ty: 0, k: 1 }
 // Minimum zoom = 1.0 (100%). Below that the map shrinks smaller than its viewBox and leaves
-// dead space around the SVG — operators found it disorienting ("where did the world go?"),
+// dead space around the SVG, operators found it disorienting ("where did the world go?"),
 // so we clamp at natural size. Zooming IN goes up to 8× (city-level for the pre-rendered
 // country outlines; finer than that just shows chunky centroids without extra detail).
 const MIN_K = 1.0
@@ -21,7 +21,7 @@ const MAX_K = 8
 //
 // After `translate(tx ty) scale(k)` the content spans tx … tx + MAP_WIDTH*k. For it to cover the
 // 0 … MAP_WIDTH viewport, the left edge must not fall right of 0 and the right edge must not fall
-// left of MAP_WIDTH — i.e. MAP_WIDTH*(1-k) <= tx <= 0, and likewise for ty. At k = 1 that collapses
+// left of MAP_WIDTH, i.e. MAP_WIDTH*(1-k) <= tx <= 0, and likewise for ty. At k = 1 that collapses
 // to exactly {0,0}: at natural size the map already fills the frame, so there is nothing to pan to.
 //
 // Every mutation of `view` must go through this. Pre-v2.14.7 the drag handler wrote tx/ty straight
@@ -71,7 +71,7 @@ const MANAGER_LATLON: [number, number] = (() => {
   return [readNum('deuswatch.manager_lat', -6.2), readNum('deuswatch.manager_lon', 106.8)]
 })()
 
-// prefersReducedMotion snapshots the media-query at mount — good enough for a widget that isn't
+// prefersReducedMotion snapshots the media-query at mount, good enough for a widget that isn't
 // hot-swapping accessibility state per user interaction.
 function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false
@@ -106,7 +106,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
     const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
     setView((v) => {
       const newK = Math.min(MAX_K, Math.max(MIN_K, v.k * factor))
-      if (newK === v.k) return v // hit clamp — don't shift translate uselessly
+      if (newK === v.k) return v // hit clamp, don't shift translate uselessly
       const ratio = newK / v.k
       // At MIN_K the view snaps back to origin so the map always covers the full frame instead
       // of drifting with a residual pan from earlier interactions.
@@ -140,7 +140,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
 
   // myLocation asks the browser for the operator's coordinates (user must grant permission) and
   // centers the current zoom on that point. Silently no-ops when geolocation is unavailable or the
-  // request fails — the map keeps working as before.
+  // request fails, the map keeps working as before.
   const myLocation = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
     setLocating(true)
@@ -185,7 +185,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
     return <p className="py-6 text-center text-[13.5px] text-critical">{err}</p>
   }
   // We deliberately DON'T early-return on `origins === null` (loading) or `origins.length === 0`
-  // (no attacks yet). The map itself is the widget's identity — showing a bare "loading…" or
+  // (no attacks yet). The map itself is the widget's identity, showing a bare "loading…" or
   // "no attacks" text is uglier than showing the world + manager pulse with a subtle overlay hint.
   // An operator with a fresh deploy still sees a functioning globe waiting for its first attacker.
   const list: AttackOrigin[] = origins ?? []
@@ -209,7 +209,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
           <g transform={`translate(${view.tx} ${view.ty}) scale(${view.k})`}>
           <WorldMapBackground />
 
-          {/* Arcs — behind the markers so the endpoint dots always sit on top. */}
+          {/* Arcs, behind the markers so the endpoint dots always sit on top. */}
           <g fill="none" strokeLinecap="round" pointerEvents="none">
             {list.map((o) => {
               const [lat, lon] = lookupCentroid(o.country)
@@ -229,7 +229,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
             })}
           </g>
 
-          {/* Manager destination — pulses gently so the eye finds it. */}
+          {/* Manager destination, pulses gently so the eye finds it. */}
           <g pointerEvents="none">
             <circle cx={dstX} cy={dstY} r={6} fill="none" stroke="#22d3ee" strokeWidth={1.5} opacity={0.9}>
               {!reduced && (
@@ -301,7 +301,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
             title="Center on your device's location (requires browser permission)"
           >{locating ? '…' : '⌖'}</button>
         </div>
-        {/* Overlay hint when we haven't seen anything yet — kept subtle so the map itself remains
+        {/* Overlay hint when we haven't seen anything yet, kept subtle so the map itself remains
             the star. Absolute-positioned inside the map container's `relative` wrapper so it sits
             over the SVG without shifting layout. Hidden as soon as any origin arrives. */}
         {origins !== null && list.length === 0 && (
@@ -316,7 +316,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
         )}
       </div>
 
-      {/* Hover detail row — mirrors the columns in the reference dashboard the operator sent. */}
+      {/* Hover detail row, mirrors the columns in the reference dashboard the operator sent. */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-[8px] border border-border bg-surface px-3 py-2 text-[12.5px] sm:grid-cols-5">
         <DetailCell label="Country" value={selected?.country || (selected ? '—' : 'Hover a marker')} />
         <DetailCell label="City" value={selected?.city || (selected ? '—' : '—')} />

@@ -12,7 +12,7 @@ import (
 )
 
 // DefaultTTL: how long a CTI cache entry lives before a re-lookup. This is the
-// deduplication window — an IP seen again within it is served from cache, NOT re-queried
+// deduplication window, an IP seen again within it is served from cache, NOT re-queried
 // against the external API (so the API quota isn't burned on repeat offenders).
 const DefaultTTL = 24 * time.Hour
 
@@ -114,7 +114,7 @@ func (e *Enricher) lookup(ctx context.Context, ip string) (Indicator, error) {
 }
 
 // EnrichEvent enriches an event: it resolves FIM file-hash reputation (file events) and
-// CTI for source.ip — filling threat.* + deuswatch.* and escalating severity (section 9).
+// CTI for source.ip, filling threat.* + deuswatch.* and escalating severity (section 9).
 // Either path can run independently; an event with neither a hash nor an IP is 'skipped'.
 func (e *Enricher) EnrichEvent(ctx context.Context, ev *ingest.Event) error {
 	hasHash := e.hashProvider != nil && ev.File != nil && hashrep.IsSHA256(ev.File.HashSHA256)
@@ -184,7 +184,7 @@ func applyIPIndicator(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 	abuse, otx := ind.AbuseConfidence, ind.OTXPulseCount
 
 	ev.DeusWatch.Enrichment.Status = ingest.EnrichmentEnriched
-	// Only record a score when there is actual signal, so an unknown/clean IP shows "—"
+	// Only record a score when there is actual signal, so an unknown/clean IP shows ", "
 	// instead of a misleading "abuse 0" (or a fabricated value from the mock provider).
 	if abuse > 0 {
 		ev.DeusWatch.Enrichment.AbuseConfidence = &abuse
@@ -218,7 +218,7 @@ func applyIPIndicator(ev *ingest.Event, ind Indicator, rules EscalationRules) {
 	// Dynamic severity escalation (section 9); cumulative with any FIM bump. Community reputation
 	// (AbuseIPDB, OTX) is COMMUNITY-VERIFIED intelligence: an IP the community has already agreed is
 	// malicious deserves a heavier bump than a single-rule hit. Otherwise a "SSH invalid user" event
-	// (severity=info, 0) enriched with abuse=100 escalates only to `low` — that's what the operator
+	// (severity=info, 0) enriched with abuse=100 escalates only to `low`, that's what the operator
 	// hit and the reason this ladder is aggressive:
 	//   * abuse ≥ 95         → FLOOR at high (community says: definitely malicious)
 	//   * abuse ≥ threshold  → +2 severity steps (was +1)

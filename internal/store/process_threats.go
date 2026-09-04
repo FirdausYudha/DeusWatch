@@ -11,26 +11,26 @@ import (
 
 // ProcessThreats represents a detected threat from process analysis.
 type ProcessThreats struct {
-	ID                int64             `json:"id"`
-	TenantID          string            `json:"tenant_id"`
-	AgentID           string            `json:"agent_id"`
-	SnapshotID        int64             `json:"snapshot_id"`
-	PID               int               `json:"pid"`
-	ProcessName       string            `json:"process_name"`
-	ProcessPath       string            `json:"process_path"`
-	Cmdline           string            `json:"cmdline"`
-	FileHash          string            `json:"file_hash"`
-	ThreatLevel       string            `json:"threat_level"` // CLEAN, SUSPICIOUS, MALICIOUS
-	Reasons           []string          `json:"reasons"`
-	YaraMatches       map[string]string `json:"yara_matches"`
-	VirusTotalData    map[string]any    `json:"virustotal_data"`
-	BehavioralScore   int               `json:"behavioral_score"`
-	DetectedAt        time.Time         `json:"detected_at"`
-	CreatedAt         time.Time         `json:"created_at"`
-	Resolved          bool              `json:"resolved"`
-	ResolvedReason    string            `json:"resolved_reason,omitempty"`
-	ResolvedBy        string            `json:"resolved_by,omitempty"`
-	ResolvedAt        *time.Time        `json:"resolved_at,omitempty"`
+	ID              int64             `json:"id"`
+	TenantID        string            `json:"tenant_id"`
+	AgentID         string            `json:"agent_id"`
+	SnapshotID      int64             `json:"snapshot_id"`
+	PID             int               `json:"pid"`
+	ProcessName     string            `json:"process_name"`
+	ProcessPath     string            `json:"process_path"`
+	Cmdline         string            `json:"cmdline"`
+	FileHash        string            `json:"file_hash"`
+	ThreatLevel     string            `json:"threat_level"` // CLEAN, SUSPICIOUS, MALICIOUS
+	Reasons         []string          `json:"reasons"`
+	YaraMatches     map[string]string `json:"yara_matches"`
+	VirusTotalData  map[string]any    `json:"virustotal_data"`
+	BehavioralScore int               `json:"behavioral_score"`
+	DetectedAt      time.Time         `json:"detected_at"`
+	CreatedAt       time.Time         `json:"created_at"`
+	Resolved        bool              `json:"resolved"`
+	ResolvedReason  string            `json:"resolved_reason,omitempty"`
+	ResolvedBy      string            `json:"resolved_by,omitempty"`
+	ResolvedAt      *time.Time        `json:"resolved_at,omitempty"`
 }
 
 // InsertProcessSnapshot stores a raw process snapshot batch for audit trail.

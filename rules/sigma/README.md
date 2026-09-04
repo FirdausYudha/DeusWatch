@@ -97,7 +97,7 @@ go run ./tools/rulelint rules/sigma   # validates EVERY file through the real en
 
 **Why keyword rules are broad here:** `matchKeywords` substring-matches
 (case-insensitively) against *all* string fields of the event, not just `event.original`
-— so one gambling-keyword rule fires whether the term lands in a web access-log line
+, so one gambling-keyword rule fires whether the term lands in a web access-log line
 (`event.original`), a dropped/injected file name (`file.path` from FIM), or a command
 line (`process.command_line`). See `haystack()` in `internal/detect/sigma/sigma.go`.
 

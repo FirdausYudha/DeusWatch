@@ -14,7 +14,7 @@ func TestKillSwitchQueue(t *testing.T) {
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 
@@ -144,7 +144,7 @@ func TestKillSwitchDismiss(t *testing.T) {
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 

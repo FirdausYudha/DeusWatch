@@ -167,8 +167,8 @@ func (s *Store) BuildReport(ctx context.Context, hours int) (report.Report, erro
 	return r, nil
 }
 
-// BuildReportRange assembles the summary for an explicit from–to window — what the PDF/Markdown
-// export uses when you pick a date range (e.g. all of last month) rather than "the last N hours".
+// BuildReportRange assembles the summary for an explicit from–to window, what the PDF/Markdown
+// export uses when you pick a date range (e.g. All of last month) rather than "the last N hours".
 func (s *Store) BuildReportRange(ctx context.Context, from, to time.Time) (report.Report, error) {
 	if to.IsZero() || to.Before(from) {
 		to = time.Now()
@@ -227,7 +227,7 @@ func (s *Store) buildReportRange(ctx context.Context, since, until time.Time) (r
 		 GROUP BY dw_llm_verdict ORDER BY count(*) DESC`, since, until); err != nil {
 		return r, err
 	}
-	// The suspicious-IP watchlist (maintained by the worker) — the label carries the behavioral
+	// The suspicious-IP watchlist (maintained by the worker), the label carries the behavioral
 	// detail so the AI summary can reason about the recon pattern.
 	if susp, serr := s.TopSuspiciousIPs(ctx, 8); serr == nil {
 		for _, sp := range susp {

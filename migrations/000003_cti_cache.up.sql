@@ -1,9 +1,9 @@
--- Migration 000003 — TTL-based CTI cache (design doc section 3).
+-- Migration 000003, TTL-based CTI cache (design doc section 3).
 --
 -- CTI lookup results are stored as ROWS in Postgres with a TTL column (expires_at),
 -- NOT an in-memory cache. The worker checks this table before calling external APIs;
 -- the PRIMARY KEY on ip + UPSERT (ON CONFLICT) resolves cross-worker races
--- deterministically — there is never a "cache collision".
+-- deterministically. There is never a "cache collision".
 
 CREATE TABLE IF NOT EXISTS cti_indicators (
     ip               inet        PRIMARY KEY,

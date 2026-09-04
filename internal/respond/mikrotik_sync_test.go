@@ -65,7 +65,7 @@ func (f *fakeRouter) addrs() []string {
 	return a
 }
 
-func itoa(n int) string { return strings.TrimSpace(jsonNumber(n)) }
+func itoa(n int) string       { return strings.TrimSpace(jsonNumber(n)) }
 func jsonNumber(n int) string { b, _ := json.Marshal(n); return string(b) }
 
 func TestMikrotikSyncReconciles(t *testing.T) {

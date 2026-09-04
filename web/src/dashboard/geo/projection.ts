@@ -5,7 +5,7 @@
 // multiply, which means the projection code is a few lines, the map SVG can be a simple
 // coordinate-plane background (no complex polygon set to bundle), and the reverse-project on hover
 // is symmetric. Robinson would look prettier but needs a lookup table + cubic interpolation for
-// every marker/arc — worth trading later, not in v1 (docs/geo-map.md notes this as an accepted
+// every marker/arc, worth trading later, not in v1 (docs/geo-map.md notes this as an accepted
 // v1 trade-off; the projection module is self-contained and swappable when a real world SVG lands).
 //
 // The map viewport is 1000 × 500 (2:1 aspect, natural for equirectangular). x = 0 at the
@@ -30,7 +30,7 @@ export function project(lat: number, lon: number): [number, number] {
 /**
  * arcPath returns an SVG path 'd' for a quadratic bezier from source to destination in projected
  * coordinates. The control point sits above the midpoint, offset by a fraction of the horizontal
- * distance — long arcs bow higher, short ones stay flat. Cross-antimeridian pairs (span > 180°)
+ * distance, long arcs bow higher, short ones stay flat. Cross-antimeridian pairs (span > 180°)
  * would visually "wrap"; for v1 we accept a straight-through line, which is what most SOC
  * dashboards do.
  */

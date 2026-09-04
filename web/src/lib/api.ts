@@ -1,5 +1,5 @@
 // Small client for the DeusWatch API.
-// The dev server (Vite) proxies /healthz, /readyz & /api to the API on :8080 — see vite.config.ts.
+// The dev server (Vite) proxies /healthz, /readyz & /api to the API on :8080, see vite.config.ts.
 
 export type DepState = 'reachable' | 'unreachable' | 'unknown'
 
@@ -21,7 +21,7 @@ export async function fetchHealth(): Promise<Health> {
   }
 
   try {
-    // /readyz returns 200 when ready, 503 otherwise — both carry JSON.
+    // /readyz returns 200 when ready, 503 otherwise, both carry JSON.
     const res = await fetch('/readyz', { cache: 'no-store' })
     const data = (await res.json()) as {
       status?: string
@@ -32,7 +32,7 @@ export async function fetchHealth(): Promise<Health> {
     health.postgres = depState(deps.postgres)
     health.nats = depState(deps.nats)
   } catch {
-    // Network error (e.g. API down) — leave dependencies as 'unknown'.
+    // Network error (e.g. API down), leave dependencies as 'unknown'.
   }
 
   return health
@@ -89,7 +89,7 @@ export type EventRow = {
   dw_remediation_source: string
   threat_score: number
   threat_band: string
-  // INBOUND / OUTBOUND / LATERAL — attached by the API using the internal-tagged whitelist.
+  // INBOUND / OUTBOUND / LATERAL, attached by the API using the internal-tagged whitelist.
   // "" when it couldn't be classified.
   direction?: 'inbound' | 'outbound' | 'lateral' | ''
 }
@@ -188,7 +188,7 @@ export const SEVERITY: Record<number, { label: string; cls: string }> = {
 // ── Auth (session token) ──────────────────────────────────
 
 const TOKEN_KEY = 'deuswatch_token'
-const WORKSPACE_KEY = 'deuswatch_workspace' // active workspace id — narrows the tenant scope server-side
+const WORKSPACE_KEY = 'deuswatch_workspace' // active workspace id, narrows the tenant scope server-side
 
 export type Me = { username: string; role: string; twofa_enabled?: boolean; permissions: string[] }
 
@@ -263,7 +263,7 @@ export async function register(username: string, password: string): Promise<Me> 
   })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   const data = await res.json()
-  if (!data.token) throw new Error('Account created — please sign in')
+  if (!data.token) throw new Error('Account created, please sign in')
   setToken(data.token)
   return { username: data.username, role: data.role, permissions: data.permissions ?? [] }
 }
@@ -468,7 +468,7 @@ export async function updateUser(id: string, role: string, permissions: string[]
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
-// Delete a user (you cannot delete your own account — the API rejects it).
+// Delete a user (you cannot delete your own account, the API rejects it).
 export async function deleteUser(id: string): Promise<void> {
   const res = await authFetch(`/api/users/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
@@ -691,7 +691,7 @@ export type VulnSummary = {
   high: number
   medium: number
   low: number
-  // negligible + unknown broken out in v2.8.0 so donut totals reconcile with `total` — previously
+  // negligible + unknown broken out in v2.8.0 so donut totals reconcile with `total`, previously
   // findings with empty severity (USN before the Ubuntu-priority enrichment landed) were counted
   // in total but not in any bucket.
   negligible: number
@@ -897,7 +897,7 @@ export async function fetchResponses(status = '', search = ''): Promise<Response
 }
 
 // Enforcement status: whether a ban actually reaches a firewall (a live push responder, or the
-// pull blocklist feed). When false, the UI must not claim an IP is "blocked" — it is only flagged.
+// pull blocklist feed). When false, the UI must not claim an IP is "blocked". It is only flagged.
 export type Enforcement = {
   enforcing: boolean
   push_live: boolean
@@ -1114,8 +1114,8 @@ export async function banIP(ip: string, minutes = 0): Promise<void> {
 }
 
 // IP whitelist: trusted IPs/CIDRs the response engine never bans. `kind` classifies the entry as
-// 'internal' (our network — counts as "our side" for the INBOUND/OUTBOUND/LATERAL direction tag) or
-// 'external' (a trusted third party — still never banned, but doesn't count as our side).
+// 'internal' (our network, counts as "our side" for the INBOUND/OUTBOUND/LATERAL direction tag) or
+// 'external' (a trusted third party, still never banned, but doesn't count as our side).
 export type WhitelistKind = 'internal' | 'external'
 export type WhitelistEntry = { id: string; cidr: string; note: string; kind: WhitelistKind; created_at: string }
 
@@ -1332,13 +1332,13 @@ export async function fetchTenantTimeline(range: number | DashRange = 24, bucket
   return (await res.json()).series ?? []
 }
 // DashWidget is retained for backwards compat with pre-v2.0 saved layouts. The current dashboard
-// persists just the panel ORDER (see DashLayout below) — widget shape (kind/source/title/color/span)
+// persists just the panel ORDER (see DashLayout below), widget shape (kind/source/title/color/span)
 // lives in the frontend PANELS const and is the source of truth. Keeping this type exported so the
 // backend TS shim doesn't break.
 export type DashWidget = { id: string; kind: WidgetKind; source: string; title: string; color: string; wide?: boolean }
 // DashLayout v2 persists only the order of the fixed panel set. v1 kept `widgets` (with per-widget
-// styling that could drift from the frontend); v2 keeps it simple — the reader below tolerates both.
-// v2.14.0 added `spans` — a per-panel column-width override (1/2/3) that the Edit-mode UI writes
+// styling that could drift from the frontend); v2 keeps it simple, the reader below tolerates both.
+// v2.14.0 added `spans`, a per-panel column-width override (1/2/3) that the Edit-mode UI writes
 // diff-only vs coded defaults, so any future PANELS default-span change automatically propagates
 // to untouched panels.
 export type DashLayout = { v?: number; order?: string[]; spans?: Record<string, 1 | 2 | 3>; widgets?: DashWidget[] }
@@ -1421,7 +1421,7 @@ export type RulePack = {
   enabled: number
   installed: boolean
   installable?: boolean // curated pack: one-click Install / Uninstall
-  remote?: boolean // came from the online feed — re-installing pulls newly-added rules (Update)
+  remote?: boolean // came from the online feed, re-installing pulls newly-added rules (Update)
   url?: string
 }
 export async function fetchRulePacks(): Promise<RulePack[]> {
@@ -1679,10 +1679,10 @@ export async function generateReportSummary(hours = 24, range?: ReportRange): Pr
   const res = await authFetch(`/api/report/summary?${reportQuery(hours, range)}`, { method: 'POST' })
   if (!res.ok) {
     const body = (await res.text()).trim()
-    // A reverse-proxy timeout (e.g. 504) returns an HTML page, not our JSON/plain error —
+    // A reverse-proxy timeout (e.g. 504) returns an HTML page, not our JSON/plain error , 
     // don't dump raw HTML into the UI as if it were a summary.
     const msg = /^<(!doctype|html)/i.test(body) || body.includes('<html')
-      ? `Report generation failed (HTTP ${res.status}). The LLM likely took too long — try a shorter window (24h) or a faster model.`
+      ? `Report generation failed (HTTP ${res.status}). The LLM likely took too long, try a shorter window (24h) or a faster model.`
       : body || `HTTP ${res.status}`
     throw new Error(msg)
   }
@@ -1809,7 +1809,7 @@ export async function saveReportAIConfig(c: ReportAIConfig): Promise<ReportAICon
 // ── Backend component liveness ────────────────────────────
 // /healthz only proves the API process is up. This reports the worker, whose absence stops the
 // entire detection pipeline while the UI carries on rendering over a database that has quietly
-// stopped growing — the exact failure that went unnoticed for 11 hours on 2026-09-04.
+// stopped growing, the exact failure that went unnoticed for 11 hours on 2026-09-04.
 export type ServiceHealth = {
   service: string
   alive: boolean
@@ -1817,7 +1817,7 @@ export type ServiceHealth = {
   age_seconds: number
   version?: string
   detail?: string
-  /** false = never reported at all (fresh deploy, or never started) — different advice from "stopped". */
+  /** false = never reported at all (fresh deploy, or never started), different advice from "stopped". */
   ever_seen: boolean
 }
 

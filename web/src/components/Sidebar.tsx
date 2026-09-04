@@ -54,7 +54,7 @@ const NAV: NavGroup[] = [
   },
 ]
 
-// Inline stroke icons (no icon package, no CDN — the app must run fully offline).
+// Inline stroke icons (no icon package, no CDN, the app must run fully offline).
 const ICONS: Record<string, string> = {
   dashboard: 'M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z',
   response: 'M12 3l8 3.5V12c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6.5zM8.5 12l2.5 2.5L16 9.5',
@@ -139,7 +139,7 @@ export default function Sidebar({
         <span className="text-[16px] font-bold tracking-tight text-fg">DeusWatch</span>
       </div>
 
-      {/* Nav — grouped by feature category */}
+      {/* Nav, grouped by feature category */}
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2.5 py-3">
         {NAV.map((group) => {
           const visibleItems = group.items.filter(n => !n.perm || can(me, n.perm))
@@ -150,7 +150,7 @@ export default function Sidebar({
 
           return (
             <div key={group.group} className="flex flex-col gap-1">
-              {/* Group header — click to collapse/expand. Shows an active dot when collapsed but the
+              {/* Group header, click to collapse/expand. Shows an active dot when collapsed but the
                   current page lives inside, so you never lose your place. */}
               <button
                 onClick={() => toggleGroup(group.group)}

@@ -7,7 +7,7 @@
 // this file plus the matching SQL migration under migrations/. No stray fields may
 // appear ad hoc elsewhere in the code. This keeps the schema from rotting.
 //
-// The mapping to TimescaleDB columns lives in migrations/000001_init_dcs.up.sql —
+// The mapping to TimescaleDB columns lives in migrations/000001_init_dcs.up.sql,
 // column name = the dotted ECS name snake_cased (e.g. source.ip -> source_ip,
 // deuswatch.enrichment.status -> dw_enrichment_status).
 package ingest
@@ -131,7 +131,7 @@ type Endpoint struct {
 	Geo  *Geo   `json:"geo,omitempty"`
 	// AS (v2.13.0+) carries MaxMind's autonomous_system_number + organization when the
 	// GeoLite2-ASN DB is mounted. Used by the dashboard's Communication Graph widget to
-	// group source IPs by ASN — an EXT node in that graph is one ASN, not one IP.
+	// group source IPs by ASN, an EXT node in that graph is one ASN, not one IP.
 	AS *AS `json:"as,omitempty"`
 }
 
@@ -172,7 +172,7 @@ type Network struct {
 	Transport string `json:"transport,omitempty"`
 }
 
-// HTTP = http.* / url.* — web-request context (e.g. from a WAF like ModSecurity, or an
+// HTTP = http.* / url.*, web-request context (e.g. from a WAF like ModSecurity, or an
 // access log): the method, requested URI, response status, and the requested Host/vhost.
 type HTTP struct {
 	Method     string `json:"method,omitempty"`
@@ -213,7 +213,7 @@ type Technique struct {
 	Name string `json:"name,omitempty"`
 }
 
-// Indicator = threat.indicator.* (CTI lookup result — Phase 2).
+// Indicator = threat.indicator.* (CTI lookup result, Phase 2).
 type Indicator struct {
 	IP         string     `json:"ip,omitempty"`
 	Confidence int        `json:"confidence,omitempty"`
@@ -263,7 +263,7 @@ type FileReputation struct {
 	Detail  string `json:"detail,omitempty"`  // e.g. "12/70 engines flagged"
 }
 
-// Containment = deuswatch.containment.* — an auto-response directive carried on an alert
+// Containment = deuswatch.containment.*, an auto-response directive carried on an alert
 // when the matched rule has a `mitigation_action: network_containment` block. The response
 // engine reads it to decide whether to isolate the alert's host (see internal/respond).
 type Containment struct {
@@ -289,7 +289,7 @@ type DeusWatch struct {
 
 // ── Main record ───────────────────────────────────────────
 
-// Event is a single DCS log record — the internal form after gateway normalization
+// Event is a single DCS log record, the internal form after gateway normalization
 // and the unit of storage in the TimescaleDB `events` hypertable.
 type Event struct {
 	Timestamp   time.Time   `json:"@timestamp"`

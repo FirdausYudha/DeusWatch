@@ -57,12 +57,12 @@ func warnFutureSkew(e *ingest.Event, now time.Time) {
 	if e.Agent != nil {
 		agent = e.Agent.ID
 	}
-	log.Printf("worker: agent %q stamped an event %s in the future — clamping to server time; fix that host's clock/timezone (NTP)", agent, e.Timestamp.Sub(now).Round(time.Second))
+	log.Printf("worker: agent %q stamped an event %s in the future, clamping to server time; fix that host's clock/timezone (NTP)", agent, e.Timestamp.Sub(now).Round(time.Second))
 }
 
 // Handler returns a bus.Handler for the logs.normalized subject: enrich the event
 // (if an enricher is set), persist it, run the detectors, persist any fired alerts,
-// then call onAlert for each alert. enricher & onAlert may be nil.
+// then call onAlert for each alert. Enricher & onAlert may be nil.
 func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, suppress AlertSuppressor, annotate AlertAnnotator, detectors ...detect.Detector) bus.Handler {
 	return func(_ string, data []byte) error {
 		var e ingest.Event
@@ -73,10 +73,10 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 		// Event time comes from the AGENT's clock. Guard the two ways it can be unusable:
 		//   * zero  → fall back to server time.
 		//   * far in the FUTURE → an agent whose clock/timezone runs ahead (a classic VM/NTP
-		//     misconfig — e.g. the RTC holds local time but the OS assumes UTC) stamps events in the
+		//     misconfig, e.g. The RTC holds local time but the OS assumes UTC) stamps events in the
 		//     future, where the dashboard's `time <= now()` upper bound HIDES them until the wall
 		//     clock catches up (hours later). Clamp to server time so they surface immediately, and
-		//     warn (throttled) so the operator fixes the agent's clock. Past-skew is left alone —
+		//     warn (throttled) so the operator fixes the agent's clock. Past-skew is left alone,
 		//     those events still appear (just at the wrong past time).
 		now := time.Now()
 		if e.Timestamp.IsZero() {
@@ -95,7 +95,7 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 			}
 		}
 
-		// Pre-labeled ingested events (e.g. Suricata alerts) are alerts already —
+		// Pre-labeled ingested events (e.g. Suricata alerts) are alerts already,
 		// annotate before persisting so the recommendation is stored with them.
 		if annotate != nil && e.DeusWatch.Label != "" {
 			annotate(&e)
@@ -122,7 +122,7 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 				continue
 			}
 			if suppress != nil && suppress(ic, alert) {
-				// Trusted-session change (ADR 0002 Phase 4): don't drop it silently — record it as
+				// Trusted-session change (ADR 0002 Phase 4): don't drop it silently, record it as
 				// a low-severity `authorized_change` audit event so there is a trail, but do NOT
 				// notify or respond (it's an official deploy/content edit, not an attack). A sudden
 				// change with no legitimate session is not suppressed and keeps its normal severity.

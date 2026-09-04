@@ -104,7 +104,7 @@ func TestHeartbeatHandlerRevoked(t *testing.T) {
 
 // TestHeartbeatHandlerStoreFailureSurfaces is the regression for the "agent stays offline until
 // docker compose restart" bug. When MarkHealth/MarkSeen fail (e.g. a broken pool connection), the
-// handler used to swallow the error and return 204 — the agent's `journalctl` said "Sent" while the
+// handler used to swallow the error and return 204, the agent's `journalctl` said "Sent" while the
 // dashboard kept showing the agent as offline. It must now return 503 (and log) so the failure is
 // visible to both the operator and the agent's own retry loop.
 func TestHeartbeatHandlerStoreFailureSurfaces(t *testing.T) {
@@ -135,7 +135,7 @@ func TestHeartbeatHandlerStoreFailureSurfaces(t *testing.T) {
 // TestHeartbeatHandlerUnknownAgentRejected is the regression for the "never connected"
 // bug. A certificate signed by our CA whose CN was never enrolled (the shared certgen
 // bundle's "deuswatch-agent" is the usual culprit) passes RequireAndVerifyClientCert, so
-// the handshake succeeds — but every heartbeat UPDATE keys on agents.name and matches no
+// the handshake succeeds, but every heartbeat UPDATE keys on agents.name and matches no
 // row. Postgres calls a zero-row UPDATE a success, so the handler used to answer 204: the
 // agent's journal showed clean heartbeats while the dashboard showed the host as never
 // connected, with no error on either side. It must now answer 409 so both sides agree.
@@ -163,7 +163,7 @@ func TestHeartbeatHandlerUnknownAgentRejected(t *testing.T) {
 		t.Fatalf("unenrolled CN on the health path must be 409, got %d", rr.Code)
 	}
 
-	// A wrapped sentinel must still be recognised — the store may add context.
+	// A wrapped sentinel must still be recognised, the store may add context.
 	h3 := HeartbeatHandler(nil, func(context.Context, string, bool, string) error {
 		return fmt.Errorf("mark health %q: %w", "deuswatch-agent", ErrUnknownAgent)
 	}, nil)
@@ -173,7 +173,7 @@ func TestHeartbeatHandlerUnknownAgentRejected(t *testing.T) {
 		t.Fatalf("wrapped ErrUnknownAgent must still be 409, got %d", rr.Code)
 	}
 
-	// A genuine store error keeps its distinct 503 — the two failures are not the same
+	// A genuine store error keeps its distinct 503, the two failures are not the same
 	// thing and must not collapse into one status.
 	h4 := HeartbeatHandler(nil, func(context.Context, string, bool, string) error {
 		return errors.New("db connection reset")

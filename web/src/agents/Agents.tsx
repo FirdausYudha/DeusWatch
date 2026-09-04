@@ -22,7 +22,7 @@ import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim']
 const POLL_TYPES = new Set(['fim', 'wineventlog']) // types where the interval applies
 
-// v() prints a semver with exactly one leading "v" — buildVersion baked in from `git describe`
+// v() prints a semver with exactly one leading "v", buildVersion baked in from `git describe`
 // already carries a `v` prefix (v2.14.0-1-gabc), so blindly prepending in the template
 // produces `vv2.14.0-1-gabc`. Handles both prefixed and bare inputs uniformly.
 function v(s?: string | null): string {
@@ -145,17 +145,17 @@ export default function Agents({ me }: { me: Me }) {
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
 
-      {/* Warn on "dev" builds — either the manager or any agent reporting "dev" means the
+      {/* Warn on "dev" builds, either the manager or any agent reporting "dev" means the
           build didn't get its version stamp, which breaks the version-match auto-clear of the
           update-request flag and produces the "queued update never lands" symptom. Almost
           always caused by `docker build` without `--build-arg VERSION=…` or by a stale image
           cached before scripts/update.sh started passing the git-described version. */}
-      {/* Revoked agents are excluded — they're not actionable and a decommissioned host
+      {/* Revoked agents are excluded, they're not actionable and a decommissioned host
           shouldn't keep a scary banner on screen forever. */}
       {isAdmin && (managerVersion === 'dev' || agents.some((a) => !a.revoked && a.agent_version === 'dev')) && (
         <div className="mb-4 rounded-[10px] border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-[13px] text-rose-200">
-          <strong>Untagged build detected.</strong> {managerVersion === 'dev' ? 'The manager itself reports version "dev" — it was built without a VERSION arg. ' : ''}
-          {agents.some((a) => a.agent_version === 'dev') ? 'One or more agents report "dev" — they were installed from an untagged manager image. ' : ''}
+          <strong>Untagged build detected.</strong> {managerVersion === 'dev' ? 'The manager itself reports version "dev". it was built without a VERSION arg. ' : ''}
+          {agents.some((a) => a.agent_version === 'dev') ? 'One or more agents report "dev". they were installed from an untagged manager image. ' : ''}
           Self-update relies on version comparison; a "dev" side will never converge. Rebuild the manager with <code className="rounded bg-rose-500/20 px-1 py-0.5 font-mono text-[12px]">scripts/update.sh</code> (it exports the git-described version), then reinstall affected agents from the Agents page.
         </div>
       )}
@@ -209,7 +209,7 @@ export default function Agents({ me }: { me: Me }) {
                       <span className="text-amber-300" title={`Manager is ${v(managerVersion) || '?'}`}>{v(a.agent_version)}</span>
                     )
                   ) : (
-                    <span className="text-dim" title="Pre-v2.12.0 agent — doesn't report its build. Reinstall once to enable self-update.">unknown</span>
+                    <span className="text-dim" title="Pre-v2.12.0 agent, doesn't report its build. Reinstall once to enable self-update.">unknown</span>
                   )}
                   {a.update_requested_at && (
                     <span className="ml-1.5 rounded bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent" title="Self-update queued; picked up on next heartbeat">
@@ -318,11 +318,11 @@ function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => vo
     <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="mb-1 text-[13.5px] font-semibold text-fg">
-          Uninstall agent — <span className="text-accent">{agent.name}</span>
+          Uninstall agent, <span className="text-accent">{agent.name}</span>
           <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] uppercase text-muted">{agent.os || 'linux'}</span>
         </h3>
         <p className="mb-4 text-[12.5px] text-dim">
-          Cleanest way: <span className="text-fg">Revoke</span> this agent — it self-uninstalls on its
+          Cleanest way: <span className="text-fg">Revoke</span> this agent, it self-uninstalls on its
           next heartbeat. Run the commands below on the endpoint for a manual or forced cleanup.
         </p>
         <div className="mb-2 text-[12.5px] font-medium uppercase tracking-wider text-dim">
@@ -367,7 +367,7 @@ function Copyable({ text }: { text: string }) {
   )
 }
 
-// EnrollWizard — Wazuh-style: pick OS, auto-generate a one-time token, and get a
+// EnrollWizard, Wazuh-style: pick OS, auto-generate a one-time token, and get a
 // single copy-paste command that downloads, enrolls, installs the service and connects.
 function EnrollWizard({ onClose }: { onClose: () => void }) {
   const [os, setOs] = useState('linux')
@@ -493,18 +493,18 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
         <div className="mt-5 space-y-4">
           <div>
             <div className="mb-1 text-[12.5px] font-medium text-muted">
-              1 · On the manager — open the firewall <span className="text-dim">(elevated PowerShell, once)</span>
+              1 · On the manager, open the firewall <span className="text-dim">(elevated PowerShell, once)</span>
             </div>
             <Copyable text={managerFw} />
           </div>
           <div>
             <div className="mb-1 text-[12.5px] font-medium text-muted">
-              2 · On the endpoint — paste &amp; run{' '}
+              2 · On the endpoint, paste &amp; run{' '}
               <span className="text-dim">{os === 'windows' ? '(elevated PowerShell)' : '(root; sudo is included)'}</span>
             </div>
             <Copyable text={install} />
             {!token && (
-              <p className="mt-1 text-[12.5px] text-amber-400/80">{busy ? 'Generating token…' : 'No token yet — click “Generate token”.'}</p>
+              <p className="mt-1 text-[12.5px] text-amber-400/80">{busy ? 'Generating token…' : 'No token yet, click “Generate token”.'}</p>
             )}
             <p className="mt-1 text-[12.5px] text-dim">
               Downloads the agent, opens its firewall, enrolls with the token, installs an auto-start service, and connects to the gateway.
@@ -531,7 +531,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ConfigEditor — central monitoring config: which sources each agent collects and,
+// ConfigEditor, central monitoring config: which sources each agent collects and,
 // for poll-based collectors, how often (intensity).
 function ConfigEditor({
   agent,
@@ -589,7 +589,7 @@ function ConfigEditor({
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">Monitoring — {agent.name}</h2>
+        <h2 className="mb-1 text-[16px] font-semibold text-fg">Monitoring, {agent.name}</h2>
         <p className="mb-4 text-[12.5px] text-dim">
           Choose what this agent collects. For <code className="text-fg">fim</code> &amp;{' '}
           <code className="text-fg">wineventlog</code> set a scan interval (seconds) to control intensity.
@@ -684,7 +684,7 @@ function ConfigEditor({
                       }
                       update(i, { snapshot_storage: v })
                     }}
-                    title="Where version content is kept — the admin's choice (agent = host only; manager = central copy)"
+                    title="Where version content is kept: the admin's choice (agent = host only; manager = central copy)"
                     className="rounded-md border border-border bg-surface-2 px-2 py-1 outline-none focus:border-accent"
                   >
                     <option value="agent">on agent</option>
@@ -731,7 +731,7 @@ function ConfigEditor({
   )
 }
 
-// SnapshotViewer — read-only browser of an agent's dated FIM snapshot timeline (ADR 0002,
+// SnapshotViewer, read-only browser of an agent's dated FIM snapshot timeline (ADR 0002,
 // Phase 1-3). Browse a watched file's dated versions, see the old-vs-new diff per version, take a
 // snapshot on demand, and quarantine the current (possibly infected) file for blue-team analysis.
 
@@ -745,7 +745,7 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between gap-3">
-          <h2 className="text-[16px] font-semibold text-fg">FIM snapshots — {agent.name}</h2>
+          <h2 className="text-[16px] font-semibold text-fg">FIM snapshots, {agent.name}</h2>
           <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" className="shrink-0" />
         </div>
         <p className="mb-3 text-[12.5px] text-dim">

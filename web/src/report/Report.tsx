@@ -57,7 +57,7 @@ function BarList({ title, rows }: { title: string; rows: ReportCount[] | null })
 export default function Report() {
   const [hours, setHours] = useState(24)
   // Optional explicit date range (YYYY-MM-DD). When `from` is set it replaces the rolling
-  // last-N-hours window, so the page — and therefore the PDF/Markdown export — covers exactly
+  // last-N-hours window, so the page, and therefore the PDF/Markdown export, covers exactly
   // the dates you picked. Persisted so it survives leaving the page.
   const [rangeFrom, setRangeFrom] = usePersistedState('report.from', '')
   const [rangeTo, setRangeTo] = usePersistedState('report.to', '')
@@ -81,7 +81,7 @@ export default function Report() {
       .finally(() => setLoading(false))
   }, [hours, rangeFrom, rangeTo])
 
-  // Scheduled report delivery to channels (Telegram/email) — separate from the AI schedule.
+  // Scheduled report delivery to channels (Telegram/email), separate from the AI schedule.
   const [delivery, setDelivery] = useState<NotifyConfig | null>(null)
   const [delivCustom, setDelivCustom] = useState(false)
   const [delivDays, setDelivDays] = useState('')
@@ -167,7 +167,7 @@ export default function Report() {
     setGenBusy(true)
     setGenError('')
     try {
-      // Summarize the same window the page shows — the date range if one is set.
+      // Summarize the same window the page shows, the date range if one is set.
       setSummary(await generateReportSummary(hours, range))
     } catch (e) {
       setGenError((e as Error).message)
@@ -211,7 +211,7 @@ export default function Report() {
             Security summary
             {report && <span className="ml-1 text-dim">· generated {new Date(report.generated).toLocaleString('en-US')}</span>}
           </p>
-          {/* Explicit date range — what the PDF / Markdown export covers. Empty = the rolling
+          {/* Explicit date range, what the PDF / Markdown export covers. Empty = the rolling
               window from the period picker below. */}
           <div className="no-print mt-2 flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
             <span>Date range</span>
@@ -272,7 +272,7 @@ export default function Report() {
         </div>
       </header>
 
-      {/* AI executive summary — generated on demand or on a schedule */}
+      {/* AI executive summary, generated on demand or on a schedule */}
       <section className="card-print mb-6 rounded-[12px] border border-border bg-surface p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[12.5px] font-semibold uppercase tracking-wider text-dim">AI executive summary</h2>
@@ -303,7 +303,7 @@ export default function Report() {
                 days
               </span>
             )}
-            {/* At a fixed hour — only meaningful for a daily-or-longer cadence. Without it the
+            {/* At a fixed hour: only meaningful for a daily-or-longer cadence. Without it the
                 interval drifts: it fires N hours after the last run, whenever that happened. */}
             {cfg.interval_hours >= 24 && (
               <span className="flex items-center gap-1 text-[12.5px] text-muted">
@@ -311,7 +311,7 @@ export default function Report() {
                 <select
                   value={String(cfg.at_hour ?? -1)}
                   onChange={(e) => saveSchedule(cfg.interval_hours, Number(e.target.value))}
-                  title={cfg.server_time ? `Server clock — now ${cfg.server_time} ${cfg.server_tz ?? ''}` : 'Server local time'}
+                  title={cfg.server_time ? `Server clock, now ${cfg.server_time} ${cfg.server_tz ?? ''}` : 'Server local time'}
                   className="rounded-md border border-border bg-surface-2 px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
                 >
                   <option value="-1">any time</option>
@@ -382,7 +382,7 @@ export default function Report() {
           </>
         ) : (
           <p className="text-[13.5px] text-dim">
-            No AI summary yet. Click “Generate now” — needs an LLM integration (e.g. a free local Ollama). Runs on
+            No AI summary yet. Click “Generate now”, needs an LLM integration (e.g. a free local Ollama). Runs on
             demand, so there’s no per-alert API cost.
           </p>
         )}

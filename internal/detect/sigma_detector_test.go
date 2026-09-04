@@ -13,7 +13,7 @@ func TestSigmaDetectorRootLogin(t *testing.T) {
 		t.Fatalf("LoadDir: %v", err)
 	}
 	if len(rs) == 0 {
-		t.Fatal("empty ruleset — expected rules/sigma/*.yml")
+		t.Fatal("empty ruleset, expected rules/sigma/*.yml")
 	}
 	d := NewSigmaDetector(rs)
 
@@ -88,7 +88,7 @@ func TestSigmaAlertCarriesEnrichment(t *testing.T) {
 
 // TestSigmaAlertCarriesWhoData guards that a labeled alert carries FIM who-data (process +
 // user) and the line diff from the source event, so the actor shows on the alert the operator
-// actually looks at — not only on the raw file_modified event.
+// actually looks at, not only on the raw file_modified event.
 func TestSigmaAlertCarriesWhoData(t *testing.T) {
 	rs, err := sigma.LoadDir("../../rules/sigma")
 	if err != nil {

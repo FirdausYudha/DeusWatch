@@ -1,4 +1,4 @@
--- Migration 000011 — DB-backed detection rules (Wazuh-style management).
+-- Migration 000011, DB-backed detection rules (Wazuh-style management).
 --
 -- Rules are Sigma YAML, classified as single-event or aggregation. They are seeded
 -- from the bundled rules/ on first start (builtin=true) and can be added/edited/disabled/

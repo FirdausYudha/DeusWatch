@@ -38,7 +38,7 @@ func TestMTLSHandshake(t *testing.T) {
 	ts.StartTLS()
 	defer ts.Close()
 
-	// Case 1 — a client with a valid certificate must get through.
+	// Case 1, a client with a valid certificate must get through.
 	cliCfg, err := ClientConfig(paths)
 	if err != nil {
 		t.Fatalf("ClientConfig: %v", err)
@@ -55,7 +55,7 @@ func TestMTLSHandshake(t *testing.T) {
 	}
 	t.Log("OK: client with a valid certificate connected successfully")
 
-	// Case 2 — a client WITHOUT a certificate (trusts the server but presents no
+	// Case 2, a client WITHOUT a certificate (trusts the server but presents no
 	// identity) must be rejected by the server during the handshake.
 	pool, err := caPool(paths.CACert)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestMTLSClientTrustsCANotHostname(t *testing.T) {
 	ts.StartTLS()
 	defer ts.Close()
 
-	// Same-CA client: ts.URL is https://127.0.0.1:PORT (not in the SAN) — must still connect.
+	// Same-CA client: ts.URL is https://127.0.0.1:PORT (not in the SAN), must still connect.
 	cliCfg, err := ClientConfig(paths)
 	if err != nil {
 		t.Fatalf("ClientConfig: %v", err)

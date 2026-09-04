@@ -31,7 +31,7 @@ var (
 	// Pre-auth SSH RECON lines: a client touched the port but never completed a login. These carry
 	// the attacker IP yet are NOT auth failures, so they were previously ingested WITHOUT a source
 	// IP and contributed nothing to scoring. We now extract the IP (as event.action "ssh_probe",
-	// severity Info — telemetry, never an alert) so it feeds the suspicious/slow-scanner/composite
+	// severity Info, telemetry, never an alert) so it feeds the suspicious/slow-scanner/composite
 	// scoring, where volume across time/hosts is what actually surfaces a scanner. Each pattern's
 	// FIRST group is the IP; the second, when present, the port.
 	reSSHProbe = []*regexp.Regexp{
@@ -108,14 +108,14 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if kind == "sshd" && normalizeSSHD(raw.Message, e) {
 		return e, true
 	}
-	// Wazuh forwards a variety of upstream formats under the "wazuh" label — Wazuh manager
+	// Wazuh forwards a variety of upstream formats under the "wazuh" label, Wazuh manager
 	// integrator scripts, agent-shipped syslog, etc. Sniff the common syslog shapes so the
 	// classic "Failed password …" line lands as authentication_failure (the same as native
 	// SSHD ingest) instead of an unlabelled event that the alerts-only view hides.
 	if kind == "wazuh" {
 		if normalizeSSHD(raw.Message, e) {
 			// A Wazuh-forwarded sshd line is already the alert on this side, but the plain SSHD
-			// parser sets only category/action/outcome — the detection engine adds a label
+			// parser sets only category/action/outcome, the detection engine adds a label
 			// downstream. Stamp one directly for the wazuh path so the default alerts-only view
 			// surfaces it immediately (a login FAILURE gets High, everything else Low so it
 			// stays visible without over-signalling).
@@ -135,7 +135,7 @@ func Normalize(raw RawLog) (*Event, bool) {
 			}
 			return e, true
 		}
-		// Unrecognized inner format — still label + escalate so the operator can find it on
+		// Unrecognized inner format, still label + escalate so the operator can find it on
 		// the events feed while writing a decoder. Without a label, the default alerts-only
 		// filter (dw_label IS NOT NULL) would hide it entirely.
 		e.Event.Category = "wazuh"
@@ -212,7 +212,7 @@ type suricataEVE struct {
 // the Suricata priority maps to a DCS severity, and MITRE tags (when the ruleset carries them,
 // e.g. ET Pro) are mapped. It is PRE-LABELED (dw_label set) because an IDS already decided this
 // is an alert - so it surfaces in the Alerts view and the worker drives response/notify on it
-// directly, without a DeusWatch rule re-firing. event.category is "intrusion_detection" so the
+// directly, without a DeusWatch rule re-firing. Event.category is "intrusion_detection" so the
 // log-based Sigma rules (scoped by category) never re-evaluate it. Non-alert EVE lines return
 // false; configure Suricata's eve-log to emit only 'alert' to keep volume sane.
 func normalizeSuricata(msg string, e *Event) bool {
@@ -490,7 +490,7 @@ func normalizeWindows(msg string, e *Event) bool {
 }
 
 // normalizeFIM parses the agent's FIM JSON payload ({path,action,sha256,size,mode})
-// into DCS file.* fields. action: created/modified/deleted.
+// into DCS file.* fields. Action: created/modified/deleted.
 func normalizeFIM(msg string, e *Event) bool {
 	var c struct {
 		Path       string `json:"path"`
@@ -504,7 +504,7 @@ func normalizeFIM(msg string, e *Event) bool {
 		ActorStart string `json:"actor_start"`
 		User       string `json:"user"`
 		Syscall    string `json:"syscall"`
-		// auid and uid kept apart — their difference is the sudo/su signal.
+		// auid and uid kept apart, their difference is the sudo/su signal.
 		LoginUser     string `json:"actor_login_user"`
 		EffectiveUser string `json:"actor_effective_user"`
 	}
@@ -529,7 +529,7 @@ func normalizeFIM(msg string, e *Event) bool {
 	e.Event.Outcome = "success"
 	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode, Diff: c.Diff}
 	// Who-data (Linux/auditd): the process/user that changed the file. This is the
-	// differentiator over hash-only FIM — an alert can name the actor, not just the file.
+	// differentiator over hash-only FIM, an alert can name the actor, not just the file.
 	if c.Actor != "" || c.ActorPID != 0 {
 		e.Process = &Process{Name: c.Actor, PID: c.ActorPID, CommandLine: c.ActorExe, Start: c.ActorStart}
 	}
@@ -551,7 +551,7 @@ func normalizeFIM(msg string, e *Event) bool {
 	case "restored":
 		e.Event.Severity = SeverityInfo
 	case "encrypted":
-		e.Event.Severity = SeverityHigh // a file turned into encrypted/random data — ransomware signal
+		e.Event.Severity = SeverityHigh // a file turned into encrypted/random data, ransomware signal
 	default:
 		e.Event.Severity = SeverityMedium
 	}
@@ -582,7 +582,7 @@ func normalizeSSHD(msg string, e *Event) bool {
 		return true
 	}
 	// Pre-auth recon: a probe/scan that carries the client IP but is not a login attempt. Extract
-	// the IP so it feeds scoring, but leave it as Info telemetry with NO outcome — it must not
+	// the IP so it feeds scoring, but leave it as Info telemetry with NO outcome. It must not
 	// inflate the auth-FAILURE signal the way a real "Failed password" does.
 	for _, re := range reSSHProbe {
 		m := re.FindStringSubmatch(msg)
@@ -591,7 +591,7 @@ func normalizeSSHD(msg string, e *Event) bool {
 		}
 		ip := m[1]
 		if net.ParseIP(ip) == nil {
-			continue // not a real IP (malformed line / hostname) — keep looking
+			continue // not a real IP (malformed line / hostname), keep looking
 		}
 		port := ""
 		if len(m) > 2 {

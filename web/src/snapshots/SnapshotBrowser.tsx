@@ -84,10 +84,10 @@ export default function SnapshotBrowser({ agentName, me, initialPath }: { agentN
     try {
       if (kind === 'snapshot') {
         await snapshotNow(agentName, selected)
-        setMsg('Snapshot requested — the agent captures it on its next poll (~10s).')
+        setMsg('Snapshot requested. The agent captures it on its next poll (~10s).')
       } else {
         await quarantineFile(agentName, selected)
-        setMsg('Quarantine requested — the agent moves the file on its next poll (~10s).')
+        setMsg('Quarantine requested. The agent moves the file on its next poll (~10s).')
       }
       refreshSoon()
     } catch (e) {
@@ -107,7 +107,7 @@ export default function SnapshotBrowser({ agentName, me, initialPath }: { agentN
     setBusy('restore-' + v.id); setError(''); setMsg('')
     try {
       await restoreVersion(agentName, selected, v.sha256)
-      setMsg('Restore requested — the agent applies it on its next poll (~10s).')
+      setMsg('Restore requested. The agent applies it on its next poll (~10s).')
       refreshSoon()
     } catch (e) {
       setError((e as Error).message)
@@ -125,14 +125,14 @@ export default function SnapshotBrowser({ agentName, me, initialPath }: { agentN
     }
     if (
       !confirm(
-        `Roll back ALL of ${agentName}'s watched files to their versions as of ${asOf.toLocaleString()}?\n\nRansomware recovery: each file's current content is snapshotted first, then overwritten with its as-of version. Files whose content lives only on a lost agent cannot be restored — manager-stored versions can.`,
+        `Roll back ALL of ${agentName}'s watched files to their versions as of ${asOf.toLocaleString()}?\n\nRansomware recovery: each file's current content is snapshotted first, then overwritten with its as-of version. Files whose content lives only on a lost agent cannot be restored; manager-stored versions can.`,
       )
     )
       return
     setBusy('bulk'); setError(''); setMsg('')
     try {
       const n = await bulkRestore(agentName, '', asOf.toISOString())
-      setMsg(`Point-in-time revert requested for ${n} file(s) — the agent applies them on its next polls.`)
+      setMsg(`Point-in-time revert requested for ${n} file(s). The agent applies them on its next polls.`)
       refreshSoon()
     } catch (e) {
       setError((e as Error).message)
@@ -157,7 +157,7 @@ export default function SnapshotBrowser({ agentName, me, initialPath }: { agentN
       {canQuarantine && (
         <NoticeBanner
           tone="warn"
-          title="Ransomware recovery — roll all files back to a point in time"
+          title="Ransomware recovery: roll all files back to a point in time"
           action={
             <div className="flex items-center gap-2">
               <Input type="datetime-local" value={bulkAt} onChange={(e) => setBulkAt(e.target.value)} />

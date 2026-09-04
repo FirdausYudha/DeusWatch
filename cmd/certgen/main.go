@@ -26,7 +26,7 @@ func main() {
 	// Idempotent: skip if the CA already exists (used by the compose init container).
 	if !*force {
 		if _, err := os.Stat(mtls.Paths(*out).CACert); err == nil {
-			log.Printf("certgen: certificates already exist in %q — skipped (use -force to regenerate)", *out)
+			log.Printf("certgen: certificates already exist in %q, skipped (use -force to regenerate)", *out)
 			return
 		}
 	}

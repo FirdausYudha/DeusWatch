@@ -1,4 +1,4 @@
--- Migration 000001 — DeusWatch Core Schema (DCS): events hypertable.
+-- Migration 000001, DeusWatch Core Schema (DCS): events hypertable.
 --
 -- The schema source of truth (Go side) is internal/ingest/schema.go. The columns
 -- below = dotted ECS names, snake_cased. Adding a field MUST happen in both places
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS events (
     threat_technique_name           text,
     threat_tactic_name              text,
 
-    -- threat.indicator.* (CTI enrichment — Phase 2, columns prepared now)
+    -- threat.indicator.* (CTI enrichment, Phase 2, columns prepared now)
     threat_indicator_ip             inet,
     threat_indicator_confidence     smallint,
     threat_feed_name                text,
@@ -101,7 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_events_dw_label_time   ON events (dw_label, time 
 CREATE INDEX IF NOT EXISTS idx_events_enrich_status   ON events (dw_enrichment_status, time DESC);
 
 -- Columnar compression for chunks > 7 days (section 8): ~90% savings, data stays
--- queryable. segmentby uses event_dataset (low cardinality) — tunable.
+-- queryable. segmentby uses event_dataset (low cardinality), tunable.
 ALTER TABLE events SET (
     timescaledb.compress,
     timescaledb.compress_segmentby = 'event_dataset',

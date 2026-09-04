@@ -1,4 +1,4 @@
--- Migration 000019 — notification config: alert severity threshold + scheduled report
+-- Migration 000019, notification config: alert severity threshold + scheduled report
 -- delivery to channels (Telegram/email). Channels themselves come from env (secrets).
 CREATE TABLE IF NOT EXISTS notify_config (
     id                    int PRIMARY KEY DEFAULT 1 CHECK (id = 1),

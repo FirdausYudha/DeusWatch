@@ -1,7 +1,7 @@
 // Package agentinstall serves the public one-line agent installer: the install
 // scripts (Linux/Windows) and the cross-compiled agent binaries. These are not
 // secret (the enrollment token is the credential), so the endpoints are unauthenticated
-// — the same model as Wazuh's public packages.
+// : the same model as Wazuh's public packages.
 package agentinstall
 
 import (
@@ -18,7 +18,7 @@ var scripts embed.FS
 
 // Handler serves the installer scripts and binaries. binDir holds the
 // cross-compiled binaries named deuswatch-agent-<os>-<arch>[.exe]. apiPort/gwPort are the
-// host-published ports agents must reach (the container always listens on 8080/8443) — they
+// host-published ports agents must reach (the container always listens on 8080/8443). They
 // are reported to the UI so the generated one-line installer points at the right ports.
 type Handler struct {
 	binDir  string
@@ -37,7 +37,7 @@ func New(binDir, apiPort, gwPort string) *Handler {
 }
 
 // InstallInfo reports the host-published ports for the install wizard
-// (GET /api/agent/install-info). Public — like the other agent endpoints.
+// (GET /api/agent/install-info). Public, like the other agent endpoints.
 func (h *Handler) InstallInfo(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	fmt.Fprintf(w, `{"api_port":%q,"gateway_port":%q}`, h.apiPort, h.gwPort)
@@ -79,7 +79,7 @@ func (h *Handler) Binary(w http.ResponseWriter, r *http.Request) {
 	}
 	f, err := os.Open(filepath.Join(h.binDir, name))
 	if err != nil {
-		http.Error(w, fmt.Sprintf("agent binary for %s/%s not built — run scripts/build-agent", goos, arch), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("agent binary for %s/%s not built, run scripts/build-agent", goos, arch), http.StatusNotFound)
 		return
 	}
 	defer f.Close()

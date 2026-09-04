@@ -44,16 +44,16 @@ func inNets(ipStr string, nets []*net.IPNet) bool {
 
 // AttachDirection labels each row's Direction using the internal-tagged whitelist ∪ RFC1918/loopback:
 //
-//   - "lateral"  — source AND destination are internal (attacker moving inside our network)
-//   - "outbound" — source internal, destination external (our host reaching out — possible C2/exfil)
-//   - "inbound"  — source external, destination internal OR the event is destined for one of our
-//                  agents (which is always internal by definition)
-//   - ""         — can't be classified (no source_ip, or external→external and no agent context)
+//   - "lateral", source AND destination are internal (attacker moving inside our network)
+//   - "outbound", source internal, destination external (our host reaching out, possible C2/exfil)
+//   - "inbound", source external, destination internal OR the event is destined for one of our
+//     agents (which is always internal by definition)
+//   - "", can't be classified (no source_ip, or external→external and no agent context)
 //
 // LATERAL is the highest-value signal for a SOAR: it says the attacker is already past the perimeter.
 // INBOUND is the common attack pattern (the SSH-brute-force alerts the operator sees). OUTBOUND is
 // the beaconing/exfil signal. When destination_ip is missing we still infer INBOUND from an external
-// source hitting one of our agents — most log-based alerts are shaped that way.
+// source hitting one of our agents, most log-based alerts are shaped that way.
 func AttachDirection(rows []EventRow, internalNets []*net.IPNet) {
 	// Union with the always-internal defaults so an empty whitelist still classifies correctly.
 	nets := append([]*net.IPNet(nil), internalNets...)
@@ -77,7 +77,7 @@ func AttachDirection(rows []EventRow, internalNets []*net.IPNet) {
 			r.Direction = "inbound"
 		case srcInternal && !hasDst && hasAgent:
 			// Internal source, no explicit destination, but the event was reported by one of our
-			// agents — treat as LATERAL (an internal host talking to another internal host we watch).
+			// agents, treat as LATERAL (an internal host talking to another internal host we watch).
 			r.Direction = "lateral"
 		}
 	}

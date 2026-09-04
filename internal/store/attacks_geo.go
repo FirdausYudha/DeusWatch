@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// AttackOrigin is one source of attack traffic aggregated over a time window — a marker on the
+// AttackOrigin is one source of attack traffic aggregated over a time window, a marker on the
 // dashboard's animated geo map. Country + city come from the enrichment columns already populated
 // on events (AbuseIPDB / OTX / MaxMind); lat/lon are looked up client-side from the bundled ISO →
 // centroid table (docs/geo-map.md, decision A1). `Blocked` reflects whether this source IP has an
@@ -21,7 +21,7 @@ type AttackOrigin struct {
 }
 
 // AttackOrigins returns aggregated attack sources in the [since, until) window. Only labelled
-// events count (dw_label IS NOT NULL) — an unlabelled event is just noise, we care about the
+// events count (dw_label IS NOT NULL), an unlabelled event is just noise, we care about the
 // alerts. External sources only: RFC1918 + loopback filtered out, so the widget doesn't get
 // bombarded by our own internal traffic. Capped at `limit` (default 200) so the map stays
 // bounded even during a brute-force burst.

@@ -1,4 +1,4 @@
--- Migration 000007 — per-user granular RBAC permission overrides.
+-- Migration 000007, per-user granular RBAC permission overrides.
 --
 -- NULL permissions = inherit the role's default permission set; a non-NULL array
 -- = an explicit custom permission set for that user (the checklist in the UI).

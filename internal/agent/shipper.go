@@ -210,7 +210,7 @@ func (s *Shipper) PostFileActionResult(ctx context.Context, id int64, status, re
 }
 
 // Health is the agent's self-reported state carried on the heartbeat. Degraded means
-// "alive but not fully working" - e.g. the offline buffer is piling up because log
+// "alive but not fully working" - e.g. The offline buffer is piling up because log
 // batches are not getting through while the heartbeat itself still succeeds. Version
 // (v2.12.0+) is the agent's own build tag, so the manager UI can show which agents
 // are out of date and offer a one-click self-update button.
@@ -266,7 +266,7 @@ func (s *Shipper) Heartbeat(ctx context.Context, health Health) (*UpdateDirectiv
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("agent: heartbeat rejected (status %d)", resp.StatusCode)
 	}
-	// 200 OK — parse the response envelope for an optional update directive. Old servers
+	// 200 OK, parse the response envelope for an optional update directive. Old servers
 	// (pre-v2.12.0) return 204 above; new servers return 200 + JSON only when there's
 	// something to say. Best-effort decode: a garbled body is not fatal.
 	var out struct {

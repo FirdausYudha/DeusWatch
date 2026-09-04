@@ -39,7 +39,7 @@ func fileSHA256(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// RemediateFile acts on a flagged file ONLY if its current SHA-256 still equals wantHash —
+// RemediateFile acts on a flagged file ONLY if its current SHA-256 still equals wantHash,
 // so a file that was changed, cleaned, or replaced since detection is never touched (the key
 // safety against false positives). mode "delete" removes it; anything else quarantines it
 // (moves into dir, read-only). A missing or hash-mismatched file is a safe no-op.
@@ -49,10 +49,10 @@ func RemediateFile(path, wantHash, mode, dir string) (bool, error) {
 	}
 	got, err := fileSHA256(path)
 	if err != nil {
-		return false, nil // missing/unreadable — not ours to touch
+		return false, nil // missing/unreadable, not ours to touch
 	}
 	if !strings.EqualFold(got, wantHash) {
-		return false, nil // changed since detection — never touch
+		return false, nil // changed since detection: never touch
 	}
 	if strings.EqualFold(mode, "delete") {
 		return true, os.Remove(path)
@@ -69,7 +69,7 @@ func RemediateFile(path, wantHash, mode, dir string) (bool, error) {
 }
 
 // QuarantineForAnalysis moves the CURRENT file at path into the quarantine dir (read-only,
-// timestamped) regardless of its hash — the operator-triggered "quarantine infected/old file for
+// timestamped) regardless of its hash, the operator-triggered "quarantine infected/old file for
 // blue-team analysis" action (ADR 0002 Phase 3). Unlike RemediateFile it does not hash-gate: the
 // operator explicitly asked to isolate this exact file. Returns the quarantine destination path.
 func QuarantineForAnalysis(path, dir string) (string, error) {

@@ -1,7 +1,7 @@
 // Package clickhouse is the DeusWatch analytics sink: it streams every normalized event into a
 // ClickHouse table so large-scale, columnar analytical queries (top talkers over months, rare
 // user-agents, slice-and-dice by any field) run in milliseconds without touching the hot
-// TimescaleDB path. It is a SECONDARY store — TimescaleDB stays the operational source of truth;
+// TimescaleDB path. It is a SECONDARY store. TimescaleDB stays the operational source of truth;
 // ClickHouse is the cheap, wide, long-retention analytics layer and is entirely optional.
 //
 // It talks to ClickHouse over the HTTP interface (default port 8123) with batched
@@ -38,7 +38,7 @@ type Config struct {
 	RetentionDays int // >0 adds a TTL so ClickHouse ages rows out (0 = keep forever)
 }
 
-// ConfigFromEnv reads the sink config. enabled is false (and the sink should not be built) when
+// ConfigFromEnv reads the sink config. Enabled is false (and the sink should not be built) when
 // CLICKHOUSE_URL is empty.
 func ConfigFromEnv(getenv func(string) string) (Config, bool) {
 	u := strings.TrimSpace(getenv("CLICKHOUSE_URL"))

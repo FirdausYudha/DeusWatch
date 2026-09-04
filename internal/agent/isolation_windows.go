@@ -32,7 +32,7 @@ func ApplyIsolation(allowIPs []string) error {
 		return err
 	}
 	if remote == "" {
-		return nil // no allow-list — fully blocked (caller normally includes the gateway IP)
+		return nil // no allow-list, fully blocked (caller normally includes the gateway IP)
 	}
 	// Permit the manager/allow-list in both directions so the agent↔manager channel survives.
 	if err := netsh(ctx, "advfirewall", "firewall", "add", "rule", "name="+isolationRule,
@@ -47,7 +47,7 @@ func ApplyIsolation(allowIPs []string) error {
 }
 
 // ClearIsolation removes the containment allow rules and restores the default firewall policy
-// (block inbound, allow outbound — the Windows default). Safe to call when not isolated.
+// (block inbound, allow outbound, the Windows default). Safe to call when not isolated.
 func ClearIsolation() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

@@ -3,7 +3,7 @@
 //
 // Why a generator instead of committing a hand-drawn map: the schematic outlines that shipped in
 // v2.7.0 looked obviously fake. This produces real country boundaries while keeping the offline
-// constraint — the output is a plain .ts file with pre-projected path strings, so the frontend
+// constraint, the output is a plain .ts file with pre-projected path strings, so the frontend
 // needs no topojson/d3 dependency at runtime and no network access ever.
 //
 // Usage (network required, run manually when the map needs regenerating):
@@ -147,7 +147,7 @@ func fetchTopology() (*topology, error) {
 	return &topo, nil
 }
 
-// outerRings returns the outer ring of every polygon in the geometry (holes are dropped — the map
+// outerRings returns the outer ring of every polygon in the geometry (holes are dropped, the map
 // is a filled landmass silhouette, and at this scale interior holes like the Caspian add bytes for
 // nearly no visual gain).
 func outerRings(g geometry) [][]int {
@@ -220,7 +220,7 @@ func splitAtAntimeridian(ring []point) [][]point {
 	return out
 }
 
-// project is equirectangular — it MUST stay in sync with projection.ts on the frontend.
+// project is equirectangular. it MUST stay in sync with projection.ts on the frontend.
 func project(p point) point {
 	return point{
 		X: ((p.X + 180) / 360) * mapWidth,
@@ -238,7 +238,7 @@ func ringArea(pts []point) float64 {
 }
 
 // thin drops points closer than tol to the previously kept point. Cheap, stable, and good enough
-// at this scale — a full Douglas-Peucker gains little once coordinates are rounded to integers.
+// at this scale, a full Douglas-Peucker gains little once coordinates are rounded to integers.
 func thin(pts []point, tol float64) []point {
 	if len(pts) < 4 {
 		return pts

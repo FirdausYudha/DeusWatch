@@ -9,8 +9,8 @@ import (
 )
 
 // WhitelistEntry is one trusted IP/CIDR the response engine must never ban. `Kind` classifies the
-// entry as `internal` (our own network — counts as "our side" for the INBOUND/OUTBOUND/LATERAL
-// direction classifier) or `external` (a trusted third party — still not banned, but doesn't flip a
+// entry as `internal` (our own network, counts as "our side" for the INBOUND/OUTBOUND/LATERAL
+// direction classifier) or `external` (a trusted third party, still not banned, but doesn't flip a
 // source into LATERAL). Default: internal.
 type WhitelistEntry struct {
 	ID        string    `json:"id"`
@@ -113,7 +113,7 @@ func (s *Store) DeleteWhitelist(ctx context.Context, id string) error {
 	return nil
 }
 
-// WhitelistNets loads the whitelist as parsed networks for the engine — every entry regardless of
+// WhitelistNets loads the whitelist as parsed networks for the engine: every entry regardless of
 // kind, because BOTH internal and external whitelist kinds mean "never ban" (that's the whole point
 // of the whitelist).
 func (s *Store) WhitelistNets(ctx context.Context) ([]*net.IPNet, error) {
@@ -130,7 +130,7 @@ func (s *Store) WhitelistNets(ctx context.Context) ([]*net.IPNet, error) {
 	return nets, nil
 }
 
-// WhitelistInternalNets returns ONLY the entries tagged `internal` — used by the direction
+// WhitelistInternalNets returns ONLY the entries tagged `internal`, used by the direction
 // classifier to decide whether an IP counts as "our side" for INBOUND/OUTBOUND/LATERAL tagging.
 // Combined with the RFC1918 loopback nets by the caller so common private ranges are always internal.
 func (s *Store) WhitelistInternalNets(ctx context.Context) ([]*net.IPNet, error) {

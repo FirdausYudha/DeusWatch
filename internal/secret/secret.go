@@ -1,5 +1,5 @@
 // Package secret provides authenticated encryption for secrets stored at rest
-// (integration API keys, device credentials — design doc section 4, "Secrets").
+// (integration API keys, device credentials, design doc section 4, "Secrets").
 //
 // AES-256-GCM with a master key from the SECRETS_KEY environment variable. Encrypted
 // values carry a version prefix so plaintext/legacy values pass through unchanged.

@@ -31,7 +31,7 @@ func TestBundledRulesClassify(t *testing.T) {
 			t.Errorf("%s: unexpected kind %q", filepath.Base(f.path), kind)
 		}
 	}
-	// The generator ships category subfolders — make sure gather tags them.
+	// The generator ships category subfolders, make sure gather tags them.
 	for _, want := range []string{"judi", "endpoint", "general"} {
 		if !seenCategory[want] {
 			t.Errorf("expected to find rules in category %q", want)

@@ -20,7 +20,7 @@ type IPScore struct {
 	Anomaly    int       `json:"anomaly"` // ML anomaly_score folded into the composite score
 	Agents     int       `json:"agents"`  // distinct endpoints this IP touched (cross-agent fan-out)
 	UpdatedAt  time.Time `json:"updated_at"`
-	TenantID   string    `json:"-"` // owning tenant (Phase 3); not exposed — reads are RLS-scoped
+	TenantID   string    `json:"-"` // owning tenant (Phase 3); not exposed. Reads are RLS-scoped
 }
 
 // RefreshIPScores recomputes the composite score for every source IP seen within `window`

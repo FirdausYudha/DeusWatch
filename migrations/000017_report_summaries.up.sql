@@ -1,4 +1,4 @@
--- Migration 000017 — AI-generated report summaries (on-demand + scheduled).
+-- Migration 000017, AI-generated report summaries (on-demand + scheduled).
 -- Each row is one executive summary the LLM produced for a time window; the UI shows
 -- the latest. Keeping history lets scheduled summaries accumulate.
 CREATE TABLE IF NOT EXISTS report_summaries (

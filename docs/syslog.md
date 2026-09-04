@@ -1,7 +1,7 @@
 # Native syslog input (agentless devices)
 
-DeusWatch can receive **syslog directly** — over UDP and TCP, in RFC 3164 (BSD) or RFC 5424
-format — so devices that can't run a DeusWatch agent (routers, switches, firewalls, printers,
+DeusWatch can receive **syslog directly**, over UDP and TCP, in RFC 3164 (BSD) or RFC 5424
+format, so devices that can't run a DeusWatch agent (routers, switches, firewalls, printers,
 appliances, or another log server) ship logs straight into the pipeline. Each message is
 normalized to DCS and runs through detection / playbooks / response like any other event.
 
@@ -34,20 +34,20 @@ shows `syslog: listening on :5514 (udp+tcp)`.
 
 Most devices just need a destination host + port. Examples:
 
-- **A Linux box (rsyslog)** — forward everything to DeusWatch:
+- **A Linux box (rsyslog)**: forward everything to DeusWatch:
   ```
   # /etc/rsyslog.d/90-deuswatch.conf
   *.*  @deuswatch-host:5514      # @ = UDP;  @@ = TCP
   ```
-- **OPNsense / pfSense** — System → Settings → Logging/Targets → add a remote target
+- **OPNsense / pfSense**: System → Settings → Logging/Targets → add a remote target
   `deuswatch-host:5514`, UDP or TCP.
-- **MikroTik** — `/system logging action add name=deuswatch target=remote remote=deuswatch-host
+- **MikroTik**: `/system logging action add name=deuswatch target=remote remote=deuswatch-host
   remote-port=5514` then log topics to it.
 
 ## How it's parsed
 
 - The **program tag** (`sshd`, `sudo`, `kernel`, `httpd`, …) becomes the **dataset**, so the
-  matching built-in or custom decoder runs — an `sshd` syslog line hits the SSH parser, a
+  matching built-in or custom decoder runs, an `sshd` syslog line hits the SSH parser, a
   ModSecurity line is recognized as a WAF block, etc. Tag-less messages use `SYSLOG_DATASET`.
 - The sending host appears in the dashboard's **Agent** column as `syslog/<host>`.
 - Both framings on TCP are accepted: newline-delimited and octet-counted (RFC 6587, rsyslog's
@@ -57,7 +57,7 @@ Most devices just need a destination host + port. Examples:
 
 ## Notes
 
-- Syslog (plain UDP/TCP) is **unauthenticated and unencrypted** — only expose the port on a
+- Syslog (plain UDP/TCP) is **unauthenticated and unencrypted**: only expose the port on a
   trusted network, or restrict it with a host firewall. For untrusted networks prefer the mTLS
   agent or the token-authenticated [ingest webhook](wazuh-webhook.md).
 - High-volume UDP can drop packets under load (a property of UDP, not DeusWatch); use TCP from

@@ -6,12 +6,12 @@
 -- method that forgets a WHERE clause cannot leak across tenants.
 --
 -- The scope is carried by two transaction-LOCAL GUCs set by store.WithTenantScope:
---   deuswatch.tenant_ids  — CSV of the caller's accessible tenant UUIDs
---   deuswatch.superadmin  — '1' for trusted system processes (worker/gateway) and the platform
+--   deuswatch.tenant_ids, CSV of the caller's accessible tenant UUIDs
+--   deuswatch.superadmin, '1' for trusted system processes (worker/gateway) and the platform
 --                           super-admin, who span all tenants (bypass), '0'/unset otherwise.
 --
 -- Fail-closed: an unscoped path (both GUCs unset) yields an EMPTY tenant array and superadmin=false,
--- so every policy evaluates to false and the query returns zero rows — loud in tests, never a silent
+-- so every policy evaluates to false and the query returns zero rows, loud in tests, never a silent
 -- cross-tenant leak.
 
 -- current_tenant_ids parses the CSV GUC into uuid[]. Unset or empty → empty array (fail-closed).
@@ -31,7 +31,7 @@ $$;
 
 -- Enable + FORCE RLS and install the isolation policy on each tenant-scoped data table.
 -- FORCE is essential: without it RLS is ignored for the table owner, which is exactly the role the
--- API connects as — that would be a silent total leak (store.AssertRLSEnforced guards against it).
+-- API connects as, that would be a silent total leak (store.AssertRLSEnforced guards against it).
 -- Only tables reached through the store's s.q(ctx) plumbing are listed here; tables owned by sibling
 -- packages without scope plumbing (respond, tickets, enroll) are deferred to a later phase.
 --

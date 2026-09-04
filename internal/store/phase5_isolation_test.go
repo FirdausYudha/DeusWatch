@@ -15,9 +15,9 @@ import (
 func TestAgentsAndTicketsIsolation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	st, err := Connect(ctx, dsn()) // regular owner pool — scoped reads drop to deuswatch_app
+	st, err := Connect(ctx, dsn()) // regular owner pool. Scoped reads drop to deuswatch_app
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 	if aerr := st.AssertRLSEnforced(ctx); aerr != nil {

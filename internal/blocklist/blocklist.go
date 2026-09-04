@@ -165,7 +165,7 @@ func Refresh(ctx context.Context, hc *http.Client, urls []string, interval time.
 				continue
 			}
 			s.Replace(tokens)
-			log.Printf("blocklist: refreshed — %d entries", s.Len())
+			log.Printf("blocklist: refreshed, %d entries", s.Len())
 		}
 	}
 }

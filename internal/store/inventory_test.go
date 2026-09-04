@@ -9,14 +9,14 @@ import (
 )
 
 // TestInventoryRoundTrip proves the store side of VA phase 1: an agent's inventory is stored,
-// summarized, filtered, and — crucially — REPLACED wholesale on re-report (a removed package must
+// summarized, filtered, and, crucially, REPLACED wholesale on re-report (a removed package must
 // vanish, not linger, or phase-2 matching would flag vulnerabilities that are no longer installed).
 func TestInventoryRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	st, err := ConnectSuperadmin(ctx, dsn())
 	if err != nil {
-		t.Skipf("Postgres unavailable — skipping: %v", err)
+		t.Skipf("Postgres unavailable, skipping: %v", err)
 	}
 	defer st.Close()
 

@@ -31,7 +31,7 @@ func scanContainment(row pgx.Row) (*Containment, error) {
 }
 
 // InsertContainment inserts a recommended containment, but only if the agent has no active
-// (recommended/contained) record — the ON CONFLICT clause matches the partial unique index,
+// (recommended/contained) record, the ON CONFLICT clause matches the partial unique index,
 // so a concurrent second alert for the same host is skipped (created=false), not duplicated.
 func (s *Store) InsertContainment(ctx context.Context, c *Containment) (string, bool, error) {
 	var id string
@@ -45,7 +45,7 @@ func (s *Store) InsertContainment(ctx context.Context, c *Containment) (string, 
 		c.AgentID, strOrNil(c.HostName), ipOrNil(c.IP), strOrNil(c.Reason), strOrNil(c.RuleID),
 		c.TimeoutSeconds, string(c.Status), c.Auto).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", false, nil // conflict — agent already has an open containment
+		return "", false, nil // conflict, agent already has an open containment
 	}
 	if err != nil {
 		return "", false, fmt.Errorf("respond: insert containment: %w", err)
@@ -79,7 +79,7 @@ func (s *Store) MarkContained(ctx context.Context, id string, expiresAt *time.Ti
 	return nil
 }
 
-// SetContainmentStatus changes status + records who/when. released also stamps released_at.
+// SetContainmentStatus changes status + records who/when. Released also stamps released_at.
 func (s *Store) SetContainmentStatus(ctx context.Context, id string, status ContainmentStatus, by string) error {
 	var releasedAt any
 	if status == ContainReleased {
@@ -98,7 +98,7 @@ func (s *Store) SetContainmentStatus(ctx context.Context, id string, status Cont
 	return nil
 }
 
-// SetContainmentError records a non-fatal error (e.g. the edge block failed).
+// SetContainmentError records a non-fatal error (e.g. The edge block failed).
 func (s *Store) SetContainmentError(ctx context.Context, id, msg string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE containment_actions SET error = $2 WHERE id = $1`, id, strOrNil(msg))
 	if err != nil {

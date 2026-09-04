@@ -14,7 +14,7 @@ func DefaultSources() []Source {
 // and the manager may run on a different OS than the agent it is enrolling. The agent's own
 // DefaultSources() above routes here with its local GOOS.
 //
-// An unknown OS returns nil (no defaults) rather than guessing — the agent then simply has no
+// An unknown OS returns nil (no defaults) rather than guessing, the agent then simply has no
 // sources until one is configured, which surfaces clearly rather than watching the wrong files.
 func DefaultSourcesFor(goos string) []Source {
 	switch goos {

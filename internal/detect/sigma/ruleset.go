@@ -16,7 +16,7 @@ const (
 )
 
 // Classify validates a Sigma rule's YAML and reports whether it is a single-event or an
-// aggregation rule. Returns an error if it is not a valid rule of either kind — used by
+// aggregation rule. Returns an error if it is not a valid rule of either kind, used by
 // the DB rule store to reject bad input and pick the right evaluation path.
 func Classify(data []byte) (kind string, err error) {
 	if isAggregation(data) {
@@ -51,7 +51,7 @@ func ruleFiles(dir string) ([]string, error) {
 }
 
 // LoadDir loads SINGLE-EVENT Sigma rules from dir (recursive one level) as a Ruleset.
-// Files with an aggregation condition ('|') are skipped here — load them via
+// Files with an aggregation condition ('|') are skipped here, load them via
 // LoadAggDir. A directory that does not exist yields an empty Ruleset (not an error).
 func LoadDir(dir string) (Ruleset, error) {
 	files, err := ruleFiles(dir)

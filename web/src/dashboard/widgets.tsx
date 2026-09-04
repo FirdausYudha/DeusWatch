@@ -43,7 +43,7 @@ export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }
 }
 
 // DonutChart renders a compact donut with a legend. The optional `colors` prop overrides the
-// category palette — used by SeverityDonut in the Inventory page to tint slices by severity
+// category palette, used by SeverityDonut in the Inventory page to tint slices by severity
 // (critical=red, high=orange, medium=amber, low=sky, negligible/unknown=slate) so the donut
 // matches the badge palette in the vulnerability table instead of the categorical widget colours.
 export function DonutChart({ data, color, colors }: { data: SeriesPoint[]; color: string; colors?: string[] }) {
@@ -185,7 +185,7 @@ function bandColor(band: string): string {
 }
 
 // RiskyIPsWidget ranks source IPs by their 0–100 composite score (fired times + AbuseIPDB +
-// OTX + worst severity) — the "who to ban first" list, not just who was noisiest.
+// OTX + worst severity), the "who to ban first" list, not just who was noisiest.
 export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
   if (!data?.length) return <Empty />
   return (
@@ -201,7 +201,7 @@ export function RiskyIPsWidget({ data }: { data: RiskyIP[] }) {
           {(r.agents ?? 0) > 1 && (
             <span
               className="shrink-0 rounded bg-high/15 px-1.5 py-0.5 text-[11px] font-medium text-high"
-              title={`Touched ${r.agents} of your endpoints — cross-agent fan-out raises the score`}
+              title={`Touched ${r.agents} of your endpoints, cross-agent fan-out raises the score`}
             >
               {r.agents} hosts
             </span>
@@ -222,7 +222,7 @@ export function SlowScannerWidget({ data }: { data: SlowScanner[] }) {
   if (!data?.length)
     return (
       <p className="py-6 text-center text-[12.5px] text-dim">
-        No slow scanners yet — this watchlist needs a few days of history to see a pattern.
+        No slow scanners yet, this watchlist needs a few days of history to see a pattern.
       </p>
     )
   return (
@@ -234,7 +234,7 @@ export function SlowScannerWidget({ data }: { data: SlowScanner[] }) {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-[11px] text-dim">
-              <span title="Separate days this source came back — the recurrence signal">
+              <span title="Separate days this source came back: the recurrence signal">
                 <b className="text-muted">{r.active_days}</b> active days
               </span>
               <span>·</span>
@@ -284,7 +284,7 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
           <span className="w-32 shrink-0 truncate font-mono text-[12.5px] text-fg" title={r.ip}>
             {r.ip}
           </span>
-          {/* Meta above a full-width bar (mirrors SlowScannerWidget) — keeps the bar from being
+          {/* Meta above a full-width bar (mirrors SlowScannerWidget), keeps the bar from being
               squished in this narrow column and left-aligns the signals so rows read cleanly. */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-[11px] text-dim">
@@ -292,7 +292,7 @@ export function SuspiciousIPsWidget({ data }: { data: SuspiciousIP[] }) {
                 <b className="text-muted">{r.failures}</b> failures
               </span>
               <span>·</span>
-              <span title="Separate clock-hours this source appeared in — the low-and-slow signature">
+              <span title="Separate clock-hours this source appeared in: the low-and-slow signature">
                 {r.distinct_hours}h seen
               </span>
               {r.fanout > 0 && (
@@ -344,8 +344,8 @@ export function AttackMap({ data, color }: { data: SeriesPoint[]; color: string 
 
 // AgentsWidget lists every enrolled agent with its current status. It self-refreshes every 15s so an
 // agent coming back online (or dropping off) is visible without a page reload. Sorted so the
-// operator's actionable state — "never connected" first (something is wrong with enrollment), then
-// stale / offline (something is wrong with an agent) — sits at the top, and healthy agents follow.
+// operator's actionable state, "never connected" first (something is wrong with enrollment), then
+// stale / offline (something is wrong with an agent), sits at the top, and healthy agents follow.
 // Status semantics come from agentDisplayStatus (lib/api.ts): online = fresh heartbeat, never = no
 // heartbeat ever seen, stale = quiet for >24h (or worker marks it), offline = quiet for a while.
 export function AgentsWidget() {
@@ -434,7 +434,7 @@ function agentTitle(a: AgentInfo, st: DisplayStatus): string {
 }
 
 // useElementWidth reports the live content width of the element the returned ref is put on.
-// Needed because an SVG sized by a fixed viewBox plus `width:100%` does not lay out — it
+// Needed because an SVG sized by a fixed viewBox plus `width:100%` does not lay out, it
 // SCALES, magnifying every stroke and label along with it. Driving the viewBox from the
 // measured width keeps user units pinned to CSS pixels, which is what makes the flow graphs
 // render at a constant visual size across the dashboard's 1/2/3-column panel spans (v2.14.0).
@@ -456,7 +456,7 @@ function useElementWidth<T extends HTMLElement>(): [React.RefObject<T | null>, n
 
 // ── Bipartite node-link graph (v2.13.0) ─────────────────────────────────────────
 // A shared SVG renderer for the Communication Graph and Source→Destination Graph. Both are
-// "flows between two node buckets" — no force simulation needed, which keeps the widget
+// "flows between two node buckets", no force simulation needed, which keeps the widget
 // dependency-free (no d3, works fully offline) and predictable to read: node order is
 // deterministic (busiest at the top), edges are quadratic bézier curves whose thickness
 // scales with the edge weight.
@@ -466,7 +466,7 @@ type BipartiteEdge = {
   srcLabel: string
   dstLabel: string
   count: number
-  color: string        // stroke colour for this edge — direction-driven or a single hue
+  color: string        // stroke colour for this edge, direction-driven or a single hue
   tooltip: string      // rendered as <title> so the browser shows on hover
 }
 
@@ -479,7 +479,7 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   rightHeader: string
   maxPerSide?: number
 }) {
-  // Measured BEFORE any early return — hooks may not sit behind a conditional.
+  // Measured BEFORE any early return, hooks may not sit behind a conditional.
   const [wrapRef, measured] = useElementWidth<HTMLDivElement>()
   if (!edges.length) return <Empty />
   // Fold edges into per-side node totals so we can rank + trim.
@@ -502,7 +502,7 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   // SVG geometry. The viewBox tracks the MEASURED container width so one user unit is one
   // CSS pixel and the drawing is never scaled. Pre-v2.14.6 the viewBox was pinned at 640
   // while the element was `w-full h-auto`, so a full-width (span 3) panel upscaled the whole
-  // graph ~2.3x — row pitch, node radii and every label grew with it, which is the "gede
+  // graph ~2.3x, row pitch, node radii and every label grew with it, which is the "gede
   // banget" complaint. Height now depends only on the node count, so the widget stays the
   // same visual size at any panel width and only gets wider.
   const W = Math.max(320, measured || 640)
@@ -514,7 +514,7 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   const gutter = W < 520 ? 96 : 130
   const xLeft = gutter      // right edge of left labels (edges start here)
   const xRight = W - gutter // left edge of right labels (edges end here)
-  // ~6px per character at 11.5px — derive the truncation budget from the gutter actually
+  // ~6px per character at 11.5px, derive the truncation budget from the gutter actually
   // available rather than a constant that only happened to suit the old fixed width.
   const leftChars = Math.max(8, Math.floor((gutter - 10) / 6))
   const rightChars = Math.max(8, Math.floor((gutter - 14) / 6))
@@ -527,12 +527,12 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   return (
     <div ref={wrapRef} className="w-full">
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block max-w-full text-fg" role="img" aria-label="Communication flow graph">
-        {/* Column headers — anchored to the panel EDGES (not the node columns) so they never
+        {/* Column headers, anchored to the panel EDGES (not the node columns) so they never
             clip at narrow panel widths. Pre-v2.14.4 the source header sat at xLeft-8 with
             textAnchor="end" which pushed it left of x=0 for headers longer than ~15 chars. */}
         <text x={4} y={16} textAnchor="start" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{leftHeader}</text>
         <text x={W - 4} y={16} textAnchor="end" className="fill-current text-[10px] uppercase tracking-wider" fill="currentColor" opacity="0.5">{rightHeader}</text>
-        {/* Edges — drawn first so nodes sit on top */}
+        {/* Edges, drawn first so nodes sit on top */}
         <g fill="none" strokeLinecap="round">
           {shown.map((e, i) => {
             const y1 = posLeft[e.src], y2 = posRight[e.dst]
@@ -580,15 +580,15 @@ function truncate(s: string, n: number): string {
 // DIRECTION_COLOR is the direction-driven palette shared by CommunicationGraphWidget and
 // the traffic-direction donut, so the two widgets read as the same visual system.
 const DIRECTION_COLOR: Record<CommFlowDirection, string> = {
-  inbound:  '#f43f5e',  // rose  — external → us (the common attack shape)
-  outbound: '#fb923c',  // orange — us → external (beaconing / exfil)
-  lateral:  '#f59e0b',  // amber — internal → internal (attacker moving inside)
-  unknown:  '#64748b',  // slate — we couldn't classify
+  inbound:  '#f43f5e',  // rose, external → us (the common attack shape)
+  outbound: '#fb923c',  // orange, us → external (beaconing / exfil)
+  lateral:  '#f59e0b',  // amber, internal → internal (attacker moving inside)
+  unknown:  '#64748b',  // slate, we couldn't classify
 }
 
 // CommunicationGraphWidget (v2.13.0): grouped flows from external ASN / country / internal
 // subnet nodes to enrolled-agent or destination-IP nodes, coloured by traffic direction.
-// Data feed comes from CommunicationFlow() in the store — the SQL emits pre-computed source
+// Data feed comes from CommunicationFlow() in the store, the SQL emits pre-computed source
 // / dest keys plus a direction label so this component is pure rendering.
 export function CommunicationGraphWidget({ data }: { data: CommFlow[] | undefined }) {
   if (!data || data.length === 0) return <Empty />
@@ -622,7 +622,7 @@ export function CommunicationGraphWidget({ data }: { data: CommFlow[] | undefine
 export function SrcDstGraphWidget({ data, agents }: { data: SrcDstFlow[] | undefined; agents?: AgentInfo[] }) {
   if (!data || data.length === 0) return <Empty />
   // If we have the agents list, decorate each right-side label with the agent's own last-known
-  // source IP (from AgentInfo when present) — operator asked for "source ip (attacker) → agent
+  // source IP (from AgentInfo when present), operator asked for "source ip (attacker) → agent
   // (bersama source ip dari agent kita nya)".
   const agentByName = new Map<string, AgentInfo>()
   for (const a of agents ?? []) agentByName.set(a.name, a)

@@ -1,9 +1,9 @@
 # GitHub shows a "Sponsor" button automatically from this file.
 
-# Ko-fi (international audience — PayPal, withdraw to an Indonesian bank account)
+# Ko-fi (international audience, PayPal, withdraw to an Indonesian bank account)
 ko_fi: firdausyudha
 
-# Saweria (Indonesian audience — QRIS/GoPay/OVO) is not a built-in GitHub platform,
+# Saweria (Indonesian audience, QRIS/GoPay/OVO) is not a built-in GitHub platform,
 # so it goes under "custom" as a full URL.
 custom:
   - "https://saweria.co/DeusLoVult1"

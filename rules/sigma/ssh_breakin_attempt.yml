@@ -2,7 +2,7 @@ title: SSH Possible Break-in Attempt (reverse DNS mismatch)
 id: 4c1a7d92-8b6e-4f3a-bc21-5e9d0a7f2c11
 status: experimental
 description: >
-  sshd logs "POSSIBLE BREAK-IN ATTEMPT" when the source's reverse DNS does not match —
+  sshd logs "POSSIBLE BREAK-IN ATTEMPT" when the source's reverse DNS does not match,
   a common signal of automated scanning/access attempts. Example of a keyword-based rule
   (substring match on the raw log line), a common pattern in community Linux Sigma rules.
 references:

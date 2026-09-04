@@ -6,19 +6,19 @@ import (
 	"strings"
 )
 
-// WhoData identifies the process/user that caused a file change — Linux audit "who-data".
+// WhoData identifies the process/user that caused a file change, Linux audit "who-data".
 // It answers "who touched this file", the differentiator over plain hash-diff FIM.
 type WhoData struct {
 	Actor   string // process short name (audit comm), e.g. "vim"
 	Exe     string // process executable path, e.g. "/usr/bin/vim"
 	PID     int    // process id
-	User    string // login user (audit auid) if resolvable, else the uid — kept for compatibility
+	User    string // login user (audit auid) if resolvable, else the uid, kept for compatibility
 	Syscall string // the syscall that changed the file (rename/unlink/openat…)
 
 	// LoginUser and EffectiveUser are the audit record's auid and uid, kept SEPARATE because
-	// their difference is the privilege-escalation signal. auid is the account the human
+	// their difference is the privilege-escalation signal. Auid is the account the human
 	// authenticated as and never changes across a sudo/su; uid is who the process actually ran
-	// as. `auid=1000 uid=0` therefore means "firdaus edited this file as root via sudo" —
+	// as. `auid=1000 uid=0` therefore means "firdaus edited this file as root via sudo",
 	// materially different from root logging in directly, and from firdaus editing as themself.
 	//
 	// Collapsing the two (which pickUser does, and which is all the wire carried before
@@ -29,7 +29,7 @@ type WhoData struct {
 }
 
 // Escalated reports whether the change was made with privileges the login user does not
-// normally hold — i.e. through sudo, su, or a setuid binary. False when either side is unknown,
+// normally hold, i.e. through sudo, su, or a setuid binary. False when either side is unknown,
 // so an absent audit field never fabricates an escalation claim.
 func (w WhoData) Escalated() bool {
 	return w.LoginUser != "" && w.EffectiveUser != "" && w.LoginUser != w.EffectiveUser
@@ -52,7 +52,7 @@ func SetFIMWhoData(w WhoDataSource) { fimWhoData = w }
 type auditEvent struct {
 	who   WhoData
 	paths []string // absolute paths the event touched (PATH records resolved against CWD)
-	keyed bool     // the SYSCALL carried our key= — only then is it a FIM who-data event
+	keyed bool     // the SYSCALL carried our key=: only then is it a FIM who-data event
 }
 
 // parseAuditEvent parses the records (lines) of ONE audit event into who-data + affected paths.
@@ -67,7 +67,7 @@ func parseAuditEvent(lines []string, key string) auditEvent {
 		case strings.HasPrefix(ln, "type=SYSCALL"):
 			f := auditFields(ln)
 			if k := f["key"]; k != key && !strings.Contains(k, key) {
-				// Not our watch — but keep parsing in case (some kernels split key). If no
+				// Not our watch, but keep parsing in case (some kernels split key). If no
 				// record carries the key, keyed stays false and the event is dropped.
 			} else {
 				ev.keyed = true
@@ -77,7 +77,7 @@ func parseAuditEvent(lines []string, key string) auditEvent {
 			ev.who.Actor = unquote(f["comm"])
 			ev.who.Exe = unquote(f["exe"])
 			// Raw numeric uids here. parseAuditEvent is deliberately pure/portable (no syscalls,
-			// so it unit-tests on any OS), and turning a uid into a name needs an NSS lookup —
+			// so it unit-tests on any OS), and turning a uid into a name needs an NSS lookup,
 			// that happens in the Linux watcher, which already resolves who.User.
 			ev.who.LoginUser = numericUser(f["auid"])
 			ev.who.EffectiveUser = numericUser(f["uid"])

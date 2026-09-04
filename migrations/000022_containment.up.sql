@@ -1,4 +1,4 @@
--- Migration 000022 — network containment (host isolation).
+-- Migration 000022, network containment (host isolation).
 --
 -- When a rule with `mitigation_action: network_containment` fires on a compromised host,
 -- the response engine records the isolation here. The agent (identified by its cert CN =

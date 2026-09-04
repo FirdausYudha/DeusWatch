@@ -156,7 +156,7 @@ export const reportSummary = {
   totals: { events: '2.4M', alerts: 18204, critical: 42 },
   topRule: 'SSH Brute Force Attempt',
   topIP: '185.220.101.42',
-  topTechnique: 'T1110 — Brute Force'
+  topTechnique: 'T1110, Brute Force'
 };
 
 export const rulesList = [
@@ -173,7 +173,7 @@ export const decodersList = [
 ];
 
 export const playbooksList = [
-  { label: 'ransomware-encryption-burst', title: 'Ransomware — Encryption Burst', steps: 5 },
+  { label: 'ransomware-encryption-burst', title: 'Ransomware, Encryption Burst', steps: 5 },
   { label: 'ssh-bruteforce', title: 'SSH Brute Force', steps: 3 },
   { label: 'suspicious-powershell', title: 'Suspicious PowerShell Execution', steps: 4 }
 ];

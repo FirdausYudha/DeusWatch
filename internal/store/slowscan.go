@@ -22,11 +22,11 @@ type SlowScanner struct {
 	FirstSeen  *time.Time `json:"first_seen,omitempty"`
 	LastSeen   *time.Time `json:"last_seen,omitempty"`
 	UpdatedAt  time.Time  `json:"updated_at"`
-	TenantID   string     `json:"-"` // owning tenant (Phase 3); not exposed — reads are RLS-scoped
+	TenantID   string     `json:"-"` // owning tenant (Phase 3); not exposed. Reads are RLS-scoped
 }
 
 // RefreshSlowScanners recomputes the slow-scanner watchlist over a multi-day window and replaces
-// the table. Only EXTERNAL sources are considered (RFC1918/loopback excluded — internal hosts talk
+// the table. Only EXTERNAL sources are considered (RFC1918/loopback excluded, internal hosts talk
 // to each other all day, which is not reconnaissance), and only IPs that came back on enough
 // separate days qualify, so the list stays short and meaningful.
 func (s *Store) RefreshSlowScanners(ctx context.Context, window time.Duration, w score.SlowScanWeights) ([]SlowScanner, error) {

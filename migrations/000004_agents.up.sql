@@ -1,4 +1,4 @@
--- Migration 000004 — agent registration & enrollment tokens (design doc sections 4 & 12).
+-- Migration 000004, agent registration & enrollment tokens (design doc sections 4 & 12).
 
 -- Registered agents. Each agent has a UNIQUE client certificate (CN = name); revoked
 -- = true makes the gateway reject its connection. The config column is for config-push.

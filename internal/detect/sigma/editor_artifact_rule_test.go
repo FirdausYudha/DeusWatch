@@ -10,7 +10,7 @@ import (
 // The editor-artifact rule was written to a "minimal false positives" requirement, so the
 // negative cases below are the point of this test, not an afterthought. Each one is a path that
 // really does appear in a web root during ordinary operation, and every one of them must stay
-// silent — otherwise the rule trains operators to ignore it, which is worse than not having it.
+// silent, otherwise the rule trains operators to ignore it, which is worse than not having it.
 func TestEditorArtifactInWebrootRule(t *testing.T) {
 	data, err := os.ReadFile("../../../rules/sigma/editor_artifact_in_webroot.yml")
 	if err != nil {
@@ -47,7 +47,7 @@ func TestEditorArtifactInWebrootRule(t *testing.T) {
 	}
 	for _, h := range hits {
 		if ok, err := r.Matches(fileEvent(h.path, "file_created")); err != nil || !ok {
-			t.Errorf("should fire (%s): %s — ok=%v err=%v", h.why, h.path, ok, err)
+			t.Errorf("should fire (%s): %s, ok=%v err=%v", h.why, h.path, ok, err)
 		}
 	}
 
@@ -60,14 +60,14 @@ func TestEditorArtifactInWebrootRule(t *testing.T) {
 
 		// Outside a web root: editing your own dotfiles or a config is not this rule's business.
 		{"/home/deploy/.bashrc.swp", "file_created", "user's home directory"},
-		{"/etc/nginx/.nginx.conf.swp", "file_created", "config dir — covered by the /etc FIM rules"},
+		{"/etc/nginx/.nginx.conf.swp", "file_created", "config dir, covered by the /etc FIM rules"},
 		{"/tmp/.scratch.swp", "file_created", "scratch space"},
 
 		// Deployment and build tooling, which is exactly what must not be caught.
 		{"/var/www/html/.index.php.YvB3kR", "file_created", "rsync temp file (random suffix)"},
 		{"/var/www/html/index.php.orig", "file_created", "patch/merge leftover"},
 		{"/var/www/html/index.php.rej", "file_created", "rejected hunk"},
-		{"/var/www/html/index.php~", "file_created", "generic backup — too weak a signal"},
+		{"/var/www/html/index.php~", "file_created", "generic backup, too weak a signal"},
 		{"/var/www/html/index.php.bak", "file_created", "deploy backup"},
 		{"/var/www/html/composer.lock", "file_created", "package manager"},
 		{"/var/www/html/.git/index.lock", "file_created", "git"},

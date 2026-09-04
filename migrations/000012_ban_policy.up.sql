@@ -1,4 +1,4 @@
--- Migration 000012 — configurable progressive-ban policy (single row).
+-- Migration 000012, configurable progressive-ban policy (single row).
 --
 -- durations[]: ban length (seconds) for the 1st, 2nd, … offense (the escalation ladder,
 -- e.g. 600,1800,3600 = 10m,30m,1h). permanent: an offense beyond the ladder = permanent.

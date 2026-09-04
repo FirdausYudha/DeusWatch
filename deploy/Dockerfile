@@ -28,7 +28,7 @@ ARG VERSION=dev
 FROM builder-common AS build-static
 # v2.14.3: ARGs declared in a parent stage do NOT propagate into derived stages' shell env
 # (they're only visible during the parent's own RUN). We re-declare here so the ${VERSION}
-# shell interpolation below actually reaches the go build ldflag — otherwise it expands to
+# shell interpolation below actually reaches the go build ldflag, otherwise it expands to
 # empty and the agent binary reports `buildVersion="dev"` (the source-const default), which
 # breaks the self-update version-compare loop and produces the "vdev" symptom operators saw
 # after installing from a manager that HAD its VERSION arg set correctly at compose time.
@@ -53,7 +53,7 @@ ARG VERSION=dev
 RUN apk add --no-cache gcc musl-dev yara-dev pkgconfig
 RUN CGO_ENABLED=1 go build -trimpath -ldflags="-s -w -X main.buildVersion=${VERSION}" -o /out/app ./cmd/${CMD}
 # v2.14.1: gateway serves the agent self-update binary from /agents (agents can't reach the
-# api-8080 origin from separate hosts — Docker's internal DNS name isn't routable). So the
+# api-8080 origin from separate hosts, Docker's internal DNS name isn't routable). So the
 # gateway image needs the same cross-compiled linux binaries the api's installer serves.
 # Only fires for CMD=gateway to keep worker/certgen images lean.
 RUN mkdir -p /agents && if [ "$CMD" = "gateway" ]; then \

@@ -71,8 +71,8 @@ func TestRestoreVersion(t *testing.T) {
 
 func TestSnapshotModeHelpers(t *testing.T) {
 	cases := []struct {
-		mode              string
-		onChange, sched   bool
+		mode            string
+		onChange, sched bool
 	}{
 		{"", false, false},
 		{"baseline", false, false},

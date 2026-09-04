@@ -8,9 +8,9 @@ each one is the real cause.
 The single most common confusion. **The agent being green in the Agents page does not mean logs are
 flowing.** Two independent things are happening:
 
-- **Heartbeat** — a small "I'm alive" ping every 30s over its own path. This is what colours the
+- **Heartbeat**: a small "I'm alive" ping every 30s over its own path. This is what colours the
   agent green and sets *last seen*.
-- **Log shipping** — the actual events. Separate path, separate failure modes.
+- **Log shipping**: the actual events. Separate path, separate failure modes.
 
 So an agent can be green while shipping nothing. When events are missing, check which of the causes
 below applies.
@@ -19,7 +19,7 @@ below applies.
 
 The manager's pushed monitoring config **replaces** the agent's default sources entirely. If you
 configured the agent to watch only a FIM path (e.g. `/var/www/html`), then the default log
-sources — SSH, syslog, web, firewall — are **not running**, and nothing SSH/scan/brute-force will
+sources, SSH, syslog, web, firewall, are **not running**, and nothing SSH/scan/brute-force will
 ever appear, no matter how much of it hits the box.
 
 Check what the agent is actually watching:
@@ -33,7 +33,7 @@ Each kind of attack needs a matching source. Add them in the manager's Agents pa
 
 | You want to see | Add source | Path | Note |
 | --- | --- | --- | --- |
-| SSH brute-force | `sshd` (file) | `/var/log/auth.log` | Debian/Ubuntu. RHEL/Fedora use journald — use a `journald` source instead |
+| SSH brute-force | `sshd` (file) | `/var/log/auth.log` | Debian/Ubuntu. RHEL/Fedora use journald, use a `journald` source instead |
 | Web scanning / defacement | `web` (file) | `/var/log/nginx/access.log` | apache: `/var/log/apache2/access.log` |
 | Port scans | `firewall` (file) | `/var/log/ufw.log` | **requires** `ufw logging on` (or an iptables/nftables LOG rule) |
 | File integrity / ransomware | `web` (fim) | `/var/www/html` | change detection, not log tailing |
@@ -85,7 +85,7 @@ The source IP should surface in **Top source IPs** / **Suspicious IPs**.
 
 ## "Is the network actually quiet, or is DeusWatch just not looking?"
 
-Ask the box directly — this is ground truth, independent of DeusWatch:
+Ask the box directly. This is ground truth, independent of DeusWatch:
 
 ```bash
 grep -c "Failed password" /var/log/auth.log            # this rotation period
@@ -102,17 +102,17 @@ isn't watching that log (see the first section). Note counts are per **rotation 
 
 FIM's real-time detection uses the kernel's inotify. There are two per-user limits, often confused:
 
-- `fs.inotify.max_user_instances` — number of inotify *instances*. **This** is what the
+- `fs.inotify.max_user_instances`: number of inotify *instances*. **This** is what the
   "Instance Capacity Low" warning is about.
-- `fs.inotify.max_user_watches` — number of watched *paths*.
+- `fs.inotify.max_user_watches`: number of watched *paths*.
 
 **DeusWatch is almost never the cause of instance exhaustion.** The agent creates exactly **one**
 inotify instance per FIM source and adds many watches to that single instance (the efficient
-pattern). Instance exhaustion comes from many separate apps each opening their own — on a desktop or
+pattern). Instance exhaustion comes from many separate apps each opening their own, on a desktop or
 dev box: editors (VS Code is a heavy user), file indexers, browsers, node/webpack dev servers,
 Docker.
 
-**It is safe** — nothing crashes. If inotify is exhausted when the agent starts, FIM logs it and
+**It is safe**, nothing crashes. If inotify is exhausted when the agent starts, FIM logs it and
 falls back to **poll-only**: changes are still detected, just up to the scan interval (≥ 1 minute)
 late instead of instantly. The tell in the log:
 
@@ -122,9 +122,9 @@ journalctl -u deuswatch-agent | grep -i 'real-time'
 #   real-time watch UNAVAILABLE, falling back to poll-only ...   <- degraded
 ```
 
-> Grep for `real-time`, **not** `fsnotify` — the degraded line doesn't contain the word "fsnotify",
+> Grep for `real-time`, **not** `fsnotify`, the degraded line doesn't contain the word "fsnotify",
 > so grepping that would hide the very case you're looking for. And if this returns **nothing at
-> all**, the agent probably has no FIM source configured (the line only prints for a `fim` source) —
+> all**, the agent probably has no FIM source configured (the line only prints for a `fim` source),
 > confirm with `journalctl -u deuswatch-agent | grep "source:"`.
 
 Raise the limits so real-time detection stays available (and other apps stop warning):

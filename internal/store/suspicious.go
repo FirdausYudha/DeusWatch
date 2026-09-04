@@ -20,12 +20,12 @@ type SuspiciousIP struct {
 	Band          string    `json:"band"`
 	FirstSeen     time.Time `json:"first_seen"`
 	LastSeen      time.Time `json:"last_seen"`
-	TenantID      string    `json:"-"` // owning tenant (Phase 3); not exposed — reads are RLS-scoped
+	TenantID      string    `json:"-"` // owning tenant (Phase 3); not exposed. Reads are RLS-scoped
 }
 
 // suspiciousAggSQL computes the behavioral signals per EXTERNAL source IP over the window.
 //
-//   - fanout = the larger of "distinct URIs probed" and "distinct destination ports" — the
+//   - fanout = the larger of "distinct URIs probed" and "distinct destination ports", the
 //     scanner tell (one client hitting many different things).
 //   - failures = blocked / denied / 4xx / auth-failure events.
 //   - distinct_hours = how many separate clock-hours the IP appeared in (spread over time is

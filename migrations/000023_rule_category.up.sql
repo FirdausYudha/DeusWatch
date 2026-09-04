@@ -1,4 +1,4 @@
--- Migration 000023 — rule categories.
+-- Migration 000023, rule categories.
 --
 -- Group detection rules by category (judi, deface, fim, endpoint, agg, general, custom) so
 -- the UI can filter the ~1000+ rules by topic. The category mirrors the on-disk folder a
