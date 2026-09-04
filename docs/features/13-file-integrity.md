@@ -60,12 +60,36 @@ A single hit is surfaced; a burst authorizes automatic containment through the a
 3. Narrow with the controls in the table header — free-text search over path/hash/host, a
    **kind** selector, and an **agent** selector.
 4. **Click any row** to expand it. You get, when the data is present:
-   - **who-data** — the process and user that made the change (requires the Wazuh feed, see
-     [`whodata.md`](../whodata.md))
+   - **who-data** — the process, its PID, and both accounts behind the change (see below)
+   - the **editing session** — how long the file was actually open (see below)
    - the **hash reputation** detail behind a `known bad` verdict
    - the file's **SHA-256**
    - the **content diff** — the exact lines added and removed, which is what tells you whether
      a change was a deployment or a defacement
+
+### Who-data — and whether sudo was involved
+
+The expanded row shows four things as a labelled block, because these are what an analyst reads
+first: **Process**, **PID**, **Logged in as**, and **Ran as**.
+
+The last two are deliberately kept apart. Linux audit records carry two accounts:
+
+- **`auid`** — the account the human authenticated as. It survives `sudo` and `su` unchanged, so
+  it is the person to hold responsible.
+- **`uid`** — the account the process actually ran as.
+
+Collapsing them into one value, which DeusWatch did before v2.14.7, throws away the only evidence
+that privilege escalation was involved: `auid=1000 uid=0` was reported as plain `1000`, so a
+change made with **full root privilege looked like an ordinary user edit**.
+
+Now `user_effective` (migration `000063`) carries the effective account and is set **only when it
+differs from the login account**. Its presence is therefore the escalation itself, and the row
+says so in words: *"Privilege escalation — firdaus(1000) made this change as root(0) (sudo, su, or
+a setuid binary)."*
+
+Who-data is **opt-in on Linux and needs auditd** on the endpoint. Without it the block is replaced
+by an explicit note saying the process and user were not recorded, rather than silently showing
+nothing — see [`whodata.md`](../whodata.md) for the setup.
 5. Click **Snapshots ↗** on a row to jump to that file's version timeline, where you can diff
    older versions, restore one, or quarantine the file.
 

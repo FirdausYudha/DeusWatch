@@ -1,7 +1,62 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-09-04 (File Integrity page + editor-artifact rule).
+> Last updated: 2026-09-04 (worker liveness, who-data sudo attribution, editor sessions).
+
+## 2026-09-04 (evening) — worker liveness, sudo attribution, editor sessions
+
+Closes the gap that opened this whole day: the worker had been absent for 11+ hours with a clean
+dashboard, and the alarm for that condition runs inside the worker.
+
+**Worker liveness, manager-side.** Worker upserts into `service_heartbeats` every 30s (migration
+`000062`, carries its build version); api serves `GET /api/system/services` and calls it stale
+after 100s (three missed beats + slack); `ServiceHealthBanner` polls every 30s and renders a red
+banner **above every view** in `App.tsx`. Through the DB rather than an HTTP probe — both
+processes already share that connection, so no new network path and it survives the two running
+on different hosts. Three states not two: alive / stopped-reporting / **never-reported**, because
+"the container was never started" needs different advice from "it crashed" and collapsing them is
+what made the original incident unreadable. On a lookup error the banner shows **nothing** — "we
+don't know" is the honest answer, and blaming a healthy worker for a DB hiccup sends the operator
+to the wrong component. Documented in the new `docs/features/14-self-monitoring.md`.
+
+**Editing-session duration in File Integrity.** Operator asked how long a user had a file open.
+Already derivable and needed no new data: vim's swap file appears when the buffer opens and is
+removed when the editor exits, so `created → deleted` on `.<name>.swp` **is** the session. The
+page correlates them client-side from the rows it already fetched. Verified against the operator's
+own screenshot: `.test.txt.swp` 13:53:38 → 13:53:50 = 12s. Partial cases are reported, not hidden
+— opened-never-closed means the editor is still running *or* exited uncleanly, and a leftover
+`.swp` in a served directory leaks the original file's contents. Labelled "derived from the
+editor's working file, not who-data", because the provenance genuinely differs.
+
+**Who-data: auid and uid kept apart (migration `000063`).** The agent was collapsing the audit
+record's two accounts into one, which destroyed the only evidence of privilege escalation:
+`auid=1000 uid=0` was reported as plain `1000`, so a change made with **full root privilege looked
+like an ordinary user edit**. `user_name` now keeps the login account (who is responsible),
+`user_effective` carries the account the process ran as and is set **only when it differs** — so
+its presence *is* the escalation, and the UI says so in words. The FIM panel shows Process / PID /
+Logged in as / Ran as as a labelled block.
+
+**Build break, and the lesson.** `resolveUser` already existed in `whodata_linux.go`; a second one
+was added to the portable `whodata.go`, so every container build failed on `resolveUser
+redeclared`. It passed locally because `go build ./...` on Windows never compiles a `//go:build
+linux` file. Fixed by keeping the existing split — `parseAuditEvent` stays pure and portable and
+stores raw numeric uids, `whodata_linux.go` resolves all three through the one `resolveUser` that
+was already there.
+
+> **Standing check for this repo:** a Windows-only `go build ./...` proves nothing about the
+> containers. Before claiming a Go change builds, cross-compile every command:
+> `for c in api worker gateway agent certgen; do GOOS=linux GOARCH=amd64 go build -o /dev/null ./cmd/$c; done`
+> plus `GOOS=linux go vet ./...`. Platform-tagged files make local checks lie.
+
+**Docs updated:** new `docs/features/14-self-monitoring.md` (agent states, worker liveness, disk
+watermark, variables, and its own known gaps); `13-file-integrity.md` gained the who-data/sudo and
+editing-session sections; features index and README module count now 14.
+
+**Still unverified:** no frontend work from today has been seen in a browser — the preview server
+was blocked for the entire session, so `tsc --noEmit` + `vite build` is all it has behind it. The
+worker banner HAS been seen live by the operator. The editor-artifact rule is in the DB but has
+never been observed firing. Stopping the worker for two minutes is the one-command test for the
+banner; editing a file under a web root with vim is the test for the rule.
 
 ## 2026-09-04 (later) — File Integrity page, map clamp, editor-artifact rule
 
