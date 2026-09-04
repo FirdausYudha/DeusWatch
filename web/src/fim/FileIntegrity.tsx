@@ -63,6 +63,37 @@ function rowKey(e: EventRow): string {
   return `${e.time}|${e.agent_id}|${e.file_path}|${e.event_action}`
 }
 
+// noDiffReason explains, in the terms of THIS event, why there is no content diff. Most file
+// events legitimately have none — a created file has no earlier version, a deleted one has no new
+// content, and the agent only snapshots text files under FIM_SNAPSHOT_MAX_BYTES
+// (internal/agent/fimdiff.go). Saying which of those applies is the difference between "the
+// feature works and this case has nothing to show" and "the feature looks broken".
+function noDiffReason(e: EventRow): string {
+  switch (e.event_action) {
+    case 'file_created':
+      return 'This file was created, so there is no earlier version to compare it against. The next change to it will show a diff.'
+    case 'file_deleted':
+      return 'This file was deleted, so there is no new content to compare. Its last known-good version is still on the Snapshots page.'
+    case 'file_encrypted':
+      return 'The content was replaced with high-entropy data, which is not meaningful to show as a line diff. Compare against the last good version on the Snapshots page.'
+    default:
+      return 'No content diff was stored. FIM snapshots text files up to FIM_SNAPSHOT_MAX_BYTES (2 MiB by default); binaries and larger files are tracked by hash only.'
+  }
+}
+
+// Fact renders one label/value pair in the expanded row, collapsing an empty value to an em dash
+// rather than an empty cell so the grid keeps its shape.
+function Fact({ label, value, mono = false }: { label: string; value?: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-dim">{label}</dt>
+      <dd className={`truncate ${mono ? 'font-mono' : ''} text-fg`} title={value || undefined}>
+        {value || '—'}
+      </dd>
+    </div>
+  )
+}
+
 export default function FileIntegrity({
   range,
   onOpenSnapshots,
@@ -226,36 +257,29 @@ export default function FileIntegrity({
                   const k = kindOf(e)
                   const key = rowKey(e)
                   const open = openKey === key
-                  const hasDetail = Boolean(e.file_diff || e.dw_filehash_detail || e.process_name)
                   return (
                     <Fragment key={`${key}-${i}`}>
                       <tr
-                        className={`border-b border-border/60 ${
-                          open
-                            ? 'bg-surface-2'
-                            : hasDetail
-                              ? 'cursor-pointer hover:bg-surface-2'
-                              : ''
-                        }`}
-                        onClick={() => hasDetail && setOpenKey(open ? null : key)}
-                        aria-expanded={hasDetail ? open : undefined}
+                        className={`border-b border-border/60 cursor-pointer ${open ? 'bg-surface-2' : 'hover:bg-surface-2'}`}
+                        onClick={() => setOpenKey(open ? null : key)}
+                        aria-expanded={open}
                       >
-                        {/* Disclosure caret — present only on rows that actually have something to
-                            show, so "clickable" is visible before the click rather than discovered
-                            by a click that does nothing. */}
+                        {/* Every row expands. Most file events legitimately carry no diff (created,
+                            deleted, binary), and gating the caret on one being present made 8 of 9
+                            rows look inert — operators read that as a broken feature rather than as
+                            "nothing to diff here". The panel now always has the hash, the rule and
+                            an explicit reason instead. */}
                         <td className="px-2 py-2 align-middle">
-                          {hasDetail && (
-                            <svg
-                              viewBox="0 0 24 24"
-                              className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90 text-accent' : 'text-dim'}`}
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={2.5}
-                              aria-hidden="true"
-                            >
-                              <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
+                          <svg
+                            viewBox="0 0 24 24"
+                            className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90 text-accent' : 'text-dim'}`}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                            aria-hidden="true"
+                          >
+                            <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
                         </td>
                         <td className="whitespace-nowrap px-4 py-2 font-mono text-[12px] text-muted">
                           {new Date(e.time).toLocaleString()}
@@ -320,6 +344,14 @@ export default function FileIntegrity({
                                 <span className="text-fg">{e.dw_filehash_detail}</span>
                               </div>
                             )}
+                            {/* Always-present facts, so an expanded row is never empty even when
+                                there is nothing to diff. */}
+                            <dl className="mb-3 grid grid-cols-2 gap-x-6 gap-y-1 text-[12.5px] sm:grid-cols-4">
+                              <Fact label="Rule" value={e.rule_name} />
+                              <Fact label="Technique" value={e.threat_technique_id} mono />
+                              <Fact label="Outcome" value={e.event_outcome} />
+                              <Fact label="Endpoint" value={e.agent_id || e.host_name} />
+                            </dl>
                             {e.file_hash_sha256 && (
                               <div className="mb-2 break-all font-mono text-[11.5px] text-dim">
                                 sha256 {e.file_hash_sha256}
@@ -337,8 +369,8 @@ export default function FileIntegrity({
                                 ))}
                               </pre>
                             ) : (
-                              <p className="text-[12.5px] text-dim">
-                                No content diff stored for this event — the watch may be metadata-only, or the file is binary.
+                              <p className="max-w-[80ch] text-[12.5px] leading-relaxed text-dim">
+                                {noDiffReason(e)}
                               </p>
                             )}
                           </td>
