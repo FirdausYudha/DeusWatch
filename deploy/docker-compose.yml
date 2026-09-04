@@ -87,6 +87,14 @@ services:
         VERSION: "${DEUSWATCH_VERSION:-dev}"
     # Root so it can read the root-owned 0600 CA key (ca.key) for agent enrollment.
     user: "0:0"
+    # Same host-gateway mapping the worker has. The api serves ON-DEMAND LLM analysis (see
+    # NewAnalyzer in cmd/api/main.go), so it needs to reach a host-local Ollama on :11434 just
+    # as much as the worker does for scheduled reports. Without this the api resolves nothing
+    # for host.docker.internal and every UI-triggered analysis fails with "no such host",
+    # while the worker's scheduled run against the very same URL succeeds — a split-brain that
+    # makes the integration look intermittently broken rather than misconfigured.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       HTTP_ADDR: ":8080"
       POSTGRES_ADDR: "db:5432"
