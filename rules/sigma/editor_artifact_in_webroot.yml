@@ -1,0 +1,75 @@
+title: Editor Artifact in Web Root (interactive edit on a production host)
+id: 5f2a9d17-3e64-4b8c-9a05-7d1c6f8b2e43
+status: experimental
+description: >
+  A text-editor working file (vim swap/undo, or an Emacs lock/auto-save) was created inside a
+  web root. Nobody edits production web content by hand: legitimate deployments go through git,
+  rsync, a package manager or CI, and none of those ever produce a swap file. The artifact is
+  therefore direct evidence that someone had an interactive shell on this host and opened an
+  editor in the served directory - the step that usually precedes a defacement or a backdoor
+  being pasted in.
+  .
+  This is an INDICATOR, not a confirmed compromise, and it is scoped for a very low false-
+  positive rate. It fires only on file_created (one alert per editing session rather than three
+  as the editor writes and removes its working file), only on artifact names that automation
+  effectively never produces, and only inside a web root. Deployment tooling is deliberately not
+  matched: rsync's temp files carry a random suffix, and patch/merge leftovers (.orig, .rej) and
+  generic ~ backups are excluded because build and release pipelines do create those.
+  .
+  It intentionally declares no mitigation_action, which keeps it inside the trusted-session gate
+  (FILE_CHANGE_TRUSTED_WINDOW): when the host had a successful login from a whitelisted IP in
+  the preceding window, an admin editing a config is treated as an official change and the alert
+  is suppressed. Whitelist your admin and deploy sources to get the benefit of that.
+  .
+  On a development box where people genuinely edit in place, this rule will fire on ordinary
+  work. The fix there is to whitelist the developer's source IP or disable the rule for that
+  agent - not to stop collecting the artifacts, which would hand an attacker a documented
+  filename that this sensor ignores.
+references:
+  - https://attack.mitre.org/techniques/T1059/004/
+  - https://attack.mitre.org/techniques/T1565/001/
+  - https://en.wikipedia.org/wiki/Vim_(text_editor)
+author: DeusWatch
+level: medium
+logsource:
+  product: linux
+  category: file_event
+detection:
+  webroot:
+    file.path|contains:
+      - '/var/www/'
+      - '/usr/share/nginx/html/'
+      - '/srv/http/'
+      - '/srv/www/'
+      - '/public_html/'
+      - '/htdocs/'
+  # vim swap (.swp/.swo/.swn) and persistent-undo (.un~) files. Created only by an interactive
+  # vim session; no deployment or build tool emits these names.
+  vim_artifact:
+    file.path|endswith:
+      - '.swp'
+      - '.swo'
+      - '.swn'
+      - '.un~'
+  # Emacs lock file: .#name, a symlink naming user@host.pid. Anchored on the path separator so
+  # it cannot match a dot mid-name. Emacs auto-save (#name#) is deliberately NOT matched — the
+  # only usable pattern for it is a leading '#', which is loose enough to catch unrelated files,
+  # and the lock file already appears the moment the buffer is modified.
+  emacs_artifact:
+    file.path|contains:
+      - '/.#'
+  created:
+    event.action: file_created
+  condition: webroot and (vim_artifact or emacs_artifact) and created
+falsepositives:
+  - A developer or admin editing directly on the server. Suppressed automatically when their
+    source IP is whitelisted and they logged in within FILE_CHANGE_TRUSTED_WINDOW.
+  - A staging or development host whose web root is an active working copy. Disable the rule for
+    that agent rather than narrowing the artifact list.
+  - >-
+    A user uploading a file that happens to end in .swp through a web form. Worth reviewing
+    anyway — a readable .swp in a served directory leaks the original file's contents.
+tags:
+  - attack.t1059.004
+  - attack.persistence
+  - attack.t1565.001

@@ -30,6 +30,16 @@ string (these rules carry no `deuswatch.label` of their own):
 | **webshell** | rule-name match | `rules/sigma/webshell_upload_containment.yml` | (auto-containment) |
 | **file change** | everything else in the category | `rules/sigma/fim_file_change.yml` | `T1565.001` |
 
+One more rule worth knowing about lands in the **file change** bucket:
+`rules/sigma/editor_artifact_in_webroot.yml` fires when a vim swap/undo file or an Emacs lock
+file is created inside a web root. Nobody edits production web content by hand — git, rsync and
+CI never produce those names — so the artifact is evidence that someone had an interactive shell
+in the served directory. It is scoped for a very low false-positive rate: creation events only,
+inside a web root only, and only on artifact names automation does not generate (`.orig`, `.rej`
+and plain `~` backups are deliberately excluded because release tooling does create those). It
+declares no `mitigation_action`, which keeps it inside the trusted-session gate, so an admin
+editing from a whitelisted IP is treated as an official change and stays silent.
+
 `file_encrypted` is not a guess about the file extension. The agent computes the
 **Shannon entropy** of a watched text file and flags the jump when the content turns into
 high-entropy random data — encrypted and compressed data sits near 8.0, ordinary config and
