@@ -1,11 +1,9 @@
 package agent
 
 import (
-	"os/user"
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // WhoData identifies the process/user that caused a file change — Linux audit "who-data".
@@ -78,8 +76,11 @@ func parseAuditEvent(lines []string, key string) auditEvent {
 			ev.who.PID = atoi(f["pid"])
 			ev.who.Actor = unquote(f["comm"])
 			ev.who.Exe = unquote(f["exe"])
-			ev.who.LoginUser = resolveUser(numericUser(f["auid"]))
-			ev.who.EffectiveUser = resolveUser(numericUser(f["uid"]))
+			// Raw numeric uids here. parseAuditEvent is deliberately pure/portable (no syscalls,
+			// so it unit-tests on any OS), and turning a uid into a name needs an NSS lookup —
+			// that happens in the Linux watcher, which already resolves who.User.
+			ev.who.LoginUser = numericUser(f["auid"])
+			ev.who.EffectiveUser = numericUser(f["uid"])
 			ev.who.User = pickUser(f["auid"], f["uid"])
 		case strings.HasPrefix(ln, "type=CWD"):
 			cwd = unquote(auditFields(ln)["cwd"])
@@ -214,28 +215,6 @@ func numericUser(v string) string {
 		return ""
 	}
 	return v
-}
-
-// userNameCache memoises uid -> name. Audit traffic repeats the same handful of uids thousands
-// of times, and each miss would otherwise re-read /etc/passwd (or hit NSS/LDAP) on the hot path.
-var userNameCache sync.Map // string uid -> string name
-
-// resolveUser turns a numeric uid into a login name ("1000" -> "firdaus") so alerts name a
-// person rather than a number. Returns the input unchanged when the uid has no local account —
-// which is itself worth seeing, since a file changed by a uid with no passwd entry is odd.
-func resolveUser(uid string) string {
-	if uid == "" {
-		return ""
-	}
-	if v, ok := userNameCache.Load(uid); ok {
-		return v.(string)
-	}
-	name := uid
-	if u, err := user.LookupId(uid); err == nil && u.Username != "" {
-		name = u.Username
-	}
-	userNameCache.Store(uid, name)
-	return name
 }
 
 func atoi(s string) int {

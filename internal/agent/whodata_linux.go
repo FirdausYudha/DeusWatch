@@ -190,6 +190,11 @@ func (w *auditWatcher) consume(lines []string) {
 		return
 	}
 	ev.who.User = resolveUser(ev.who.User)
+	// The login/effective pair is resolved here too, for the same reason: the parser stays pure
+	// and name lookup needs NSS. Both go through the same formatter, so a comparison between
+	// them (WhoData.Escalated) stays apples-to-apples.
+	ev.who.LoginUser = resolveUser(ev.who.LoginUser)
+	ev.who.EffectiveUser = resolveUser(ev.who.EffectiveUser)
 	for _, p := range ev.paths {
 		w.put(p, ev.who)
 	}
