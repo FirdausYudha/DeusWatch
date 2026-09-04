@@ -20,6 +20,7 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Live security posture' },
   agents: { title: 'Agents', subtitle: 'Endpoints reporting in' },
   inventory: { title: 'Inventory', subtitle: 'Installed software across the fleet' },
+  fim: { title: 'File Integrity', subtitle: 'File changes, ransomware and malware' },
   snapshots: { title: 'Snapshots', subtitle: 'Versioned file timeline & recovery' },
   response: { title: 'Response', subtitle: 'Recommendations awaiting your call' },
   tickets: { title: 'Tickets', subtitle: 'Investigations and their status' },
@@ -66,7 +67,7 @@ export default function Topbar({
 
       <div className="ml-auto flex items-center gap-2.5">
         <WorkspaceSwitcher />
-        {view === 'dashboard' && range && <RangePicker range={range} />}
+        {(view === 'dashboard' || view === 'fim') && range && <RangePicker range={range} />}
         <button
           onClick={toggle}
           title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}

@@ -3,7 +3,7 @@ import { logout, can, type Me } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
+export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
@@ -19,6 +19,10 @@ const NAV: NavGroup[] = [
       { id: 'dashboard', label: 'Dashboard', view: 'dashboard', perm: 'view_dashboard' },
       { id: 'response', label: 'Response', view: 'response', perm: 'approve_remediation' },
       { id: 'tickets', label: 'Tickets', view: 'tickets', perm: 'view_tickets' },
+      // File Integrity sits directly above Snapshots on purpose: the two are the same domain
+      // split by verb. This page watches what happened to files; Snapshots is where you act on
+      // them. Rows here link across.
+      { id: 'fim', label: 'File Integrity', view: 'fim', perm: 'view_dashboard' },
       { id: 'snapshots', label: 'Snapshots', view: 'snapshots', perm: 'view_dashboard' },
       { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
     ],
@@ -54,6 +58,7 @@ const NAV: NavGroup[] = [
 const ICONS: Record<string, string> = {
   dashboard: 'M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z',
   response: 'M12 3l8 3.5V12c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6.5zM8.5 12l2.5 2.5L16 9.5',
+  fim: 'M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM13 2v7h7M9 13l2 2 4-4',
   snapshots: 'M12 8v4l3 2M3.05 11a9 9 0 1 1 .5 4M3 21v-6h6',
   tickets: 'M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM12 6v12',
   report: 'M6 2h8l5 5v15H6zM14 2v5h5M9 13h7M9 17h7',

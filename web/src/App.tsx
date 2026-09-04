@@ -5,6 +5,7 @@ import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
 import Inventory from './inventory/Inventory'
 import Snapshots from './snapshots/Snapshots'
+import FileIntegrity from './fim/FileIntegrity'
 import Response from './response/Response'
 import Report from './report/Report'
 import Tickets from './tickets/Tickets'
@@ -25,6 +26,7 @@ export default function App() {
   const [checked, setChecked] = useState(false)
   const [view, setView] = useState<View>('dashboard')
   const [ticketPrefill, setTicketPrefill] = useState<NewTicketInput | null>(null)
+  const [snapshotTarget, setSnapshotTarget] = useState<{ agent: string; path: string } | null>(null)
   // Mobile nav drawer (the sidebar collapses below `lg`).
   const [navOpen, setNavOpen] = useState(false)
   // Owned here because the Topbar renders the picker while the Dashboard fetches the data.
@@ -34,6 +36,13 @@ export default function App() {
   const createTicketFrom = (prefill: NewTicketInput) => {
     setTicketPrefill(prefill)
     setView('tickets')
+  }
+
+  // Triggered from a File Integrity row — jump to Snapshots already pointed at that endpoint and
+  // file, so acting on what you just read takes one click instead of two dropdowns.
+  const openSnapshotsFor = (agent: string, path: string) => {
+    setSnapshotTarget({ agent, path })
+    setView('snapshots')
   }
 
   useEffect(() => {
@@ -73,8 +82,10 @@ export default function App() {
           <Agents me={me} />
         ) : view === 'inventory' ? (
           <Inventory me={me} />
+        ) : view === 'fim' ? (
+          <FileIntegrity range={range} onOpenSnapshots={openSnapshotsFor} />
         ) : view === 'snapshots' ? (
-          <Snapshots me={me} />
+          <Snapshots me={me} initialAgent={snapshotTarget?.agent} initialPath={snapshotTarget?.path} />
         ) : view === 'response' ? (
           <Response me={me} />
         ) : view === 'tickets' && can(me, 'view_tickets') ? (

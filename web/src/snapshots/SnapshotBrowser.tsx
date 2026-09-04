@@ -24,9 +24,11 @@ const fmtBytes = (n: number) =>
  * point-in-time bulk revert. Shared by the Snapshots page and the Agents modal so there is one
  * implementation of these (destructive) actions.
  */
-export default function SnapshotBrowser({ agentName, me }: { agentName: string; me: Me }) {
+export default function SnapshotBrowser({ agentName, me, initialPath }: { agentName: string; me: Me; initialPath?: string }) {
   const [paths, setPaths] = useState<FIMSnapshotPath[]>([])
-  const [selected, setSelected] = useState('')
+  // initialPath lets File Integrity hand off the exact file an operator was just reading about,
+  // instead of dropping them on this agent's first watched path to hunt for it again.
+  const [selected, setSelected] = useState(initialPath ?? '')
   const [versions, setVersions] = useState<FIMSnapshot[]>([])
   const [actions, setActions] = useState<FileAction[]>([])
   const [expanded, setExpanded] = useState<number | null>(null)
@@ -49,10 +51,12 @@ export default function SnapshotBrowser({ agentName, me }: { agentName: string; 
 
   useEffect(() => {
     setLoading(true)
-    setSelected('')
+    // Keep a handed-in path when it belongs to the agent we are switching to; otherwise clear so
+    // loadPaths falls back to that agent's first watched file.
+    setSelected(initialPath ?? '')
     loadPaths().finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentName])
+  }, [agentName, initialPath])
 
   const loadFile = () => {
     if (!selected) {

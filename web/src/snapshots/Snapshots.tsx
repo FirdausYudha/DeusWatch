@@ -9,7 +9,7 @@ import SnapshotBrowser from './SnapshotBrowser'
  * endpoint, then browse its watched files' dated versions, diff them, restore one, quarantine a
  * suspect file, or roll everything back to a point in time after ransomware.
  */
-export default function Snapshots({ me, initialAgent }: { me: Me; initialAgent?: string }) {
+export default function Snapshots({ me, initialAgent, initialPath }: { me: Me; initialAgent?: string; initialPath?: string }) {
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [selected, setSelected] = useState(initialAgent ?? '')
   const [error, setError] = useState('')
@@ -69,7 +69,11 @@ export default function Snapshots({ me, initialAgent }: { me: Me; initialAgent?:
           {/* Timeline for the chosen endpoint */}
           <Card title={selected ? `Watched files — ${selected}` : 'Watched files'}>
             {selected ? (
-              <SnapshotBrowser agentName={selected} me={me} />
+              <SnapshotBrowser
+                agentName={selected}
+                me={me}
+                initialPath={selected === initialAgent ? initialPath : undefined}
+              />
             ) : (
               <p className="text-[13px] text-dim">Select an endpoint.</p>
             )}
