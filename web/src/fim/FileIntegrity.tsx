@@ -57,6 +57,12 @@ function actionText(a: string): string {
   return (a || '').replace(/^file_/, '') || '—'
 }
 
+// rowKey identifies a row by its content so the expanded panel survives a refresh and stays on
+// the file the operator actually opened.
+function rowKey(e: EventRow): string {
+  return `${e.time}|${e.agent_id}|${e.file_path}|${e.event_action}`
+}
+
 export default function FileIntegrity({
   range,
   onOpenSnapshots,
@@ -70,7 +76,9 @@ export default function FileIntegrity({
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<'all' | Kind>('all')
   const [agent, setAgent] = useState('')
-  const [expanded, setExpanded] = useState<number | null>(null)
+  // Keyed by row identity, not list index. The table re-polls every 30s and rows shift as new
+  // events arrive, so an index would silently re-point the open panel at a different file.
+  const [openKey, setOpenKey] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAgents().then(setAgents).catch(() => {})
@@ -202,6 +210,7 @@ export default function FileIntegrity({
             <table className="w-full min-w-[52rem] border-collapse text-[13px]">
               <thead>
                 <tr className="border-b border-border text-left text-[11.5px] uppercase tracking-wider text-dim">
+                  <th className="w-8 px-2 py-2 font-medium"><span className="sr-only">Expand</span></th>
                   <th className="px-4 py-2 font-medium">Time</th>
                   <th className="px-4 py-2 font-medium">Kind</th>
                   <th className="px-4 py-2 font-medium">Sev</th>
@@ -215,14 +224,39 @@ export default function FileIntegrity({
               <tbody>
                 {shown.map((e, i) => {
                   const k = kindOf(e)
-                  const open = expanded === i
+                  const key = rowKey(e)
+                  const open = openKey === key
                   const hasDetail = Boolean(e.file_diff || e.dw_filehash_detail || e.process_name)
                   return (
-                    <Fragment key={`${e.time}-${i}`}>
+                    <Fragment key={`${key}-${i}`}>
                       <tr
-                        className={`border-b border-border/60 ${hasDetail ? 'cursor-pointer hover:bg-surface-2' : ''}`}
-                        onClick={() => hasDetail && setExpanded(open ? null : i)}
+                        className={`border-b border-border/60 ${
+                          open
+                            ? 'bg-surface-2'
+                            : hasDetail
+                              ? 'cursor-pointer hover:bg-surface-2'
+                              : ''
+                        }`}
+                        onClick={() => hasDetail && setOpenKey(open ? null : key)}
+                        aria-expanded={hasDetail ? open : undefined}
                       >
+                        {/* Disclosure caret — present only on rows that actually have something to
+                            show, so "clickable" is visible before the click rather than discovered
+                            by a click that does nothing. */}
+                        <td className="px-2 py-2 align-middle">
+                          {hasDetail && (
+                            <svg
+                              viewBox="0 0 24 24"
+                              className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-90 text-accent' : 'text-dim'}`}
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                              aria-hidden="true"
+                            >
+                              <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </td>
                         <td className="whitespace-nowrap px-4 py-2 font-mono text-[12px] text-muted">
                           {new Date(e.time).toLocaleString()}
                         </td>
@@ -256,8 +290,15 @@ export default function FileIntegrity({
                         </td>
                       </tr>
                       {open && (
-                        <tr className="border-b border-border bg-bg/40">
-                          <td colSpan={8} className="px-4 py-3">
+                        // Same tint as the opened row above it, so panel and row read as one
+                        // block instead of a detached box floating under the table.
+                        <tr className="border-b border-border bg-surface-2">
+                          <td />
+                          <td colSpan={8} className="px-4 pb-4 pt-1">
+                            <div className="mb-2 truncate text-[12.5px]">
+                              <span className="text-dim">detail for </span>
+                              <span className="font-mono text-fg">{e.file_path || '—'}</span>
+                            </div>
                             {(e.process_name || e.user_name) && (
                               <div className="mb-2 text-[12.5px] text-muted">
                                 changed by{' '}
@@ -285,7 +326,7 @@ export default function FileIntegrity({
                               </div>
                             )}
                             {e.file_diff ? (
-                              <pre className="max-h-80 overflow-auto rounded-[8px] border border-border bg-surface p-2 font-mono text-[12.5px] leading-relaxed">
+                              <pre className="max-h-80 overflow-auto rounded-[8px] border border-border bg-bg p-2 font-mono text-[12.5px] leading-relaxed">
                                 {e.file_diff.split('\n').map((line, k2) => (
                                   <div
                                     key={k2}
