@@ -423,6 +423,22 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper, envForceOn bool) {
 	envSet := os.Getenv("NFT_SET")
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
+	// note logs a firewall state change once, then repeats it every 10 minutes while the state
+	// holds. Two problems it solves: the poll runs every 30s, so an unthrottled success line
+	// buried the journal under ~2900 entries a day; and the "not enabled for me" branch used to
+	// return in complete silence. That silence was the worst of the two — the manager knows why
+	// the firewall is idle (the gateway logs the scope decision), but the host where the operator
+	// actually runs `nft list` said nothing at all, so a stale agent_scope looked identical to a
+	// broken agent. State keys carry the IP count, so a real change is always logged immediately.
+	var lastState string
+	var lastLogged time.Time
+	note := func(state, msg string) {
+		if state == lastState && time.Since(lastLogged) < 10*time.Minute {
+			return
+		}
+		lastState, lastLogged = state, time.Now()
+		log.Printf("agent: firewall %s", msg)
+	}
 	// Run once immediately so the operator doesn't wait a full poll cycle after startup to
 	// see the manager's rules land.
 	tick := func() {
@@ -432,7 +448,14 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper, envForceOn bool) {
 			return
 		}
 		if !cfg.Enabled && !envForceOn {
-			return // integration off / scope-excluded for this CN — never touch the firewall
+			// Never touch the firewall — but say so, and say what would change it.
+			note("idle", "idle: the manager's nftables_agent integration does not cover this "+
+				"agent, so nothing is written to nftables. Either no nftables_agent integration "+
+				"is enabled, or its agent scope does not list this agent's certificate CN "+
+				"(an exact match is required — a scope left over from a previous enrollment "+
+				"name will not match). Fix it under Integrations in the manager UI; an empty "+
+				"agent scope means every agent.")
+			return
 		}
 		table := envTable
 		if table == "" {
@@ -452,7 +475,8 @@ func runFirewall(ctx context.Context, shipper *agent.Shipper, envForceOn bool) {
 			log.Printf("agent: apply blocklist: %v", err)
 			return
 		}
-		log.Printf("agent: firewall synced %d blocked IP(s) into nft set %s/%s", len(cfg.IPs), table, set)
+		note(fmt.Sprintf("sync:%s/%s:%d", table, set, len(cfg.IPs)),
+			fmt.Sprintf("synced %d blocked IP(s) into nft set inet %s/%s", len(cfg.IPs), table, set))
 	}
 	tick()
 	for {

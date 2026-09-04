@@ -72,6 +72,31 @@ while the agent was failing. An agent that cannot reach the gateway is invisible
 manager side by construction — there is no "an agent I know about has gone quiet" signal
 anywhere except the worker, and the worker was the component that was down.
 
+### Follow-on the same day: nftables_agent looked broken, was just a stale scope
+
+Operator: integration configured in the UI, but `nft list sets` on the agent host shows no
+`deuswatch` table. Diagnosed in one round trip using the v2.11.2 gateway log:
+
+```
+cn="test-ubuntu" enabled=false scope="agent-ubuntu" reason=agent_scope did not match
+```
+
+`agent_scope` still named `agent-ubuntu` — an agent that had since been revoked and
+re-enrolled as `test-ubuntu`. `AgentScopeMatches` needs an exact CN match, so the scope went
+stale silently when the host was re-enrolled under a new name. Fix is a UI edit: name the
+current CN, or leave the field empty (empty = every agent).
+
+Note for future diagnosis: `ApplyBlocklist` creates the table **unconditionally**, not only
+when there are IPs to block — so a missing `inet deuswatch` table always means the sync never
+ran, never "no bans yet". And the table lives in family `inet`, which is why it does not
+appear among the `table ip …` entries operators usually scan.
+
+Code fix shipped with it — `runFirewall`'s disabled branch used to `return` with **no log at
+all**, so the host where the operator actually runs `nft list` said nothing while the gateway
+knew the whole story. It now logs why it is idle and what would change it, throttled to one
+line per state change plus a repeat every 10 min. The same throttle fixes the success line,
+which fired every 30s (~2900 journal entries/day) and buried anything useful.
+
 **Open gap this exposed (not yet built):** the manager has no worker-liveness surface.
 `/healthz` (cmd/api/main.go) only proves the api is alive, and it is the only thing the UI
 calls. The worker was absent for 11+ hours with the dashboard showing nothing wrong — and
