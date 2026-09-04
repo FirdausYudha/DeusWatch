@@ -42,7 +42,7 @@ var buildVersion = ""
 // which is why a single missing compose build-arg surfaced as a permanent "dev" agent that
 // the self-update version-compare could never converge on. Keep in lockstep with the
 // `const version` in cmd/api/main.go on every release.
-const fallbackVersion = "2.14.5"
+const fallbackVersion = "2.14.6"
 
 // agentVersion resolves the version this binary reports on heartbeats. Mirrors the api's
 // appVersion(): a real ldflag wins, anything else falls back to the compiled-in const, so
@@ -127,6 +127,7 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	if err != nil {
 		log.Fatalf("agent: shipper (certificates in %q?): %v", certDir, err)
 	}
+	logClientIdentity(certDir)
 
 	buf, err := agent.NewBuffer(getenv("BUFFER_DIR", "agent-buffer"), 1000)
 	if err != nil {
@@ -280,6 +281,29 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		case <-ticker.C:
 			flush()
 		}
+	}
+}
+
+// logClientIdentity prints the CommonName the agent will present to the gateway, plus the
+// certificate's expiry. The CN is the agent's whole identity on the manager — heartbeat,
+// pushed config, blocklist scope and every ingested log line are keyed on it — yet nothing
+// in the TLS handshake validates that it corresponds to an enrolled agent. A wrong CN
+// therefore fails only on the manager side, as a permanently "never connected" row with no
+// error on either end. Printing it at startup makes that diagnosable from the agent's own
+// journal, and the shared certgen bundle gets called out explicitly because it is the one
+// CN guaranteed never to be enrolled.
+func logClientIdentity(certDir string) {
+	cn, expires, err := mtls.ClientIdentity(mtls.Paths(certDir))
+	if err != nil {
+		log.Printf("agent: could not read the client certificate identity from %q: %v", certDir, err)
+		return
+	}
+	log.Printf("agent: presenting client certificate CN=%q (expires %s)", cn, expires.Format(time.RFC3339))
+	if cn == mtls.SharedClientCN {
+		log.Printf("agent: WARNING — %q is the shared development certificate written by certgen, "+
+			"not an enrolled agent identity. The gateway will complete the TLS handshake but reject "+
+			"every heartbeat, and this host will stay \"never connected\" on the dashboard. Re-run the "+
+			"one-line installer from the manager's Agents page to enroll it properly.", cn)
 	}
 }
 
@@ -788,9 +812,15 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 	// beat sends one heartbeat + handles the "manager says I'm revoked" case. Returns true if the
 	// caller should stop looping. Refactored out of the ticker branch so we can call it once at
 	// startup (no more waiting a full 30s for the row to flip to online in the dashboard).
+	// connected tracks whether the last heartbeat was accepted, so the transition into a
+	// working state is logged exactly once instead of never. "No errors in the journal" is
+	// not the same as "the manager has seen this host" — an agent presenting an unenrolled
+	// CN used to produce precisely that ambiguity — so the agent now states it outright.
+	connected := false
 	beat := func() (stopLooping bool) {
 		directive, err := shipper.Heartbeat(ctx, health())
 		if err != nil {
+			connected = false
 			if errors.Is(err, agent.ErrRevoked) {
 				log.Printf("agent: this agent was revoked by the manager — self-uninstalling")
 				selfUninstall()
@@ -799,6 +829,10 @@ func heartbeatLoop(ctx context.Context, shipper *agent.Shipper, buf *agent.Buffe
 			}
 			log.Printf("agent: heartbeat failed: %v", err)
 			return false
+		}
+		if !connected {
+			connected = true
+			log.Printf("agent: heartbeat accepted by the manager — this host is now visible as connected")
 		}
 		if directive != nil {
 			if uerr := performSelfUpdate(ctx, shipper, directive); uerr != nil {

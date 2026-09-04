@@ -30,6 +30,14 @@ const (
 
 var ErrToken = errors.New("enroll: invalid / expired / already-used token")
 
+// ErrUnknownAgent is returned by the heartbeat writers when the certificate CN they were
+// handed matches no row in `agents`. Postgres reports a zero-row UPDATE as success, so
+// before v2.14.6 this case returned nil: the gateway answered 204, the agent logged a
+// clean heartbeat, and last_seen_at stayed NULL forever — the "never connected" badge with
+// no error anywhere to explain it. Callers must treat it as a hard configuration fault,
+// not a transient one; retrying cannot fix a CN that was never enrolled.
+var ErrUnknownAgent = errors.New("enroll: no agent enrolled under that certificate CN")
+
 // Store manages agents & enrollment tokens, issuing certs via the CA.
 type Store struct {
 	pool *pgxpool.Pool
@@ -267,20 +275,37 @@ func (s *Store) IsRevoked(ctx context.Context, name, certSerial string) (bool, e
 	return false, nil
 }
 
-// MarkSeen updates the agent's last_seen_at (used by heartbeat / ingest).
+// MarkSeen updates the agent's last_seen_at (used by heartbeat / ingest). A name that
+// matches no row yields ErrUnknownAgent rather than a silent success — see that sentinel.
 func (s *Store) MarkSeen(ctx context.Context, name string) error {
-	_, err := s.q(ctx).Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
-	return err
+	tag, err := s.q(ctx).Exec(ctx, `UPDATE agents SET last_seen_at = now() WHERE name = $1`, name)
+	if err != nil {
+		return err
+	}
+	return unknownIfNoRows(tag)
+}
+
+// unknownIfNoRows converts "the UPDATE matched nothing" into ErrUnknownAgent. Every
+// heartbeat writer keys on agents.name, so zero rows can only mean the presented CN is not
+// an enrolled agent — a fault worth reporting, never a no-op worth swallowing.
+func unknownIfNoRows(tag pgconn.CommandTag) error {
+	if tag.RowsAffected() == 0 {
+		return ErrUnknownAgent
+	}
+	return nil
 }
 
 // MarkHealth updates last_seen_at plus the agent's self-reported health from the
 // heartbeat body (degraded = e.g. the offline buffer is piling up). The worker's
 // health checker folds this into the agent's status.
 func (s *Store) MarkHealth(ctx context.Context, name string, degraded bool, detail string) error {
-	_, err := s.q(ctx).Exec(ctx,
+	tag, err := s.q(ctx).Exec(ctx,
 		`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3 WHERE name = $1`,
 		name, degraded, detail)
-	return err
+	if err != nil {
+		return err
+	}
+	return unknownIfNoRows(tag)
 }
 
 // MarkHealthWithVersion is v2.12.0's replacement: also persists the agent's self-reported
@@ -295,19 +320,25 @@ func (s *Store) MarkHealthWithVersion(ctx context.Context, name string, degraded
 		return s.MarkHealth(ctx, name, degraded, detail)
 	}
 	if managerVersion != "" && version == managerVersion {
-		_, err := s.q(ctx).Exec(ctx,
+		tag, err := s.q(ctx).Exec(ctx,
 			`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3,
 			                    agent_version = $4, update_requested_at = NULL
 			 WHERE name = $1`,
 			name, degraded, detail, version)
-		return err
+		if err != nil {
+			return err
+		}
+		return unknownIfNoRows(tag)
 	}
-	_, err := s.q(ctx).Exec(ctx,
+	tag, err := s.q(ctx).Exec(ctx,
 		`UPDATE agents SET last_seen_at = now(), health_degraded = $2, health_detail = $3,
 		                    agent_version = $4
 		 WHERE name = $1`,
 		name, degraded, detail, version)
-	return err
+	if err != nil {
+		return err
+	}
+	return unknownIfNoRows(tag)
 }
 
 // RequestAgentUpdate flags an agent for a self-update on its next heartbeat. Idempotent:

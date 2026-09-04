@@ -1,7 +1,57 @@
 # DeusWatch - Progress & Handoff
 
 > Progress notes for continuing on another machine. Design source of truth: [DeusWatch.md](DeusWatch.md).
-> Last updated: 2026-08-04 (v2.14.5 — real root cause of the "vdev" self-update bug).
+> Last updated: 2026-09-04 (v2.14.6 — the silent "never connected" agent + flow-graph sizing).
+
+## 2026-09-04 — v2.14.6 (not yet tagged)
+
+Operator reported two things on the `dev-server-firdaus` deployment: agents stuck at
+**"never connected"**, and no brute-force / FIM events reaching the manager.
+
+**Two unrelated deployment faults, found from the logs:**
+
+1. The `worker` container was **not running** (absent from `docker compose ps`, and
+   `logs worker` was empty — never created, not crashed). The worker is the *only* consumer
+   of `logs.normalized` and the only caller of `InsertEvent`, so the entire detection
+   pipeline was dead: no events, no brute-force, no FIM, no notifications.
+2. The agent's `GATEWAY_URL` pointed at `10.10.10.1:9443`, an address with no route from
+   that host (`connect: network is unreachable`) — a stale IP from an earlier network.
+
+**One real code bug, which is what this release fixes.** Chasing (1) turned up a genuine
+silent-failure path that produces "never connected" with *no error on either side*:
+
+- `certgen` writes a shared client certificate with `CN=deuswatch-agent`. No `agents` row
+  ever carries that name.
+- Any CA-signed cert passes `RequireAndVerifyClientCert`, so the handshake succeeds.
+- `IsRevoked` returns `false` for an unknown name ("don't block here").
+- `MarkHealth*` ran `UPDATE agents … WHERE name = $1`, matched **zero rows**, and Postgres
+  reports that as success → handler answered **204**.
+
+Net effect: the agent logs clean heartbeats forever while `last_seen_at` stays NULL. Same
+shape as the v2.11.2 and v2.14.5 bugs — a broken state with no diagnostic surface.
+
+Fixes:
+- `enroll.ErrUnknownAgent` returned when a heartbeat UPDATE matches no row (`MarkSeen`,
+  `MarkHealth`, `MarkHealthWithVersion`). Zero rows is now a fault, not a no-op.
+- Gateway answers **409** with a throttled, actionable log line naming the CN. `cmd/gateway`
+  bridges the two packages' sentinels so `internal/gateway` keeps its no-enroll-import rule.
+- Agent prints `presenting client certificate CN=… (expires …)` at startup, warns explicitly
+  when the CN is the shared certgen bundle, and logs once when a heartbeat is **accepted**
+  ("no errors in the journal" was never the same as "the manager has seen this host").
+- Regression test covers 409 vs 503 — an unenrolled CN and a broken pool are different
+  faults and must not collapse into one status.
+
+**Flow-graph sizing** (operator: "di resize karena gede banget"): `BipartiteFlow` pinned its
+viewBox at 640 while rendering `w-full h-auto`, so a span-3 panel upscaled the whole drawing
+~2.15× — row pitch, node radii and every label with it. The viewBox now tracks the measured
+container width (`useElementWidth`), so 1 user unit = 1 CSS px and height depends only on the
+node count. Measured: 1374×515px → **1374×240px** at full width, identical 240px at span-1.
+
+Verified: `go build ./...`, `go vet`, package tests green, `tsc --noEmit` clean, graph
+geometry checked numerically. **Not** verified in the running dashboard (no Docker on the
+dev machine), and the operator's live "never connected" instance is not yet confirmed to be
+this exact cause — the new 409 + startup CN line will say so outright on the next restart.
+
 
 ## 2026-08-04 — v2.14.5 released ([tag](https://github.com/FirdausYudha/DeusWatch/releases/tag/v2.14.5))
 

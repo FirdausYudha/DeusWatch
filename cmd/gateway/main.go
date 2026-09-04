@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -77,7 +78,7 @@ var buildVersion = ""
 
 // fallbackVersion is the compiled-in semver used when neither the ldflag nor the env var
 // supplied one. Keep in lockstep with `const version` in cmd/api/main.go on every release.
-const fallbackVersion = "2.14.5"
+const fallbackVersion = "2.14.6"
 
 // resolveVersion picks the gateway's reported version: build-time ldflag first (the intended
 // path), then the DEUSWATCH_VERSION env var (backwards-compat with deployments that set it),
@@ -178,9 +179,17 @@ func main() {
 			es := enroll.NewStore(st.Pool(), nil)
 			revoked = es.IsRevoked
 			cfgFunc = es.GetConfigByName
-			seenFunc = es.MarkSeen
 			restoreFunc = st.PendingRestores
-			healthFunc = es.MarkHealth
+			// The heartbeat writers are wrapped so enroll's "that CN isn't enrolled" sentinel
+			// reaches the handler as the gateway package's own. internal/gateway talks to the
+			// store purely through func types (no enroll import), so this composition root is
+			// the right place to bridge the two.
+			seenFunc = func(ctx context.Context, cn string) error {
+				return asGatewayErr(es.MarkSeen(ctx, cn))
+			}
+			healthFunc = func(ctx context.Context, cn string, degraded bool, detail string) error {
+				return asGatewayErr(es.MarkHealth(ctx, cn, degraded, detail))
+			}
 			// v2.12.0: capture the agent's reported version + evaluate pending update directive so
 			// the heartbeat response can tell an out-of-date agent to self-upgrade. v2.14.1 fix:
 			// serve the binary from the gateway itself (relative URL) instead of the internal
@@ -188,7 +197,7 @@ func main() {
 			// prefixes the relative URL with its own gateway URL (which it already trusts via
 			// mTLS) so no extra network path is needed.
 			healthVFunc = func(ctx context.Context, cn string, degraded bool, detail, version string) error {
-				return es.MarkHealthWithVersion(ctx, cn, degraded, detail, version, managerVersion)
+				return asGatewayErr(es.MarkHealthWithVersion(ctx, cn, degraded, detail, version, managerVersion))
 			}
 			// updateLog throttles the per-directive log line to once per (CN, decision) transition
 			// + a heartbeat every minute per CN, so the log tells the story without spamming (the
@@ -434,6 +443,16 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// asGatewayErr maps the enroll store's sentinels onto the gateway package's own, so the
+// HTTP handlers can react to them without internal/gateway depending on internal/enroll.
+// Anything else passes through untouched and is treated as a transient store error.
+func asGatewayErr(err error) error {
+	if errors.Is(err, enroll.ErrUnknownAgent) {
+		return gateway.ErrUnknownAgent
+	}
+	return err
 }
 
 // runDecoderReload installs the enabled custom decoders from the DB and re-reads them every 30s,

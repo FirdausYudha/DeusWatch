@@ -5,11 +5,13 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"deuswatch/internal/bus"
@@ -17,6 +19,38 @@ import (
 )
 
 const maxBodyBytes = 8 << 20 // 8 MiB per batch
+
+// ErrUnknownAgent is what a heartbeat writer returns when the presented certificate CN is
+// not an enrolled agent. This package talks to the store only through func types (no
+// enroll import), so cmd/gateway translates enroll.ErrUnknownAgent onto this sentinel.
+var ErrUnknownAgent = errors.New("gateway: certificate CN is not an enrolled agent")
+
+// unknownAgentLog throttles the "unknown agent" line to one per CN per minute. The state is
+// broken and unrecoverable without operator action, so it must be visible on every log
+// tail — but a fleet misconfigured by one bad image shouldn't emit 2 lines/agent/minute
+// forever. Same shape as the nftables push throttle in cmd/gateway.
+var unknownAgentLog = struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+}{last: map[string]time.Time{}}
+
+func logUnknownAgent(cn string) {
+	unknownAgentLog.mu.Lock()
+	fresh := time.Since(unknownAgentLog.last[cn]) >= time.Minute
+	if fresh {
+		unknownAgentLog.last[cn] = time.Now()
+	}
+	unknownAgentLog.mu.Unlock()
+	if !fresh {
+		return
+	}
+	log.Printf("gateway: heartbeat from cn=%q REJECTED — no agent is enrolled under that name. "+
+		"The certificate is CA-signed so the TLS handshake succeeds, but every manager-side "+
+		"lookup keys on agents.name and matches nothing, so this host can never leave "+
+		"\"never connected\". Re-run the one-line installer on the endpoint so it enrolls and "+
+		"receives its own certificate (a CN of %q means it is using the shared certgen "+
+		"development bundle instead of an enrolled identity).", cn, "deuswatch-agent")
+}
 
 // Publisher publishes a payload to a subject (satisfied by *bus.Bus).
 type Publisher interface {
@@ -434,6 +468,15 @@ func HeartbeatHandlerFull(seen SeenFunc, health HealthFunc, healthV HealthWithVe
 				err = health(r.Context(), cn, hb.Degraded, hb.Detail)
 			case seen != nil:
 				err = seen(r.Context(), cn)
+			}
+			// An unenrolled CN is a permanent configuration fault, not a transient store
+			// error: answering 204 here is what let a misconfigured agent look healthy in its
+			// own journal while the manager showed it as never connected. 409 makes the agent
+			// log the rejection every heartbeat, so both sides tell the same story.
+			if errors.Is(err, ErrUnknownAgent) {
+				logUnknownAgent(cn)
+				http.Error(w, "unknown agent: this certificate's CN is not enrolled — re-run the installer to enroll this host", http.StatusConflict)
+				return
 			}
 			if err != nil {
 				log.Printf("gateway: heartbeat DB update failed for agent %q: %v", cn, err)

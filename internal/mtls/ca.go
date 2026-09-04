@@ -198,6 +198,20 @@ func (ca *CA) CACertPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.cert.Raw})
 }
 
+// SharedClientCN is the CommonName on the throwaway client certificate GenerateBundle
+// writes alongside the CA. It exists so a developer can curl the gateway without running
+// an enrollment, and it is deliberately NOT an agent identity: no `agents` row is ever
+// created under this name.
+//
+// That distinction matters because the mismatch is otherwise invisible. A cert signed by
+// our CA passes RequireAndVerifyClientCert, so an agent misconfigured to use this bundle
+// completes the handshake, ships logs, and heartbeats — while every `WHERE name = $1`
+// lookup on the manager matches nothing. Before v2.14.6 that produced a permanently
+// "never connected" agent whose own journal showed no error at all. The agent now warns
+// at startup (cmd/agent/main.go) and the gateway rejects the heartbeat outright
+// (gateway.ErrUnknownAgent), so the two sides can no longer disagree in silence.
+const SharedClientCN = "deuswatch-agent"
+
 // GenerateBundle creates a CA + server certificate + client certificate and writes
 // them as PEM files to opt.Dir. Safe to call again (overwrites).
 func GenerateBundle(opt Options) (CertPaths, error) {
@@ -218,7 +232,7 @@ func GenerateBundle(opt Options) (CertPaths, error) {
 	if err != nil {
 		return paths, fmt.Errorf("issue server cert: %w", err)
 	}
-	client, err := issueLeaf(ca, "deuswatch-agent", nil, nil,
+	client, err := issueLeaf(ca, SharedClientCN, nil, nil,
 		[]x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, opt.ValidFor)
 	if err != nil {
 		return paths, fmt.Errorf("issue client cert: %w", err)

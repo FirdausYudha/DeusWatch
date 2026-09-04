@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus, CommFlow, CommFlowDirection, SrcDstFlow } from '../lib/api'
 import { fetchAgents, agentDisplayStatus } from '../lib/api'
 
@@ -433,6 +433,27 @@ function agentTitle(a: AgentInfo, st: DisplayStatus): string {
   return parts.join(' · ')
 }
 
+// useElementWidth reports the live content width of the element the returned ref is put on.
+// Needed because an SVG sized by a fixed viewBox plus `width:100%` does not lay out — it
+// SCALES, magnifying every stroke and label along with it. Driving the viewBox from the
+// measured width keeps user units pinned to CSS pixels, which is what makes the flow graphs
+// render at a constant visual size across the dashboard's 1/2/3-column panel spans (v2.14.0).
+function useElementWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
+  const ref = useRef<T>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    setWidth(el.getBoundingClientRect().width)
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setWidth(e.contentRect.width)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return [ref, width]
+}
+
 // ── Bipartite node-link graph (v2.13.0) ─────────────────────────────────────────
 // A shared SVG renderer for the Communication Graph and Source→Destination Graph. Both are
 // "flows between two node buckets" — no force simulation needed, which keeps the widget
@@ -458,6 +479,8 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   rightHeader: string
   maxPerSide?: number
 }) {
+  // Measured BEFORE any early return — hooks may not sit behind a conditional.
+  const [wrapRef, measured] = useElementWidth<HTMLDivElement>()
   if (!edges.length) return <Empty />
   // Fold edges into per-side node totals so we can rank + trim.
   const leftTotals = new Map<string, { label: string; count: number }>()
@@ -476,13 +499,25 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   const rightKeep = new Set(rightNodes.map(([k]) => k))
   const shown = edges.filter((e) => leftKeep.has(e.src) && rightKeep.has(e.dst))
   if (!shown.length) return <Empty />
-  // SVG geometry: fixed width, height grows with node count so labels don't overlap.
-  const W = 640
+  // SVG geometry. The viewBox tracks the MEASURED container width so one user unit is one
+  // CSS pixel and the drawing is never scaled. Pre-v2.14.6 the viewBox was pinned at 640
+  // while the element was `w-full h-auto`, so a full-width (span 3) panel upscaled the whole
+  // graph ~2.3x — row pitch, node radii and every label grew with it, which is the "gede
+  // banget" complaint. Height now depends only on the node count, so the widget stays the
+  // same visual size at any panel width and only gets wider.
+  const W = Math.max(320, measured || 640)
   const rowH = 26
   const rows = Math.max(leftNodes.length, rightNodes.length)
   const H = 32 + rows * rowH
-  const xLeft = 130     // right edge of left labels (edges start here)
-  const xRight = 510    // left edge of right labels (edges end here)
+  // Label gutters shrink on narrow panels so the two node columns keep a usable span
+  // between them instead of collapsing onto each other.
+  const gutter = W < 520 ? 96 : 130
+  const xLeft = gutter      // right edge of left labels (edges start here)
+  const xRight = W - gutter // left edge of right labels (edges end here)
+  // ~6px per character at 11.5px — derive the truncation budget from the gutter actually
+  // available rather than a constant that only happened to suit the old fixed width.
+  const leftChars = Math.max(8, Math.floor((gutter - 10) / 6))
+  const rightChars = Math.max(8, Math.floor((gutter - 14) / 6))
   const y0 = 28
   const posLeft: Record<string, number> = {}
   const posRight: Record<string, number> = {}
@@ -490,8 +525,8 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
   rightNodes.forEach(([k], i) => (posRight[k] = y0 + i * rowH))
   const maxCount = Math.max(1, ...shown.map((e) => e.count))
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full text-fg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Communication flow graph">
+    <div ref={wrapRef} className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block max-w-full text-fg" role="img" aria-label="Communication flow graph">
         {/* Column headers — anchored to the panel EDGES (not the node columns) so they never
             clip at narrow panel widths. Pre-v2.14.4 the source header sat at xLeft-8 with
             textAnchor="end" which pushed it left of x=0 for headers longer than ~15 chars. */}
@@ -518,7 +553,7 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
             <circle cx={xLeft} cy={y0 + i * rowH} r={4} fill="currentColor" opacity="0.7" />
             <text x={xLeft - 8} y={y0 + i * rowH + 4} textAnchor="end" fill="currentColor" className="text-[11.5px]">
               <title>{n.label} · {n.count} events</title>
-              {truncate(n.label, 24)}
+              {truncate(n.label, leftChars)}
             </text>
           </g>
         ))}
@@ -528,7 +563,7 @@ function BipartiteFlow({ edges, leftHeader, rightHeader, maxPerSide = 8 }: {
             <circle cx={xRight} cy={y0 + i * rowH} r={4} fill="currentColor" opacity="0.7" />
             <text x={xRight + 8} y={y0 + i * rowH + 4} textAnchor="start" fill="currentColor" className="text-[11.5px]">
               <title>{n.label} · {n.count} events</title>
-              {truncate(n.label, 20)}
+              {truncate(n.label, rightChars)}
             </text>
           </g>
         ))}

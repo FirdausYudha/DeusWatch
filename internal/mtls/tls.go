@@ -3,9 +3,35 @@ package mtls
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
+	"time"
 )
+
+// ClientIdentity reports the CommonName and expiry of the client certificate at p.
+//
+// The CN *is* the agent's identity on the wire: the gateway keys the heartbeat, the
+// pushed config, the blocklist scope and every ingested log line on it, and it must match
+// an enrolled `agents.name` row byte-for-byte. Nothing in the TLS handshake checks that —
+// any CA-signed certificate is accepted — so a wrong CN fails silently on the manager
+// side. Exposed here so the agent can print what it is presenting at startup, which turns
+// "the dashboard says never connected" into a one-line journalctl answer.
+func ClientIdentity(p CertPaths) (cn string, notAfter time.Time, err error) {
+	pemBytes, err := os.ReadFile(p.ClientCert)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return "", time.Time{}, fmt.Errorf("mtls: no PEM block in %s", p.ClientCert)
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("mtls: parse %s: %w", p.ClientCert, err)
+	}
+	return leaf.Subject.CommonName, leaf.NotAfter, nil
+}
 
 // caPool loads the CA certificate from a PEM file into a verification pool.
 func caPool(caCertPath string) (*x509.CertPool, error) {

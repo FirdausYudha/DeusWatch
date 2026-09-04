@@ -7,6 +7,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -128,6 +129,59 @@ func TestHeartbeatHandlerStoreFailureSurfaces(t *testing.T) {
 	h2(rr, req())
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("seen failure must surface as 503, got %d", rr.Code)
+	}
+}
+
+// TestHeartbeatHandlerUnknownAgentRejected is the regression for the "never connected"
+// bug. A certificate signed by our CA whose CN was never enrolled (the shared certgen
+// bundle's "deuswatch-agent" is the usual culprit) passes RequireAndVerifyClientCert, so
+// the handshake succeeds — but every heartbeat UPDATE keys on agents.name and matches no
+// row. Postgres calls a zero-row UPDATE a success, so the handler used to answer 204: the
+// agent's journal showed clean heartbeats while the dashboard showed the host as never
+// connected, with no error on either side. It must now answer 409 so both sides agree.
+func TestHeartbeatHandlerUnknownAgentRejected(t *testing.T) {
+	req := func() *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/v1/heartbeat", strings.NewReader(""))
+		r.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{{Subject: pkix.Name{CommonName: "deuswatch-agent"}}}}
+		return r
+	}
+
+	// Version-aware path (the one cmd/gateway actually wires up).
+	h := HeartbeatHandlerFull(nil, nil,
+		func(context.Context, string, bool, string, string) error { return ErrUnknownAgent }, nil, nil)
+	rr := httptest.NewRecorder()
+	h(rr, req())
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("unenrolled CN must be rejected with 409, got %d", rr.Code)
+	}
+
+	// health path (manager without the version store).
+	h2 := HeartbeatHandler(nil, func(context.Context, string, bool, string) error { return ErrUnknownAgent }, nil)
+	rr = httptest.NewRecorder()
+	h2(rr, req())
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("unenrolled CN on the health path must be 409, got %d", rr.Code)
+	}
+
+	// A wrapped sentinel must still be recognised — the store may add context.
+	h3 := HeartbeatHandler(nil, func(context.Context, string, bool, string) error {
+		return fmt.Errorf("mark health %q: %w", "deuswatch-agent", ErrUnknownAgent)
+	}, nil)
+	rr = httptest.NewRecorder()
+	h3(rr, req())
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("wrapped ErrUnknownAgent must still be 409, got %d", rr.Code)
+	}
+
+	// A genuine store error keeps its distinct 503 — the two failures are not the same
+	// thing and must not collapse into one status.
+	h4 := HeartbeatHandler(nil, func(context.Context, string, bool, string) error {
+		return errors.New("db connection reset")
+	}, nil)
+	rr = httptest.NewRecorder()
+	h4(rr, req())
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("a transient store error must stay 503, got %d", rr.Code)
 	}
 }
 
