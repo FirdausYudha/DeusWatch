@@ -159,6 +159,11 @@ type Agent struct {
 type User struct {
 	Name   string `json:"name,omitempty"`
 	Domain string `json:"domain,omitempty"`
+	// Effective is the account a process actually ran as, when it differs from the login account
+	// in Name. Populated by Linux who-data from the audit uid; Name carries the auid. When the
+	// two differ the action used sudo/su or a setuid binary, which is the difference between
+	// "firdaus edited a file" and "firdaus edited a file as root".
+	Effective string `json:"effective,omitempty"`
 }
 
 // Network = network.*.

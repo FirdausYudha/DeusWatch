@@ -1,9 +1,11 @@
 package agent
 
 import (
+	"os/user"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // WhoData identifies the process/user that caused a file change — Linux audit "who-data".
@@ -12,8 +14,27 @@ type WhoData struct {
 	Actor   string // process short name (audit comm), e.g. "vim"
 	Exe     string // process executable path, e.g. "/usr/bin/vim"
 	PID     int    // process id
-	User    string // login user (audit auid) if resolvable, else the uid
+	User    string // login user (audit auid) if resolvable, else the uid — kept for compatibility
 	Syscall string // the syscall that changed the file (rename/unlink/openat…)
+
+	// LoginUser and EffectiveUser are the audit record's auid and uid, kept SEPARATE because
+	// their difference is the privilege-escalation signal. auid is the account the human
+	// authenticated as and never changes across a sudo/su; uid is who the process actually ran
+	// as. `auid=1000 uid=0` therefore means "firdaus edited this file as root via sudo" —
+	// materially different from root logging in directly, and from firdaus editing as themself.
+	//
+	// Collapsing the two (which pickUser does, and which is all the wire carried before
+	// v2.14.7) throws that away: the alert could say "1000" for an action actually performed
+	// with full root privilege.
+	LoginUser     string // auid, resolved to a name where possible
+	EffectiveUser string // uid, resolved to a name where possible
+}
+
+// Escalated reports whether the change was made with privileges the login user does not
+// normally hold — i.e. through sudo, su, or a setuid binary. False when either side is unknown,
+// so an absent audit field never fabricates an escalation claim.
+func (w WhoData) Escalated() bool {
+	return w.LoginUser != "" && w.EffectiveUser != "" && w.LoginUser != w.EffectiveUser
 }
 
 // WhoDataSource returns the most recent actor for a changed path, if known. Implemented by the
@@ -57,6 +78,8 @@ func parseAuditEvent(lines []string, key string) auditEvent {
 			ev.who.PID = atoi(f["pid"])
 			ev.who.Actor = unquote(f["comm"])
 			ev.who.Exe = unquote(f["exe"])
+			ev.who.LoginUser = resolveUser(numericUser(f["auid"]))
+			ev.who.EffectiveUser = resolveUser(numericUser(f["uid"]))
 			ev.who.User = pickUser(f["auid"], f["uid"])
 		case strings.HasPrefix(ln, "type=CWD"):
 			cwd = unquote(auditFields(ln)["cwd"])
@@ -191,6 +214,28 @@ func numericUser(v string) string {
 		return ""
 	}
 	return v
+}
+
+// userNameCache memoises uid -> name. Audit traffic repeats the same handful of uids thousands
+// of times, and each miss would otherwise re-read /etc/passwd (or hit NSS/LDAP) on the hot path.
+var userNameCache sync.Map // string uid -> string name
+
+// resolveUser turns a numeric uid into a login name ("1000" -> "firdaus") so alerts name a
+// person rather than a number. Returns the input unchanged when the uid has no local account —
+// which is itself worth seeing, since a file changed by a uid with no passwd entry is odd.
+func resolveUser(uid string) string {
+	if uid == "" {
+		return ""
+	}
+	if v, ok := userNameCache.Load(uid); ok {
+		return v.(string)
+	}
+	name := uid
+	if u, err := user.LookupId(uid); err == nil && u.Username != "" {
+		name = u.Username
+	}
+	userNameCache.Store(uid, name)
+	return name
 }
 
 func atoi(s string) int {

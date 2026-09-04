@@ -55,6 +55,9 @@ export type EventRow = {
   source_ip: string
   host_name: string
   user_name: string
+  // The account the process actually ran as, present ONLY when it differs from user_name (the
+  // login account). Non-empty therefore means the change was made through sudo/su.
+  user_effective?: string
   agent_id: string
   rule_id: string
   rule_name: string

@@ -390,20 +390,43 @@ export default function FileIntegrity({
                               <span className="text-dim">detail for </span>
                               <span className="font-mono text-fg">{e.file_path || '—'}</span>
                             </div>
-                            {(e.process_name || e.user_name) && (
-                              <div className="mb-2 text-[12.5px] text-muted">
-                                changed by{' '}
-                                {e.process_name && (
-                                  <span className="font-mono text-fg">
-                                    {e.process_name}{e.process_pid ? ` (pid ${e.process_pid})` : ''}
-                                  </span>
+                            {/* Who-data: the process and the human behind the change. Rendered as
+                                a labelled block rather than a sentence because these are the four
+                                things an analyst reads first — what ran it, under which pid, who
+                                is accountable, and whether root was involved. */}
+                            {(e.process_name || e.user_name) ? (
+                              <div className="mb-3 rounded-[8px] border border-border bg-bg px-3 py-2">
+                                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-[12.5px] sm:grid-cols-4">
+                                  <Fact label="Process" value={e.process_name} mono />
+                                  <Fact label="PID" value={e.process_pid ? String(e.process_pid) : ''} mono />
+                                  <Fact label="Logged in as" value={e.user_name} mono />
+                                  <Fact
+                                    label="Ran as"
+                                    value={e.user_effective || e.user_name}
+                                    mono
+                                  />
+                                </dl>
+                                {e.user_effective && (
+                                  // Only ever set when the effective account differs from the
+                                  // login account, so its presence IS the escalation.
+                                  <p className="mt-2 text-[12.5px] text-medium">
+                                    Privilege escalation — <span className="font-mono">{e.user_name}</span>{' '}
+                                    made this change as <span className="font-mono">{e.user_effective}</span>{' '}
+                                    (sudo, su, or a setuid binary).
+                                  </p>
                                 )}
-                                {e.user_name && (
-                                  <> {e.process_name ? 'as user ' : 'user '}<span className="font-mono text-fg">{e.user_name}</span></>
-                                )}
-                                <span className="ml-1 text-dim">· who-data</span>
-                                <DocLink file="whodata.md" label="docs" className="ml-2" />
+                                <div className="mt-1.5 text-[11.5px] text-dim">
+                                  who-data <DocLink file="whodata.md" label="docs" className="ml-1" />
+                                </div>
                               </div>
+                            ) : (
+                              <p className="mb-3 text-[12.5px] text-dim">
+                                No who-data for this change — the process and user behind it were not
+                                recorded. On Linux this is opt-in and needs auditd:{' '}
+                                <code className="font-mono text-[11.5px]">AGENT_WHODATA=1</code> in the
+                                agent's environment, then restart it.{' '}
+                                <DocLink file="whodata.md" label="how to enable" />
+                              </p>
                             )}
                             {(() => {
                               const s = sessionFor(e)

@@ -33,11 +33,27 @@ Now change a monitored file. The **File change** block shows
 event and the labeled alert (the alert carries the actor as of **v1.7.1**; before that, only the
 raw `file_modified` event did).
 
-### It unmasks sudo
+### It unmasks sudo — and says so explicitly
 
-The user is the **login user** (audit `auid`), not the effective uid. So a change made with
-`sudo` is attributed to the human who logged in — e.g. a file edited via `sudo` by user `deus`
-shows `as user deus(1001)`, not `root`. That's usually exactly who you want to hold accountable.
+Every audit record carries two accounts, and DeusWatch keeps them **apart**:
+
+| Field | Audit source | Meaning |
+|---|---|---|
+| **Logged in as** | `auid` | The account the human authenticated as. Survives `sudo`/`su` unchanged — this is who to hold accountable. |
+| **Ran as** | `uid` | The account the process actually ran under. |
+
+When they differ, the change used `sudo`, `su`, or a setuid binary, and the File Integrity page
+says so outright: *"Privilege escalation — deus made this change as root"*. Both accounts are
+resolved to names rather than shown as bare numbers.
+
+> Before **v2.14.7** the two were collapsed into a single value that preferred `auid`. That named
+> the right human, but it silently discarded the fact that the edit was performed with full root
+> privilege — `auid=1000 uid=0` was reported as plain `1000`. Only the login account was ever
+> stored, so the escalation could not be recovered afterwards either.
+
+An **unset `auid`** (`4294967295`) means there was no login session behind the action — a daemon
+such as `php-fpm` writing as its service account. That is deliberately *not* reported as an
+escalation: a missing side must never manufacture a claim.
 
 ## How it works
 

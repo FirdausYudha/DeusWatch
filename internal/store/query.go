@@ -11,23 +11,26 @@ import (
 
 // EventRow is a flat representation of one event for the API/UI.
 type EventRow struct {
-	Time        time.Time `json:"time"`
-	Category    string    `json:"event_category"`
-	Action      string    `json:"event_action"`
-	Outcome     string    `json:"event_outcome"`
-	Severity    int       `json:"event_severity"`
-	Dataset       string `json:"event_dataset"`
-	SourceIP      string `json:"source_ip"`
-	DestinationIP string `json:"destination_ip"` // used by the direction classifier (LATERAL/OUTBOUND)
-	HostName      string `json:"host_name"`
-	UserName    string    `json:"user_name"`
-	AgentID     string    `json:"agent_id"` // the agent NAME (cert CN) that reported the event
-	RuleID      string    `json:"rule_id"`
-	RuleName    string    `json:"rule_name"`
-	TechniqueID string    `json:"threat_technique_id"`
-	TacticName  string    `json:"threat_tactic_name"`
-	Label       string    `json:"dw_label"`
-	Original    string    `json:"event_original"`
+	Time          time.Time `json:"time"`
+	Category      string    `json:"event_category"`
+	Action        string    `json:"event_action"`
+	Outcome       string    `json:"event_outcome"`
+	Severity      int       `json:"event_severity"`
+	Dataset       string    `json:"event_dataset"`
+	SourceIP      string    `json:"source_ip"`
+	DestinationIP string    `json:"destination_ip"` // used by the direction classifier (LATERAL/OUTBOUND)
+	HostName      string    `json:"host_name"`
+	UserName      string    `json:"user_name"`
+	// UserEffective is the account the process actually ran as, present only when it differs
+	// from UserName (the login account). Non-empty therefore MEANS the change used sudo/su.
+	UserEffective string `json:"user_effective,omitempty"`
+	AgentID       string `json:"agent_id"` // the agent NAME (cert CN) that reported the event
+	RuleID        string `json:"rule_id"`
+	RuleName      string `json:"rule_name"`
+	TechniqueID   string `json:"threat_technique_id"`
+	TacticName    string `json:"threat_tactic_name"`
+	Label         string `json:"dw_label"`
+	Original      string `json:"event_original"`
 	// CTI / GeoIP enrichment (for the alert view).
 	GeoCountry      string `json:"source_geo_country_iso"`
 	GeoCity         string `json:"source_geo_city"`
@@ -110,7 +113,8 @@ const selectCols = `
 	COALESCE(dw_remediation_action,''), COALESCE(dw_remediation_source,''),
 	COALESCE(file_diff,''),
 	COALESCE(process_name,''), COALESCE(process_pid,0),
-	COALESCE(http_method,''), COALESCE(http_uri,''), COALESCE(http_status,0), COALESCE(http_host,'')`
+	COALESCE(http_method,''), COALESCE(http_uri,''), COALESCE(http_status,0), COALESCE(http_host,''),
+	COALESCE(user_effective,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -130,6 +134,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.FileDiff,
 			&e.ProcessName, &e.ProcessPID,
 			&e.HTTPMethod, &e.HTTPURI, &e.HTTPStatus, &e.HTTPHost,
+			&e.UserEffective,
 		); err != nil {
 			return nil, err
 		}

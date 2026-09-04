@@ -504,6 +504,9 @@ func normalizeFIM(msg string, e *Event) bool {
 		ActorStart string `json:"actor_start"`
 		User       string `json:"user"`
 		Syscall    string `json:"syscall"`
+		// auid and uid kept apart — their difference is the sudo/su signal.
+		LoginUser     string `json:"actor_login_user"`
+		EffectiveUser string `json:"actor_effective_user"`
 	}
 	if err := json.Unmarshal([]byte(msg), &c); err != nil || c.Path == "" || c.Action == "" {
 		return false
@@ -530,8 +533,15 @@ func normalizeFIM(msg string, e *Event) bool {
 	if c.Actor != "" || c.ActorPID != 0 {
 		e.Process = &Process{Name: c.Actor, PID: c.ActorPID, CommandLine: c.ActorExe, Start: c.ActorStart}
 	}
-	if c.User != "" {
-		e.User = &User{Name: c.User}
+	// User.Name is the human held responsible (the login account, which survives a sudo);
+	// Effective is who the process actually ran as. Keeping both lets the UI say "root via sudo
+	// (firdaus)" instead of a single number that hides which of the two it even is.
+	if c.LoginUser != "" || c.User != "" {
+		name := c.LoginUser
+		if name == "" {
+			name = c.User
+		}
+		e.User = &User{Name: name, Effective: c.EffectiveUser}
 	}
 	// Changes/deletions are riskier than newly created files; a restore is the operator's
 	// own recovery action (audit trail, not a threat).

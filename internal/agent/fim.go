@@ -110,6 +110,11 @@ type FIMChange struct {
 	ActorStart string `json:"actor_start,omitempty"`
 	User       string `json:"user,omitempty"`    // login user (auid) or uid
 	Syscall    string `json:"syscall,omitempty"` // the syscall that changed the file
+	// LoginUser/EffectiveUser are auid and uid kept apart, because their difference is the
+	// privilege-escalation signal: auid=firdaus + uid=root means the change was made through
+	// sudo. See WhoData.Escalated.
+	LoginUser     string `json:"actor_login_user,omitempty"`
+	EffectiveUser string `json:"actor_effective_user,omitempty"`
 }
 
 type fileState struct {
@@ -177,6 +182,7 @@ func (s *FIMScanner) attachWho(c *FIMChange) {
 	if who, ok := s.who.Lookup(c.Path); ok {
 		c.Actor, c.ActorExe, c.ActorPID = who.Actor, who.Exe, who.PID
 		c.User, c.Syscall = who.User, who.Syscall
+		c.LoginUser, c.EffectiveUser = who.LoginUser, who.EffectiveUser
 		// Capture the process start time NOW, while the culprit is (usually) still alive. This is
 		// the only moment it can be read reliably, and it is what lets the kill-switch tell the
 		// real target from an innocent process that inherited its PID later. Best-effort: a

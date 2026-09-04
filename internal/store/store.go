@@ -258,7 +258,8 @@ INSERT INTO events (
 	process_name, process_pid,
 	http_method, http_uri, http_status, http_host,
 	tenant_id,
-	source_asn_number, source_asn_org
+	source_asn_number, source_asn_org,
+	user_effective
 ) VALUES (
 	$1, $2, $3, $4, $5,
 	$6, $7,
@@ -287,7 +288,8 @@ INSERT INTO events (
 		(SELECT a.tenant_id FROM agents a WHERE a.name = $13),
 		'00000000-0000-0000-0000-000000000001'::uuid
 	),
-	$53, $54
+	$53, $54,
+	$55
 )`
 
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
@@ -298,7 +300,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		srcGeoCity                    any = nil
 		hostName, hostOS              any = nil, nil
 		agentID, agentVer             any = nil, nil
-		userName                      any = nil
+		userName, userEffective       any = nil, nil
 		ruleID, ruleName              any = nil, nil
 		techID, techName, tacticName  any = nil, nil, nil
 		tiIP, tiConf, tiLastSeen      any = nil, nil, nil
@@ -370,6 +372,11 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	}
 	if e.User != nil {
 		userName = strOrNil(e.User.Name)
+		// Only stored when it differs from the login account — an equal value carries no
+		// information and would make every row look like an escalation to a careless reader.
+		if e.User.Effective != "" && e.User.Effective != e.User.Name {
+			userEffective = e.User.Effective
+		}
 	}
 	if e.Rule != nil {
 		ruleID = strOrNil(e.Rule.ID)
@@ -420,6 +427,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		httpMethod, httpURI, httpStatus, httpHost,
 		tenantOverride,
 		srcASNNum, srcASNOrg,
+		userEffective,
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert event: %w", err)

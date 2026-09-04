@@ -81,3 +81,42 @@ func TestAuditEventID(t *testing.T) {
 
 // auditKeyForTest mirrors the linux collector's key without importing the linux-only file.
 const auditKeyForTest = "deuswatch_fim"
+
+// The auid/uid split is the privilege-escalation signal, so it gets its own test: before
+// v2.14.7 both were collapsed into one value and a change made with full root privilege was
+// reported as an ordinary user edit.
+func TestWhoDataSeparatesLoginAndEffectiveUser(t *testing.T) {
+	// auid=0 uid=0 — root logged in directly. Not an escalation.
+	direct := parseAuditEvent([]string{
+		`type=SYSCALL msg=audit(1:1): syscall=257 pid=11 comm="vim" exe="/usr/bin/vim" auid=0 uid=0 key="deuswatch_fim"`,
+	}, "deuswatch_fim")
+	if direct.who.Escalated() {
+		t.Errorf("auid=uid=0 is a direct root login, not an escalation")
+	}
+
+	// auid=1000 uid=0 — a human logged in as themselves and acted as root. This IS sudo, and is
+	// exactly the case the old single-value field hid.
+	sudo := parseAuditEvent([]string{
+		`type=SYSCALL msg=audit(1:2): syscall=257 pid=22 comm="vim" exe="/usr/bin/vim" auid=1000 uid=0 key="deuswatch_fim"`,
+	}, "deuswatch_fim")
+	if !sudo.who.Escalated() {
+		t.Errorf("auid=1000 uid=0 must be reported as escalated, got login=%q effective=%q",
+			sudo.who.LoginUser, sudo.who.EffectiveUser)
+	}
+	if sudo.who.PID != 22 {
+		t.Errorf("pid = %d, want 22", sudo.who.PID)
+	}
+
+	// auid unset (a daemon with no login session) must not fabricate an escalation from the
+	// missing side.
+	daemon := parseAuditEvent([]string{
+		`type=SYSCALL msg=audit(1:3): syscall=257 pid=33 comm="php-fpm" exe="/usr/sbin/php-fpm" auid=4294967295 uid=33 key="deuswatch_fim"`,
+	}, "deuswatch_fim")
+	if daemon.who.Escalated() {
+		t.Errorf("an unset auid must not read as an escalation (login=%q effective=%q)",
+			daemon.who.LoginUser, daemon.who.EffectiveUser)
+	}
+	if daemon.who.EffectiveUser == "" {
+		t.Errorf("uid=33 should still resolve an effective user")
+	}
+}
