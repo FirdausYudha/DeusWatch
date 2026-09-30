@@ -5,6 +5,8 @@ package store
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,6 +88,15 @@ func (s *Store) WithTenantScope(ctx context.Context, tenantIDs []string, superad
 	return tx.Commit(ctx)
 }
 
+// PoolStats returns a one-line summary of the connection pool, for diagnosing saturation
+// (empty_acquires climbing = the pool is starved, the usual cause of a wedged worker).
+func (s *Store) PoolStats() string {
+	st := s.pool.Stat()
+	return fmt.Sprintf("conns=%d/%d acquired=%d idle=%d empty_acquires=%d canceled=%d",
+		st.TotalConns(), st.MaxConns(), st.AcquiredConns(), st.IdleConns(),
+		st.EmptyAcquireCount(), st.CanceledAcquireCount())
+}
+
 // Connect opens a pool to dsn and verifies connectivity.
 func Connect(ctx context.Context, dsn string) (*Store, error) {
 	pool, err := pgxpool.New(ctx, dsn)
@@ -122,6 +133,16 @@ func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
 	cfg.HealthCheckPeriod = 30 * time.Second
 	cfg.MaxConnIdleTime = 5 * time.Minute
 	cfg.MaxConnLifetime = 30 * time.Minute
+	// pgx defaults MaxConns to max(4, NumCPU) - far too small for the worker, which runs ~20
+	// background goroutines plus a write-heavy consumer that, under an SSH brute-force flood, does
+	// several DB writes per alert. When the pool saturates, even the liveness heartbeat cannot get
+	// a connection and the worker looks dead. Give it real headroom (override with DB_MAX_CONNS).
+	cfg.MaxConns = 30
+	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.MaxConns = int32(n)
+		}
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("store: create pool: %w", err)

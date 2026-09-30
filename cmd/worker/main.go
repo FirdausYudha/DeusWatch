@@ -493,7 +493,7 @@ func runServiceHeartbeat(ctx context.Context, st *store.Store) {
 		wc, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		if err := st.UpsertServiceHeartbeat(wc, store.ServiceWorker, buildVersion, ""); err != nil {
-			log.Printf("worker: heartbeat write failed: %v", err)
+			log.Printf("worker: heartbeat write failed: %v [%s]", err, st.PoolStats())
 			return
 		}
 		lastOK = time.Now()
@@ -513,7 +513,7 @@ func runServiceHeartbeat(ctx context.Context, st *store.Store) {
 			// the worker back with a fresh pool, instead of sitting silently dead until someone
 			// runs `docker compose up -d worker` by hand. This is exactly the symptom operators hit.
 			if since := time.Since(lastOK); since > heartbeatStallLimit {
-				log.Printf("worker: FATAL detection wedged, no heartbeat for %s, exiting for a clean auto-restart", since.Round(time.Second))
+				log.Printf("worker: FATAL detection wedged, no heartbeat for %s [%s], exiting for a clean auto-restart", since.Round(time.Second), st.PoolStats())
 				os.Exit(1)
 			}
 		}
