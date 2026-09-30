@@ -39,14 +39,18 @@ Colors are CSS vars mapped to Tailwind: `bg`, `surface`, `surface-2`, `border`, 
 
 ## Icons
 
-- **SVG only, never glyph characters.** Use `lucide-react` (tree-shaken, one stroke width,
-  inherits `currentColor`). Size 16-18px inline, 20px in the sidebar. One icon = one meaning.
+- **SVG only, never glyph characters.** Reuse the in-repo inline-SVG pattern (see the `ICONS`
+  map + `NavIcon` in `components/Sidebar.tsx`): stroke paths on `viewBox 0 0 24 24`,
+  `stroke="currentColor"`, ~1.7 width, so an icon inherits its parent's color. No icon package,
+  by design the app must run fully offline. Size 16-18px inline, 20px in the sidebar. One icon =
+  one meaning.
 
 ## Charts
 
 - Use `recharts`. Every chart has **labelled X and Y axes with real values** (e.g. X = time,
-  Y = attack count) and a **hover tooltip** showing the exact number. No axis-less sparkline as a
-  primary chart. Series colors come from the token palette; severity keeps its fixed colors.
+  Y = attack count) and a **hover tooltip** showing the exact number (see `dashboard/widgets.tsx`).
+  No axis-less sparkline as a primary chart. Axis/tooltip colors come from the tokens (`TIP`,
+  `AXIS_TICK`); series colors from the palette; severity keeps its fixed colors.
 
 ## Feedback & errors
 
@@ -58,7 +62,8 @@ Colors are CSS vars mapped to Tailwind: `bg`, `surface`, `surface-2`, `border`, 
 
 - [x] `<Page>`, `usePaged`/`<Pagination>` primitives
 - [x] Tickets: status dropdown + pagination + `<Page>` (reference implementation)
+- [x] Dashboard charts on `recharts` (axes + hover tooltip)
+- [x] Sidebar icons are inline SVG (offline, no package)
 - [ ] Apply `<Page>` to all remaining pages (Response, Agents, Rules, Decoders, Inventory, …)
 - [ ] Apply `<Pagination>` to all remaining tables
-- [ ] Replace glyph icons with `lucide-react` (sidebar + scattered usage)
-- [ ] Migrate dashboard charts to `recharts` (axes + hover)
+- [ ] Replace the leftover glyph icons in buttons (close ✕, chevrons, ⬇/⬆/✎/⛃/🗺/✨) with inline SVG
