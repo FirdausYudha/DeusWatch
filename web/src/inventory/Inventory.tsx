@@ -248,6 +248,8 @@ function VulnList({ agent }: { agent: string }) {
       .finally(() => setLoading(false))
   }, [agent])
 
+  // usePaged must run before any early return (rules of hooks).
+  const paged = usePaged(rows)
   if (loading) return <p className="px-4 py-6 text-center text-[13px] text-dim">loading…</p>
   if (error) return <p className="px-4 py-2 text-[13.5px] text-rose-400">{error}</p>
   if (rows.length === 0)
@@ -257,7 +259,6 @@ function VulnList({ agent }: { agent: string }) {
       </p>
     )
 
-  const paged = usePaged(rows)
   return (
     <div>
       <table className="w-full text-left text-sm">
