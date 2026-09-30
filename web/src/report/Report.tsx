@@ -5,7 +5,7 @@ import {
   fetchNotifyConfig, saveNotifyConfig,
   type SecurityReport, type ReportCount, type ReportSummary, type ReportAIConfig, type NotifyConfig,
 } from '../lib/api'
-import { StatCard } from '../components/ui'
+import { StatCard, Icon } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
 
 const SCHEDULE_PRESETS: { label: string; hours: number }[] = [
@@ -202,8 +202,10 @@ export default function Report() {
     }
   }
 
+  // Keeps its own wrapper (not <Page>) because the print stylesheet targets #report-print;
+  // className matches Page's gutter so left/right spacing stays uniform with every other page.
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5" id="report-print">
+    <div className="mx-auto max-w-[1400px] px-6 py-6" id="report-print">
       <style>{PRINT_CSS}</style>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -254,14 +256,14 @@ export default function Report() {
             className="rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2"
             title="Send this report as JSON to the configured export webhook"
           >
-            ↗ Webhook
+            <span className="inline-flex items-center gap-1"><Icon name="webhook" size={14} />Webhook</span>
           </button>
           <button
             onClick={() => window.print()}
             className="rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2"
             title="Print or save as PDF"
           >
-            ⬇ PDF
+            <span className="inline-flex items-center gap-1"><Icon name="download" size={14} />PDF</span>
           </button>
           <button
             onClick={download}
@@ -337,7 +339,7 @@ export default function Report() {
         {/* Custom AI prompt template */}
         <div className="no-print mb-3">
           <button onClick={() => setPromptOpen(!promptOpen)} className="text-[12.5px] text-dim hover:text-fg">
-            {promptOpen ? '▾' : '▸'} Prompt template {cfg.summary_prompt ? '(custom)' : '(default)'}
+            <span className="inline-flex items-center gap-1"><Icon name={promptOpen ? 'chevronDown' : 'chevronRight'} size={13} />Prompt template {cfg.summary_prompt ? '(custom)' : '(default)'}</span>
           </button>
           {promptOpen && (
             <div className="mt-2 rounded-[8px] border border-border bg-surface p-3">

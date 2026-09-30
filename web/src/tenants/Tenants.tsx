@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchTenants, createTenant, deleteTenant, type Tenant } from '../lib/api'
 import DocLink from '../components/DocLink'
+import { Page, Pagination, usePaged } from '../components/ui'
 
 // Tenants admin (manage_tenants). A tenant is the data-isolation boundary: agents and all their
 // telemetry belong to exactly one tenant, and Postgres RLS keeps them separate. Creating a tenant
@@ -44,8 +45,9 @@ export default function Tenants() {
     }
   }
 
+  const paged = usePaged(tenants)
   return (
-    <div className="mx-auto max-w-3xl p-4 sm:p-6">
+    <Page>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-[13.5px] text-dim">A tenant is a data-isolation boundary, agents and their telemetry belong to one tenant.</p>
         <DocLink file="multi-tenancy.md" />
@@ -82,7 +84,7 @@ export default function Tenants() {
             </tr>
           </thead>
           <tbody>
-            {tenants.map((t) => (
+            {paged.slice.map((t) => (
               <tr key={t.id} className="border-t border-border">
                 <td className="px-4 py-2.5 font-medium text-fg">{t.name}</td>
                 <td className="px-4 py-2.5 font-mono text-[13px] text-muted">{t.slug}</td>
@@ -107,6 +109,7 @@ export default function Tenants() {
           </tbody>
         </table>
       </div>
-    </div>
+      <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
+    </Page>
   )
 }

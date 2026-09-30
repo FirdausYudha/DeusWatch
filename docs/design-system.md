@@ -64,6 +64,13 @@ Colors are CSS vars mapped to Tailwind: `bg`, `surface`, `surface-2`, `border`, 
 - [x] Tickets: status dropdown + pagination + `<Page>` (reference implementation)
 - [x] Dashboard charts on `recharts` (axes + hover tooltip)
 - [x] Sidebar icons are inline SVG (offline, no package)
-- [ ] Apply `<Page>` to all remaining pages (Response, Agents, Rules, Decoders, Inventory, …)
-- [ ] Apply `<Pagination>` to all remaining tables
-- [ ] Replace the leftover glyph icons in buttons (close ✕, chevrons, ⬇/⬆/✎/⛃/🗺/✨) with inline SVG
+- [x] `<Page>` applied to every page (Dashboard, Agents, Response, Rules, Decoders, Inventory, Users,
+  Tenants, Workspaces, Playbooks, Integrations, Snapshots, Settings, FileIntegrity; Report keeps its
+  own wrapper for the print `#report-print` id but matches Page's gutter)
+- [x] `<Pagination>` on the growable tables (Agents, Rules, Response offenders+events, Decoders,
+  Inventory vulns+packages, Users, Tenants, Playbooks, Integrations, FIM findings). Bounded
+  operational/picker lists (Response whitelist/kills/contained, Workspaces + Snapshots pickers) stay
+  unpaginated by design; Dashboard events use a server-side `limit`.
+- [x] Glyph icons replaced with the shared inline-SVG `Icon` (close, chevrons, up/down, download,
+  upload, external, filter, map, list, webhook, crosshair, plus, minus, drag)
+- [x] All dashboard charts on recharts with non-clipping X/Y axes (incl. Event Trend By Tenant)

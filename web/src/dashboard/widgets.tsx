@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
   BarChart as RBarChart, Bar, AreaChart as RAreaChart, Area, PieChart, Pie, Cell,
+  LineChart as RLineChart, Line,
 } from 'recharts'
 import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus, CommFlow, CommFlowDirection, SrcDstFlow } from '../lib/api'
 import { fetchAgents, agentDisplayStatus } from '../lib/api'
@@ -16,10 +17,16 @@ const TIP = {
   itemStyle: { color: 'var(--color-fg)' },
   cursor: { fill: 'var(--color-surface-2)', opacity: 0.5 },
 }
-// fmtTime keeps X-axis time labels short but readable; falls back to the raw bucket if unparseable.
+// fmtTime is the full, unambiguous label used in tooltips.
 function fmtTime(t: string): string {
   const d = new Date(t)
   return isNaN(+d) ? t : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+// fmtTick is the compact axis label. The full fmtTime is wide enough that the last tick overflowed
+// the plot and got clipped ("angka x kepotong"); this short form + a right margin keeps it inside.
+function fmtTick(t: string): string {
+  const d = new Date(t)
+  return isNaN(+d) ? t : d.toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: 'numeric', hour12: true }).replace(', ', ' ')
 }
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
@@ -89,7 +96,7 @@ export function LineChart({ points, color }: { points: TimelinePoint[]; color: s
   const gid = React.useId().replace(/:/g, '')
   return (
     <ResponsiveContainer width="100%" height={140}>
-      <RAreaChart data={points} margin={{ left: 0, right: 8, top: 6, bottom: 0 }}>
+      <RAreaChart data={points} margin={{ left: 4, right: 24, top: 6, bottom: 0 }}>
         <defs>
           <linearGradient id={`fill-${gid}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity={0.3} />
@@ -97,8 +104,8 @@ export function LineChart({ points, color }: { points: TimelinePoint[]; color: s
           </linearGradient>
         </defs>
         <CartesianGrid vertical={false} stroke={AXIS_LINE} strokeDasharray="3 3" />
-        <XAxis dataKey="time" tickFormatter={fmtTime} minTickGap={28} tick={AXIS_TICK} stroke={AXIS_LINE} />
-        <YAxis allowDecimals={false} width={30} tick={AXIS_TICK} stroke={AXIS_LINE} />
+        <XAxis dataKey="time" tickFormatter={fmtTick} minTickGap={40} tick={AXIS_TICK} stroke={AXIS_LINE} />
+        <YAxis allowDecimals={false} width={44} tick={AXIS_TICK} stroke={AXIS_LINE} />
         <Tooltip {...TIP} labelFormatter={(l) => fmtTime(String(l))} />
         <Area dataKey="count" name="attacks" stroke={color} strokeWidth={2} fill={`url(#fill-${gid})`} />
       </RAreaChart>
@@ -129,31 +136,30 @@ export function TenantLinesWidget({ range }: { range: { hours?: number; from?: D
   }, [range])
   if (forbidden) return <p className="py-6 text-center text-[13.5px] text-dim">requires manage_tenants</p>
   if (!series.length || series.every((s) => !s.points.some((p) => p.count > 0))) return <Empty />
-  const W = 320, H = 90, pad = 6
-  const n = series[0]?.points.length ?? 0
-  const max = Math.max(1, ...series.flatMap((s) => s.points.map((p) => p.count)))
-  const x = (i: number) => pad + (n > 1 ? (i / (n - 1)) * (W - 2 * pad) : 0)
-  const y = (v: number) => H - pad - (v / max) * (H - 2 * pad)
   // A discrete palette that's readable in both themes; wraps beyond 8 tenants.
   const palette = ['#6366f1', '#22d3ee', '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6', '#38bdf8', '#a3e635']
+  // recharts wants one row per time bucket with a column per tenant; series share the same buckets
+  // (server aligns them), so pivot on the first series' timeline. Key columns by tenant_id (names
+  // can collide) and label the Line/Legend with tenant_name.
+  const rows = (series[0]?.points ?? []).map((p, i) => {
+    const row: Record<string, string | number> = { time: p.time }
+    for (const s of series) row[s.tenant_id] = s.points[i]?.count ?? 0
+    return row
+  })
   return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-28 w-full" preserveAspectRatio="none">
-        {series.map((s, si) => {
-          if (!s.points.length) return null
-          const d = s.points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.count).toFixed(1)}`).join(' ')
-          return <path key={s.tenant_id} d={d} fill="none" stroke={palette[si % palette.length]} strokeWidth="1.5" vectorEffect="non-scaling-stroke" opacity="0.9" />
-        })}
-      </svg>
-      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-muted">
+    <ResponsiveContainer width="100%" height={200}>
+      <RLineChart data={rows} margin={{ left: 4, right: 24, top: 6, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke={AXIS_LINE} strokeDasharray="3 3" />
+        <XAxis dataKey="time" tickFormatter={fmtTick} minTickGap={40} tick={AXIS_TICK} stroke={AXIS_LINE} />
+        <YAxis allowDecimals={false} width={44} tick={AXIS_TICK} stroke={AXIS_LINE} />
+        <Tooltip {...TIP} labelFormatter={(l) => fmtTime(String(l))} />
+        <Legend wrapperStyle={{ fontSize: 12, color: 'var(--color-fg)' }} />
         {series.map((s, si) => (
-          <li key={s.tenant_id} className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: palette[si % palette.length] }} />
-            <span className="truncate">{s.tenant_name}</span>
-          </li>
+          <Line key={s.tenant_id} type="monotone" dataKey={s.tenant_id} name={s.tenant_name}
+            stroke={palette[si % palette.length]} strokeWidth={1.8} dot={false} />
         ))}
-      </ul>
-    </div>
+      </RLineChart>
+    </ResponsiveContainer>
   )
 }
 

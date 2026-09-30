@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchAgents, agentOnline, type AgentInfo, type Me } from '../lib/api'
-import { PageHeader, Card, EmptyState, ErrorText, Pill } from '../components/ui'
+import { PageHeader, Card, EmptyState, ErrorText, Pill, Page } from '../components/ui'
 import DocLink from '../components/DocLink'
 import SnapshotBrowser from './SnapshotBrowser'
 
@@ -26,7 +26,7 @@ export default function Snapshots({ me, initialAgent, initialPath }: { me: Me; i
   }, [])
 
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <PageHeader
         actions={<DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" />}
       />
@@ -80,6 +80,6 @@ export default function Snapshots({ me, initialAgent, initialPath }: { me: Me; i
           </Card>
         </div>
       )}
-    </div>
+    </Page>
   )
 }

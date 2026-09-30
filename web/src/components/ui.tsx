@@ -43,6 +43,38 @@ export function Pagination({ page, pages, total, perPage, onPage }: {
   )
 }
 
+// ── Icon ────────────────────────────────────────────────────────────────────
+// Inline action icons, same pattern as Sidebar's NavIcon (stroke paths on a 0 0 24 24 viewBox,
+// currentColor so they inherit the button's colour). No icon package, the app must run offline.
+// One name = one meaning. Replaces the glyph characters (✕ ✎ ↑ ⛃ …) the redesign brief banned.
+const ICON_PATHS: Record<string, string> = {
+  close: 'M6 6l12 12M18 6L6 18',
+  edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
+  up: 'M12 19V5M5 12l7-7 7 7',
+  down: 'M12 5v14M5 12l7 7 7-7',
+  filter: 'M3 5h18l-7 8v6l-4 2v-8z',
+  map: 'M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14',
+  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  webhook: 'M7 17L17 7M8 7h9v9',
+  crosshair: 'M12 2v4M12 18v4M2 12h4M18 12h4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+  plus: 'M12 5v14M5 12h14',
+  minus: 'M5 12h14',
+  drag: 'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
+  chevronDown: 'M6 9l6 6 6-6',
+  chevronRight: 'M9 6l6 6-6 6',
+  chevronUp: 'M6 15l6-6 6 6',
+  download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
+  upload: 'M12 21V9M7 14l5-5 5 5M5 3h14',
+  external: 'M7 17L17 7M8 7h9v9',
+}
+export function Icon({ name, size = 16, className = '' }: { name: keyof typeof ICON_PATHS; size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}>
+      <path d={ICON_PATHS[name]} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 // ── Page header ───────────────────────────────────────────────────────────────
 // The page's NAME lives in the Topbar (components/Topbar.tsx), so this renders only the parts a
 // page knows and the shell cannot: a live subtitle and page-specific actions.

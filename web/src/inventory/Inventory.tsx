@@ -12,7 +12,7 @@ import {
   type VulnFinding,
   type Me,
 } from '../lib/api'
-import { PageHeader } from '../components/ui'
+import { PageHeader, Page, Pagination, usePaged } from '../components/ui'
 import DocLink from '../components/DocLink'
 import { DonutChart } from '../dashboard/widgets'
 
@@ -62,7 +62,7 @@ export default function Inventory({ me }: { me: Me }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <PageHeader
         subtitle="Installed software & CVE findings per endpoint (Ubuntu USN / Debian advisories)"
         actions={
@@ -116,7 +116,7 @@ export default function Inventory({ me }: { me: Me }) {
           {selected && <DetailPanel agent={selected} summary={vulns[selected]} />}
         </div>
       )}
-    </div>
+    </Page>
   )
 }
 
@@ -257,10 +257,11 @@ function VulnList({ agent }: { agent: string }) {
       </p>
     )
 
+  const paged = usePaged(rows)
   return (
-    <div className="max-h-[calc(100vh-240px)] overflow-y-auto">
+    <div>
       <table className="w-full text-left text-sm">
-        <thead className="sticky top-0 bg-surface text-[12.5px] uppercase tracking-wider text-dim">
+        <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
           <tr>
             <th className="px-4 py-2 font-medium">Severity</th>
             <th className="px-4 py-2 font-medium">CVE</th>
@@ -269,7 +270,7 @@ function VulnList({ agent }: { agent: string }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((v) => (
+          {paged.slice.map((v) => (
             <tr key={`${v.cve}/${v.package}`} className="border-t border-border align-top">
               <td className="px-4 py-1.5">
                 <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${SEV_CLS[v.severity] ?? SEV_CLS.unknown}`}>
@@ -306,6 +307,9 @@ function VulnList({ agent }: { agent: string }) {
           ))}
         </tbody>
       </table>
+      <div className="border-t border-border px-4">
+        <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
+      </div>
       <div className="border-t border-border px-4 py-2 text-[12.5px] text-dim">
         {rows.length} finding{rows.length === 1 ? '' : 's'} · fix by upgrading the listed package to its fixed version
       </div>
@@ -333,6 +337,7 @@ function PackageList({ agent }: { agent: string }) {
     return () => clearTimeout(t)
   }, [agent, q])
 
+  const paged = usePaged(pkgs)
   return (
     <div>
       <div className="flex items-center justify-end border-b border-border px-4 py-2">
@@ -351,9 +356,9 @@ function PackageList({ agent }: { agent: string }) {
           {q ? 'No packages match that filter.' : 'No packages reported for this agent.'}
         </p>
       ) : (
-        <div className="max-h-[calc(100vh-260px)] overflow-y-auto">
+        <div>
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 bg-surface text-[12.5px] uppercase tracking-wider text-dim">
+            <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
               <tr>
                 <th className="px-4 py-2 font-medium">Package</th>
                 <th className="px-4 py-2 font-medium">Version</th>
@@ -362,7 +367,7 @@ function PackageList({ agent }: { agent: string }) {
               </tr>
             </thead>
             <tbody>
-              {pkgs.map((p) => (
+              {paged.slice.map((p) => (
                 <tr key={`${p.name}/${p.arch}`} className="border-t border-border">
                   <td className="px-4 py-1.5 font-medium text-fg">{p.name}</td>
                   <td className="px-4 py-1.5 font-mono text-[12.5px] text-muted">{p.version}</td>
@@ -372,6 +377,9 @@ function PackageList({ agent }: { agent: string }) {
               ))}
             </tbody>
           </table>
+          <div className="px-4">
+            <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
+          </div>
         </div>
       )}
     </div>

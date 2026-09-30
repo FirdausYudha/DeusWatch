@@ -3,6 +3,7 @@ import { fetchAttackGeo, type AttackOrigin, type DashRange } from '../../lib/api
 import { lookupCentroid } from './centroids'
 import { arcPath, MAP_HEIGHT, MAP_WIDTH, project } from './projection'
 import WorldMapBackground from './WorldMapBackground'
+import { Icon } from '../../components/ui'
 
 // View is the pan+zoom transform applied to every SVG element inside the map, so the operator can
 // zoom into a region, drag it around, and jump to their own location. Kept as a single object so
@@ -271,9 +272,9 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
               const cx = MAP_WIDTH / 2, cy = MAP_HEIGHT / 2
               return clampView({ k: newK, tx: cx - (cx - v.tx) * ratio, ty: cy - (cy - v.ty) * ratio })
             })}
-            className="pointer-events-auto h-7 w-7 rounded-[6px] border border-border bg-surface/90 text-[14px] font-semibold text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2"
+            className="pointer-events-auto grid h-7 w-7 place-items-center rounded-[6px] border border-border bg-surface/90 text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2"
             title="Zoom in"
-          >+</button>
+          ><Icon name="plus" size={15} /></button>
           <button
             type="button"
             onClick={() => setView((v) => {
@@ -284,9 +285,9 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
               const cx = MAP_WIDTH / 2, cy = MAP_HEIGHT / 2
               return clampView({ k: newK, tx: cx - (cx - v.tx) * ratio, ty: cy - (cy - v.ty) * ratio })
             })}
-            className="pointer-events-auto h-7 w-7 rounded-[6px] border border-border bg-surface/90 text-[14px] font-semibold text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2 disabled:opacity-40"
+            className="pointer-events-auto grid h-7 w-7 place-items-center rounded-[6px] border border-border bg-surface/90 text-fg shadow-sm backdrop-blur transition-colors hover:bg-surface-2 disabled:opacity-40"
             title="Zoom out"
-          >−</button>
+          ><Icon name="minus" size={15} /></button>
           <button
             type="button"
             onClick={resetView}
@@ -299,7 +300,7 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
             disabled={locating}
             className="pointer-events-auto rounded-[6px] border border-border bg-surface/90 px-1.5 py-0.5 text-[10.5px] font-medium text-muted shadow-sm backdrop-blur transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-50"
             title="Center on your device's location (requires browser permission)"
-          >{locating ? '…' : '⌖'}</button>
+          >{locating ? '…' : <Icon name="crosshair" size={14} className="inline-block" />}</button>
         </div>
         {/* Overlay hint when we haven't seen anything yet, kept subtle so the map itself remains
             the star. Absolute-positioned inside the map container's `relative` wrapper so it sits

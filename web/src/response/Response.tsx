@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon, Page, Pagination, usePaged } from '../components/ui'
 import {
   fetchResponses,
   fetchOffenders,
@@ -213,7 +214,7 @@ export default function Response({ me }: { me: Me }) {
       : actions.filter((a) => a.status === 'recommended').length
 
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="mt-0.5 text-[13px] text-muted">
@@ -343,7 +344,7 @@ export default function Response({ me }: { me: Me }) {
       {!canApprove && (
         <p className="mt-3 text-[12.5px] text-dim">Your role is view-only; approving/dismissing requires analyst or admin.</p>
       )}
-    </div>
+    </Page>
   )
 }
 
@@ -364,7 +365,9 @@ function OffendersTable({
   dismissAll: (ip: string, count: number) => void
   enforcing: boolean
 }) {
+  const paged = usePaged(offenders)
   return (
+    <>
     <div className="overflow-hidden rounded-[12px] border border-border">
       <table className="w-full text-left text-sm">
         <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
@@ -387,7 +390,7 @@ function OffendersTable({
               </td>
             </tr>
           )}
-          {offenders.map((o) => (
+          {paged.slice.map((o) => (
             <tr key={o.source_ip} className="hover:bg-surface-2">
               <td className="px-4 py-2 font-mono text-fg">{o.source_ip}</td>
               <td className="px-4 py-2 text-fg">{o.last_agent || '—'}</td>
@@ -459,6 +462,8 @@ function OffendersTable({
         </tbody>
       </table>
     </div>
+    <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
+    </>
   )
 }
 
@@ -484,7 +489,9 @@ function EventsTable({
   // Rows eligible for a bulk action (so "select all" only ticks actionable ones).
   const selectableIds = actions.filter((a) => a.status === 'recommended' || isActiveBlock(a)).map((a) => a.id)
   const allChecked = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
+  const paged = usePaged(actions)
   return (
+    <>
     <div className="overflow-hidden rounded-[12px] border border-border">
       <table className="w-full text-left text-sm">
         <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
@@ -513,7 +520,7 @@ function EventsTable({
               </td>
             </tr>
           )}
-          {actions.map((a) => {
+          {paged.slice.map((a) => {
             const selectable = a.status === 'recommended' || isActiveBlock(a)
             return (
               <tr key={a.id} className="hover:bg-surface-2">
@@ -572,6 +579,8 @@ function EventsTable({
         </tbody>
       </table>
     </div>
+    <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
+    </>
   )
 }
 
@@ -674,7 +683,7 @@ function BanPolicyEditor({ canManage }: { canManage: boolean }) {
           Progressive-ban policy
           <span className="ml-2 font-mono text-[12.5px] text-dim">{preview}</span>
         </span>
-        <span className="text-[12.5px] text-dim">{open ? '▲ hide' : '▼ configure'}</span>
+        <span className="inline-flex items-center gap-1 text-[12.5px] text-dim"><Icon name={open ? 'chevronUp' : 'chevronDown'} size={13} />{open ? 'hide' : 'configure'}</span>
       </button>
 
       {open && (
@@ -950,7 +959,7 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
           IP whitelist
           <span className="ml-2 text-[12.5px] text-dim">{entries.length} trusted · never banned</span>
         </span>
-        <span className="text-[12.5px] text-dim">{open ? '▲ hide' : '▼ configure'}</span>
+        <span className="inline-flex items-center gap-1 text-[12.5px] text-dim"><Icon name={open ? 'chevronUp' : 'chevronDown'} size={13} />{open ? 'hide' : 'configure'}</span>
       </button>
 
       {open && (
@@ -1098,7 +1107,7 @@ function DecisionTablePanel() {
             What DeusWatch does with each entity type: the policy that alerts are routed by.
           </p>
         </div>
-        <span className="text-dim">{open ? '▾' : '▸'}</span>
+        <span className="inline-flex text-dim"><Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} /></span>
       </button>
       {open && (
         <div className="border-t border-border">

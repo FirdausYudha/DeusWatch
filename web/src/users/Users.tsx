@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Page, Pagination, usePaged } from '../components/ui'
 import {
   fetchUsers,
   createUser,
@@ -186,8 +187,9 @@ export default function Users({ me }: { me: Me }) {
     }
   }
 
+  const paged = usePaged(users)
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-8">
         <p className="mt-0.5 text-[13px] text-muted">
           Manage accounts, roles, and per-user permissions (granular RBAC)
@@ -264,7 +266,7 @@ export default function Users({ me }: { me: Me }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border bg-surface">
-            {users.map((u) => (
+            {paged.slice.map((u) => (
               <tr key={u.id} className="align-top hover:bg-surface-2">
                 <td className="px-4 py-2 font-medium text-fg">{u.username}</td>
                 <td className="px-4 py-2">
@@ -304,6 +306,7 @@ export default function Users({ me }: { me: Me }) {
           </tbody>
         </table>
       </div>
+      <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
 
       {editId && (
         <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditId(null)}>
@@ -361,6 +364,6 @@ export default function Users({ me }: { me: Me }) {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   )
 }

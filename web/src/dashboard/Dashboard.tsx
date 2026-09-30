@@ -10,7 +10,7 @@ import {
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget, CommunicationGraphWidget, SrcDstGraphWidget } from './widgets'
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
-import { PageHeader } from '../components/ui'
+import { PageHeader, Icon, Page } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
 import { localInput, type DashRangeState } from '../lib/range'
 
@@ -494,7 +494,7 @@ export default function Dashboard({
   const allReady = health?.ready ?? false
 
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <PageHeader
         actions={
           <>
@@ -524,7 +524,7 @@ export default function Dashboard({
               }`}
               title={edit ? 'Exit edit mode' : 'Enter edit mode to drag panels'}
             >
-              {edit ? 'Done' : '✎ Edit layout'}
+              {edit ? 'Done' : <span className="inline-flex items-center gap-1"><Icon name="edit" size={14} />Edit layout</span>}
             </button>
             {loading && (
               <span
@@ -600,11 +600,10 @@ export default function Dashboard({
               >
                 {edit && (
                   <span
-                    aria-hidden="true"
-                    className="select-none text-base leading-none text-dim"
+                    className="select-none leading-none text-dim"
                     title="Drag to reorder (or focus and press ↑ / ↓)"
                   >
-                    ⠿
+                    <Icon name="drag" size={14} />
                   </span>
                 )}
                 <span>{w.title}</span>
@@ -637,7 +636,9 @@ export default function Dashboard({
                     className={`${edit ? '' : 'ml-auto'} rounded-[6px] border border-border px-2 py-0.5 text-[11.5px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg`}
                     title={geoEnabled ? 'Switch to the classic flag list' : 'Switch to the animated geo map (beta)'}
                   >
-                    {geoEnabled ? '🗺 map' : '⚑ list'}
+                    {geoEnabled
+                      ? <span className="inline-flex items-center gap-1"><Icon name="map" size={13} />map</span>
+                      : <span className="inline-flex items-center gap-1"><Icon name="list" size={13} />list</span>}
                   </button>
                 )}
                 {/* Timeline bucket picker on the "Events over time" panel, '' = server auto-picks. */}
@@ -689,7 +690,7 @@ export default function Dashboard({
 
       {/* Log storage (fixed) */}
       <StoragePanel s={storage} />
-    </div>
+    </Page>
   )
 }
 
@@ -865,14 +866,14 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
             onClick={() => setOpen((o) => !o)}
             className={`rounded-md border px-2.5 py-1.5 text-[12.5px] font-medium ${hasFilter || open ? 'border-accent bg-accent-soft text-accent' : 'border-border text-fg hover:bg-surface-2'}`}
           >
-            ⛃ Filters{hasFilter ? ' ·' : ''}
+            <span className="inline-flex items-center gap-1"><Icon name="filter" size={14} />Filters{hasFilter ? ' ·' : ''}</span>
           </button>
           <button
             onClick={sendWebhook}
             className="rounded-md border border-border px-2.5 py-1.5 text-[12.5px] font-medium text-fg hover:bg-surface-2"
             title="Send these filtered events as JSON to the configured export webhook"
           >
-            ↗ Webhook
+            <span className="inline-flex items-center gap-1"><Icon name="webhook" size={14} />Webhook</span>
           </button>
           {whMsg && <span className="text-[12.5px] text-dim">{whMsg}</span>}
           <label className="flex items-center gap-1 text-[12.5px] text-muted">

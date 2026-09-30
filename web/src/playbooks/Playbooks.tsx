@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Page, Pagination, usePaged } from '../components/ui'
 import {
   fetchPlaybooks, createPlaybook, updatePlaybook, deletePlaybook,
   type PlaybookInfo, type PlaybookSpec,
@@ -79,8 +80,9 @@ export default function Playbooks() {
     catch (err) { setError((err as Error).message) }
   }
 
+  const paged = usePaged(items)
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-6">
         <p className="mt-0.5 text-[13px] text-muted">
           Remediation playbooks: each detection label maps to the steps an analyst should take.
@@ -111,7 +113,7 @@ export default function Playbooks() {
           </p>
         ) : (
           <div className="grid gap-3">
-            {items.map((p) => (
+            {paged.slice.map((p) => (
               <div key={p.id} className="rounded-[12px] border border-border bg-surface p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded bg-accent-soft px-2 py-0.5 font-mono text-[12.5px] text-accent">{p.label}</span>
@@ -133,6 +135,7 @@ export default function Playbooks() {
             ))}
           </div>
         )}
+        <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
       </section>
 
       {editing && (
@@ -150,6 +153,6 @@ export default function Playbooks() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   )
 }

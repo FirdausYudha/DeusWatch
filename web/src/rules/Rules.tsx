@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Icon, Page, Pagination, usePaged } from '../components/ui'
 import {
   fetchRules, createRule, updateRule, deleteRule,
   fetchRulePacks, toggleRulePack, installRulePack, uninstallRulePack,
@@ -124,8 +125,9 @@ export default function Rules() {
       .map(({ r }) => r)
   }, [indexed, query, kindFilter, statusFilter, categoryFilter])
 
+  const paged = usePaged(filtered)
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="mt-0.5 text-[13px] text-muted">
@@ -157,9 +159,9 @@ export default function Rules() {
             <button
               onClick={() => setQuery('')}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-dim hover:text-fg"
+              className="absolute right-2 top-1/2 grid -translate-y-1/2 place-items-center rounded px-1 text-dim hover:text-fg"
             >
-              ×
+              <Icon name="close" size={14} />
             </button>
           )}
         </div>
@@ -218,7 +220,7 @@ export default function Rules() {
                 </td>
               </tr>
             )}
-            {filtered.map((r) => (
+            {paged.slice.map((r) => (
               <tr key={r.id} className="hover:bg-surface-2">
                 <td className="px-4 py-2 font-medium text-fg">
                   {r.name}
@@ -262,6 +264,7 @@ export default function Rules() {
           </tbody>
         </table>
       </div>
+      <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
 
       {creating && (
         <RuleEditor
@@ -289,7 +292,7 @@ export default function Rules() {
           }}
         />
       )}
-    </div>
+    </Page>
   )
 }
 

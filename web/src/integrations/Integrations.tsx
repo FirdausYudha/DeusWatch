@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Page, Pagination, usePaged } from '../components/ui'
 import {
   fetchIntegrationTypes,
   fetchIntegrations,
@@ -309,8 +310,9 @@ export default function Integrations() {
 
   const editType = editing ? typeMap[editing.type] : null
 
+  const paged = usePaged(items)
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-8">
         <p className="mt-0.5 text-[13px] text-muted">
           Connect firewalls, bouncers, and threat-intel providers. API keys & credentials are encrypted at rest.
@@ -403,7 +405,7 @@ export default function Integrations() {
           </p>
         ) : (
           <div className="space-y-2">
-            {items.map((it) => {
+            {paged.slice.map((it) => {
               const t = typeMap[it.type]
               return (
                 <div
@@ -449,6 +451,7 @@ export default function Integrations() {
             })}
           </div>
         )}
+        <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
       </section>
 
       {/* Edit modal */}
@@ -511,6 +514,6 @@ export default function Integrations() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Page, Pagination, usePaged } from '../components/ui'
 import {
   fetchDecoders, createDecoder, updateDecoder, deleteDecoder,
   fetchDecoderSamples, testDecoder,
@@ -97,8 +98,9 @@ export default function Decoders() {
     catch (err) { setError((err as Error).message) }
   }
 
+  const paged = usePaged(items)
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-6">
         <p className="mt-0.5 text-[13px] text-muted">
           Data-driven log parsing for sources without a built-in decoder. A regex extracts fields
@@ -181,7 +183,7 @@ export default function Decoders() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border bg-surface">
-                {items.map((d) => (
+                {paged.slice.map((d) => (
                   <tr key={d.id} className="hover:bg-surface-2">
                     <td className="px-4 py-2 text-fg">{d.name}{d.builtin && <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted">builtin</span>}</td>
                     <td className="px-4 py-2 font-mono text-fg">{d.dataset}</td>
@@ -203,6 +205,7 @@ export default function Decoders() {
                 ))}
               </tbody>
             </table>
+            <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
           </div>
         )}
       </section>
@@ -222,6 +225,6 @@ export default function Decoders() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   )
 }

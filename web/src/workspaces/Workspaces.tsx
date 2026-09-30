@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon, Page } from '../components/ui'
 import {
   fetchAllWorkspaces,
   createWorkspace,
@@ -56,7 +57,7 @@ export default function Workspaces() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-4 sm:p-6">
+    <Page>
      <div className="mb-4 flex items-center justify-between">
        <p className="text-[13.5px] text-dim">A workspace grants a team access to one or more tenants.</p>
        <DocLink file="multi-tenancy.md" />
@@ -98,7 +99,7 @@ export default function Workspaces() {
                   aria-label={`Delete ${w.name}`}
                   className="rounded-[7px] border border-transparent px-2 py-1.5 text-[12.5px] text-dim opacity-0 transition-all hover:border-critical/50 hover:bg-critical/10 hover:text-critical group-hover:opacity-100"
                 >
-                  ✕
+                  <Icon name="close" size={14} />
                 </button>
               )}
             </div>
@@ -118,7 +119,7 @@ export default function Workspaces() {
         )}
       </div>
      </div>
-    </div>
+    </Page>
   )
 }
 

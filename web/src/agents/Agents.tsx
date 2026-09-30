@@ -16,7 +16,7 @@ import {
   type Me,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
-import { Button } from '../components/ui'
+import { Button, Icon, Page, Pagination, usePaged } from '../components/ui'
 import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim']
@@ -117,8 +117,9 @@ export default function Agents({ me }: { me: Me }) {
     }
   }
 
+  const paged = usePaged(agents)
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="mt-0.5 text-[13px] text-muted">Registered agents, heartbeat status &amp; centrally-pushed config</p>
@@ -169,7 +170,7 @@ export default function Agents({ me }: { me: Me }) {
             onClick={doUpdateAll}
             className="rounded-md border border-amber-400/60 bg-amber-500/20 px-3 py-1 text-[12.5px] font-medium text-amber-100 hover:bg-amber-500/30"
           >
-            ↑ Update all outdated
+            <span className="inline-flex items-center gap-1"><Icon name="up" size={14} />Update all outdated</span>
           </button>
         </div>
       )}
@@ -195,7 +196,7 @@ export default function Agents({ me }: { me: Me }) {
                 </td>
               </tr>
             )}
-            {agents.map((a) => (
+            {paged.slice.map((a) => (
               <tr key={a.id} className="hover:bg-surface-2">
                 <td className="px-4 py-2 font-medium text-fg">{a.name}</td>
                 <td className="px-4 py-2 text-muted">{a.os || '—'}</td>
@@ -233,7 +234,7 @@ export default function Agents({ me }: { me: Me }) {
                           className="rounded-md border border-accent/40 bg-accent-soft px-2 py-1 text-[12.5px] text-accent hover:bg-accent hover:text-white disabled:opacity-50"
                           title={`Push new binary (${v(managerVersion)}); agent applies on next heartbeat`}
                         >
-                          {a.update_requested_at ? 'Queued' : updating[a.id] ? 'Queuing…' : `↑ Update to ${v(managerVersion)}`}
+                          {a.update_requested_at ? 'Queued' : updating[a.id] ? 'Queuing…' : <span className="inline-flex items-center gap-1"><Icon name="up" size={13} />Update to {v(managerVersion)}</span>}
                         </button>
                       )}
                       <button
@@ -272,6 +273,7 @@ export default function Agents({ me }: { me: Me }) {
           </tbody>
         </table>
       </div>
+      <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
 
       {wizard && <EnrollWizard onClose={() => setWizard(false)} />}
       {editing && (
@@ -286,7 +288,7 @@ export default function Agents({ me }: { me: Me }) {
       )}
       {uninstalling && <UninstallHelp agent={uninstalling} onClose={() => setUninstalling(null)} />}
       {snapshotsFor && <SnapshotViewer agent={snapshotsFor} me={me} onClose={() => setSnapshotsFor(null)} />}
-    </div>
+    </Page>
   )
 }
 
@@ -651,7 +653,7 @@ function ConfigEditor({
                 className="grid place-items-center rounded-[8px] border border-border text-muted hover:bg-surface-2"
                 title="Remove"
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
               {s.type === 'fim' && (
                 <div className="col-span-5 mb-1 grid grid-cols-[auto_1fr_auto_1fr_auto_5rem] items-center gap-2 rounded-[8px] border border-border bg-surface px-2 py-1.5 text-xs">

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { searchEvents, fetchAgents, type EventRow, type AgentInfo } from '../lib/api'
 import type { DashRangeState } from '../lib/range'
-import { PageHeader, Card, StatCard, SeverityBadge, Pill, Input, Select, EmptyState, ErrorText } from '../components/ui'
+import { PageHeader, Card, StatCard, SeverityBadge, Pill, Input, Select, EmptyState, ErrorText, Icon, Page, Pagination, usePaged } from '../components/ui'
 import DocLink from '../components/DocLink'
 
 /**
@@ -234,9 +234,10 @@ export default function FileIntegrity({
   }
 
   const cap = summary.capped ? '≥' : ''
+  const paged = usePaged(shown)
 
   return (
-    <div className="p-5">
+    <Page>
       <PageHeader
         subtitle="File changes, ransomware and malware across every endpoint"
         actions={<DocLink file="features/13-file-integrity.md" />}
@@ -322,7 +323,7 @@ export default function FileIntegrity({
                 </tr>
               </thead>
               <tbody>
-                {shown.map((e, i) => {
+                {paged.slice.map((e, i) => {
                   const k = kindOf(e)
                   const key = rowKey(e)
                   const open = openKey === key
@@ -377,7 +378,7 @@ export default function FileIntegrity({
                               className="text-[12.5px] text-accent transition-colors hover:underline"
                               title="Open this file's version timeline, where you can diff and restore it"
                             >
-                              Snapshots ↗
+                              <span className="inline-flex items-center gap-1">Snapshots<Icon name="external" size={12} /></span>
                             </button>
                           )}
                         </td>
@@ -526,9 +527,12 @@ export default function FileIntegrity({
                 })}
               </tbody>
             </table>
+            <div className="px-4">
+              <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
+            </div>
           </div>
         )}
       </Card>
-    </div>
+    </Page>
   )
 }

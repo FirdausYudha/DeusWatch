@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, can, fetchSubscriptions, createSubscription, toggleSubscription, deleteSubscription, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig, type Subscription } from '../lib/api'
 import DocLink from '../components/DocLink'
+import { Icon, Page } from '../components/ui'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -64,7 +65,7 @@ function ScoringWeightsPanel() {
             Tune how the composite IP score and the suspicious-IP watchlist weigh their signals. Applies live.
           </p>
         </div>
-        <span className="text-dim">{open ? '▾' : '▸'}</span>
+        <span className="inline-flex text-dim"><Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} /></span>
       </button>
 
       {open && (
@@ -173,7 +174,7 @@ function SubscriptionsPanel() {
         <h2 className="text-[13.5px] font-medium text-fg">Log subscriptions (API)</h2>
         <div className="flex items-center gap-3">
           <DocLink file="subscription-api.md" className="shrink-0" />
-          <span className="text-dim">{open ? '▾' : '▸'}</span>
+          <span className="inline-flex text-dim"><Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} /></span>
         </div>
       </button>
       <p className="mb-4 mt-0.5 text-[13px] text-muted">
@@ -451,7 +452,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-5">
+    <Page>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 gap-3">
         <div>
           <p className="mt-0.5 text-[13px] text-muted">Account security</p>
@@ -680,10 +681,10 @@ export default function Settings() {
             onClick={doExport}
             className="rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2"
           >
-            ⬇ Export config
+            <span className="inline-flex items-center gap-1"><Icon name="download" size={14} />Export config</span>
           </button>
           <label className="cursor-pointer rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg transition-colors hover:bg-surface-2">
-            ⬆ Import config
+            <span className="inline-flex items-center gap-1"><Icon name="upload" size={14} />Import config</span>
             <input
               type="file"
               accept="application/json,.json"
@@ -695,6 +696,6 @@ export default function Settings() {
         {cfgErr && <p className="mt-3 text-[13.5px] text-rose-400">{cfgErr}</p>}
         {cfgMsg && <p className="mt-3 text-[13.5px] text-emerald-400">{cfgMsg}</p>}
       </section>
-    </div>
+    </Page>
   )
 }
