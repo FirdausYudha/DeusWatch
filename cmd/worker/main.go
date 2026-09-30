@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -174,30 +175,30 @@ func main() {
 		containEngine.SetManagerNets(nets)
 	}
 	log.Printf("worker: containment engine active (auto=%v, edge=%v)", containAuto, responder != nil)
-	go runContainmentSweep(ctx, containEngine)
+	safeGo(ctx, "containment-sweep", func() { runContainmentSweep(ctx, containEngine) })
 
 	// Blocklist sync: reconcile active blocks onto all sync-capable enforcers (MikroTik)
 	// every RESPONSE_SYNC_INTERVAL - propagates bans/unbans to every router + self-heals.
-	go runBlocklistSync(ctx, respStore, responder)
+	safeGo(ctx, "blocklist-sync", func() { runBlocklistSync(ctx, respStore, responder) })
 
 	// Composite threat scoring per source IP (Multi-Source Event Correlation) + optional
 	// scenario ban when an IP's score crosses SCENARIO_BAN_SCORE.
-	go runIPScorer(ctx, st, engine)
+	safeGo(ctx, "ip-scorer", func() { runIPScorer(ctx, st, engine) })
 
 	// Suspicious-IP watchlist: long-window behavioral detection of low-and-slow reconnaissance
 	// (independent of CTI/WAF), for the dashboard + the AI report.
-	go runSuspiciousScorer(ctx, st)
+	safeGo(ctx, "suspicious-scorer", func() { runSuspiciousScorer(ctx, st) })
 
 	// Slow-scanner watchlist: the multi-DAY view, sources that keep coming back at a volume too
 	// low for any burst rule (2 probes today, none tomorrow, 5 the day after).
-	go runSlowScanScorer(ctx, st)
+	safeGo(ctx, "slowscan-scorer", func() { runSlowScanScorer(ctx, st) })
 	// Vulnerability Assessment (phase 2): fetch vendor advisory feeds for the fleet's distros and
 	// match them against each agent's software inventory to produce CVE findings.
-	go runVulnScanner(ctx, st)
+	safeGo(ctx, "vuln-scanner", func() { runVulnScanner(ctx, st) })
 
 	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. The Wazuh
 	// indexer) into the pipeline. No-op when no such integration is enabled.
-	go runESPull(ctx, intStore, b, st)
+	safeGo(ctx, "es-pull", func() { runESPull(ctx, intStore, b, st) })
 
 	// Native syslog listener (UDP+TCP): ingest logs from agentless devices (routers, firewalls,
 	// appliances). Off unless SYSLOG_LISTEN is set (e.g. ":5514").
@@ -245,7 +246,7 @@ func main() {
 
 	// Live-reload rules + ban policy + playbooks from the DB so UI edits take effect
 	// without a restart.
-	go reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, killer, respStore, pbStore, pbLive)
+	safeGo(ctx, "reload-config", func() { reloadConfig(ctx, ruleStore, sigmaDet, aggRunner, engine, killer, respStore, pbStore, pbLive) })
 
 	// Trusted-session gate: a plain file-change alert (e.g. index.php edited) is treated as an
 	// official change - and suppressed - when the host had a recent successful login from a
@@ -299,7 +300,7 @@ func main() {
 	}
 
 	if aggRunner.RuleCount() > 0 {
-		go runAggregation(ctx, aggRunner, st, onAlert, pbLive.Annotate)
+		safeGo(ctx, "aggregation", func() { runAggregation(ctx, aggRunner, st, onAlert, pbLive.Annotate) })
 	}
 
 	// LLM worker (Phase 3): the analyzer powers report summaries (cost-controlled) and,
@@ -319,42 +320,44 @@ func main() {
 	if a, ok := resolveAnalyzer(ctx, intStore, "report"); ok {
 		reportH.set(a)
 	}
-	go runLLMReload(ctx, intStore, triageH, reportH)
+	safeGo(ctx, "llm-reload", func() { runLLMReload(ctx, intStore, triageH, reportH) })
 
 	// Per-alert AI triage is OFF by default (cost control): it calls the LLM for every alert,
 	// so it only runs when LLM_PER_ALERT=1. The report summaries (Report page + scheduled
 	// delivery) work regardless of this flag.
 	if perAlert, _ := strconv.ParseBool(os.Getenv("LLM_PER_ALERT")); perAlert {
 		log.Printf("worker: LLM per-alert triage ENABLED (LLM_PER_ALERT=1); analyzer live-reloads from Integrations")
-		go runLLM(ctx, st, triageH)
+		safeGo(ctx, "llm-triage", func() { runLLM(ctx, st, triageH) })
 	} else {
 		log.Printf("worker: LLM per-alert triage OFF by default (set LLM_PER_ALERT=1 to enable). AI report summaries still work on the Report page.")
 	}
 	// Scheduled AI report summaries, always running; a nil holder (no report LLM configured) is
 	// a no-op until one is added.
-	go runReportScheduler(ctx, st, reportH)
+	safeGo(ctx, "report-scheduler", func() { runReportScheduler(ctx, st, reportH) })
 
 	// Notification config: live-reload the alert severity threshold + scheduled report
 	// delivery to channels (Telegram/email). Runs even without an analyzer (plain report).
-	go runNotifyScheduler(ctx, st, dispatcher, reportH)
+	safeGo(ctx, "notify-scheduler", func() { runNotifyScheduler(ctx, st, dispatcher, reportH) })
 
 	// Storage monitor: warn (Telegram/email) when the log DB approaches its budget.
-	go runStorageMonitor(ctx, st, dispatcher)
+	safeGo(ctx, "storage-monitor", func() { runStorageMonitor(ctx, st, dispatcher) })
 
 	// Self-monitoring (design doc section 13): agent liveness checker (disconnect ->
 	// HIGH selfhealth alert), the disk-watermark janitor (section 8), and the worker's
 	// own /healthz + /readyz endpoints.
-	go runAgentHealth(ctx, st, onAlert, pbLive.Annotate)
-	go runDiskJanitor(ctx, st, onAlert, pbLive.Annotate)
-	go serveHealth(ctx, st, b)
+	safeGo(ctx, "agent-health", func() { runAgentHealth(ctx, st, onAlert, pbLive.Annotate) })
+	safeGo(ctx, "disk-janitor", func() { runDiskJanitor(ctx, st, onAlert, pbLive.Annotate) })
+	safeGo(ctx, "serve-health", func() { serveHealth(ctx, st, b) })
 	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing
 	// did, this worker was once absent for 11+ hours with a clean-looking dashboard, because
 	// every alarm for that condition (including AGENT_DISCONNECT_AFTER) runs inside this process.
-	go runServiceHeartbeat(ctx, st)
+	safeGo(ctx, "service-heartbeat", func() { runServiceHeartbeat(ctx, st) })
 
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
-	go runCTIProviderReload(ctx, intStore, enricher, geoOn, mmdbPath, asnMMDBPath, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
+	safeGo(ctx, "cti-reload", func() {
+		runCTIProviderReload(ctx, intStore, enricher, geoOn, mmdbPath, asnMMDBPath, splitCSV(os.Getenv("BLOCKLIST_URLS")), abuseKey, otxKey)
+	})
 
 	log.Printf("DeusWatch worker (detect) ready, consuming %q", bus.SubjectLogsNormalized)
 	<-ctx.Done()
@@ -451,6 +454,29 @@ func makeTrustedSessionGate(st *store.Store, engine *respond.Engine, window time
 		}
 		return false
 	}
+}
+
+// safeGo runs a long-lived worker loop in a supervised goroutine: if it panics, the panic is
+// recovered and logged with a stack, then the loop is restarted after a short backoff, so one
+// misbehaving background task can never take the whole detection pipeline down. It returns only
+// when ctx is cancelled (shutdown).
+func safeGo(ctx context.Context, name string, fn func()) {
+	go func() {
+		for ctx.Err() == nil {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("worker: goroutine %q panicked, restarting in 3s: %v\n%s", name, r, debug.Stack())
+					}
+				}()
+				fn()
+			}()
+			if ctx.Err() != nil {
+				return
+			}
+			time.Sleep(3 * time.Second) // brief backoff before restarting the loop
+		}
+	}()
 }
 
 // runServiceHeartbeat writes this worker's liveness into the database every 30s so the api, and

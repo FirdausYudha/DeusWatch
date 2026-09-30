@@ -8,6 +8,8 @@ package bus
 import (
 	"context"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -113,6 +115,16 @@ func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string
 		return nil, fmt.Errorf("bus: consumer %s: %w", durable, err)
 	}
 	cc, err := cons.Consume(func(msg jetstream.Msg) {
+		// A handler panic must never crash the process: the NATS callback runs in its own
+		// goroutine, so an unrecovered panic here would take down the whole worker (no detection,
+		// no heartbeat). Recover it, log loudly with a stack, and Term the offending message so a
+		// poison message is not redelivered forever, the consumer stays alive and keeps working.
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("bus: PANIC handling message on %q: %v\n%s", msg.Subject(), r, debug.Stack())
+				_ = msg.Term()
+			}
+		}()
 		if err := h(msg.Subject(), msg.Data()); err != nil {
 			_ = msg.Nak()
 			return
