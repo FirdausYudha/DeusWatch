@@ -173,10 +173,10 @@ func (s *Store) replaceFindings(ctx context.Context, agentName string, findings 
 			}
 			seen[key] = true
 			rows = append(rows, []any{agentName, f.CVE, f.Package, nilStr(f.InstalledVersion),
-				nilStr(f.FixedVersion), f.Severity, f.Source})
+				nilStr(f.FixedVersion), f.Severity, f.Source, nilFloat(f.CVSS)})
 		}
 		if _, err := tx.CopyFrom(ctx, pgx.Identifier{"agent_vulnerabilities"},
-			[]string{"agent_name", "cve", "package", "installed_version", "fixed_version", "severity", "source"},
+			[]string{"agent_name", "cve", "package", "installed_version", "fixed_version", "severity", "source", "cvss"},
 			pgx.CopyFromRows(rows)); err != nil {
 			return fmt.Errorf("store: copy findings: %w", err)
 		}
@@ -339,23 +339,24 @@ func (s *Store) ListVulnSummaries(ctx context.Context) ([]VulnSummary, error) {
 
 // AgentVulnerability is one finding row for the per-agent view.
 type AgentVulnerability struct {
-	CVE              string `json:"cve"`
-	Package          string `json:"package"`
-	InstalledVersion string `json:"installed_version"`
-	FixedVersion     string `json:"fixed_version"`
-	Severity         string `json:"severity"`
-	Source           string `json:"source"`
+	CVE              string  `json:"cve"`
+	Package          string  `json:"package"`
+	InstalledVersion string  `json:"installed_version"`
+	FixedVersion     string  `json:"fixed_version"`
+	Severity         string  `json:"severity"`
+	CVSS             float64 `json:"cvss"`
+	Source           string  `json:"source"`
 }
 
-// AgentVulnerabilities returns an agent's findings, worst severity first.
+// AgentVulnerabilities returns an agent's findings, worst severity first (then highest CVSS).
 func (s *Store) AgentVulnerabilities(ctx context.Context, agentName string) ([]AgentVulnerability, error) {
 	rows, err := s.q(ctx).Query(ctx, `
 		SELECT cve, package, COALESCE(installed_version,''), COALESCE(fixed_version,''),
-		       COALESCE(severity,''), COALESCE(source,'')
+		       COALESCE(severity,''), COALESCE(cvss,0), COALESCE(source,'')
 		FROM agent_vulnerabilities WHERE agent_name=$1
 		ORDER BY CASE severity WHEN 'critical' THEN 5 WHEN 'high' THEN 4 WHEN 'medium' THEN 3
 		                       WHEN 'low' THEN 2 WHEN 'negligible' THEN 1 ELSE 0 END DESC,
-		         package, cve`, agentName)
+		         COALESCE(cvss,0) DESC, package, cve`, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("store: agent vulns: %w", err)
 	}
@@ -363,7 +364,7 @@ func (s *Store) AgentVulnerabilities(ctx context.Context, agentName string) ([]A
 	out := make([]AgentVulnerability, 0, 64)
 	for rows.Next() {
 		var v AgentVulnerability
-		if err := rows.Scan(&v.CVE, &v.Package, &v.InstalledVersion, &v.FixedVersion, &v.Severity, &v.Source); err != nil {
+		if err := rows.Scan(&v.CVE, &v.Package, &v.InstalledVersion, &v.FixedVersion, &v.Severity, &v.CVSS, &v.Source); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -414,4 +415,52 @@ func nilStr(s string) any {
 		return nil
 	}
 	return s
+}
+
+func nilFloat(f float64) any {
+	if f == 0 {
+		return nil
+	}
+	return f
+}
+
+// ScanStatus is the outcome of a scanner's last run, surfaced in the UI so an empty/"unknown" result
+// is explained (e.g. Trivy could not download its DB) rather than looking like a silent bug.
+type ScanStatus struct {
+	Scanner   string    `json:"scanner"`
+	OK        bool      `json:"ok"`
+	Detail    string    `json:"detail"`
+	Scanned   int       `json:"scanned"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SetScanStatus records a scanner's last-run outcome (upsert on scanner name).
+func (s *Store) SetScanStatus(ctx context.Context, scanner string, ok bool, detail string, scanned int) error {
+	_, err := s.q(ctx).Exec(ctx, `
+		INSERT INTO scan_status (scanner, ok, detail, scanned, updated_at)
+		VALUES ($1,$2,$3,$4, now())
+		ON CONFLICT (scanner) DO UPDATE SET ok=EXCLUDED.ok, detail=EXCLUDED.detail,
+		  scanned=EXCLUDED.scanned, updated_at=now()`, scanner, ok, detail, scanned)
+	if err != nil {
+		return fmt.Errorf("store: set scan status: %w", err)
+	}
+	return nil
+}
+
+// ScanStatuses returns all scanners' last-run outcomes.
+func (s *Store) ScanStatuses(ctx context.Context) ([]ScanStatus, error) {
+	rows, err := s.q(ctx).Query(ctx, `SELECT scanner, ok, detail, scanned, updated_at FROM scan_status ORDER BY scanner`)
+	if err != nil {
+		return nil, fmt.Errorf("store: scan statuses: %w", err)
+	}
+	defer rows.Close()
+	var out []ScanStatus
+	for rows.Next() {
+		var st ScanStatus
+		if err := rows.Scan(&st.Scanner, &st.OK, &st.Detail, &st.Scanned, &st.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, st)
+	}
+	return out, rows.Err()
 }

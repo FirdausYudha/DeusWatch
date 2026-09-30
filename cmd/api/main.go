@@ -2063,10 +2063,12 @@ func vulnSummaryHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		statuses, _ := st.ScanStatuses(r.Context()) // best-effort; nil is fine for the UI
 		writeJSON(w, http.StatusOK, map[string]any{
 			"agents":              sums,
 			"advisory_total":      total,
 			"advisory_by_release": byRelease,
+			"scan_status":         statuses,
 		})
 	}
 }
@@ -2096,7 +2098,8 @@ func scaSummaryHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"agents": sums})
+		statuses, _ := st.ScanStatuses(r.Context())
+		writeJSON(w, http.StatusOK, map[string]any{"agents": sums, "scan_status": statuses})
 	}
 }
 

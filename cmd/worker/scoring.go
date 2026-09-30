@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -290,22 +291,27 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 			log.Printf("worker: trivy: list targets: %v", err)
 			return
 		}
-		os, sca := 0, 0
+		osN, scaN := 0, 0
+		var osErr, scaErr error
 		for _, t := range targets {
 			// OS-package vulnerabilities (needs a package manager Trivy understands).
 			if t.PkgManager != "" {
-				if scanOSPackages(lc, st, cfg, t) {
-					os++
+				if err := scanOSPackages(lc, st, cfg, t); err != nil {
+					osErr = err
+				} else {
+					osN++
 				}
 			}
 			// Software Composition Analysis: language dependency manifests the agent shipped.
-			if scanManifests(lc, st, cfg, t.Name) {
-				sca++
+			if had, err := scanManifests(lc, st, cfg, t.Name); err != nil {
+				scaErr = err
+			} else if had {
+				scaN++
 			}
 		}
-		if os > 0 || sca > 0 {
-			log.Printf("worker: trivy: scanned %d agent(s) for OS vulns, %d for SCA", os, sca)
-		}
+		log.Printf("worker: trivy: scanned %d agent(s) for OS vulns, %d for SCA", osN, scaN)
+		recordScanStatus(lc, st, "trivy-os", osN, osErr)
+		recordScanStatus(lc, st, "trivy-sca", scaN, scaErr)
 	}
 
 	t := time.NewTicker(interval)
@@ -324,13 +330,29 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 	}
 }
 
-// scanOSPackages runs Trivy over one agent's OS packages and stores the findings (with severity).
-// Returns true on a successful scan+store. Failures are logged and keep the agent's last findings.
-func scanOSPackages(ctx context.Context, st *store.Store, cfg trivy.Config, t store.ScanTarget) bool {
+// recordScanStatus persists a scanner's last-run outcome so the UI can explain an empty/"unknown"
+// result (e.g. Trivy could not reach its DB) instead of showing stale data with no reason.
+func recordScanStatus(ctx context.Context, st *store.Store, scanner string, scanned int, runErr error) {
+	ok := runErr == nil
+	detail := ""
+	if runErr != nil {
+		detail = runErr.Error()
+		if len(detail) > 500 {
+			detail = detail[:500]
+		}
+	}
+	if err := st.SetScanStatus(ctx, scanner, ok, detail, scanned); err != nil {
+		log.Printf("worker: trivy: record %s status: %v", scanner, err)
+	}
+}
+
+// scanOSPackages runs Trivy over one agent's OS packages and stores the findings (with severity +
+// CVSS). Returns nil on success; on error the agent keeps its last findings and the error is
+// surfaced via scan_status.
+func scanOSPackages(ctx context.Context, st *store.Store, cfg trivy.Config, t store.ScanTarget) error {
 	pkgs, err := st.AgentScanPackages(ctx, t.Name)
 	if err != nil {
-		log.Printf("worker: trivy: packages for %s: %v", t.Name, err)
-		return false
+		return fmt.Errorf("packages for %s: %w", t.Name, err)
 	}
 	tpkgs := make([]trivy.Package, 0, len(pkgs))
 	for _, p := range pkgs {
@@ -341,32 +363,30 @@ func scanOSPackages(ctx context.Context, st *store.Store, cfg trivy.Config, t st
 	}, tpkgs)
 	if err != nil {
 		log.Printf("worker: trivy: OS scan %s failed (keeping last findings): %v", t.Name, err)
-		return false
+		return err
 	}
 	vf := make([]vuln.Finding, 0, len(findings))
 	for _, f := range findings {
 		vf = append(vf, vuln.Finding{
 			Package: f.Package, InstalledVersion: f.InstalledVersion, FixedVersion: f.FixedVersion,
-			CVE: f.CVE, Severity: f.Severity, Source: f.Source,
+			CVE: f.CVE, Severity: f.Severity, CVSS: f.CVSS, Source: f.Source,
 		})
 	}
 	if err := st.ReplaceAgentFindings(ctx, t.Name, vf); err != nil {
-		log.Printf("worker: trivy: store OS findings for %s: %v", t.Name, err)
-		return false
+		return fmt.Errorf("store OS findings for %s: %w", t.Name, err)
 	}
-	return true
+	return nil
 }
 
 // scanManifests runs Trivy SCA over one agent's dependency manifests and stores the findings.
-// Returns true when the agent had manifests and the scan+store succeeded.
-func scanManifests(ctx context.Context, st *store.Store, cfg trivy.Config, name string) bool {
+// Returns had=true when the agent reported manifests, plus any scan/store error.
+func scanManifests(ctx context.Context, st *store.Store, cfg trivy.Config, name string) (had bool, err error) {
 	manifests, err := st.AgentManifests(ctx, name)
 	if err != nil {
-		log.Printf("worker: trivy: manifests for %s: %v", name, err)
-		return false
+		return false, fmt.Errorf("manifests for %s: %w", name, err)
 	}
 	if len(manifests) == 0 {
-		return false
+		return false, nil
 	}
 	tm := make([]trivy.Manifest, 0, len(manifests))
 	for _, m := range manifests {
@@ -375,21 +395,20 @@ func scanManifests(ctx context.Context, st *store.Store, cfg trivy.Config, name 
 	findings, err := cfg.ScanManifests(ctx, tm)
 	if err != nil {
 		log.Printf("worker: trivy: SCA scan %s failed (keeping last findings): %v", name, err)
-		return false
+		return true, err
 	}
 	sf := make([]store.SCAFinding, 0, len(findings))
 	for _, f := range findings {
 		sf = append(sf, store.SCAFinding{
 			Target: f.Target, PkgType: f.PkgType, Package: f.Package,
 			InstalledVersion: f.InstalledVersion, FixedVersion: f.FixedVersion,
-			VulnID: f.VulnID, Severity: f.Severity,
+			VulnID: f.VulnID, Severity: f.Severity, CVSS: f.CVSS,
 		})
 	}
 	if err := st.ReplaceSCAFindings(ctx, name, sf); err != nil {
-		log.Printf("worker: trivy: store SCA findings for %s: %v", name, err)
-		return false
+		return true, fmt.Errorf("store SCA findings for %s: %w", name, err)
 	}
-	return true
+	return true, nil
 }
 
 // fleetNeedsFeed reports whether the fleet runs a distro release for which no advisories are cached

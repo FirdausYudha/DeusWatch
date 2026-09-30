@@ -24,12 +24,13 @@ type InstalledPackage struct {
 // Finding is a vulnerable package on a host: an installed package that an advisory says is not yet
 // at (or past) its fixed version.
 type Finding struct {
-	Package          string `json:"package"` // the source package to upgrade
-	InstalledVersion string `json:"installed_version"`
-	FixedVersion     string `json:"fixed_version"` // "" = no fix available yet
-	CVE              string `json:"cve"`
-	Severity         string `json:"severity"`
-	Source           string `json:"source"`
+	Package          string  `json:"package"` // the source package to upgrade
+	InstalledVersion string  `json:"installed_version"`
+	FixedVersion     string  `json:"fixed_version"` // "" = no fix available yet
+	CVE              string  `json:"cve"`
+	Severity         string  `json:"severity"`
+	CVSS             float64 `json:"cvss"` // CVSS base score (0 = none); set by the Trivy scanner
+	Source           string  `json:"source"`
 }
 
 // sourceOf returns the package's source name, falling back to the binary name.

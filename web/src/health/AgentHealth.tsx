@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Me } from '../lib/api'
-import { fetchSCA, fetchAgentSCA, type SCASummary, type SCAFinding } from '../lib/api'
-import Inventory from '../inventory/Inventory'
+import { fetchSCA, fetchAgentSCA, type SCASummary, type SCAFinding, type ScanStatus } from '../lib/api'
+import Inventory, { SeverityFilterBar, CvssScore, ScanStatusBanner } from '../inventory/Inventory'
 import { Page, Card, EmptyState, ErrorText, Pagination, usePaged } from '../components/ui'
 import { DonutChart } from '../dashboard/widgets'
 
@@ -47,14 +47,16 @@ const SEV_CLS: Record<string, string> = {
 // findings (with a severity donut) on the right. Data comes from the server-side Trivy SCA scan.
 function SCAView() {
   const [agents, setAgents] = useState<SCASummary[] | null>(null)
+  const [scanStatus, setScanStatus] = useState<ScanStatus[]>([])
   const [selected, setSelected] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
     fetchSCA()
-      .then((rows) => {
-        setAgents(rows)
-        setSelected((cur) => cur || (rows.length > 0 ? rows[0].agent_name : ''))
+      .then((res) => {
+        setAgents(res.agents)
+        setScanStatus(res.scan_status ?? [])
+        setSelected((cur) => cur || (res.agents.length > 0 ? res.agents[0].agent_name : ''))
         setError('')
       })
       .catch((e) => setError((e as Error).message))
@@ -63,6 +65,7 @@ function SCAView() {
   return (
     <Page>
       {error && <ErrorText>{error}</ErrorText>}
+      <ScanStatusBanner status={scanStatus} scanner="trivy-sca" label="Trivy SCA scan" />
       {agents === null ? (
         <p className="text-[13px] text-dim">Loading…</p>
       ) : agents.length === 0 ? (
@@ -107,13 +110,22 @@ function SCAAgentCard({ a, active, onClick }: { a: SCASummary; active: boolean; 
 function SCADetail({ agent, summary }: { agent: string; summary?: SCASummary }) {
   const [rows, setRows] = useState<SCAFinding[] | null>(null)
   const [error, setError] = useState('')
+  const [filter, setFilter] = useState('')
   useEffect(() => {
     setRows(null)
+    setFilter('')
     fetchAgentSCA(agent)
       .then((f) => { setRows(f); setError('') })
       .catch((e) => setError((e as Error).message))
   }, [agent])
 
+  const all = rows ?? []
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {}
+    for (const r of all) c[r.severity || 'unknown'] = (c[r.severity || 'unknown'] || 0) + 1
+    return c
+  }, [all])
+  const filtered = useMemo(() => (filter ? all.filter((r) => (r.severity || 'unknown') === filter) : all), [all, filter])
   const donut = summary
     ? [
         { label: 'critical', count: summary.critical },
@@ -123,7 +135,7 @@ function SCADetail({ agent, summary }: { agent: string; summary?: SCASummary }) 
         { label: 'unknown', count: summary.unknown },
       ].filter((d) => d.count > 0)
     : []
-  const paged = usePaged(rows ?? [])
+  const paged = usePaged(filtered)
 
   return (
     <Card title={`Dependency vulnerabilities · ${agent}`} bodyClass="p-0">
@@ -135,14 +147,16 @@ function SCADetail({ agent, summary }: { agent: string; summary?: SCASummary }) 
       {error && <div className="p-4"><ErrorText>{error}</ErrorText></div>}
       {rows === null ? (
         <p className="px-4 py-6 text-center text-[13px] text-dim">loading…</p>
-      ) : rows.length === 0 ? (
+      ) : all.length === 0 ? (
         <p className="px-4 py-8 text-center text-[13.5px] text-emerald-400">✓ No known dependency vulnerabilities for this endpoint.</p>
       ) : (
         <div>
+          <SeverityFilterBar counts={counts} total={all.length} filter={filter} onFilter={(f) => { setFilter(f); paged.setPage(1) }} />
           <table className="w-full text-left text-sm">
             <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
               <tr>
                 <th className="px-4 py-2 font-medium">Severity</th>
+                <th className="px-4 py-2 font-medium">CVSS</th>
                 <th className="px-4 py-2 font-medium">Vulnerability</th>
                 <th className="px-4 py-2 font-medium">Package</th>
                 <th className="px-4 py-2 font-medium">Installed → Fixed</th>
@@ -157,6 +171,7 @@ function SCADetail({ agent, summary }: { agent: string; summary?: SCASummary }) 
                       {f.severity || 'unknown'}
                     </span>
                   </td>
+                  <td className="px-4 py-1.5"><CvssScore severity={f.severity} score={f.cvss} /></td>
                   <td className="px-4 py-1.5">
                     <a href={vulnLink(f.vuln_id)} target="_blank" rel="noreferrer" className="font-mono text-[12.5px] text-accent hover:underline">
                       {f.vuln_id}

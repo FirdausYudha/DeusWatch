@@ -153,13 +153,14 @@ func (s *Store) AgentManifests(ctx context.Context, agentName string) ([]Manifes
 
 // SCAFinding is one vulnerable language package in a manifest.
 type SCAFinding struct {
-	Target           string `json:"target"`
-	PkgType          string `json:"pkg_type"`
-	Package          string `json:"package"`
-	InstalledVersion string `json:"installed_version"`
-	FixedVersion     string `json:"fixed_version"`
-	VulnID           string `json:"vuln_id"`
-	Severity         string `json:"severity"`
+	Target           string  `json:"target"`
+	PkgType          string  `json:"pkg_type"`
+	Package          string  `json:"package"`
+	InstalledVersion string  `json:"installed_version"`
+	FixedVersion     string  `json:"fixed_version"`
+	VulnID           string  `json:"vuln_id"`
+	Severity         string  `json:"severity"`
+	CVSS             float64 `json:"cvss"`
 }
 
 // ReplaceSCAFindings swaps an agent's SCA findings wholesale inside a transaction.
@@ -185,10 +186,10 @@ func (s *Store) ReplaceSCAFindings(ctx context.Context, agentName string, findin
 			}
 			seen[key] = true
 			rows = append(rows, []any{agentName, f.Target, f.PkgType, f.Package,
-				f.InstalledVersion, nilStr(f.FixedVersion), f.VulnID, f.Severity})
+				f.InstalledVersion, nilStr(f.FixedVersion), f.VulnID, f.Severity, nilFloat(f.CVSS)})
 		}
 		if _, err := tx.CopyFrom(ctx, pgx.Identifier{"agent_sca_findings"},
-			[]string{"agent_name", "target", "pkg_type", "pkg_name", "installed_version", "fixed_version", "vuln_id", "severity"},
+			[]string{"agent_name", "target", "pkg_type", "pkg_name", "installed_version", "fixed_version", "vuln_id", "severity", "cvss"},
 			pgx.CopyFromRows(rows)); err != nil {
 			return fmt.Errorf("store: copy sca findings: %w", err)
 		}
@@ -248,11 +249,11 @@ func (s *Store) ListSCASummaries(ctx context.Context) ([]SCASummary, error) {
 func (s *Store) AgentSCAFindings(ctx context.Context, agentName string) ([]SCAFinding, error) {
 	rows, err := s.q(ctx).Query(ctx, `
 		SELECT COALESCE(target,''), COALESCE(pkg_type,''), pkg_name, COALESCE(installed_version,''),
-		       COALESCE(fixed_version,''), vuln_id, COALESCE(severity,'')
+		       COALESCE(fixed_version,''), vuln_id, COALESCE(severity,''), COALESCE(cvss,0)
 		FROM agent_sca_findings WHERE agent_name=$1
 		ORDER BY CASE severity WHEN 'critical' THEN 5 WHEN 'high' THEN 4 WHEN 'medium' THEN 3
 		                       WHEN 'low' THEN 2 WHEN 'negligible' THEN 1 ELSE 0 END DESC,
-		         pkg_name, vuln_id`, agentName)
+		         COALESCE(cvss,0) DESC, pkg_name, vuln_id`, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("store: agent sca findings: %w", err)
 	}
@@ -260,7 +261,7 @@ func (s *Store) AgentSCAFindings(ctx context.Context, agentName string) ([]SCAFi
 	out := make([]SCAFinding, 0, 64)
 	for rows.Next() {
 		var f SCAFinding
-		if err := rows.Scan(&f.Target, &f.PkgType, &f.Package, &f.InstalledVersion, &f.FixedVersion, &f.VulnID, &f.Severity); err != nil {
+		if err := rows.Scan(&f.Target, &f.PkgType, &f.Package, &f.InstalledVersion, &f.FixedVersion, &f.VulnID, &f.Severity, &f.CVSS); err != nil {
 			return nil, err
 		}
 		out = append(out, f)

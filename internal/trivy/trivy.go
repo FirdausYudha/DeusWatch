@@ -54,8 +54,9 @@ type Finding struct {
 	InstalledVersion string
 	FixedVersion     string
 	CVE              string
-	Severity         string // lowercased: critical|high|medium|low|negligible|unknown
-	Source           string // always "trivy" here
+	Severity         string  // lowercased: critical|high|medium|low|negligible|unknown
+	CVSS             float64 // highest CVSS base score across sources (0 = none reported)
+	Source           string  // always "trivy" here
 }
 
 // Manifest is one language dependency file to scan for SCA (path gives Trivy the right filename).
@@ -73,6 +74,7 @@ type SCAFinding struct {
 	FixedVersion     string
 	VulnID           string // CVE-... or GHSA-...
 	Severity         string
+	CVSS             float64
 }
 
 // ── Trivy JSON output (the subset we read) ──────────────────────────────────────
@@ -87,8 +89,31 @@ type trivyReport struct {
 			InstalledVersion string `json:"InstalledVersion"`
 			FixedVersion     string `json:"FixedVersion"`
 			Severity         string `json:"Severity"`
+			CVSS             map[string]struct {
+				V3Score float64 `json:"V3Score"`
+				V2Score float64 `json:"V2Score"`
+			} `json:"CVSS"`
 		} `json:"Vulnerabilities"`
 	} `json:"Results"`
+}
+
+// bestCVSS returns the highest CVSS base score across all reporting sources (nvd, redhat, ghsa, …),
+// preferring v3 and falling back to v2. 0 means no score was reported.
+func bestCVSS(m map[string]struct {
+	V3Score float64 `json:"V3Score"`
+	V2Score float64 `json:"V2Score"`
+}) float64 {
+	best := 0.0
+	for _, s := range m {
+		score := s.V3Score
+		if score == 0 {
+			score = s.V2Score
+		}
+		if score > best {
+			best = score
+		}
+	}
+	return best
 }
 
 // ScanOS scans a host's OS packages and returns findings with severity. It picks the right input for
@@ -216,6 +241,7 @@ func (c Config) runSCA(ctx context.Context, dir string) ([]SCAFinding, error) {
 				Target: r.Target, PkgType: r.Type, Package: v.PkgName,
 				InstalledVersion: v.InstalledVersion, FixedVersion: v.FixedVersion,
 				VulnID: v.VulnerabilityID, Severity: normalizeSeverity(v.Severity),
+				CVSS: bestCVSS(v.CVSS),
 			})
 		}
 	}
@@ -281,6 +307,7 @@ func parseReport(data []byte) ([]Finding, error) {
 				FixedVersion:     v.FixedVersion,
 				CVE:              v.VulnerabilityID,
 				Severity:         normalizeSeverity(v.Severity),
+				CVSS:             bestCVSS(v.CVSS),
 				Source:           "trivy",
 			})
 		}

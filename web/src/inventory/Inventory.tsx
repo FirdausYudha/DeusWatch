@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   can,
   fetchInventory,
@@ -10,6 +10,7 @@ import {
   type Package,
   type VulnSummary,
   type VulnFinding,
+  type ScanStatus,
   type Me,
 } from '../lib/api'
 import { PageHeader, Page, Pagination, usePaged } from '../components/ui'
@@ -23,6 +24,7 @@ export default function Inventory({ me }: { me: Me }) {
   const [agents, setAgents] = useState<InventorySummary[]>([])
   const [vulns, setVulns] = useState<Record<string, VulnSummary>>({})
   const [advisoryTotal, setAdvisoryTotal] = useState<number | null>(null)
+  const [scanStatus, setScanStatus] = useState<ScanStatus[]>([])
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [rematching, setRematching] = useState(false)
@@ -38,6 +40,7 @@ export default function Inventory({ me }: { me: Me }) {
         for (const v of vo.agents) byAgent[v.agent_name] = v
         setVulns(byAgent)
         setAdvisoryTotal(vo.advisory_total)
+        setScanStatus(vo.scan_status ?? [])
         setSelected((cur) => cur ?? (inv[0]?.agent_name ?? null))
       })
       .catch((e) => setError((e as Error).message))
@@ -84,6 +87,8 @@ export default function Inventory({ me }: { me: Me }) {
       />
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
+
+      <ScanStatusBanner status={scanStatus} scanner="trivy-os" label="Trivy vulnerability scan" />
 
       {advisoryTotal === 0 && !error && (
         <div className="mb-4 rounded-[12px] border border-amber-700/40 bg-amber-500/10 px-4 py-2.5 text-[13px] text-amber-200">
@@ -189,6 +194,32 @@ const SEV_COLOR: Record<string, string> = {
 }
 const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'negligible', 'unknown'] as const
 
+// ScanStatusBanner surfaces why a Trivy scan produced nothing / stale data, so an all-"unknown"
+// donut or an empty SCA list is explained (e.g. Trivy could not download its DB) rather than looking
+// like a silent bug. Renders nothing until a scan has run at least once.
+export function ScanStatusBanner({ status, scanner, label }: { status: ScanStatus[]; scanner: string; label: string }) {
+  const s = status.find((x) => x.scanner === scanner)
+  if (!s) return null
+  if (!s.ok) {
+    return (
+      <div className="mb-4 rounded-[12px] border border-rose-700/40 bg-rose-500/10 px-4 py-2.5 text-[13px] text-rose-200">
+        <strong>{label} failed.</strong> Findings below may be stale or empty. The trivy service needs
+        internet access to ghcr.io for its vulnerability DB. Detail:{' '}
+        <span className="font-mono text-[12px]">{s.detail || 'unknown error'}</span>
+      </div>
+    )
+  }
+  if (s.scanned === 0) {
+    return (
+      <div className="mb-4 rounded-[12px] border border-amber-700/40 bg-amber-500/10 px-4 py-2.5 text-[13px] text-amber-200">
+        {label} ran but scanned no endpoints yet, nothing to analyze. For SCA, agents must be on
+        v2.15.0+ and have shipped dependency manifests.
+      </div>
+    )
+  }
+  return null
+}
+
 // SeverityDonut is a compact per-agent breakdown of vulnerability counts by severity, tinted with
 // the SEV_COLOR palette. Non-zero slices only, an empty summary or a totally-safe agent renders
 // nothing (the DetailPanel header stays clean).
@@ -236,9 +267,11 @@ function VulnList({ agent }: { agent: string }) {
   const [rows, setRows] = useState<VulnFinding[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('') // '' = all severities
 
   useEffect(() => {
     setLoading(true)
+    setFilter('')
     fetchAgentVulnerabilities(agent)
       .then((v) => {
         setRows(v)
@@ -248,8 +281,16 @@ function VulnList({ agent }: { agent: string }) {
       .finally(() => setLoading(false))
   }, [agent])
 
+  // Accumulated counts per severity across ALL findings (the "jumlah akumulasi severity").
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {}
+    for (const r of rows) c[r.severity || 'unknown'] = (c[r.severity || 'unknown'] || 0) + 1
+    return c
+  }, [rows])
+  const filtered = useMemo(() => (filter ? rows.filter((r) => (r.severity || 'unknown') === filter) : rows), [rows, filter])
   // usePaged must run before any early return (rules of hooks).
-  const paged = usePaged(rows)
+  const paged = usePaged(filtered)
+
   if (loading) return <p className="px-4 py-6 text-center text-[13px] text-dim">loading…</p>
   if (error) return <p className="px-4 py-2 text-[13.5px] text-rose-400">{error}</p>
   if (rows.length === 0)
@@ -261,10 +302,12 @@ function VulnList({ agent }: { agent: string }) {
 
   return (
     <div>
+      <SeverityFilterBar counts={counts} total={rows.length} filter={filter} onFilter={(f) => { setFilter(f); paged.setPage(1) }} />
       <table className="w-full text-left text-sm">
         <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
           <tr>
             <th className="px-4 py-2 font-medium">Severity</th>
+            <th className="px-4 py-2 font-medium">CVSS</th>
             <th className="px-4 py-2 font-medium">CVE</th>
             <th className="px-4 py-2 font-medium">Package</th>
             <th className="px-4 py-2 font-medium">Installed → Fixed</th>
@@ -278,12 +321,15 @@ function VulnList({ agent }: { agent: string }) {
                   {v.severity || 'unknown'}
                 </span>
               </td>
+              <td className="px-4 py-1.5"><CvssScore severity={v.severity} score={v.cvss} /></td>
               <td className="px-4 py-1.5">
                 <a
                   href={
                     v.source === 'debian'
                       ? `https://security-tracker.debian.org/tracker/${v.cve}`
-                      : `https://ubuntu.com/security/${v.cve}`
+                      : v.cve.startsWith('GHSA-')
+                        ? `https://github.com/advisories/${v.cve}`
+                        : `https://ubuntu.com/security/${v.cve}`
                   }
                   target="_blank"
                   rel="noreferrer"
@@ -312,10 +358,54 @@ function VulnList({ agent }: { agent: string }) {
         <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
       </div>
       <div className="border-t border-border px-4 py-2 text-[12.5px] text-dim">
-        {rows.length} finding{rows.length === 1 ? '' : 's'} · fix by upgrading the listed package to its fixed version
+        {filter ? `${filtered.length} of ${rows.length}` : rows.length} finding{rows.length === 1 ? '' : 's'} · fix by upgrading the listed package to its fixed version
       </div>
     </div>
   )
+}
+
+// SeverityFilterBar shows the accumulated per-severity counts as clickable chips plus a dropdown, so
+// the operator can both see the breakdown at a glance and filter the table to one severity.
+export function SeverityFilterBar({ counts, total, filter, onFilter }: {
+  counts: Record<string, number>; total: number; filter: string; onFilter: (f: string) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-4 py-2">
+      <button
+        onClick={() => onFilter('')}
+        className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${filter === '' ? 'bg-accent text-white' : 'bg-surface-2 text-muted hover:text-fg'}`}
+      >
+        All {total}
+      </button>
+      {SEV_ORDER.map((sev) => (counts[sev] ?? 0) > 0 ? (
+        <button
+          key={sev}
+          onClick={() => onFilter(filter === sev ? '' : sev)}
+          className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${filter === sev ? SEV_CLS[sev] + ' ring-1 ring-inset ring-current' : SEV_CLS[sev] + ' opacity-80 hover:opacity-100'}`}
+          title={`Filter to ${sev}`}
+        >
+          {sev} {counts[sev]}
+        </button>
+      ) : null)}
+      <select
+        value={filter}
+        onChange={(e) => onFilter(e.target.value)}
+        className="ml-auto rounded-[8px] border border-border bg-surface-2 px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
+      >
+        <option value="">Filter by severity: All</option>
+        {SEV_ORDER.map((sev) => <option key={sev} value={sev}>{sev} ({counts[sev] ?? 0})</option>)}
+      </select>
+    </div>
+  )
+}
+
+// CvssScore shows the numeric CVSS base score, tinted by severity. Falls back to a dash when Trivy
+// reported no score (older vendor data / the legacy OVAL matcher, which carries no CVSS).
+export function CvssScore({ severity, score }: { severity: string; score: number }) {
+  if (!score || score <= 0) return <span className="text-dim">—</span>
+  const cls = severity === 'critical' ? 'text-rose-300' : severity === 'high' ? 'text-orange-300'
+    : severity === 'medium' ? 'text-amber-300' : severity === 'low' ? 'text-sky-300' : 'text-muted'
+  return <span className={`font-mono text-[12.5px] font-semibold ${cls}`}>{score.toFixed(1)}</span>
 }
 
 function PackageList({ agent }: { agent: string }) {

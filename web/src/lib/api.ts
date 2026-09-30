@@ -705,19 +705,30 @@ export type VulnFinding = {
   installed_version: string
   fixed_version: string
   severity: string
+  cvss: number
   source: string
+}
+// ScanStatus tells the UI whether the last Trivy run succeeded, so an empty/"unknown" result can be
+// explained (e.g. Trivy could not download its DB) instead of looking like a silent bug.
+export type ScanStatus = {
+  scanner: string
+  ok: boolean
+  detail: string
+  scanned: number
+  updated_at: string
 }
 export type VulnOverview = {
   agents: VulnSummary[]
   advisory_total: number
   advisory_by_release: Record<string, number>
+  scan_status: ScanStatus[]
 }
 
 export async function fetchVulnerabilities(): Promise<VulnOverview> {
   const res = await authFetch('/api/vulnerabilities')
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   const j = await res.json()
-  return { agents: j.agents ?? [], advisory_total: j.advisory_total ?? 0, advisory_by_release: j.advisory_by_release ?? {} }
+  return { agents: j.agents ?? [], advisory_total: j.advisory_total ?? 0, advisory_by_release: j.advisory_by_release ?? {}, scan_status: j.scan_status ?? [] }
 }
 
 export async function fetchAgentVulnerabilities(agent: string): Promise<VulnFinding[]> {
@@ -755,12 +766,15 @@ export type SCAFinding = {
   fixed_version: string
   vuln_id: string
   severity: string
+  cvss: number
 }
+export type SCAOverview = { agents: SCASummary[]; scan_status: ScanStatus[] }
 
-export async function fetchSCA(): Promise<SCASummary[]> {
+export async function fetchSCA(): Promise<SCAOverview> {
   const res = await authFetch('/api/sca')
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
-  return (await res.json()).agents ?? []
+  const j = await res.json()
+  return { agents: j.agents ?? [], scan_status: j.scan_status ?? [] }
 }
 
 export async function fetchAgentSCA(agent: string): Promise<SCAFinding[]> {
