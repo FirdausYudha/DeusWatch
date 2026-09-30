@@ -1,7 +1,26 @@
 import * as React from 'react'
 import { useEffect, useRef, useState } from 'react'
+import {
+  ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
+  BarChart as RBarChart, Bar, AreaChart as RAreaChart, Area, PieChart, Pie, Cell,
+} from 'recharts'
 import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus, CommFlow, CommFlowDirection, SrcDstFlow } from '../lib/api'
 import { fetchAgents, agentDisplayStatus } from '../lib/api'
+
+// Shared recharts styling from the design tokens, so tooltips/axes match light & dark.
+const AXIS_TICK = { fill: 'var(--color-muted)', fontSize: 11 }
+const AXIS_LINE = 'var(--color-border)'
+const TIP = {
+  contentStyle: { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 12, color: 'var(--color-fg)' },
+  labelStyle: { color: 'var(--color-muted)' },
+  itemStyle: { color: 'var(--color-fg)' },
+  cursor: { fill: 'var(--color-surface-2)', opacity: 0.5 },
+}
+// fmtTime keeps X-axis time labels short but readable; falls back to the raw bucket if unparseable.
+function fmtTime(t: string): string {
+  const d = new Date(t)
+  return isNaN(+d) ? t : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
 export const WIDGET_COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#38bdf8', '#8b5cf6', '#fb923c']
 // Categorical palette for donut segments, starting from the widget's chosen color.
@@ -24,21 +43,20 @@ export function StatWidget({ value, color }: { value: number; color: string }) {
   )
 }
 
+// Horizontal bars (categories can be long: IPs, rule names). Labelled count axis + hover value.
 export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }) {
   if (!data?.length) return <Empty />
-  const max = Math.max(1, ...data.map((d) => d.count))
   return (
-    <ul className="space-y-1.5">
-      {data.map((d, i) => (
-        <li key={i} className="flex items-center gap-2 text-sm">
-          <span className="w-28 truncate text-muted" title={d.label}>{d.label || '—'}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
-            <div className="h-full rounded" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
-          </div>
-          <span className="w-8 text-right text-[12.5px] text-muted">{d.count}</span>
-        </li>
-      ))}
-    </ul>
+    <ResponsiveContainer width="100%" height={Math.min(240, Math.max(120, data.length * 26 + 16))}>
+      <RBarChart data={data} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
+        <CartesianGrid horizontal={false} stroke={AXIS_LINE} strokeDasharray="3 3" />
+        <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} stroke={AXIS_LINE} />
+        <YAxis type="category" dataKey="label" width={112} tick={AXIS_TICK} stroke={AXIS_LINE}
+          tickFormatter={(v: string) => v || '—'} />
+        <Tooltip {...TIP} />
+        <Bar dataKey="count" fill={color} radius={[0, 4, 4, 0]} />
+      </RBarChart>
+    </ResponsiveContainer>
   )
 }
 
@@ -46,63 +64,45 @@ export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }
 // category palette, used by SeverityDonut in the Inventory page to tint slices by severity
 // (critical=red, high=orange, medium=amber, low=sky, negligible/unknown=slate) so the donut
 // matches the badge palette in the vulnerability table instead of the categorical widget colours.
+// DonutChart: same palette behavior (colors override for severity tinting), now with a hover
+// tooltip and legend. The `color` prop seeds the categorical palette when `colors` isn't given.
 export function DonutChart({ data, color, colors }: { data: SeriesPoint[]; color: string; colors?: string[] }) {
   if (!data?.length) return <Empty />
-  const paletteColors = colors ?? palette(color)
-  const total = data.reduce((a, d) => a + d.count, 0) || 1
-  const R = 30
-  const C = 2 * Math.PI * R
-  let offset = 0
+  const cols = colors ?? palette(color)
   return (
-    <div className="flex items-center gap-5 py-2">
-      <svg viewBox="0 0 80 80" className="h-28 w-28 -rotate-90">
-        <circle cx="40" cy="40" r={R} fill="none" stroke="#1e293b" strokeWidth="12" />
-        {data.map((d, i) => {
-          const dash = (d.count / total) * C
-          const seg = (
-            <circle
-              key={i}
-              cx="40"
-              cy="40"
-              r={R}
-              fill="none"
-              stroke={paletteColors[i % paletteColors.length]}
-              strokeWidth="12"
-              strokeDasharray={`${dash} ${C - dash}`}
-              strokeDashoffset={-offset}
-            />
-          )
-          offset += dash
-          return seg
-        })}
-      </svg>
-      <ul className="space-y-1 text-xs">
-        {data.map((d, i) => (
-          <li key={i} className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: paletteColors[i % paletteColors.length] }} />
-            <span className="text-fg">{d.label || '—'}</span>
-            <span className="text-dim">{d.count}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ResponsiveContainer width="100%" height={150}>
+      <PieChart>
+        <Pie data={data} dataKey="count" nameKey="label" innerRadius={40} outerRadius={62} paddingAngle={2} stroke="none">
+          {data.map((_, i) => <Cell key={i} fill={cols[i % cols.length]} />)}
+        </Pie>
+        <Tooltip {...TIP} />
+        <Legend formatter={(v: string) => v || '—'} wrapperStyle={{ fontSize: 12, color: 'var(--color-fg)' }} />
+      </PieChart>
+    </ResponsiveContainer>
   )
 }
 
+// LineChart: attacks over time. Real X (time) and Y (count) axes + hover tooltip with the exact
+// value at each point - the redesign brief's headline chart requirement.
 export function LineChart({ points, color }: { points: TimelinePoint[]; color: string }) {
   if (!points?.length) return <Empty />
-  const W = 320, H = 90, pad = 6
-  const max = Math.max(1, ...points.map((p) => p.count))
-  const n = points.length
-  const x = (i: number) => pad + (n > 1 ? (i / (n - 1)) * (W - 2 * pad) : 0)
-  const y = (v: number) => H - pad - (v / max) * (H - 2 * pad)
-  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.count).toFixed(1)}`).join(' ')
-  const area = `${line} L${x(n - 1).toFixed(1)},${H - pad} L${x(0).toFixed(1)},${H - pad} Z`
+  const gid = React.useId().replace(/:/g, '')
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-28 w-full" preserveAspectRatio="none">
-      <path d={area} fill={color} opacity="0.15" />
-      <path d={line} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <ResponsiveContainer width="100%" height={140}>
+      <RAreaChart data={points} margin={{ left: 0, right: 8, top: 6, bottom: 0 }}>
+        <defs>
+          <linearGradient id={`fill-${gid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} stroke={AXIS_LINE} strokeDasharray="3 3" />
+        <XAxis dataKey="time" tickFormatter={fmtTime} minTickGap={28} tick={AXIS_TICK} stroke={AXIS_LINE} />
+        <YAxis allowDecimals={false} width={30} tick={AXIS_TICK} stroke={AXIS_LINE} />
+        <Tooltip {...TIP} labelFormatter={(l) => fmtTime(String(l))} />
+        <Area dataKey="count" name="attacks" stroke={color} strokeWidth={2} fill={`url(#fill-${gid})`} />
+      </RAreaChart>
+    </ResponsiveContainer>
   )
 }
 
