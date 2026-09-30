@@ -13,6 +13,7 @@ import {
   type TicketStatus,
   type NewTicketInput,
 } from '../lib/api'
+import { Page, Pagination, usePaged, Select } from '../components/ui'
 
 const STATUSES: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed']
 const STATUS_LABEL: Record<TicketStatus, string> = {
@@ -94,8 +95,9 @@ export default function Tickets({
     return acc
   }, {})
 
+  const paged = usePaged(tickets)
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-5">
+    <Page>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="mt-0.5 text-[13px] text-muted">Tier-2 DFIR case management · open → in progress → resolved → closed</p>
@@ -114,23 +116,15 @@ export default function Tickets({
       </header>
 
       {/* Status filter */}
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
-        <button
-          onClick={() => setFilter('')}
-          className={`rounded-[8px] px-3 py-1.5 ${filter === '' ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
-        >
-          All ({tickets.length})
-        </button>
-        {STATUSES.map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`rounded-[8px] px-3 py-1.5 ${filter === s ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2'}`}
-          >
-            {STATUS_LABEL[s]}
-            {filter === '' && counts[s] ? <span className="ml-1 text-dim">{counts[s]}</span> : ''}
-          </button>
-        ))}
+      <div className="mb-4">
+        <Select value={filter} onChange={(e) => setFilter(e.target.value as '' | TicketStatus)} aria-label="Filter tickets by status">
+          <option value="">All statuses ({tickets.length})</option>
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABEL[s]}{filter === '' && counts[s] ? ` (${counts[s]})` : ''}
+            </option>
+          ))}
+        </Select>
       </div>
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
@@ -155,7 +149,7 @@ export default function Tickets({
                 </td>
               </tr>
             )}
-            {tickets.map((t) => (
+            {paged.slice.map((t) => (
               <tr key={t.id} className="cursor-pointer hover:bg-surface-2" onClick={() => setSelectedId(t.id)}>
                 <td className="px-4 py-2 font-medium text-fg">{t.title}</td>
                 <td className="px-4 py-2"><SeverityBadge sev={t.severity} /></td>
@@ -174,6 +168,7 @@ export default function Tickets({
           </tbody>
         </table>
       </div>
+      <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
 
       {showNew && (
         <NewTicketModal
@@ -192,7 +187,7 @@ export default function Tickets({
           onChanged={load}
         />
       )}
-    </div>
+    </Page>
   )
 }
 

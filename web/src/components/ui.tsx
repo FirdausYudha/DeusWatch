@@ -1,7 +1,47 @@
 // Shared UI primitives for the DeusWatch redesign. Every page composes these instead of
 // re-inventing card/badge/button chrome, so the look stays consistent and a token change
 // (index.css) propagates everywhere. Semantics come first: a colour always means the same thing.
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+
+// ── Page shell ──────────────────────────────────────────────────────────────
+// One max width + gutter for every screen, so left/right spacing is identical page to page
+// (the redesign brief's "space kanan-kiri tidak seragam"). Every page wraps its content in this
+// instead of its own mx-auto/max-w/px combo.
+export function Page({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`mx-auto max-w-[1400px] px-6 py-6 ${className}`}>{children}</div>
+}
+
+// ── Pagination ──────────────────────────────────────────────────────────────
+// usePaged slices an already-fetched list client-side, so long tables stop lagging / needing
+// endless scroll with zero backend work. (Server-side paging only where a dataset is truly
+// unbounded, e.g. raw events.)
+export function usePaged<T>(rows: T[], perPage = 25) {
+  const [page, setPage] = useState(1)
+  const pages = Math.max(1, Math.ceil(rows.length / perPage))
+  const cur = Math.min(page, pages)
+  useEffect(() => { if (page !== cur) setPage(cur) }, [cur, page])
+  return { slice: rows.slice((cur - 1) * perPage, cur * perPage), page: cur, pages, total: rows.length, perPage, setPage }
+}
+
+// Pagination is the shared control every table uses; hidden when everything fits one page.
+export function Pagination({ page, pages, total, perPage, onPage }: {
+  page: number; pages: number; total: number; perPage: number; onPage: (p: number) => void
+}) {
+  if (total <= perPage) return null
+  const from = (page - 1) * perPage + 1
+  const to = Math.min(page * perPage, total)
+  const btn = 'rounded-[8px] border border-border px-2.5 py-1 text-fg hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent'
+  return (
+    <div className="flex items-center justify-between gap-3 pt-3 text-[13px] text-muted">
+      <span>{from}-{to} of {total}</span>
+      <div className="flex items-center gap-1.5">
+        <button className={btn} disabled={page <= 1} onClick={() => onPage(page - 1)}>Prev</button>
+        <span className="px-1">{page} / {pages}</span>
+        <button className={btn} disabled={page >= pages} onClick={() => onPage(page + 1)}>Next</button>
+      </div>
+    </div>
+  )
+}
 
 // ── Page header ───────────────────────────────────────────────────────────────
 // The page's NAME lives in the Topbar (components/Topbar.tsx), so this renders only the parts a
