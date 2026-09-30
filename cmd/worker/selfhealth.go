@@ -188,6 +188,31 @@ func serveHealth(ctx context.Context, st *store.Store, b *bus.Bus) {
 	}
 }
 
+// runAgentReaper periodically hard-deletes tombstoned agents (deleted by the operator while still
+// valid → revoked + hidden) once they have been silent long enough to be considered self-uninstalled.
+// The grace window (AGENT_REAP_GRACE, default 15m) must comfortably exceed the agent heartbeat so a
+// briefly-offline agent that is about to receive its 410 uninstall signal is not reaped early.
+func runAgentReaper(ctx context.Context, st *store.Store) {
+	grace := durEnv("AGENT_REAP_GRACE", 15*time.Minute)
+	t := time.NewTicker(5 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			rc, cancel := context.WithTimeout(ctx, 30*time.Second)
+			n, err := st.ReapDeletedAgents(rc, grace)
+			cancel()
+			if err != nil {
+				log.Printf("worker: agent reaper: %v", err)
+			} else if n > 0 {
+				log.Printf("worker: agent reaper: purged %d deleted agent(s)", n)
+			}
+		}
+	}
+}
+
 // durEnv reads a Go duration from env with a default.
 func durEnv(key string, def time.Duration) time.Duration {
 	if d, err := time.ParseDuration(os.Getenv(key)); err == nil && d > 0 {

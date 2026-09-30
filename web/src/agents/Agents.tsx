@@ -7,6 +7,7 @@ import {
   fetchInstallInfo,
   fetchTenants,
   revokeAgent,
+  deleteAgent,
   setAgentConfig,
   agentOnline,
   can,
@@ -69,10 +70,20 @@ export default function Agents({ me }: { me: Me }) {
   const [uninstalling, setUninstalling] = useState<AgentInfo | null>(null)
   const [managerVersion, setManagerVersion] = useState('')
   const [updating, setUpdating] = useState<Record<string, boolean>>({})
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   const load = () => {
     fetchAgents()
-      .then(setAgents)
+      .then((rows) => {
+        setAgents(rows)
+        // Drop selections for agents that no longer exist (e.g. reaped or deleted elsewhere).
+        setSelected((cur) => {
+          const live = new Set(rows.map((r) => r.id))
+          const next = new Set([...cur].filter((id) => live.has(id)))
+          return next.size === cur.size ? cur : next
+        })
+      })
       .catch((e) => setError((e as Error).message))
   }
   useEffect(() => {
@@ -117,7 +128,54 @@ export default function Agents({ me }: { me: Me }) {
     }
   }
 
+  const toggleSel = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  // doDeleteSelected removes every checked agent. Valid agents are revoked + will self-uninstall;
+  // already-revoked agents are just removed from the list. The confirm spells out the split so the
+  // operator knows a live endpoint will be told to uninstall itself.
+  const doDeleteSelected = async () => {
+    const chosen = agents.filter((a) => selected.has(a.id))
+    if (chosen.length === 0) return
+    const live = chosen.filter((a) => !a.revoked)
+    const revoked = chosen.filter((a) => a.revoked)
+    const lines = [
+      `Delete ${chosen.length} agent(s)?`,
+      live.length > 0 &&
+        `- ${live.length} active: will be revoked and told to UNINSTALL themselves on next check-in, then removed.`,
+      revoked.length > 0 && `- ${revoked.length} already revoked: removed from the list only.`,
+    ].filter(Boolean)
+    if (!confirm(lines.join('\n'))) return
+    setDeleting(true)
+    setError('')
+    try {
+      for (const a of chosen) {
+        await deleteAgent(a.id)
+      }
+      setSelected(new Set())
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const paged = usePaged(agents)
+  // "Select all" acts on the current page only (matches what the operator can see).
+  const pageIds = paged.slice.map((a) => a.id)
+  const allOnPageChecked = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
+  const toggleAllOnPage = () =>
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (allOnPageChecked) pageIds.forEach((id) => next.delete(id))
+      else pageIds.forEach((id) => next.add(id))
+      return next
+    })
   return (
     <Page>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -175,10 +233,37 @@ export default function Agents({ me }: { me: Me }) {
         </div>
       )}
 
+      {isAdmin && selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[10px] border border-border bg-surface px-3 py-2 text-sm">
+          <span className="text-muted">{selected.size} selected</span>
+          <button
+            onClick={doDeleteSelected}
+            disabled={deleting}
+            className="rounded-md border border-critical/40 px-2.5 py-1 text-[12.5px] font-medium text-critical hover:bg-critical/10 disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Delete selected'}
+          </button>
+          <button onClick={() => setSelected(new Set())} className="ml-1 text-[12.5px] text-dim hover:text-fg">Clear</button>
+          <span className="text-[12px] text-dim">Active agents get revoked + self-uninstall; revoked ones are just removed.</span>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-[12px] border border-border">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
+              {isAdmin && (
+                <th className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={allOnPageChecked}
+                    onChange={toggleAllOnPage}
+                    disabled={pageIds.length === 0}
+                    className="h-4 w-4 accent-indigo-500"
+                    title="Select all on this page"
+                  />
+                </th>
+              )}
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">OS</th>
               <th className="px-4 py-2 font-medium">Status</th>
@@ -191,13 +276,24 @@ export default function Agents({ me }: { me: Me }) {
           <tbody className="divide-y divide-border bg-surface">
             {agents.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 7 : 6} className="px-4 py-8 text-center text-dim">
+                <td colSpan={isAdmin ? 8 : 6} className="px-4 py-8 text-center text-dim">
                   No agents yet. Click “Add agent” to enroll one.
                 </td>
               </tr>
             )}
             {paged.slice.map((a) => (
-              <tr key={a.id} className="hover:bg-surface-2">
+              <tr key={a.id} className={`hover:bg-surface-2 ${selected.has(a.id) ? 'bg-surface-2' : ''}`}>
+                {isAdmin && (
+                  <td className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(a.id)}
+                      onChange={() => toggleSel(a.id)}
+                      className="h-4 w-4 accent-indigo-500"
+                      aria-label={`Select ${a.name}`}
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-2 font-medium text-fg">{a.name}</td>
                 <td className="px-4 py-2 text-muted">{a.os || '—'}</td>
                 <td className="px-4 py-2"><StatusBadge a={a} /></td>

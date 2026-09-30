@@ -131,6 +131,24 @@ func (s *Store) SetConfigHandler() http.HandlerFunc {
 	}
 }
 
+// DeleteHandler (admin): removes an agent by id. A valid agent is revoked + tombstoned so it
+// self-uninstalls; an already-revoked agent is hard-deleted. The response says which happened.
+func (s *Store) DeleteHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			http.Error(w, "id is required", http.StatusBadRequest)
+			return
+		}
+		res, err := s.DeleteAgent(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+	}
+}
+
 // RevokeHandler (admin): revokes an agent by id (path value).
 func (s *Store) RevokeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -346,6 +346,9 @@ func main() {
 	// HIGH selfhealth alert), the disk-watermark janitor (section 8), and the worker's
 	// own /healthz + /readyz endpoints.
 	safeGo(ctx, "agent-health", func() { runAgentHealth(ctx, st, onAlert, pbLive.Annotate) })
+	// Reap tombstoned agents (operator deleted a valid agent → revoked+hidden) once they have gone
+	// quiet, i.e. self-uninstalled, so the row and its cert lock are cleaned up.
+	safeGo(ctx, "agent-reaper", func() { runAgentReaper(ctx, st) })
 	safeGo(ctx, "disk-janitor", func() { runDiskJanitor(ctx, st, onAlert, pbLive.Annotate) })
 	safeGo(ctx, "serve-health", func() { serveHealth(ctx, st, b) })
 	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing

@@ -791,6 +791,16 @@ export async function revokeAgent(id: string): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
+export type DeleteAgentResult = { name: string; was_revoked: boolean; self_uninstall: boolean }
+
+// deleteAgent removes an agent from the list. A valid agent is revoked + will self-uninstall; an
+// already-revoked agent is just removed. The result says which happened.
+export async function deleteAgent(id: string): Promise<DeleteAgentResult> {
+  const res = await authFetch(`/api/agents/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function setAgentConfig(id: string, sources: AgentSource[]): Promise<{ version: number }> {
   const res = await authFetch(`/api/agents/${id}/config`, {
     method: 'PUT',

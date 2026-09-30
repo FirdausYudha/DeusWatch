@@ -35,6 +35,23 @@ func (s *Store) SetAgentStatus(ctx context.Context, id, status string) error {
 	return err
 }
 
+// ReapDeletedAgents hard-deletes tombstoned agents (deleted_at set by DeleteAgent on a still-valid
+// agent → revoked + hidden) once they have gone quiet, i.e. stopped checking in and presumably
+// self-uninstalled. grace is how long the agent must have been silent before its row (and the cert
+// lock it carries) is dropped. Returns how many were reaped. Called by the worker's agent-reaper.
+func (s *Store) ReapDeletedAgents(ctx context.Context, grace time.Duration) (int, error) {
+	cutoff := time.Now().Add(-grace)
+	ct, err := s.q(ctx).Exec(ctx, `
+		DELETE FROM agents
+		WHERE deleted_at IS NOT NULL
+		  AND (last_seen_at IS NULL OR last_seen_at < $1)
+		  AND deleted_at < $1`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("store: reap deleted agents: %w", err)
+	}
+	return int(ct.RowsAffected()), nil
+}
+
 // OldestEventChunk returns the oldest events-hypertable chunk's end time and the total
 // chunk count (nil end when the hypertable has no chunks / TimescaleDB is absent).
 func (s *Store) OldestEventChunk(ctx context.Context) (end *time.Time, count int, err error) {

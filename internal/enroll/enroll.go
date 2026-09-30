@@ -165,7 +165,7 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 		`INSERT INTO agents (name, os, cert_serial, config, tenant_id) VALUES ($1,$2,$3,$4,$5)
 		 ON CONFLICT (name) DO UPDATE SET
 		     os = EXCLUDED.os, cert_serial = EXCLUDED.cert_serial, revoked = false,
-		     enrolled_at = now(), last_seen_at = NULL,
+		     enrolled_at = now(), last_seen_at = NULL, deleted_at = NULL,
 		     status = 'unknown', health_degraded = false, health_detail = '',
 		     config = COALESCE(agents.config, EXCLUDED.config),
 		     tenant_id = EXCLUDED.tenant_id
@@ -210,7 +210,7 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	rows, err := s.q(ctx).Query(ctx,
 		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, status, health_detail, config,
 		         COALESCE(agent_version,''), update_requested_at
-		 FROM agents ORDER BY enrolled_at DESC`)
+		 FROM agents WHERE deleted_at IS NULL ORDER BY enrolled_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("enroll: list agents: %w", err)
 	}
@@ -247,6 +247,83 @@ func (s *Store) Revoke(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// DeleteResult reports what DeleteAgent did, so the UI can tell the operator whether the agent is
+// being uninstalled (valid agent) or was just removed from the list (already revoked).
+type DeleteResult struct {
+	Name         string `json:"name"`
+	WasRevoked   bool   `json:"was_revoked"`   // agent was already revoked → hard-deleted immediately
+	SelfUninstall bool  `json:"self_uninstall"` // valid agent → revoked+hidden, will uninstall on next contact
+}
+
+// DeleteAgent removes an agent from the operator's list. The behaviour depends on the agent's state,
+// because self-uninstall relies on the gateway returning 410 (which needs the row to exist + be
+// revoked); a bare row delete would return 409 and the agent would keep running:
+//
+//   - VALID (not revoked): revoke it and tombstone it (deleted_at). It disappears from the list and
+//     Inventory immediately (its telemetry is purged now), the gateway keeps 410'ing it so it
+//     self-uninstalls on next contact, and the reaper hard-deletes the tombstone once it is gone.
+//   - ALREADY REVOKED: it has already been dealt with, so hard-delete the row + telemetry now
+//     ("delete list only", per the operator's intent).
+func (s *Store) DeleteAgent(ctx context.Context, id string) (DeleteResult, error) {
+	var name string
+	var revoked bool
+	err := s.q(ctx).QueryRow(ctx, `SELECT name, revoked FROM agents WHERE id=$1`, id).Scan(&name, &revoked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DeleteResult{}, fmt.Errorf("enroll: agent not found")
+	}
+	if err != nil {
+		return DeleteResult{}, fmt.Errorf("enroll: delete lookup: %w", err)
+	}
+
+	tx, err := s.q(ctx).Begin(ctx)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	if err := purgeAgentTelemetry(ctx, tx, name); err != nil {
+		return DeleteResult{}, err
+	}
+
+	res := DeleteResult{Name: name, WasRevoked: revoked}
+	if revoked {
+		// Already dealt with: drop the row (cascades process_snapshots/threats via FK).
+		if _, err := tx.Exec(ctx, `DELETE FROM agents WHERE id=$1`, id); err != nil {
+			return DeleteResult{}, fmt.Errorf("enroll: delete agent: %w", err)
+		}
+	} else {
+		// Valid: keep a revoked tombstone so the gateway 410s it into self-uninstalling; hide it.
+		if _, err := tx.Exec(ctx, `UPDATE agents SET revoked=true, deleted_at=now() WHERE id=$1`, id); err != nil {
+			return DeleteResult{}, fmt.Errorf("enroll: tombstone agent: %w", err)
+		}
+		res.SelfUninstall = true
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DeleteResult{}, err
+	}
+	return res, nil
+}
+
+// purgeAgentTelemetry removes an agent's per-host data keyed by agent name (no FK cascade), so a
+// deleted agent leaves nothing behind in Inventory, FIM or the vuln views. Response/containment
+// history is deliberately kept as an audit trail (it is IP/action-scoped, not host-scoped).
+func purgeAgentTelemetry(ctx context.Context, tx pgx.Tx, name string) error {
+	for _, q := range []string{
+		`DELETE FROM agent_vulnerabilities WHERE agent_name=$1`,
+		`DELETE FROM agent_packages WHERE agent_name=$1`,
+		`DELETE FROM agent_os_inventory WHERE agent_name=$1`,
+		`DELETE FROM fim_snapshots WHERE agent_name=$1`,
+		`DELETE FROM agent_file_actions WHERE agent_name=$1`,
+		`DELETE FROM file_restores WHERE agent_name=$1`,
+	} {
+		if _, err := tx.Exec(ctx, q, name); err != nil {
+			return fmt.Errorf("enroll: purge agent telemetry: %w", err)
+		}
+	}
+	return nil
+}
+
 
 // IsRevoked reports whether a presented client certificate (CN + serial) must be
 // rejected. Two ways to be dead: the agent row is revoked, or the certificate's
