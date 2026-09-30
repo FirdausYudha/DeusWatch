@@ -184,6 +184,70 @@ func (s *Store) replaceFindings(ctx context.Context, agentName string, findings 
 	return tx.Commit(ctx)
 }
 
+// ScanTarget is one agent's OS identity for the Trivy scanner (server-side vuln assessment).
+type ScanTarget struct {
+	Name       string
+	OSID       string
+	OSVersion  string
+	OSCodename string
+	PkgManager string
+}
+
+// ScanPackage is one installed package for the Trivy scanner.
+type ScanPackage struct {
+	Name    string
+	Version string
+	Arch    string
+	Source  string
+}
+
+// ListScanTargets returns every agent that has reported an OS inventory, for the Trivy scanner to
+// iterate. Agents with no package manager (e.g. Windows, later phase) are still returned; the
+// scanner skips the ones it can't handle.
+func (s *Store) ListScanTargets(ctx context.Context) ([]ScanTarget, error) {
+	rows, err := s.q(ctx).Query(ctx, `
+		SELECT agent_name, COALESCE(os_id,''), COALESCE(os_version,''), COALESCE(os_codename,''), COALESCE(pkg_manager,'')
+		FROM agent_os_inventory`)
+	if err != nil {
+		return nil, fmt.Errorf("store: list scan targets: %w", err)
+	}
+	defer rows.Close()
+	var out []ScanTarget
+	for rows.Next() {
+		var t ScanTarget
+		if err := rows.Scan(&t.Name, &t.OSID, &t.OSVersion, &t.OSCodename, &t.PkgManager); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// AgentScanPackages returns an agent's installed packages for the Trivy scanner.
+func (s *Store) AgentScanPackages(ctx context.Context, agentName string) ([]ScanPackage, error) {
+	rows, err := s.q(ctx).Query(ctx,
+		`SELECT name, version, COALESCE(arch,''), COALESCE(source,'') FROM agent_packages WHERE agent_name=$1`, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("store: agent scan packages: %w", err)
+	}
+	defer rows.Close()
+	var out []ScanPackage
+	for rows.Next() {
+		var p ScanPackage
+		if err := rows.Scan(&p.Name, &p.Version, &p.Arch, &p.Source); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// ReplaceAgentFindings swaps an agent's vulnerability findings wholesale. Used by the Trivy scanner
+// (findings already carry a real severity); shares the same storage path as OVAL matching.
+func (s *Store) ReplaceAgentFindings(ctx context.Context, agentName string, findings []vuln.Finding) error {
+	return s.replaceFindings(ctx, agentName, findings)
+}
+
 // RematchAll recomputes findings for every agent that has an inventory. Returns how many agents were
 // matched. Used after a feed refresh.
 func (s *Store) RematchAll(ctx context.Context) (int, error) {

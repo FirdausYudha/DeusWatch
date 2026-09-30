@@ -75,6 +75,16 @@ COPY --from=build-static /agents /agents
 USER nonroot:nonroot
 ENTRYPOINT ["/app"]
 
+# ── Worker runtime (static app + Trivy client) ──────────────
+# The worker runs server-side Vulnerability Assessment via Trivy (client/server mode): it needs only
+# the small trivy CLIENT binary here; the ~700MB vuln DB lives once in the separate `trivy` service.
+# The client writes a tiny cache under /tmp (world-writable in distroless), so no volume or root is
+# needed and the worker stays nonroot.
+FROM aquasec/trivy:0.58.1 AS trivy-bin
+
+FROM runtime-static AS runtime-worker
+COPY --from=trivy-bin /usr/local/bin/trivy /usr/local/bin/trivy
+
 # ── CGO runtime (gateway) ───────────────────────────────────
 # Alpine + libyara + ca-certificates. libyara.so must be present at runtime for the linked binary
 # to start; adding it here means the operator gets YARA out of the box with no host-side install.

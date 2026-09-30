@@ -192,9 +192,14 @@ func main() {
 	// Slow-scanner watchlist: the multi-DAY view, sources that keep coming back at a volume too
 	// low for any burst rule (2 probes today, none tomorrow, 5 the day after).
 	safeGo(ctx, "slowscan-scorer", func() { runSlowScanScorer(ctx, st) })
-	// Vulnerability Assessment (phase 2): fetch vendor advisory feeds for the fleet's distros and
-	// match them against each agent's software inventory to produce CVE findings.
-	safeGo(ctx, "vuln-scanner", func() { runVulnScanner(ctx, st) })
+	// Vulnerability Assessment: with Trivy configured (TRIVY_SERVER/TRIVY_ENABLED) the server-side
+	// Trivy scanner is the source of truth for OS-package CVEs + severity (DEB & RPM); otherwise the
+	// built-in USN/Debian OVAL matcher runs. Only one writes agent_vulnerabilities.
+	if trivyEnabled() {
+		safeGo(ctx, "trivy-scanner", func() { runTrivyScanner(ctx, st) })
+	} else {
+		safeGo(ctx, "vuln-scanner", func() { runVulnScanner(ctx, st) })
+	}
 
 	// OpenSearch/Elasticsearch pull: tail each configured cluster index (e.g. The Wazuh
 	// indexer) into the pipeline. No-op when no such integration is enabled.

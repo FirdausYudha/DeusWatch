@@ -214,12 +214,35 @@ services:
           memory: 512m
     restart: unless-stopped
 
+  # Trivy vulnerability scanner (server mode). Owns the vuln DB (a persistent volume) and refreshes
+  # it from the internet; the worker calls it as a client, so the DB is downloaded once here instead
+  # of in every service. Loopback-only port for local debugging; the worker reaches it over the
+  # internal Docker network. Disable the whole feature by leaving TRIVY_SERVER unset on the worker.
+  trivy:
+    image: aquasec/trivy:0.58.1
+    command: ["server", "--listen", "0.0.0.0:4954", "--cache-dir", "/trivy-cache"]
+    ports:
+      - "127.0.0.1:4954:4954"
+    volumes:
+      - trivy_cache:/trivy-cache
+    healthcheck:
+      test: ["CMD", "trivy", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: ${DEUSWATCH_TRIVY_MEM:-1g}
+    restart: unless-stopped
+
   # Detection worker: enrich + Sigma (single-event & aggregation) + response engine.
   worker:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-      target: runtime-static
+      # runtime-worker = the static worker binary + the Trivy client binary (server-side VA).
+      target: runtime-worker
       args:
         CMD: worker
         VERSION: "${DEUSWATCH_VERSION:-dev}"
@@ -293,11 +316,18 @@ services:
       SCORE_WINDOW: "${SCORE_WINDOW:-10m}"
       SCORE_INTERVAL: "${SCORE_INTERVAL:-30s}"
       SCENARIO_BAN_SCORE: "${SCENARIO_BAN_SCORE:-0}"
+      # Vulnerability Assessment via Trivy (server-side). With TRIVY_SERVER set, the worker scans each
+      # agent's OS packages through the trivy service (DEB + RPM, with real severity) instead of the
+      # built-in USN/Debian OVAL matcher. Unset TRIVY_SERVER to fall back to the built-in matcher.
+      TRIVY_SERVER: "${TRIVY_SERVER:-http://trivy:4954}"
+      TRIVY_SCAN_INTERVAL: "${TRIVY_SCAN_INTERVAL:-6h}"
     depends_on:
       db:
         condition: service_healthy
       nats:
         condition: service_healthy
+      trivy:
+        condition: service_started
     # Memory cap so one runaway service cannot OOM the whole host
     # (a limit, not a reservation - normal usage sits far below it).
     deploy:
@@ -326,3 +356,4 @@ services:
 volumes:
   db_data:
   nats_data:
+  trivy_cache:

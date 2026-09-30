@@ -11,6 +11,7 @@ import (
 	"deuswatch/internal/respond"
 	"deuswatch/internal/score"
 	"deuswatch/internal/store"
+	"deuswatch/internal/trivy"
 	"deuswatch/internal/vuln"
 )
 
@@ -258,6 +259,88 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 				rematch(mc, st)
 				cancel()
 			}
+		}
+	}
+}
+
+// trivyEnabled reports whether the server-side Trivy scanner should run instead of the built-in
+// USN/Debian OVAL matcher. On when TRIVY_ENABLED=1 or a TRIVY_SERVER URL is set.
+func trivyEnabled() bool {
+	if v, err := strconv.ParseBool(os.Getenv("TRIVY_ENABLED")); err == nil {
+		return v
+	}
+	return os.Getenv("TRIVY_SERVER") != ""
+}
+
+// runTrivyScanner is the server-side Vulnerability Assessment loop backed by Trivy (the chosen
+// severity source for DEB + RPM). For every agent that has reported an inventory it feeds the OS
+// packages to Trivy (which owns the vuln DB) and stores the findings, which carry a real severity, so
+// the Inventory donut and table show critical/high/medium/low instead of "unknown". Trivy needs the
+// internet (DB refresh in the trivy service); a scan failure is logged and the last findings are kept.
+func runTrivyScanner(ctx context.Context, st *store.Store) {
+	cfg := trivy.Config{Bin: getenv("TRIVY_BIN", "trivy"), Server: os.Getenv("TRIVY_SERVER")}
+	interval := durEnv("TRIVY_SCAN_INTERVAL", 6*time.Hour)
+	log.Printf("worker: trivy vulnerability assessment active (server=%q, every %s)", cfg.Server, interval)
+
+	scanAll := func() {
+		lc, cancel := context.WithTimeout(ctx, 30*time.Minute)
+		defer cancel()
+		targets, err := st.ListScanTargets(lc)
+		if err != nil {
+			log.Printf("worker: trivy: list targets: %v", err)
+			return
+		}
+		scanned := 0
+		for _, t := range targets {
+			if t.PkgManager == "" {
+				continue // nothing Trivy can scan (e.g. Windows, later phase)
+			}
+			pkgs, err := st.AgentScanPackages(lc, t.Name)
+			if err != nil {
+				log.Printf("worker: trivy: packages for %s: %v", t.Name, err)
+				continue
+			}
+			tpkgs := make([]trivy.Package, 0, len(pkgs))
+			for _, p := range pkgs {
+				tpkgs = append(tpkgs, trivy.Package{Name: p.Name, Version: p.Version, Arch: p.Arch, Source: p.Source})
+			}
+			findings, err := cfg.ScanOS(lc, trivy.OS{
+				ID: t.OSID, Version: t.OSVersion, Codename: t.OSCodename, PkgManager: t.PkgManager,
+			}, tpkgs)
+			if err != nil {
+				log.Printf("worker: trivy: scan %s failed (keeping last findings): %v", t.Name, err)
+				continue
+			}
+			vf := make([]vuln.Finding, 0, len(findings))
+			for _, f := range findings {
+				vf = append(vf, vuln.Finding{
+					Package: f.Package, InstalledVersion: f.InstalledVersion, FixedVersion: f.FixedVersion,
+					CVE: f.CVE, Severity: f.Severity, Source: f.Source,
+				})
+			}
+			if err := st.ReplaceAgentFindings(lc, t.Name, vf); err != nil {
+				log.Printf("worker: trivy: store findings for %s: %v", t.Name, err)
+				continue
+			}
+			scanned++
+		}
+		if scanned > 0 {
+			log.Printf("worker: trivy: scanned %d agent(s)", scanned)
+		}
+	}
+
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	first := time.NewTimer(90 * time.Second) // let the trivy service pull its DB first
+	defer first.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-first.C:
+			scanAll()
+		case <-t.C:
+			scanAll()
 		}
 	}
 }
