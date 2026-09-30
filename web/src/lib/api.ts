@@ -735,6 +735,40 @@ export async function rematchVulnerabilities(): Promise<number> {
   return (await res.json()).agents_matched ?? 0
 }
 
+// ── Software Composition Analysis (Agent Health) ────────────────────────────────
+export type SCASummary = {
+  agent_name: string
+  critical: number
+  high: number
+  medium: number
+  low: number
+  unknown: number
+  total: number
+  manifests: number
+  updated_at: string
+}
+export type SCAFinding = {
+  target: string
+  pkg_type: string
+  package: string
+  installed_version: string
+  fixed_version: string
+  vuln_id: string
+  severity: string
+}
+
+export async function fetchSCA(): Promise<SCASummary[]> {
+  const res = await authFetch('/api/sca')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).agents ?? []
+}
+
+export async function fetchAgentSCA(agent: string): Promise<SCAFinding[]> {
+  const res = await authFetch(`/api/sca/agent?agent=${encodeURIComponent(agent)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).findings ?? []
+}
+
 // Log-storage health for the dashboard (PostgreSQL + TimescaleDB).
 export type StorageStatus = {
   reachable: boolean

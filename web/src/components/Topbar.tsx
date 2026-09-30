@@ -20,6 +20,7 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Live security posture' },
   agents: { title: 'Agents', subtitle: 'Endpoints reporting in' },
   inventory: { title: 'Inventory', subtitle: 'Installed software across the fleet' },
+  agenthealth: { title: 'Agent Health', subtitle: 'Vulnerability assessment & software composition analysis' },
   fim: { title: 'File Integrity', subtitle: 'File changes, ransomware and malware' },
   snapshots: { title: 'Snapshots', subtitle: 'Versioned file timeline & recovery' },
   response: { title: 'Response', subtitle: 'Recommendations awaiting your call' },

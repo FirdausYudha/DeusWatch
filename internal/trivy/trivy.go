@@ -58,9 +58,27 @@ type Finding struct {
 	Source           string // always "trivy" here
 }
 
+// Manifest is one language dependency file to scan for SCA (path gives Trivy the right filename).
+type Manifest struct {
+	Path    string
+	Content string
+}
+
+// SCAFinding is one vulnerable language package Trivy reported in a manifest.
+type SCAFinding struct {
+	Target           string // the manifest the package came from
+	PkgType          string // ecosystem: npm | gomod | pip | gem | ...
+	Package          string
+	InstalledVersion string
+	FixedVersion     string
+	VulnID           string // CVE-... or GHSA-...
+	Severity         string
+}
+
 // ── Trivy JSON output (the subset we read) ──────────────────────────────────────
 type trivyReport struct {
 	Results []struct {
+		Target          string `json:"Target"`
 		Class           string `json:"Class"`
 		Type            string `json:"Type"`
 		Vulnerabilities []struct {
@@ -101,6 +119,107 @@ func (c Config) ScanOS(ctx context.Context, host OS, pkgs []Package) ([]Finding,
 	default:
 		return nil, nil // unsupported package manager
 	}
+}
+
+// ScanManifests runs Software Composition Analysis: it reconstructs the reported dependency files
+// under a temp directory (preserving their host path so siblings like go.mod + go.sum stay together
+// and same-named lockfiles in different apps don't collide) and runs `trivy fs` over it, returning
+// language-package vulnerabilities. No manifests → nil, nil.
+func (c Config) ScanManifests(ctx context.Context, manifests []Manifest) ([]SCAFinding, error) {
+	if len(manifests) == 0 {
+		return nil, nil
+	}
+	dir, err := os.MkdirTemp("", "dw-trivy-sca-*")
+	if err != nil {
+		return nil, fmt.Errorf("trivy: temp dir: %w", err)
+	}
+	defer os.RemoveAll(dir)
+
+	wrote := 0
+	for _, m := range manifests {
+		rel := sanitizeRel(m.Path)
+		if rel == "" {
+			continue
+		}
+		dst := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			continue
+		}
+		if err := os.WriteFile(dst, []byte(m.Content), 0o600); err != nil {
+			continue
+		}
+		wrote++
+	}
+	if wrote == 0 {
+		return nil, nil
+	}
+	return c.runSCA(ctx, dir)
+}
+
+// sanitizeRel turns a host path (possibly absolute, Windows drive, or with ..) into a safe relative
+// path under the temp scan root.
+func sanitizeRel(p string) string {
+	p = strings.ReplaceAll(p, "\\", "/")
+	if i := strings.Index(p, ":"); i >= 0 && i <= 2 { // strip a Windows drive letter (C:)
+		p = p[i+1:]
+	}
+	p = strings.TrimLeft(p, "/")
+	p = strings.ReplaceAll(p, "../", "") // defuse traversal
+	return strings.TrimSpace(p)
+}
+
+// runSCA scans a reconstructed manifest tree and parses language-package findings.
+func (c Config) runSCA(ctx context.Context, dir string) ([]SCAFinding, error) {
+	bin := c.Bin
+	if bin == "" {
+		bin = "trivy"
+	}
+	args := []string{
+		"fs", "--quiet", "--format", "json", "--scanners", "vuln",
+		"--pkg-types", "library",
+		"--cache-dir", filepath.Join(os.TempDir(), "trivy-cache"),
+	}
+	if c.Server != "" {
+		args = append(args, "--server", c.Server)
+	}
+	args = append(args, dir)
+
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(cctx, bin, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("trivy: run sca: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	var rep trivyReport
+	if err := json.Unmarshal(stdout.Bytes(), &rep); err != nil {
+		return nil, fmt.Errorf("trivy: parse sca json: %w", err)
+	}
+	var out []SCAFinding
+	seen := map[string]bool{}
+	for _, r := range rep.Results {
+		if r.Class != "lang-pkgs" {
+			continue
+		}
+		for _, v := range r.Vulnerabilities {
+			if v.VulnerabilityID == "" || v.PkgName == "" {
+				continue
+			}
+			key := v.VulnerabilityID + "\x00" + v.PkgName + "\x00" + v.InstalledVersion
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, SCAFinding{
+				Target: r.Target, PkgType: r.Type, Package: v.PkgName,
+				InstalledVersion: v.InstalledVersion, FixedVersion: v.FixedVersion,
+				VulnID: v.VulnerabilityID, Severity: normalizeSeverity(v.Severity),
+			})
+		}
+	}
+	return out, nil
 }
 
 // run invokes the trivy client against a target (a rootfs dir or an sbom file) and parses findings.

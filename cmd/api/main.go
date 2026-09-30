@@ -337,6 +337,9 @@ func main() {
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
+		// Software Composition Analysis (Agent Health): per-agent language-dependency vulns from Trivy.
+		mux.Handle("GET /api/sca", protect(auth.PermViewDashboard, scaSummaryHandler(st)))
+		mux.Handle("GET /api/sca/agent", protect(auth.PermViewDashboard, scaAgentHandler(st)))
 
 		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
 		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))
@@ -2079,6 +2082,35 @@ func vulnAgentHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"vulnerabilities": vulns})
+	}
+}
+
+// scaSummaryHandler (GET /api/sca) returns per-agent SCA severity counts (language-dependency vulns).
+func scaSummaryHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sums, err := st.ListSCASummaries(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"agents": sums})
+	}
+}
+
+// scaAgentHandler (GET /api/sca/agent?agent=) returns one agent's SCA findings.
+func scaAgentHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentName := strings.TrimSpace(r.URL.Query().Get("agent"))
+		if agentName == "" {
+			http.Error(w, "agent required", http.StatusBadRequest)
+			return
+		}
+		findings, err := st.AgentSCAFindings(r.Context(), agentName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"findings": findings})
 	}
 }
 

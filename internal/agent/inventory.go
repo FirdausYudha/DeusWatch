@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -30,16 +31,108 @@ type Package struct {
 	Source string `json:"source,omitempty"`
 }
 
+// Manifest is one language-dependency file found on the host (a lockfile / manifest such as
+// package-lock.json or go.sum), shipped so the manager can run Software Composition Analysis (SCA)
+// with Trivy. Path is the absolute path on the host (for display + so Trivy sees the right filename);
+// Content is the raw file text.
+type Manifest struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
 // Inventory is one agent's full software picture at a point in time.
 type Inventory struct {
-	OSID        string    `json:"os_id"`       // os-release ID: ubuntu | debian | rhel | ...
-	OSVersion   string    `json:"os_version"`  // os-release VERSION_ID: 22.04
-	OSCodename  string    `json:"os_codename"` // os-release VERSION_CODENAME: jammy | bookworm
-	Kernel      string    `json:"kernel"`      // uname -r
-	Arch        string    `json:"arch"`        // GOARCH of the agent
-	PkgManager  string    `json:"pkg_manager"` // dpkg | rpm | (empty)
-	Packages    []Package `json:"packages"`
-	CollectedAt time.Time `json:"collected_at"`
+	OSID        string     `json:"os_id"`       // os-release ID: ubuntu | debian | rhel | ...
+	OSVersion   string     `json:"os_version"`  // os-release VERSION_ID: 22.04
+	OSCodename  string     `json:"os_codename"` // os-release VERSION_CODENAME: jammy | bookworm
+	Kernel      string     `json:"kernel"`      // uname -r
+	Arch        string     `json:"arch"`        // GOARCH of the agent
+	PkgManager  string     `json:"pkg_manager"` // dpkg | rpm | (empty)
+	Packages    []Package  `json:"packages"`
+	Manifests   []Manifest `json:"manifests,omitempty"` // language dependency files for SCA
+	CollectedAt time.Time  `json:"collected_at"`
+}
+
+// scaManifestNames are the dependency-lock / manifest filenames Trivy can scan for language-package
+// vulnerabilities (SCA). Matched by exact base name across the common ecosystems.
+var scaManifestNames = map[string]bool{
+	"package-lock.json": true, "yarn.lock": true, "pnpm-lock.yaml": true,
+	"go.mod": true, "go.sum": true,
+	"requirements.txt": true, "Pipfile.lock": true, "poetry.lock": true,
+	"Gemfile.lock": true, "composer.lock": true, "Cargo.lock": true,
+	"pom.xml": true, "gradle.lockfile": true,
+}
+
+// scaSkipDirs are directories we never descend into: dependency stores (the vulnerable versions are
+// pinned in the top-level lockfile, not the nested copies), VCS metadata, and pseudo-filesystems.
+var scaSkipDirs = map[string]bool{
+	"node_modules": true, "vendor": true, ".git": true, ".svn": true, ".hg": true,
+	".cache": true, "proc": true, "sys": true, "dev": true, "run": true,
+	"__pycache__": true, ".venv": true, "venv": true, "site-packages": true,
+}
+
+const (
+	scaMaxFileSize = 2 << 20  // skip a manifest larger than 2 MiB (a real lockfile is far smaller)
+	scaMaxFiles    = 300      // cap total manifests shipped, so a huge dev box can't flood a report
+	scaMaxDepth    = 8        // how deep below a root to descend
+)
+
+// collectManifests walks a bounded set of roots for language dependency files and returns their
+// contents for server-side SCA. It is best-effort and defensive: it skips dependency stores and
+// pseudo-filesystems, caps file size / count / depth, and ignores unreadable paths, so it never
+// stalls the agent or ships gigabytes. Roots default to the common app locations and can be
+// overridden with DEUSWATCH_SCA_ROOTS (colon/comma-separated). Empty roots list disables SCA.
+func collectManifests(roots []string) []Manifest {
+	var out []Manifest
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		base := strings.Count(filepath.Clean(root), string(os.PathSeparator))
+		_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil // unreadable dir/file: skip, don't abort the walk
+			}
+			if len(out) >= scaMaxFiles {
+				return filepath.SkipAll
+			}
+			if d.IsDir() {
+				if scaSkipDirs[d.Name()] {
+					return filepath.SkipDir
+				}
+				if strings.Count(filepath.Clean(path), string(os.PathSeparator))-base > scaMaxDepth {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !scaManifestNames[d.Name()] {
+				return nil
+			}
+			info, ierr := d.Info()
+			if ierr != nil || info.Size() == 0 || info.Size() > scaMaxFileSize {
+				return nil
+			}
+			b, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return nil
+			}
+			out = append(out, Manifest{Path: path, Content: string(b)})
+			return nil
+		})
+	}
+	return out
+}
+
+// scaRoots returns the directories to scan for dependency manifests: DEUSWATCH_SCA_ROOTS if set
+// (colon- or comma-separated), else a sensible default of common application locations.
+func scaRoots() []string {
+	if v := os.Getenv("DEUSWATCH_SCA_ROOTS"); v != "" {
+		return strings.FieldsFunc(v, func(r rune) bool { return r == ':' || r == ',' })
+	}
+	if runtime.GOOS == "windows" {
+		return []string{`C:\inetpub`, `C:\apps`, `C:\Users`}
+	}
+	return []string{"/home", "/opt", "/srv", "/var/www", "/app", "/usr/local/src"}
 }
 
 // CollectInventory gathers the OS release and installed-package list for the host. It is
@@ -68,6 +161,9 @@ func CollectInventory(ctx context.Context) Inventory {
 	} else {
 		inv.OSID = runtime.GOOS // windows/darwin: OS is known; package collection is a later phase
 	}
+	// Software Composition Analysis: gather language dependency manifests for the manager to scan
+	// with Trivy. Best-effort and bounded; empty roots (DEUSWATCH_SCA_ROOTS="") disables it.
+	inv.Manifests = collectManifests(scaRoots())
 	return inv
 }
 

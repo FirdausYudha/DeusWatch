@@ -4,6 +4,7 @@ import Topbar from './components/Topbar'
 import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
 import Inventory from './inventory/Inventory'
+import AgentHealth from './health/AgentHealth'
 import Snapshots from './snapshots/Snapshots'
 import FileIntegrity from './fim/FileIntegrity'
 import Response from './response/Response'
@@ -84,6 +85,8 @@ export default function App() {
         <ServiceHealthBanner />
         {view === 'agents' ? (
           <Agents me={me} />
+        ) : view === 'agenthealth' ? (
+          <AgentHealth me={me} />
         ) : view === 'inventory' ? (
           <Inventory me={me} />
         ) : view === 'fim' ? (

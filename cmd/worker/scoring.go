@@ -290,42 +290,21 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 			log.Printf("worker: trivy: list targets: %v", err)
 			return
 		}
-		scanned := 0
+		os, sca := 0, 0
 		for _, t := range targets {
-			if t.PkgManager == "" {
-				continue // nothing Trivy can scan (e.g. Windows, later phase)
+			// OS-package vulnerabilities (needs a package manager Trivy understands).
+			if t.PkgManager != "" {
+				if scanOSPackages(lc, st, cfg, t) {
+					os++
+				}
 			}
-			pkgs, err := st.AgentScanPackages(lc, t.Name)
-			if err != nil {
-				log.Printf("worker: trivy: packages for %s: %v", t.Name, err)
-				continue
+			// Software Composition Analysis: language dependency manifests the agent shipped.
+			if scanManifests(lc, st, cfg, t.Name) {
+				sca++
 			}
-			tpkgs := make([]trivy.Package, 0, len(pkgs))
-			for _, p := range pkgs {
-				tpkgs = append(tpkgs, trivy.Package{Name: p.Name, Version: p.Version, Arch: p.Arch, Source: p.Source})
-			}
-			findings, err := cfg.ScanOS(lc, trivy.OS{
-				ID: t.OSID, Version: t.OSVersion, Codename: t.OSCodename, PkgManager: t.PkgManager,
-			}, tpkgs)
-			if err != nil {
-				log.Printf("worker: trivy: scan %s failed (keeping last findings): %v", t.Name, err)
-				continue
-			}
-			vf := make([]vuln.Finding, 0, len(findings))
-			for _, f := range findings {
-				vf = append(vf, vuln.Finding{
-					Package: f.Package, InstalledVersion: f.InstalledVersion, FixedVersion: f.FixedVersion,
-					CVE: f.CVE, Severity: f.Severity, Source: f.Source,
-				})
-			}
-			if err := st.ReplaceAgentFindings(lc, t.Name, vf); err != nil {
-				log.Printf("worker: trivy: store findings for %s: %v", t.Name, err)
-				continue
-			}
-			scanned++
 		}
-		if scanned > 0 {
-			log.Printf("worker: trivy: scanned %d agent(s)", scanned)
+		if os > 0 || sca > 0 {
+			log.Printf("worker: trivy: scanned %d agent(s) for OS vulns, %d for SCA", os, sca)
 		}
 	}
 
@@ -343,6 +322,74 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 			scanAll()
 		}
 	}
+}
+
+// scanOSPackages runs Trivy over one agent's OS packages and stores the findings (with severity).
+// Returns true on a successful scan+store. Failures are logged and keep the agent's last findings.
+func scanOSPackages(ctx context.Context, st *store.Store, cfg trivy.Config, t store.ScanTarget) bool {
+	pkgs, err := st.AgentScanPackages(ctx, t.Name)
+	if err != nil {
+		log.Printf("worker: trivy: packages for %s: %v", t.Name, err)
+		return false
+	}
+	tpkgs := make([]trivy.Package, 0, len(pkgs))
+	for _, p := range pkgs {
+		tpkgs = append(tpkgs, trivy.Package{Name: p.Name, Version: p.Version, Arch: p.Arch, Source: p.Source})
+	}
+	findings, err := cfg.ScanOS(ctx, trivy.OS{
+		ID: t.OSID, Version: t.OSVersion, Codename: t.OSCodename, PkgManager: t.PkgManager,
+	}, tpkgs)
+	if err != nil {
+		log.Printf("worker: trivy: OS scan %s failed (keeping last findings): %v", t.Name, err)
+		return false
+	}
+	vf := make([]vuln.Finding, 0, len(findings))
+	for _, f := range findings {
+		vf = append(vf, vuln.Finding{
+			Package: f.Package, InstalledVersion: f.InstalledVersion, FixedVersion: f.FixedVersion,
+			CVE: f.CVE, Severity: f.Severity, Source: f.Source,
+		})
+	}
+	if err := st.ReplaceAgentFindings(ctx, t.Name, vf); err != nil {
+		log.Printf("worker: trivy: store OS findings for %s: %v", t.Name, err)
+		return false
+	}
+	return true
+}
+
+// scanManifests runs Trivy SCA over one agent's dependency manifests and stores the findings.
+// Returns true when the agent had manifests and the scan+store succeeded.
+func scanManifests(ctx context.Context, st *store.Store, cfg trivy.Config, name string) bool {
+	manifests, err := st.AgentManifests(ctx, name)
+	if err != nil {
+		log.Printf("worker: trivy: manifests for %s: %v", name, err)
+		return false
+	}
+	if len(manifests) == 0 {
+		return false
+	}
+	tm := make([]trivy.Manifest, 0, len(manifests))
+	for _, m := range manifests {
+		tm = append(tm, trivy.Manifest{Path: m.Path, Content: m.Content})
+	}
+	findings, err := cfg.ScanManifests(ctx, tm)
+	if err != nil {
+		log.Printf("worker: trivy: SCA scan %s failed (keeping last findings): %v", name, err)
+		return false
+	}
+	sf := make([]store.SCAFinding, 0, len(findings))
+	for _, f := range findings {
+		sf = append(sf, store.SCAFinding{
+			Target: f.Target, PkgType: f.PkgType, Package: f.Package,
+			InstalledVersion: f.InstalledVersion, FixedVersion: f.FixedVersion,
+			VulnID: f.VulnID, Severity: f.Severity,
+		})
+	}
+	if err := st.ReplaceSCAFindings(ctx, name, sf); err != nil {
+		log.Printf("worker: trivy: store SCA findings for %s: %v", name, err)
+		return false
+	}
+	return true
 }
 
 // fleetNeedsFeed reports whether the fleet runs a distro release for which no advisories are cached

@@ -311,6 +311,8 @@ func (s *Store) DeleteAgent(ctx context.Context, id string) (DeleteResult, error
 func purgeAgentTelemetry(ctx context.Context, tx pgx.Tx, name string) error {
 	for _, q := range []string{
 		`DELETE FROM agent_vulnerabilities WHERE agent_name=$1`,
+		`DELETE FROM agent_sca_findings WHERE agent_name=$1`,
+		`DELETE FROM agent_manifests WHERE agent_name=$1`,
 		`DELETE FROM agent_packages WHERE agent_name=$1`,
 		`DELETE FROM agent_os_inventory WHERE agent_name=$1`,
 		`DELETE FROM fim_snapshots WHERE agent_name=$1`,
