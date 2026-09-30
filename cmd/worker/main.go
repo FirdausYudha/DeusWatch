@@ -488,12 +488,15 @@ func safeGo(ctx context.Context, name string, fn func()) {
 // hosts. A failed write is logged and retried on the next tick, the api's staleness threshold
 // tolerates three misses, so a transient DB blip must not be allowed to look like a crash.
 func runServiceHeartbeat(ctx context.Context, st *store.Store) {
+	lastOK := time.Now()
 	beat := func() {
 		wc, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		if err := st.UpsertServiceHeartbeat(wc, store.ServiceWorker, buildVersion, ""); err != nil {
 			log.Printf("worker: heartbeat write failed: %v", err)
+			return
 		}
+		lastOK = time.Now()
 	}
 	beat() // immediately, so a restart clears the banner in seconds rather than after a full tick
 	t := time.NewTicker(30 * time.Second)
@@ -504,9 +507,22 @@ func runServiceHeartbeat(ctx context.Context, st *store.Store) {
 			return
 		case <-t.C:
 			beat()
+			// Self-heal watchdog: if we have not written a heartbeat for stallLimit, the DB path
+			// that ALL detection/storage also uses is wedged (pool exhausted, hung query,
+			// deadlock, or a dead-but-cached conn). Exit so docker's restart:unless-stopped brings
+			// the worker back with a fresh pool, instead of sitting silently dead until someone
+			// runs `docker compose up -d worker` by hand. This is exactly the symptom operators hit.
+			if since := time.Since(lastOK); since > heartbeatStallLimit {
+				log.Printf("worker: FATAL detection wedged, no heartbeat for %s, exiting for a clean auto-restart", since.Round(time.Second))
+				os.Exit(1)
+			}
 		}
 	}
 }
+
+// heartbeatStallLimit tolerates ~6 missed 30s beats (transient DB blips) before the watchdog
+// force-restarts the worker. Override with WORKER_STALL_LIMIT (Go duration) if needed.
+var heartbeatStallLimit = durEnv("WORKER_STALL_LIMIT", 3*time.Minute)
 
 // runContainmentSweep auto-releases contained hosts whose timeout has elapsed.
 func runContainmentSweep(ctx context.Context, engine *respond.ContainmentEngine) {
