@@ -262,7 +262,10 @@ func main() {
 			mux.Handle("/api/agents/tokens", protect(auth.PermManageAgents, enrollStore.TokenHandler()))
 			mux.Handle("/api/agents", protect(auth.PermViewDashboard, enrollStore.AgentsHandler()))
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
-			mux.Handle("DELETE /api/agents/{id}", protect(auth.PermManageAgents, enrollStore.DeleteHandler()))
+			// Action subpath (not `DELETE /api/agents/{id}`): a bare {id} at that position collides
+			// with the literal `/api/agents/tokens` under Go's ServeMux conflict rules. Matches the
+			// existing revoke/config/update convention.
+			mux.Handle("POST /api/agents/{id}/delete", protect(auth.PermManageAgents, enrollStore.DeleteHandler()))
 			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
 			// v2.12.0: queue an in-place self-update for the named agent; picked up on next
 			// heartbeat, agent atomically replaces its own binary + exits, systemd restarts it.
