@@ -184,6 +184,9 @@ services:
       CERT_DIR: "/certs"
       NATS_URL: "nats://nats:4222"
       STORE_DSN: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
+      # Max DB connections for this service pool. Raise if the worker wedges under heavy load
+      # (pool starvation stops the heartbeat). Default 30.
+      DB_MAX_CONNS: "${DB_MAX_CONNS:-30}"
       # YARA content scanning on FIM snapshot uploads. Drop *.yar files into ./yara-rules on the
       # host and restart the gateway to pick them up. Empty dir → scanner silently disabled. See
       # docs/yara.md.
@@ -227,6 +230,9 @@ services:
     environment:
       NATS_URL: "nats://nats:4222"
       STORE_DSN: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
+      # Max DB connections for this service pool. Raise if the worker wedges under heavy load
+      # (pool starvation stops the heartbeat). Default 30.
+      DB_MAX_CONNS: "${DB_MAX_CONNS:-30}"
       RULES_DIR: "/rules/sigma"
       # Decrypts integration secrets (CTI keys, MikroTik creds) from the registry.
       SECRETS_KEY: "${SECRETS_KEY:-}"
