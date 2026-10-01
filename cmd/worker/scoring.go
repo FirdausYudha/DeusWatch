@@ -305,6 +305,24 @@ func runOSVScanner(ctx context.Context, st *store.Store) {
 		}
 		log.Printf("worker: osv: scanned %d agent(s)", scanned)
 		recordScanStatus(lc, st, "trivy-os", scanned, lastErr) // same status row the UI reads
+
+		// Software Composition Analysis over the same API. OSV is the primary source for language
+		// ecosystems (npm, PyPI, Go, RubyGems, crates.io, Packagist), so SCA is a natural fit here.
+		scaN := 0
+		var scaErr error
+		for _, t := range targets {
+			had, err := scanAgentSCAOSV(lc, st, client, t.Name)
+			if err != nil {
+				log.Printf("worker: osv: SCA scan %s failed: %v", t.Name, err)
+				scaErr = err
+				continue
+			}
+			if had {
+				scaN++
+			}
+		}
+		log.Printf("worker: osv: scanned %d agent(s) for SCA", scaN)
+		recordScanStatus(lc, st, "trivy-sca", scaN, scaErr)
 	}
 
 	t := time.NewTicker(interval)
@@ -429,6 +447,116 @@ func scanAgentOSV(ctx context.Context, st *store.Store, client *osv.Client, t st
 		}
 	}
 	return st.ReplaceAgentFindings(ctx, t.Name, findings)
+}
+
+// scanAgentSCAOSV runs Software Composition Analysis for one agent through OSV: it parses the
+// dependency lockfiles the agent shipped into package URLs, asks OSV which vulnerabilities affect
+// them, and stores the findings. Returns had=true when the agent had any parseable dependency.
+func scanAgentSCAOSV(ctx context.Context, st *store.Store, client *osv.Client, agentName string) (bool, error) {
+	manifests, err := st.AgentManifests(ctx, agentName)
+	if err != nil {
+		return false, err
+	}
+	if len(manifests) == 0 {
+		return false, nil
+	}
+	// Flatten every manifest into dependencies, remembering which file each came from so the UI can
+	// point the operator at the lockfile to fix.
+	type owned struct {
+		dep    osv.Dep
+		target string
+	}
+	var deps []owned
+	for _, m := range manifests {
+		base := m.Path
+		if i := strings.LastIndexAny(base, "/\\"); i >= 0 {
+			base = base[i+1:]
+		}
+		for _, d := range osv.ParseManifest(base, m.Content) {
+			deps = append(deps, owned{dep: d, target: m.Path})
+		}
+	}
+	if len(deps) == 0 {
+		return false, nil
+	}
+	purls := make([]string, len(deps))
+	for i, d := range deps {
+		purls[i] = d.dep.PURL()
+	}
+	idsPerDep, err := client.QueryPackages(ctx, purls)
+	if err != nil {
+		return true, err
+	}
+
+	unique := map[string]bool{}
+	for _, ids := range idsPerDep {
+		for _, id := range ids {
+			unique[id] = true
+		}
+	}
+	allIDs := make([]string, 0, len(unique))
+	for id := range unique {
+		allIDs = append(allIDs, id)
+	}
+	cached, err := st.GetOSVVulns(ctx, allIDs)
+	if err != nil {
+		return true, err
+	}
+	var fetched []store.CachedVuln
+	for _, id := range allIDs {
+		if _, ok := cached[id]; ok {
+			continue
+		}
+		v, ferr := client.FetchVuln(ctx, id)
+		if ferr != nil {
+			log.Printf("worker: osv: fetch %s: %v", id, ferr)
+			continue
+		}
+		cv := store.CachedVuln{ID: v.ID, CVE: v.CVE, Severity: v.Severity, CVSS: v.CVSS, Fixed: v.Fixed}
+		cached[id] = cv
+		fetched = append(fetched, cv)
+		if len(fetched) >= 200 {
+			if err := st.PutOSVVulns(ctx, fetched); err != nil {
+				log.Printf("worker: osv: cache write: %v", err)
+			}
+			fetched = fetched[:0]
+		}
+	}
+	if err := st.PutOSVVulns(ctx, fetched); err != nil {
+		log.Printf("worker: osv: cache write: %v", err)
+	}
+
+	findings := make([]store.SCAFinding, 0, 64)
+	seen := map[string]bool{}
+	for i, ids := range idsPerDep {
+		d := deps[i]
+		for _, id := range ids {
+			cv, ok := cached[id]
+			if !ok {
+				continue
+			}
+			vulnID := cv.CVE
+			if vulnID == "" {
+				vulnID = id
+			}
+			key := vulnID + "\x00" + d.dep.Name + "\x00" + d.dep.Version
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			findings = append(findings, store.SCAFinding{
+				Target:           d.target,
+				PkgType:          d.dep.PURLType,
+				Package:          d.dep.Name,
+				InstalledVersion: d.dep.Version,
+				FixedVersion:     osv.Vuln{Fixed: cv.Fixed}.FixedForPackage(d.dep.Name),
+				VulnID:           vulnID,
+				Severity:         cv.Severity,
+				CVSS:             cv.CVSS,
+			})
+		}
+	}
+	return true, st.ReplaceSCAFindings(ctx, agentName, findings)
 }
 
 // trivyEnabled reports whether the server-side Trivy scanner should run instead of the built-in
