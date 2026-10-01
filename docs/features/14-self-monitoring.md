@@ -67,6 +67,65 @@ crashed". If the API cannot answer at all, **no banner is shown**, the honest co
 don't know", and telling an operator to restart a healthy worker because Postgres hiccupped sends
 them to the wrong component.
 
+### Worker recovery: never "restart it by hand"
+
+Detecting that the worker died is only half the job. An operator should never have to run
+`docker compose up -d worker` themselves, so each way it can stop has something that brings it back.
+
+These are not hypothetical either. All three were hit on a live deployment, and they all *looked*
+identical from the UI ("worker stopped reporting, restart it"), which is exactly why they are listed
+separately: the same symptom had three different causes and three different fixes.
+
+| How it stops | What brings it back | Automatic? |
+|---|---|---|
+| A background job panics | `safeGo` recovers the panic, logs the stack, restarts that loop after 3s | Yes |
+| The process exits (crash, fatal error) | `restart: unless-stopped` | Yes |
+| The kernel OOM-kills it | `restart: unless-stopped` | Yes |
+| The DB path wedges, heartbeats stop | The watchdog calls `os.Exit(1)`, docker restarts it | Yes |
+| The process is alive but wedged solid | Container healthcheck marks it unhealthy, optional `autoheal` restarts it | Yes, if enabled |
+| The container was never created | Nothing can. A container that does not exist has no restart policy | No, redeploy |
+
+Two details in that table are worth the words, because both were real bugs:
+
+**The watchdog must not share a goroutine with the thing it watches.** It originally checked
+staleness immediately after writing the heartbeat, in the same loop. When the write itself hung on a
+wedged connection, the check below it never ran and the process sat alive-but-dead forever. The
+watchdog is now a dedicated goroutine that does nothing but read a clock, and the clock is a
+package-level atomic rather than a local variable, so a supervised restart of the heartbeat loop
+cannot silently reset the staleness window.
+
+**`restart: unless-stopped` only applies to a container that exists.** If a deploy fails after the
+old container is removed but before the new one starts, there is nothing to restart and no amount of
+in-process cleverness helps. The practical defence is to keep the worker image build from depending
+on anything that can fail, which is why it builds from the plain static target with no external
+image pull.
+
+#### The healthcheck
+
+`/healthz` on the worker fails once no heartbeat has been written for `WORKER_STALL_LIMIT`, the same
+condition that means detection has stopped. It used to return `200` unconditionally, which made it
+useless as a healthcheck: a wedged worker reported itself healthy.
+
+The worker image is distroless, so there is no shell, `curl` or `wget` inside it to probe with. The
+binary therefore probes itself: `/app -healthcheck` requests its own `/healthz` and exits `0` or `1`,
+handled before any database or NATS setup so the probe stays cheap and side-effect free. That is what
+`docker compose ps` reads when it shows `Up (healthy)`.
+
+#### Optional: autoheal
+
+The healthcheck marks a container unhealthy but does not restart it. The last row of the table needs
+something outside the process:
+
+```bash
+docker compose --profile autoheal up -d
+```
+
+**It is off by default on purpose.** Autoheal needs the Docker socket, and a container holding the
+Docker socket is effectively root on the host. On a security product that is a real decision to make
+deliberately, not something to switch on quietly. It is also rarely the thing that saves you: every
+worker outage observed so far was a process exit or a failed deploy, both already covered above.
+Enable it if you actually observe a worker sitting `unhealthy` without ever exiting.
+
 ### Disk watermark
 
 When `STORAGE_BUDGET_GB` is set, the worker watches the log database against it:
@@ -97,7 +156,17 @@ docker compose -f deploy/docker-compose.yml stop worker
 ```
 
 The banner should appear within about two minutes. Start it again and it clears within 30
-seconds.
+seconds. (`stop` is deliberate: it is the one case that must NOT self-restart, since an operator
+stopping a component on purpose should stay stopped. To watch the recovery path instead, use
+`docker compose kill worker`, which exits the process and should come back on its own.)
+
+Checking the healthcheck itself:
+
+```bash
+docker compose -f deploy/docker-compose.yml ps worker
+```
+
+It should read `Up (healthy)`. `Up` on its own means the image predates the healthcheck.
 
 ## Endpoints & storage
 
@@ -118,6 +187,7 @@ seconds.
 | `STORAGE_BUDGET_GB` | `0` (off) | Size budget for the log database |
 | `STORAGE_ALERT_PERCENT` | `85` | Percent of budget that triggers a notification |
 | `STORAGE_JANITOR_PERCENT` | `90` | Percent of budget at which the oldest chunks are dropped |
+| `WORKER_STALL_LIMIT` | `3m` | Silence before the worker's watchdog exits the process for a clean auto-restart, and the point at which `/healthz` starts failing |
 
 The worker's own heartbeat interval (30s) and the API's staleness threshold (100s) are constants,
 not environment variables. They are a matched pair, and letting them drift apart in configuration

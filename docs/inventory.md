@@ -1,9 +1,9 @@
 # Software inventory
 
 Each agent reports the host's **installed packages** and **OS/kernel release** to the manager,
-viewable on the **Inventory** page. This is the foundation for Vulnerability Assessment: phase 1
-(this) collects the inventory; phase 2 will match it against vendor security advisories
-(Ubuntu USN / Debian) to produce CVE findings.
+viewable on the **[Agent Health](features/15-agent-health.md)** page. This is the foundation for
+[Vulnerability Assessment](vulnerability-assessment.md): the agent collects the inventory, the
+manager matches it against vulnerability data to produce CVE findings.
 
 ## What is collected
 
@@ -12,6 +12,10 @@ viewable on the **Inventory** page. This is the foundation for Vulnerability Ass
 - **Installed packages**: name, version, architecture, and **source package**. Debian/Ubuntu via
   `dpkg-query`, RHEL-family via `rpm`. The source package matters because vendor advisories are
   keyed by source, not the binary package.
+- **Dependency manifests** (agent v2.15.0+): language lockfiles such as `package-lock.json`,
+  `go.sum` or `requirements.txt`, which feed
+  [SCA](features/15-agent-health.md#sca-software-composition-analysis). Collection is bounded by
+  size, count and depth, and the roots are configurable with `DEUSWATCH_SCA_ROOTS`.
 
 Windows and macOS agents report OS/kernel/arch; package collection there is a later phase.
 
