@@ -111,20 +111,45 @@ binary therefore probes itself: `/app -healthcheck` requests its own `/healthz` 
 handled before any database or NATS setup so the probe stays cheap and side-effect free. That is what
 `docker compose ps` reads when it shows `Up (healthy)`.
 
-#### Optional: autoheal
+#### Auto-restarting an unhealthy container (not shipped, on purpose)
 
-The healthcheck marks a container unhealthy but does not restart it. The last row of the table needs
-something outside the process:
+The healthcheck marks a container unhealthy but does not restart it, and Docker Compose has no
+native "restart when unhealthy". Closing that last row of the table needs a helper container that
+watches for unhealthy containers and restarts them, which means **giving that container the Docker
+socket**.
 
-```bash
-docker compose --profile autoheal up -d
+A container holding the Docker socket is effectively **root on the host**: it can start containers,
+mount host paths, and read anything. On a security platform that is not a reasonable default, so
+nothing like it ships in `docker-compose.yml`. The worker's healthcheck still surfaces the condition
+(`docker compose ps` shows `unhealthy`) without handing anything that access.
+
+It is also rarely the thing that saves you. Every worker outage observed on a live deployment so far
+was either a process exit (already covered by `restart: unless-stopped`) or a failed deploy that left
+no container at all (which an auto-restarter cannot help with either). Add one only if you actually
+observe a worker sitting `unhealthy` without ever exiting.
+
+If you decide you need it, the common choice is `willfarrell/autoheal` (MIT, widely used). The worker
+already carries the `autoheal: "true"` label it looks for, so it is one service away:
+
+```yaml
+  autoheal:
+    image: willfarrell/autoheal@sha256:<pin-a-digest-here>
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
 ```
 
-**It is off by default on purpose.** Autoheal needs the Docker socket, and a container holding the
-Docker socket is effectively root on the host. On a security product that is a real decision to make
-deliberately, not something to switch on quietly. It is also rarely the thing that saves you: every
-worker outage observed so far was a process exit or a failed deploy, both already covered above.
-Enable it if you actually observe a worker sitting `unhealthy` without ever exiting.
+**Pin it by digest, not by tag.** A tag can be re-pushed by its owner; for something with
+host-root-equivalent access that difference matters. Get the digest with:
+
+```bash
+docker inspect --format '{{index .RepoDigests 0}}' willfarrell/autoheal:1.2.0
+```
+
+Mounting the socket read-only does not help, by the way: the Docker API is a write API over that
+socket either way.
 
 ### Disk watermark
 

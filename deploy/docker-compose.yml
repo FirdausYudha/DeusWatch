@@ -325,7 +325,8 @@ services:
       retries: 3
       start_period: 60s
     labels:
-      # Picked up by the optional autoheal service (see the bottom of this file).
+      # Only meaningful if you opt into an autoheal-style restarter (see the note at the bottom of
+      # this file). Harmless otherwise, and it means adding one is a single step.
       autoheal: "true"
     # No volumes: the OSV source keeps no local vulnerability database. (The local-Trivy source needs
     # `- trivy_cache:/trivy-cache` plus the runtime-worker target and user "0:0" to write it.)
@@ -359,25 +360,14 @@ services:
           memory: 128m
     restart: unless-stopped
 
-  # OPT-IN last-resort restarter. `restart: unless-stopped` already covers a worker that EXITS
-  # (crash, OOM, or the watchdog deliberately exiting), which is the overwhelming majority of cases.
-  # This covers only the rare remainder: a process still "running" but wedged so badly that even the
-  # in-process watchdog cannot fire. It restarts any container marked unhealthy.
-  #
-  # Enable with:  docker compose --profile autoheal up -d
-  # TRADE-OFF, read before enabling: it needs the Docker socket, and a container with the Docker
-  # socket is effectively root on the host. On a security product that is a real decision, so it is
-  # off by default rather than silently added.
-  autoheal:
-    image: willfarrell/autoheal:1.2.0
-    profiles: ["autoheal"]
-    environment:
-      AUTOHEAL_CONTAINER_LABEL: autoheal
-      AUTOHEAL_INTERVAL: "30"
-      AUTOHEAL_START_PERIOD: "60"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
+  # NOTE: there is deliberately no auto-restarter service here. `restart: unless-stopped` already
+  # covers every way the worker has actually been observed to stop (crash, OOM, or the watchdog
+  # exiting on purpose). The only case it misses is a process still "running" but wedged so badly
+  # the in-process watchdog cannot fire, and closing that gap costs a third-party container with
+  # access to the Docker socket, which is effectively root on the host. That is not a reasonable
+  # default for a security product. The worker's healthcheck below still reports the condition, so
+  # `docker compose ps` shows it without handing anything the socket. If you decide you need the
+  # auto-restart, docs/features/14-self-monitoring.md shows how to add it.
 
 volumes:
   db_data:
