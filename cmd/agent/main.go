@@ -322,7 +322,13 @@ func runInventory(ctx context.Context, shipper *agent.Shipper) {
 			log.Printf("agent: inventory report failed: %v", err)
 			return
 		}
-		log.Printf("agent: inventory reported (%s %s, %d packages)", inv.OSID, inv.OSVersion, len(inv.Packages))
+		log.Printf("agent: inventory reported (%s %s, %d packages, %d dependency manifests)",
+			inv.OSID, inv.OSVersion, len(inv.Packages), len(inv.Manifests))
+		if len(inv.Manifests) == 0 {
+			// Say so explicitly: an empty SCA page otherwise looks like a server bug when really
+			// nothing was found to collect.
+			log.Printf("agent: no dependency lockfiles found under %v (set DEUSWATCH_SCA_ROOTS to change)", agent.SCARoots())
+		}
 	}
 	// A short delay so it doesn't contend with the rest of startup, then the first report.
 	select {

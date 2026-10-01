@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -112,6 +114,17 @@ func (s *Store) ReplaceInventory(ctx context.Context, agentName string, inv agen
 	return nil
 }
 
+// sanitizeText makes file contents safe for a Postgres text column. A NUL byte is rejected outright
+// ("invalid byte sequence for encoding UTF8", SQLSTATE 22021) and invalid UTF-8 would be too. Since
+// manifests are written as ONE batch, a single binary-ish file that happens to share a lockfile name
+// would otherwise fail every manifest for that agent, which is exactly how SCA silently stayed empty.
+func sanitizeText(s string) string {
+	if !strings.ContainsRune(s, 0) && utf8.ValidString(s) {
+		return s
+	}
+	return strings.ToValidUTF8(strings.ReplaceAll(s, "\x00", ""), "")
+}
+
 // replaceManifests swaps an agent's SCA manifests wholesale in its own transaction.
 func (s *Store) replaceManifests(ctx context.Context, agentName string, manifests []agent.Manifest) error {
 	tx, err := s.q(ctx).Begin(ctx)
@@ -129,7 +142,7 @@ func (s *Store) replaceManifests(ctx context.Context, agentName string, manifest
 			if m.Path == "" || m.Content == "" {
 				continue
 			}
-			row := []any{agentName, m.Path, m.Content}
+			row := []any{agentName, m.Path, sanitizeText(m.Content)}
 			if i, ok := seen[m.Path]; ok {
 				rows[i] = row
 				continue

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -116,6 +117,13 @@ func collectManifests(roots []string) []Manifest {
 			if rerr != nil {
 				return nil
 			}
+			// A lockfile is text. If it contains a NUL byte it is really a binary file that happens
+			// to share the name, and shipping it would be useless (unparseable) AND harmful: the
+			// manager stores manifests in one batch, and Postgres rejects NUL in a text column, so a
+			// single such file fails the whole agent's manifest set.
+			if bytes.IndexByte(b, 0) >= 0 {
+				return nil
+			}
 			out = append(out, Manifest{Path: path, Content: string(b)})
 			return nil
 		})
@@ -123,9 +131,10 @@ func collectManifests(roots []string) []Manifest {
 	return out
 }
 
-// scaRoots returns the directories to scan for dependency manifests: DEUSWATCH_SCA_ROOTS if set
-// (colon- or comma-separated), else a sensible default of common application locations.
-func scaRoots() []string {
+// SCARoots returns the directories to scan for dependency manifests: DEUSWATCH_SCA_ROOTS if set
+// (colon- or comma-separated), else a sensible default of common application locations. Exported so
+// the agent can name them in its log when a scan finds nothing, which is otherwise invisible.
+func SCARoots() []string {
 	if v := os.Getenv("DEUSWATCH_SCA_ROOTS"); v != "" {
 		return strings.FieldsFunc(v, func(r rune) bool { return r == ':' || r == ',' })
 	}
@@ -163,7 +172,7 @@ func CollectInventory(ctx context.Context) Inventory {
 	}
 	// Software Composition Analysis: gather language dependency manifests for the manager to scan
 	// with Trivy. Best-effort and bounded; empty roots (DEUSWATCH_SCA_ROOTS="") disables it.
-	inv.Manifests = collectManifests(scaRoots())
+	inv.Manifests = collectManifests(SCARoots())
 	return inv
 }
 
