@@ -73,8 +73,8 @@ export default function Tenants() {
 
       {err && <div className="mb-4 rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[13.5px] text-critical">{err}</div>}
 
-      <div className="overflow-hidden rounded-[10px] border border-border">
-        <table className="w-full text-left text-[14px]">
+      <div className="overflow-x-auto rounded-[10px] border border-border">
+        <table className="w-full min-w-[40rem] text-left text-[14px]">
           <thead className="bg-surface-2 text-[12.5px] uppercase tracking-wide text-dim">
             <tr>
               <th className="px-4 py-2.5 font-medium">Name</th>

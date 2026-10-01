@@ -910,8 +910,12 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
         </div>
       )}
 
-      <div className="overflow-hidden rounded-[12px] border border-border">
-        <table className="w-full text-left text-sm">
+      {/* overflow-x-auto, not overflow-hidden: this table has nine columns and at common widths it
+          is wider than the card. Hidden overflow silently CLIPPED the last column, so Severity (the
+          one an operator scans for first) was cut off at the right edge. The min-width keeps the
+          columns from being squeezed into each other instead. */}
+      <div className="overflow-x-auto rounded-[12px] border border-border">
+        <table className="w-full min-w-[70rem] text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Time</th>
@@ -921,7 +925,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
               <th className="px-4 py-2 font-medium">MITRE</th>
               <th className="px-4 py-2 font-medium">Threat Intel</th>
               <th className="px-4 py-2 font-medium">LLM</th>
-              <th className="px-4 py-2 font-medium">Severity</th>
+              <th className="whitespace-nowrap px-4 py-2 font-medium">Severity</th>
               {onCreateTicket && <th className="px-4 py-2 font-medium"></th>}
             </tr>
           </thead>
@@ -964,7 +968,7 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                     <td className="px-4 py-2 text-muted">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
                     <td className="px-4 py-2"><ThreatIntel a={a} /></td>
                     <td className="px-4 py-2"><LLMVerdict a={a} /></td>
-                    <td className="px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
+                    <td className="whitespace-nowrap px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
                     {onCreateTicket && (
                       <td className="px-4 py-2 text-right">
                         <button onClick={(e) => { e.stopPropagation(); onCreateTicket(alertToTicket(a)) }} className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg transition-colors hover:bg-surface-2" title="Raise a Tier-2 ticket from this event">+ Ticket</button>

@@ -200,8 +200,8 @@ export default function Rules() {
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-[12px] border border-border">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-[12px] border border-border">
+        <table className="w-full min-w-[56rem] text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>

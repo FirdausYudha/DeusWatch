@@ -368,8 +368,8 @@ function OffendersTable({
   const paged = usePaged(offenders)
   return (
     <>
-    <div className="overflow-hidden rounded-[12px] border border-border">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-[12px] border border-border">
+      <table className="w-full min-w-[64rem] text-left text-sm">
         <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
           <tr>
             <th className="px-4 py-2 font-medium">Source IP</th>
@@ -492,8 +492,8 @@ function EventsTable({
   const paged = usePaged(actions)
   return (
     <>
-    <div className="overflow-hidden rounded-[12px] border border-border">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-[12px] border border-border">
+      <table className="w-full min-w-[70rem] text-left text-sm">
         <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
           <tr>
             {canApprove && (
@@ -1007,8 +1007,8 @@ function WhitelistEditor({ canManage }: { canManage: boolean }) {
 
           {error && <p className="text-[13.5px] text-rose-400">{error}</p>}
 
-          <div className="overflow-hidden rounded-[8px] border border-border">
-            <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto rounded-[8px] border border-border">
+            <table className="w-full min-w-[40rem] text-left text-sm">
               <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
                 <tr>
                   <th className="px-3 py-2 font-medium">IP / CIDR</th>

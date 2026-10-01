@@ -173,8 +173,8 @@ export default function Decoders() {
             No custom decoders yet.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-[12px] border border-border">
-            <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto rounded-[12px] border border-border">
+            <table className="w-full min-w-[56rem] text-left text-sm">
               <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
                 <tr>
                   <th className="px-4 py-2">Name</th><th className="px-4 py-2">Dataset</th>

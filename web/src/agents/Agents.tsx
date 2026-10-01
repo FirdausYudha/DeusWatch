@@ -248,8 +248,10 @@ export default function Agents({ me }: { me: Me }) {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-[12px] border border-border">
-        <table className="w-full text-left text-sm">
+      {/* overflow-x-auto so the Actions column cannot be clipped off the right edge (hidden
+          overflow silently cuts columns instead of letting them scroll). */}
+      <div className="overflow-x-auto rounded-[12px] border border-border">
+        <table className="w-full min-w-[64rem] text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
               {isAdmin && (

@@ -253,8 +253,8 @@ export default function Users({ me }: { me: Me }) {
         {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
       </section>
 
-      <div className="overflow-hidden rounded-[12px] border border-border">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-[12px] border border-border">
+        <table className="w-full min-w-[56rem] text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
               <th className="px-4 py-2 font-medium">Username</th>

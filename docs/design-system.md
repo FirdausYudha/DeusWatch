@@ -36,6 +36,11 @@ Colors are CSS vars mapped to Tailwind: `bg`, `surface`, `surface-2`, `border`, 
   the dataset is truly unbounded (raw events).
 - Header row: `bg-surface text-[12.5px] uppercase tracking-wider text-dim`. Row hover
   `hover:bg-surface-2`. Empty state via `<EmptyState>` naming the one action that fixes it.
+- **Wrap a table in `overflow-x-auto`, never `overflow-hidden`**, and give the table a `min-w-*`.
+  Hidden overflow does not shrink a wide table, it silently CLIPS the right-hand columns: the
+  Dashboard events table lost its Severity column this way, and Severity is the first thing an
+  operator looks at. The min-width stops columns being squeezed into each other instead. Keep
+  short status cells (`Severity`, badges) `whitespace-nowrap` so they never wrap mid-table.
 
 ## Icons
 
