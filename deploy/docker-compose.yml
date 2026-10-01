@@ -314,6 +314,19 @@ services:
       OSV_SCAN_INTERVAL: "${OSV_SCAN_INTERVAL:-6h}"
       TRIVY_CACHE_DIR: "${TRIVY_CACHE_DIR:-/trivy-cache}"
       TRIVY_SCAN_INTERVAL: "${TRIVY_SCAN_INTERVAL:-6h}"
+    # Liveness, reported by the binary probing its own /healthz (distroless: no shell/curl inside).
+    # /healthz fails once the worker has not written a heartbeat for WORKER_STALL_LIMIT, i.e. exactly
+    # when detection has stopped. This is what marks the container "unhealthy" so the optional
+    # autoheal service below can restart it even in the rare case the in-process watchdog cannot run.
+    healthcheck:
+      test: ["CMD", "/app", "-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      # Picked up by the optional autoheal service (see the bottom of this file).
+      autoheal: "true"
     # No volumes: the OSV source keeps no local vulnerability database. (The local-Trivy source needs
     # `- trivy_cache:/trivy-cache` plus the runtime-worker target and user "0:0" to write it.)
     depends_on:
@@ -344,6 +357,26 @@ services:
       resources:
         limits:
           memory: 128m
+    restart: unless-stopped
+
+  # OPT-IN last-resort restarter. `restart: unless-stopped` already covers a worker that EXITS
+  # (crash, OOM, or the watchdog deliberately exiting), which is the overwhelming majority of cases.
+  # This covers only the rare remainder: a process still "running" but wedged so badly that even the
+  # in-process watchdog cannot fire. It restarts any container marked unhealthy.
+  #
+  # Enable with:  docker compose --profile autoheal up -d
+  # TRADE-OFF, read before enabling: it needs the Docker socket, and a container with the Docker
+  # socket is effectively root on the host. On a security product that is a real decision, so it is
+  # off by default rather than silently added.
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    profiles: ["autoheal"]
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "30"
+      AUTOHEAL_START_PERIOD: "60"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
 volumes:

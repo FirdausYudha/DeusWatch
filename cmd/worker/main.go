@@ -52,6 +52,12 @@ const llmInterval = 20 * time.Second
 var buildVersion = "dev"
 
 func main() {
+	// Container HEALTHCHECK mode: probe our own /healthz and exit 0/1. Handled before anything else
+	// so the probe never touches Postgres or NATS (a probe must be cheap and side-effect free).
+	if len(os.Args) > 1 && (os.Args[1] == "-healthcheck" || os.Args[1] == "--healthcheck") {
+		os.Exit(runHealthProbe())
+	}
+
 	natsURL := getenv("NATS_URL", "nats://localhost:4222")
 	dsn := getenv("STORE_DSN", "postgres://deuswatch:deuswatch_dev@localhost:5432/deuswatch?sslmode=disable")
 

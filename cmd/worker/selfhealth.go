@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"deuswatch/internal/bus"
@@ -151,13 +153,46 @@ func runDiskJanitor(ctx context.Context, st *store.Store, onAlert worker.AlertHo
 	}
 }
 
+// runHealthProbe is the `/app -healthcheck` mode used as the container's HEALTHCHECK. The worker
+// image is distroless: there is no shell, curl or wget inside it, so the binary has to be able to
+// probe itself. Exits 0 when /healthz is OK, 1 otherwise, which is exactly what Docker expects.
+func runHealthProbe() int {
+	addr := getenv("WORKER_HTTP_ADDR", ":8090")
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("http://" + addr + "/healthz")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "healthcheck: %v\n", err)
+		return 1
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+		fmt.Fprintf(os.Stderr, "healthcheck: HTTP %d: %s\n", resp.StatusCode, strings.TrimSpace(string(body)))
+		return 1
+	}
+	return 0
+}
+
 // serveHealth exposes /healthz (liveness) and /readyz (Postgres + NATS reachable) on
 // WORKER_HTTP_ADDR, mirroring the api/gateway endpoints, so the worker is no longer
 // the one component whose death nothing notices.
 func serveHealth(ctx context.Context, st *store.Store, b *bus.Bus) {
 	addr := getenv("WORKER_HTTP_ADDR", ":8090")
 	mux := http.NewServeMux()
+	// /healthz reports real liveness, not just "the HTTP server is up". It fails once the worker has
+	// not managed a heartbeat for the stall window, which is the same condition that means detection
+	// has stopped. An unconditional 200 here would have reported a wedged worker as healthy, making
+	// the endpoint useless for a container healthcheck.
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		if last := lastHeartbeatOK.Load(); last > 0 {
+			if since := time.Since(time.Unix(0, last)); since > heartbeatStallLimit {
+				http.Error(w, fmt.Sprintf("no heartbeat for %s", since.Round(time.Second)), http.StatusServiceUnavailable)
+				return
+			}
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
