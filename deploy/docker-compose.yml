@@ -224,14 +224,15 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-      # runtime-worker = the static worker binary + the Trivy client binary (server-side VA).
-      target: runtime-worker
+      # Plain static image: with VULN_SOURCE=osv the worker needs no Trivy binary, so the build does
+      # not have to pull the aquasec/trivy image. That pull made every worker build depend on a
+      # working internet connection, and a failed pull aborts the build and leaves NO worker
+      # container at all (nothing for restart:unless-stopped to bring back). Switch this to
+      # `runtime-worker` only if you go back to the local-Trivy source.
+      target: runtime-static
       args:
         CMD: worker
         VERSION: "${DEUSWATCH_VERSION:-dev}"
-    # Root so the worker can read/write the shared trivy_cache volume (the trivy service writes the
-    # DB there as root); matches how api/gateway already run. The worker scans trivy standalone.
-    user: "0:0"
     # Reach services on the host (e.g. a local Ollama on :11434) via host.docker.internal,
     # which otherwise does not resolve inside a Linux container.
     extra_hosts:
@@ -313,11 +314,8 @@ services:
       OSV_SCAN_INTERVAL: "${OSV_SCAN_INTERVAL:-6h}"
       TRIVY_CACHE_DIR: "${TRIVY_CACHE_DIR:-/trivy-cache}"
       TRIVY_SCAN_INTERVAL: "${TRIVY_SCAN_INTERVAL:-6h}"
-    volumes:
-      # The worker's OWN trivy cache: it downloads/refreshes the vuln DB here and scans against it
-      # standalone. Sole ownership is required, a second process holding this bbolt DB open deadlocks
-      # the scans. Persistent so the ~hundreds-of-MB DB survives restarts.
-      - trivy_cache:/trivy-cache
+    # No volumes: the OSV source keeps no local vulnerability database. (The local-Trivy source needs
+    # `- trivy_cache:/trivy-cache` plus the runtime-worker target and user "0:0" to write it.)
     depends_on:
       db:
         condition: service_healthy
