@@ -214,27 +214,10 @@ services:
           memory: 512m
     restart: unless-stopped
 
-  # Trivy vulnerability scanner (server mode). Owns the vuln DB (a persistent volume) and refreshes
-  # it from the internet; the worker calls it as a client, so the DB is downloaded once here instead
-  # of in every service. Loopback-only port for local debugging; the worker reaches it over the
-  # internal Docker network. Disable the whole feature by leaving TRIVY_SERVER unset on the worker.
-  trivy:
-    image: aquasec/trivy:0.58.1
-    command: ["server", "--listen", "0.0.0.0:4954", "--cache-dir", "/trivy-cache"]
-    ports:
-      - "127.0.0.1:4954:4954"
-    volumes:
-      - trivy_cache:/trivy-cache
-    healthcheck:
-      test: ["CMD", "trivy", "version"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: ${DEUSWATCH_TRIVY_MEM:-1g}
-    restart: unless-stopped
+  # NOTE: there is deliberately NO `trivy` service. Trivy's vulnerability DB is a bbolt file and a
+  # long-running `trivy server` holds an exclusive lock on it, which made the worker's standalone
+  # scans block on that lock until they were killed ("signal: killed"). The worker now owns the DB
+  # outright in the trivy_cache volume and refreshes it itself (see EnsureDB in internal/trivy).
 
   # Detection worker: enrich + Sigma (single-event & aggregation) + response engine.
   worker:
@@ -326,16 +309,15 @@ services:
       TRIVY_CACHE_DIR: "${TRIVY_CACHE_DIR:-/trivy-cache}"
       TRIVY_SCAN_INTERVAL: "${TRIVY_SCAN_INTERVAL:-6h}"
     volumes:
-      # Shared with the trivy service: it downloads/refreshes the vuln DB here, the worker scans
-      # against it standalone (--skip-db-update), so the worker never pulls the DB itself.
+      # The worker's OWN trivy cache: it downloads/refreshes the vuln DB here and scans against it
+      # standalone. Sole ownership is required, a second process holding this bbolt DB open deadlocks
+      # the scans. Persistent so the ~hundreds-of-MB DB survives restarts.
       - trivy_cache:/trivy-cache
     depends_on:
       db:
         condition: service_healthy
       nats:
         condition: service_healthy
-      trivy:
-        condition: service_started
     # Memory cap so one runaway service cannot OOM the whole host
     # (a limit, not a reservation - normal usage sits far below it).
     deploy:

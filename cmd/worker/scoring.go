@@ -286,6 +286,11 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 	scanAll := func() {
 		lc, cancel := context.WithTimeout(ctx, 30*time.Minute)
 		defer cancel()
+		// Refresh our own DB first. The worker is the sole owner of the trivy cache: nothing else may
+		// hold the bbolt DB open, or scans block on its lock until they are killed.
+		if err := cfg.EnsureDB(lc); err != nil {
+			log.Printf("worker: trivy: DB refresh failed (scanning with the cached DB): %v", err)
+		}
 		targets, err := st.ListScanTargets(lc)
 		if err != nil {
 			log.Printf("worker: trivy: list targets: %v", err)

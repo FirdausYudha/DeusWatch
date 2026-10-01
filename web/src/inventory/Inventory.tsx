@@ -203,8 +203,8 @@ export function ScanStatusBanner({ status, scanner, label }: { status: ScanStatu
   if (!s.ok) {
     return (
       <div className="mb-4 rounded-[12px] border border-rose-700/40 bg-rose-500/10 px-4 py-2.5 text-[13px] text-rose-200">
-        <strong>{label} failed.</strong> Findings below may be stale or empty. The trivy service needs
-        internet access to ghcr.io for its vulnerability DB. Detail:{' '}
+        <strong>{label} failed.</strong> Findings below may be stale or empty. The worker needs
+        outbound internet to ghcr.io for the Trivy vulnerability DB. Detail:{' '}
         <span className="font-mono text-[12px]">{s.detail || 'unknown error'}</span>
       </div>
     )

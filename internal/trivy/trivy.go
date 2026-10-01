@@ -134,6 +134,29 @@ func bestCVSS(m map[string]struct {
 	return best
 }
 
+// EnsureDB makes sure the vulnerability DB in CacheDir exists and is fresh, downloading it if not.
+//
+// The worker OWNS this cache: nothing else may hold the DB open. Trivy's DB is a bbolt file and a
+// long-running `trivy server` keeps an exclusive lock on it, so a concurrent standalone scan of the
+// same file blocks on that lock until our timeout kills it ("signal: killed", empty stderr). That is
+// why there is no trivy server any more and the worker downloads its own DB here.
+//
+// Trivy skips the download when the cached DB is still fresh, so calling this before a scan cycle is
+// cheap. A failure is returned (and logged by the caller) but is not fatal: scans fall back to
+// whatever DB is already cached, so a network blip degrades to "last known" rather than going blank.
+func (c Config) EnsureDB(ctx context.Context) error {
+	cctx, cancel := context.WithTimeout(ctx, 15*time.Minute) // cold start pulls a few hundred MB
+	defer cancel()
+	cmd := exec.CommandContext(cctx, c.bin(),
+		"image", "--download-db-only", "--cache-dir", c.cacheDir())
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("trivy: download db: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
 // ScanOS scans a host's OS packages and returns findings with severity. It feeds Trivy a CycloneDX
 // SBOM (not a synthesized rootfs): in client/server mode Trivy parses the OS straight out of the SBOM
 // and sends it to the server, whereas a scanned fake rootfs left the server seeing family="none" and
