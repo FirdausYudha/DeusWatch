@@ -116,11 +116,13 @@ func bestCVSS(m map[string]struct {
 	return best
 }
 
-// ScanOS scans a host's OS packages and returns findings with severity. It picks the right input for
-// the package manager (dpkg → synthesized rootfs, rpm → CycloneDX SBOM), runs trivy, and parses the
-// result. A host with no packages or an unsupported manager returns nil, nil (nothing to do).
+// ScanOS scans a host's OS packages and returns findings with severity. It feeds Trivy a CycloneDX
+// SBOM (not a synthesized rootfs): in client/server mode Trivy parses the OS straight out of the SBOM
+// and sends it to the server, whereas a scanned fake rootfs left the server seeing family="none" and
+// detecting nothing. One code path covers both dpkg and rpm. No packages / unsupported manager →
+// nil, nil.
 func (c Config) ScanOS(ctx context.Context, host OS, pkgs []Package) ([]Finding, error) {
-	if len(pkgs) == 0 {
+	if len(pkgs) == 0 || host.pkgType() == "" {
 		return nil, nil
 	}
 	dir, err := os.MkdirTemp("", "dw-trivy-*")
@@ -129,21 +131,11 @@ func (c Config) ScanOS(ctx context.Context, host OS, pkgs []Package) ([]Finding,
 	}
 	defer os.RemoveAll(dir)
 
-	switch host.PkgManager {
-	case "dpkg":
-		if err := writeDpkgRootfs(dir, host, pkgs); err != nil {
-			return nil, err
-		}
-		return c.run(ctx, "rootfs", dir)
-	case "rpm":
-		sbom := filepath.Join(dir, "sbom.cdx.json")
-		if err := os.WriteFile(sbom, buildRPMSBOM(host, pkgs), 0o600); err != nil {
-			return nil, fmt.Errorf("trivy: write sbom: %w", err)
-		}
-		return c.run(ctx, "sbom", sbom)
-	default:
-		return nil, nil // unsupported package manager
+	sbom := filepath.Join(dir, "sbom.cdx.json")
+	if err := os.WriteFile(sbom, buildOSBOM(host, pkgs), 0o600); err != nil {
+		return nil, fmt.Errorf("trivy: write sbom: %w", err)
 	}
+	return c.run(ctx, "sbom", sbom)
 }
 
 // ScanManifests runs Software Composition Analysis: it reconstructs the reported dependency files
@@ -248,7 +240,7 @@ func (c Config) runSCA(ctx context.Context, dir string) ([]SCAFinding, error) {
 	return out, nil
 }
 
-// run invokes the trivy client against a target (a rootfs dir or an sbom file) and parses findings.
+// run invokes the trivy client against an sbom file and parses OS-package findings.
 func (c Config) run(ctx context.Context, mode, target string) ([]Finding, error) {
 	bin := c.Bin
 	if bin == "" {
@@ -260,14 +252,9 @@ func (c Config) run(ctx context.Context, mode, target string) ([]Finding, error)
 		"--format", "json",
 		"--scanners", "vuln",
 		"--cache-dir", filepath.Join(os.TempDir(), "trivy-cache"),
-		"--pkg-types", "os",
 	}
 	if c.Server != "" {
 		args = append(args, "--server", c.Server)
-	}
-	if mode == "sbom" {
-		// SBOM scans carry their own package types (os + library); don't restrict.
-		args = removeArg(args, "--pkg-types", "os")
 	}
 	args = append(args, target)
 
@@ -315,46 +302,7 @@ func parseReport(data []byte) ([]Finding, error) {
 	return out, nil
 }
 
-// writeDpkgRootfs synthesizes the two files Trivy's rootfs scanner reads for a Debian/Ubuntu host:
-// /etc/os-release (distro identity) and /var/lib/dpkg/status (installed packages). This is exactly
-// the format a real host presents, so Trivy applies the correct Ubuntu/Debian OVAL with severity.
-func writeDpkgRootfs(dir string, host OS, pkgs []Package) error {
-	if err := os.MkdirAll(filepath.Join(dir, "etc"), 0o755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "var", "lib", "dpkg"), 0o755); err != nil {
-		return err
-	}
-	var osrel strings.Builder
-	fmt.Fprintf(&osrel, "ID=%s\n", host.ID)
-	fmt.Fprintf(&osrel, "VERSION_ID=%q\n", host.Version)
-	if host.Codename != "" {
-		fmt.Fprintf(&osrel, "VERSION_CODENAME=%s\n", host.Codename)
-	}
-	fmt.Fprintf(&osrel, "PRETTY_NAME=%q\n", host.ID+" "+host.Version)
-	if err := os.WriteFile(filepath.Join(dir, "etc", "os-release"), []byte(osrel.String()), 0o644); err != nil {
-		return err
-	}
-
-	var st strings.Builder
-	for _, p := range pkgs {
-		if p.Name == "" || p.Version == "" {
-			continue
-		}
-		fmt.Fprintf(&st, "Package: %s\n", p.Name)
-		fmt.Fprintf(&st, "Status: install ok installed\n")
-		if p.Arch != "" {
-			fmt.Fprintf(&st, "Architecture: %s\n", p.Arch)
-		}
-		if p.Source != "" && p.Source != p.Name {
-			fmt.Fprintf(&st, "Source: %s\n", p.Source)
-		}
-		fmt.Fprintf(&st, "Version: %s\n\n", p.Version)
-	}
-	return os.WriteFile(filepath.Join(dir, "var", "lib", "dpkg", "status"), []byte(st.String()), 0o644)
-}
-
-// ── CycloneDX SBOM for RPM hosts ────────────────────────────────────────────────
+// ── CycloneDX SBOM (OS packages, deb + rpm) ─────────────────────────────────────
 
 type cdxProperty struct {
 	Name  string `json:"name"`
@@ -364,9 +312,13 @@ type cdxComponent struct {
 	Type       string        `json:"type"`
 	BOMRef     string        `json:"bom-ref"`
 	Name       string        `json:"name"`
-	Version    string        `json:"version"`
+	Version    string        `json:"version,omitempty"`
 	PURL       string        `json:"purl,omitempty"`
 	Properties []cdxProperty `json:"properties,omitempty"`
+}
+type cdxDependency struct {
+	Ref       string   `json:"ref"`
+	DependsOn []string `json:"dependsOn"`
 }
 type cdxBOM struct {
 	BOMFormat   string `json:"bomFormat"`
@@ -375,29 +327,76 @@ type cdxBOM struct {
 	Metadata    struct {
 		Component cdxComponent `json:"component"`
 	} `json:"metadata"`
-	Components []cdxComponent `json:"components"`
+	Components   []cdxComponent  `json:"components"`
+	Dependencies []cdxDependency `json:"dependencies,omitempty"`
 }
 
-// buildRPMSBOM emits a CycloneDX BOM Trivy reads as an RPM-based host: an operating-system metadata
-// component fixes the distro (so Trivy picks the RedHat/Amazon/etc OVAL), and each package carries a
-// pkg:rpm PURL plus the trivy PkgType property, mirroring Trivy's own SBOM output.
-func buildRPMSBOM(host OS, pkgs []Package) []byte {
-	pkgType := rpmPkgType(host.ID)
-	distro := host.ID + "-" + host.Version // e.g. rhel-9, rocky-9, amzn-2023
+// pkgType maps an OS to Trivy's package type / OVAL family ("ubuntu", "debian", "redhat", "amazon",
+// …). Empty means Trivy has no OVAL for this distro, so there is nothing to scan.
+func (o OS) pkgType() string {
+	switch strings.ToLower(o.ID) {
+	case "ubuntu":
+		return "ubuntu"
+	case "debian":
+		return "debian"
+	case "rhel", "redhat", "centos", "rocky", "almalinux", "alma", "oracle", "ol":
+		return "redhat"
+	case "amzn", "amazon":
+		return "amazon"
+	case "fedora":
+		return "fedora"
+	case "alpine":
+		return "alpine"
+	case "opensuse", "opensuse-leap", "opensuse-tumbleweed":
+		return "opensuse"
+	case "sles", "suse":
+		return "suse linux enterprise server"
+	default:
+		return ""
+	}
+}
+
+// purlType is the PURL scheme for the package manager: deb or rpm.
+func (o OS) purlType() string {
+	if o.PkgManager == "rpm" {
+		return "rpm"
+	}
+	return "deb"
+}
+
+// buildOSBOM emits a CycloneDX BOM shaped like Trivy's own output so Trivy re-detects the OS and its
+// packages from the SBOM (client/server mode parses it locally and ships the result to the server).
+// The operating-system component fixes the distro + OVAL family; each package carries its PURL and
+// the trivy PkgType property; and the dependency graph (root → os → packages) binds them together,
+// which is how Trivy associates OS packages with the detected OS. Covers both deb and rpm.
+func buildOSBOM(host OS, pkgs []Package) []byte {
+	pt := host.pkgType()
+	purlType := host.purlType()
+	distro := strings.ToLower(host.ID) + "-" + host.Version // e.g. ubuntu-24.04, rhel-9
+
 	var bom cdxBOM
 	bom.BOMFormat = "CycloneDX"
 	bom.SpecVersion = "1.5"
 	bom.Version = 1
-	bom.Metadata.Component = cdxComponent{
-		Type: "operating-system", BOMRef: "os", Name: pkgType, Version: host.Version,
-		Properties: []cdxProperty{{Name: "aquasecurity:trivy:PkgType", Value: pkgType}},
+	bom.Metadata.Component = cdxComponent{Type: "application", BOMRef: "root", Name: "deuswatch-inventory", Version: "0"}
+
+	osRef := "os:" + distro
+	osComp := cdxComponent{
+		Type: "operating-system", BOMRef: osRef, Name: pt, Version: host.Version,
+		Properties: []cdxProperty{{Name: "aquasecurity:trivy:PkgType", Value: pt}},
 	}
+	bom.Components = append(bom.Components, osComp)
+
+	pkgRefs := make([]string, 0, len(pkgs))
 	for _, p := range pkgs {
 		if p.Name == "" || p.Version == "" {
 			continue
 		}
-		purl := fmt.Sprintf("pkg:rpm/%s/%s@%s?arch=%s&distro=%s", pkgType, p.Name, p.Version, p.Arch, distro)
-		props := []cdxProperty{{Name: "aquasecurity:trivy:PkgType", Value: pkgType}}
+		purl := fmt.Sprintf("pkg:%s/%s/%s@%s?arch=%s&distro=%s", purlType, pt, p.Name, p.Version, p.Arch, distro)
+		props := []cdxProperty{
+			{Name: "aquasecurity:trivy:PkgType", Value: pt},
+			{Name: "aquasecurity:trivy:PkgID", Value: p.Name + "@" + p.Version},
+		}
 		if p.Source != "" && p.Source != p.Name {
 			props = append(props, cdxProperty{Name: "aquasecurity:trivy:SrcName", Value: p.Source})
 			props = append(props, cdxProperty{Name: "aquasecurity:trivy:SrcVersion", Value: p.Version})
@@ -405,25 +404,14 @@ func buildRPMSBOM(host OS, pkgs []Package) []byte {
 		bom.Components = append(bom.Components, cdxComponent{
 			Type: "library", BOMRef: purl, Name: p.Name, Version: p.Version, PURL: purl, Properties: props,
 		})
+		pkgRefs = append(pkgRefs, purl)
+	}
+	bom.Dependencies = []cdxDependency{
+		{Ref: "root", DependsOn: []string{osRef}},
+		{Ref: osRef, DependsOn: pkgRefs},
 	}
 	b, _ := json.Marshal(bom)
 	return b
-}
-
-// rpmPkgType maps an os-release ID to Trivy's RPM package type / OVAL family.
-func rpmPkgType(osID string) string {
-	switch strings.ToLower(osID) {
-	case "rhel", "redhat", "centos", "rocky", "almalinux", "alma", "oracle", "ol":
-		return "redhat"
-	case "amzn", "amazon":
-		return "amazon"
-	case "fedora":
-		return "fedora"
-	case "opensuse", "suse", "sles":
-		return "suse linux enterprise server"
-	default:
-		return strings.ToLower(osID)
-	}
 }
 
 // normalizeSeverity lowercases Trivy's UPPERCASE severities to our scale.
@@ -444,15 +432,3 @@ func normalizeSeverity(s string) string {
 	}
 }
 
-// removeArg drops a `flag value` pair from an args slice (used to strip --pkg-types for sbom scans).
-func removeArg(args []string, flag, value string) []string {
-	out := args[:0:0]
-	for i := 0; i < len(args); i++ {
-		if args[i] == flag && i+1 < len(args) && args[i+1] == value {
-			i++ // skip value too
-			continue
-		}
-		out = append(out, args[i])
-	}
-	return out
-}

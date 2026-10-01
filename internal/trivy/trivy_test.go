@@ -2,8 +2,6 @@ package trivy
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -39,59 +37,57 @@ func TestParseReport(t *testing.T) {
 	}
 }
 
-func TestWriteDpkgRootfs(t *testing.T) {
-	dir := t.TempDir()
+func TestBuildOSBOMDeb(t *testing.T) {
 	host := OS{ID: "ubuntu", Version: "24.04", Codename: "noble", PkgManager: "dpkg"}
 	pkgs := []Package{
 		{Name: "bash", Version: "5.2-1", Arch: "amd64"},
 		{Name: "libssl3", Version: "3.0.2", Arch: "amd64", Source: "openssl"},
 		{Name: "", Version: "skip"}, // dropped
 	}
-	if err := writeDpkgRootfs(dir, host, pkgs); err != nil {
-		t.Fatal(err)
+	var bom cdxBOM
+	if err := json.Unmarshal(buildOSBOM(host, pkgs), &bom); err != nil {
+		t.Fatalf("invalid CycloneDX JSON: %v", err)
 	}
-	osrel, err := os.ReadFile(filepath.Join(dir, "etc", "os-release"))
-	if err != nil {
-		t.Fatal(err)
+	// 1 operating-system component + 2 package components (empty name dropped).
+	if len(bom.Components) != 3 {
+		t.Fatalf("want 3 components, got %d: %+v", len(bom.Components), bom.Components)
 	}
-	if !strings.Contains(string(osrel), "ID=ubuntu") || !strings.Contains(string(osrel), "VERSION_CODENAME=noble") {
-		t.Errorf("os-release missing distro fields:\n%s", osrel)
+	osc := bom.Components[0]
+	if osc.Type != "operating-system" || osc.Name != "ubuntu" || osc.Version != "24.04" {
+		t.Errorf("os component wrong: %+v", osc)
 	}
-	status, err := os.ReadFile(filepath.Join(dir, "var", "lib", "dpkg", "status"))
-	if err != nil {
-		t.Fatal(err)
+	bash := bom.Components[1]
+	if !strings.HasPrefix(bash.PURL, "pkg:deb/ubuntu/bash@5.2-1") || !strings.Contains(bash.PURL, "distro=ubuntu-24.04") {
+		t.Errorf("bash purl wrong: %q", bash.PURL)
 	}
-	s := string(status)
-	if !strings.Contains(s, "Package: bash") || !strings.Contains(s, "Version: 5.2-1") {
-		t.Errorf("status missing bash block:\n%s", s)
+	if !hasProp(bash.Properties, "aquasecurity:trivy:PkgType", "ubuntu") {
+		t.Errorf("bash missing PkgType property: %+v", bash.Properties)
 	}
-	if !strings.Contains(s, "Source: openssl") {
-		t.Errorf("status missing source package for libssl3:\n%s", s)
-	}
-	if strings.Contains(s, "Package: \n") {
-		t.Errorf("empty package should have been skipped:\n%s", s)
+	// Dependency graph: root -> os -> both packages, so Trivy binds packages to the detected OS.
+	if len(bom.Dependencies) != 2 || len(bom.Dependencies[1].DependsOn) != 2 {
+		t.Errorf("dependency graph wrong: %+v", bom.Dependencies)
 	}
 }
 
-func TestBuildRPMSBOM(t *testing.T) {
+func TestBuildOSBOMRpm(t *testing.T) {
 	host := OS{ID: "rhel", Version: "9", PkgManager: "rpm"}
-	pkgs := []Package{{Name: "openssl", Version: "3.0.7-1.el9", Arch: "x86_64"}}
-	raw := buildRPMSBOM(host, pkgs)
 	var bom cdxBOM
-	if err := json.Unmarshal(raw, &bom); err != nil {
+	if err := json.Unmarshal(buildOSBOM(host, []Package{{Name: "openssl", Version: "3.0.7-1.el9", Arch: "x86_64"}}), &bom); err != nil {
 		t.Fatalf("invalid CycloneDX JSON: %v", err)
 	}
-	if bom.BOMFormat != "CycloneDX" || len(bom.Components) != 1 {
-		t.Fatalf("unexpected bom: %+v", bom)
+	if bom.Components[0].Name != "redhat" {
+		t.Errorf("os family = %q, want redhat", bom.Components[0].Name)
 	}
-	c := bom.Components[0]
-	if !strings.HasPrefix(c.PURL, "pkg:rpm/redhat/openssl@3.0.7-1.el9") {
-		t.Errorf("purl = %q, want pkg:rpm/redhat/openssl@...", c.PURL)
+	if !strings.HasPrefix(bom.Components[1].PURL, "pkg:rpm/redhat/openssl@3.0.7-1.el9") {
+		t.Errorf("rpm purl wrong: %q", bom.Components[1].PURL)
 	}
-	if !strings.Contains(c.PURL, "distro=rhel-9") {
-		t.Errorf("purl missing distro qualifier: %q", c.PURL)
+}
+
+func hasProp(props []cdxProperty, name, value string) bool {
+	for _, p := range props {
+		if p.Name == name && p.Value == value {
+			return true
+		}
 	}
-	if bom.Metadata.Component.Type != "operating-system" || bom.Metadata.Component.Name != "redhat" {
-		t.Errorf("os metadata wrong: %+v", bom.Metadata.Component)
-	}
+	return false
 }
