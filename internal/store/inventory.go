@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -94,14 +95,37 @@ func (s *Store) ReplaceInventory(ctx context.Context, agentName string, inv agen
 			return fmt.Errorf("store: inventory copy packages: %w", err)
 		}
 	}
-	// SCA manifests (language dependency files) — snapshot, replaced wholesale like packages.
-	if _, err := tx.Exec(ctx, `DELETE FROM agent_manifests WHERE agent_name=$1`, agentName); err != nil {
-		return fmt.Errorf("store: inventory clear manifests: %w", err)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("store: inventory commit: %w", err)
 	}
-	if len(inv.Manifests) > 0 {
-		seen := make(map[string]int, len(inv.Manifests))
-		rows := make([][]any, 0, len(inv.Manifests))
-		for _, m := range inv.Manifests {
+
+	// SCA manifests are stored in a SEPARATE, best-effort transaction AFTER the OS inventory +
+	// packages are committed. This is deliberate: a manifest write must never be able to roll back
+	// (and thus silently discard) the core inventory. Previously both lived in one transaction, so a
+	// manifest-table error aborted the whole thing and the agent's inventory never persisted. A
+	// manifest failure here only costs SCA data, not the vulnerability assessment.
+	if err := s.replaceManifests(ctx, agentName, inv.Manifests); err != nil {
+		// Inventory is already committed; a manifest failure only costs SCA. Log and succeed, so the
+		// agent gets a 204 (no retry loop) and the vulnerability assessment still works.
+		log.Printf("store: inventory for %s stored, SCA manifests failed: %v", agentName, err)
+	}
+	return nil
+}
+
+// replaceManifests swaps an agent's SCA manifests wholesale in its own transaction.
+func (s *Store) replaceManifests(ctx context.Context, agentName string, manifests []agent.Manifest) error {
+	tx, err := s.q(ctx).Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `DELETE FROM agent_manifests WHERE agent_name=$1`, agentName); err != nil {
+		return fmt.Errorf("clear manifests: %w", err)
+	}
+	if len(manifests) > 0 {
+		seen := make(map[string]int, len(manifests))
+		rows := make([][]any, 0, len(manifests))
+		for _, m := range manifests {
 			if m.Path == "" || m.Content == "" {
 				continue
 			}
@@ -117,14 +141,10 @@ func (s *Store) ReplaceInventory(ctx context.Context, agentName string, inv agen
 			pgx.Identifier{"agent_manifests"},
 			[]string{"agent_name", "path", "content"},
 			pgx.CopyFromRows(rows)); err != nil {
-			return fmt.Errorf("store: inventory copy manifests: %w", err)
+			return fmt.Errorf("copy manifests: %w", err)
 		}
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("store: inventory commit: %w", err)
-	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 // Manifest is one stored dependency file for SCA.
