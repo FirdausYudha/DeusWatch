@@ -10,7 +10,7 @@ import {
 import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget, CommunicationGraphWidget, SrcDstGraphWidget } from './widgets'
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
-import { PageHeader, Icon, Page } from '../components/ui'
+import { PageHeader, Icon, Page, Pagination, usePaged } from '../components/ui'
 import { usePersistedState } from '../lib/usePersistedState'
 import { localInput, type DashRangeState } from '../lib/range'
 
@@ -789,6 +789,7 @@ function cleanEvent(a: EventRow): Record<string, unknown> {
 function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTicketInput) => void; apiDown: boolean }) {
   const [rows, setRows] = useState<EventRow[]>([])
   const [expanded, setExpanded] = useState<number | null>(null)
+  const paged = usePaged(rows, 25)
   const [q, setQ] = useState('')
   const [ip, setIp] = useState('')
   const [agent, setAgent] = useState('')
@@ -930,20 +931,20 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
             </tr>
           </thead>
           <tbody className="divide-y divide-border bg-surface">
-            {rows.length ? (
-              rows.map((a, i) => (
+            {paged.slice.length ? (
+              paged.slice.map((a, i) => (
                 <Fragment key={i}>
                   <tr
                     className="cursor-pointer hover:bg-surface-2"
                     onClick={() => setExpanded(expanded === i ? null : i)}
                     title="Click to view the full JSON log"
                   >
-                    <td className="px-4 py-2 text-muted">{new Date(a.time).toLocaleString('en-US')}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-muted">{new Date(a.time).toLocaleString('en-US')}</td>
                     <td className="px-4 py-2 text-fg">
                       {a.agent_id ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); setAgent(a.agent_id); setOpen(true) }}
-                          className="rounded text-fg hover:text-accent"
+                          className="block max-w-[9rem] truncate rounded text-left text-fg hover:text-accent"
                           title={`Filter by agent ${a.agent_id}`}
                         >
                           {a.agent_id}
@@ -956,16 +957,25 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                         <DirectionBadge d={a.direction} />
                       </div>
                     </td>
+                    {/* Capped width: without one the cell grows to fit the longest rule name in the
+                        whole page of results, pushing the table past the card and cutting off the
+                        columns to its right. A cap is also what makes `truncate` do anything at all. */}
                     <td className="px-4 py-2 text-fg">
-                      {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
-                      <ThreatFamilyPill a={a} />
+                      <div className="max-w-[22rem] truncate" title={a.rule_name || a.dw_label || a.event_action || a.event_category || ''}>
+                        {a.rule_name || a.dw_label || a.event_action || a.event_category || '—'}
+                        <ThreatFamilyPill a={a} />
+                      </div>
                       {a.file_path && (
-                        <span className="mt-0.5 block truncate text-[12.5px] text-dim" title={a.file_path}>
+                        <span className="mt-0.5 block max-w-[22rem] truncate text-[12.5px] text-dim" title={a.file_path}>
                           location: <span className="font-mono text-muted">{a.file_path}</span>
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-muted">{a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}</td>
+                    <td className="px-4 py-2 text-muted">
+                      <div className="max-w-[12rem] truncate" title={a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : ''}>
+                        {a.threat_technique_id ? `${a.threat_technique_id} · ${a.threat_tactic_name}` : '—'}
+                      </div>
+                    </td>
                     <td className="px-4 py-2"><ThreatIntel a={a} /></td>
                     <td className="px-4 py-2"><LLMVerdict a={a} /></td>
                     <td className="whitespace-nowrap px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
@@ -1049,6 +1059,19 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
             )}
           </tbody>
         </table>
+      </div>
+      {/* Paginate what the "Show" selector already fetched. Rendering 100 rows at once was both a
+          wall of text and the thing that widened the table (column widths are computed from every
+          rendered row), so fewer rows per page keeps it inside the card too. Collapse any expanded
+          row on page change: the index is page-local and would otherwise point at a different event. */}
+      <div className="px-1">
+        <Pagination
+          page={paged.page}
+          pages={paged.pages}
+          total={paged.total}
+          perPage={paged.perPage}
+          onPage={(p) => { setExpanded(null); paged.setPage(p) }}
+        />
       </div>
       <p className="mt-3 text-[12.5px] text-dim">{updated ? `Last updated ${updated.toLocaleTimeString('en-US')}` : 'Loading…'}</p>
     </section>
