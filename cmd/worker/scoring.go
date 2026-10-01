@@ -294,20 +294,31 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 		osN, scaN := 0, 0
 		var osErr, scaErr error
 		for _, t := range targets {
-			// OS-package vulnerabilities (needs a package manager Trivy understands).
-			if t.PkgManager != "" {
-				if err := scanOSPackages(lc, st, cfg, t); err != nil {
-					osErr = err
-				} else {
-					osN++
+			// Isolate each agent: a panic or runaway in one agent's scan is logged with the agent
+			// name and skipped, so it can never take the whole scanner (or the worker) down, and the
+			// per-agent log line is the breadcrumb that pinpoints a crash. The phase logs below name
+			// the exact step the scanner is on if the process dies mid-scan.
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("worker: trivy: PANIC scanning agent %q, skipping: %v", t.Name, r)
+					}
+				}()
+				if t.PkgManager != "" {
+					log.Printf("worker: trivy: OS scan %s starting", t.Name)
+					if err := scanOSPackages(lc, st, cfg, t); err != nil {
+						osErr = err
+					} else {
+						osN++
+					}
 				}
-			}
-			// Software Composition Analysis: language dependency manifests the agent shipped.
-			if had, err := scanManifests(lc, st, cfg, t.Name); err != nil {
-				scaErr = err
-			} else if had {
-				scaN++
-			}
+				log.Printf("worker: trivy: SCA scan %s starting", t.Name)
+				if had, err := scanManifests(lc, st, cfg, t.Name); err != nil {
+					scaErr = err
+				} else if had {
+					scaN++
+				}
+			}()
 		}
 		log.Printf("worker: trivy: scanned %d agent(s) for OS vulns, %d for SCA", osN, scaN)
 		recordScanStatus(lc, st, "trivy-os", osN, osErr)
