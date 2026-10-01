@@ -246,6 +246,9 @@ services:
       args:
         CMD: worker
         VERSION: "${DEUSWATCH_VERSION:-dev}"
+    # Root so the worker can read/write the shared trivy_cache volume (the trivy service writes the
+    # DB there as root); matches how api/gateway already run. The worker scans trivy standalone.
+    user: "0:0"
     # Reach services on the host (e.g. a local Ollama on :11434) via host.docker.internal,
     # which otherwise does not resolve inside a Linux container.
     extra_hosts:
@@ -316,11 +319,16 @@ services:
       SCORE_WINDOW: "${SCORE_WINDOW:-10m}"
       SCORE_INTERVAL: "${SCORE_INTERVAL:-30s}"
       SCENARIO_BAN_SCORE: "${SCENARIO_BAN_SCORE:-0}"
-      # Vulnerability Assessment via Trivy (server-side). With TRIVY_SERVER set, the worker scans each
-      # agent's OS packages through the trivy service (DEB + RPM, with real severity) instead of the
-      # built-in USN/Debian OVAL matcher. Unset TRIVY_SERVER to fall back to the built-in matcher.
-      TRIVY_SERVER: "${TRIVY_SERVER:-http://trivy:4954}"
+      # Vulnerability Assessment via Trivy. The worker runs trivy STANDALONE against the vuln DB that
+      # the `trivy` service downloads into the shared trivy_cache volume (--skip-db-update), which
+      # detects the OS correctly and never downloads the DB in-process (that OOM'd the worker). With
+      # TRIVY_CACHE_DIR set it replaces the built-in USN/Debian OVAL matcher; unset it to fall back.
+      TRIVY_CACHE_DIR: "${TRIVY_CACHE_DIR:-/trivy-cache}"
       TRIVY_SCAN_INTERVAL: "${TRIVY_SCAN_INTERVAL:-6h}"
+    volumes:
+      # Shared with the trivy service: it downloads/refreshes the vuln DB here, the worker scans
+      # against it standalone (--skip-db-update), so the worker never pulls the DB itself.
+      - trivy_cache:/trivy-cache
     depends_on:
       db:
         condition: service_healthy

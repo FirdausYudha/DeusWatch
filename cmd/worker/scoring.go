@@ -265,12 +265,12 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 }
 
 // trivyEnabled reports whether the server-side Trivy scanner should run instead of the built-in
-// USN/Debian OVAL matcher. On when TRIVY_ENABLED=1 or a TRIVY_SERVER URL is set.
+// USN/Debian OVAL matcher. On when TRIVY_ENABLED=1 or a TRIVY_CACHE_DIR is set (the shared DB cache).
 func trivyEnabled() bool {
 	if v, err := strconv.ParseBool(os.Getenv("TRIVY_ENABLED")); err == nil {
 		return v
 	}
-	return os.Getenv("TRIVY_SERVER") != ""
+	return os.Getenv("TRIVY_CACHE_DIR") != ""
 }
 
 // runTrivyScanner is the server-side Vulnerability Assessment loop backed by Trivy (the chosen
@@ -279,9 +279,9 @@ func trivyEnabled() bool {
 // the Inventory donut and table show critical/high/medium/low instead of "unknown". Trivy needs the
 // internet (DB refresh in the trivy service); a scan failure is logged and the last findings are kept.
 func runTrivyScanner(ctx context.Context, st *store.Store) {
-	cfg := trivy.Config{Bin: getenv("TRIVY_BIN", "trivy"), Server: os.Getenv("TRIVY_SERVER")}
+	cfg := trivy.Config{Bin: getenv("TRIVY_BIN", "trivy"), CacheDir: getenv("TRIVY_CACHE_DIR", "/trivy-cache")}
 	interval := durEnv("TRIVY_SCAN_INTERVAL", 6*time.Hour)
-	log.Printf("worker: trivy vulnerability assessment active (server=%q, every %s)", cfg.Server, interval)
+	log.Printf("worker: trivy vulnerability assessment active (cache=%q, every %s)", cfg.CacheDir, interval)
 
 	scanAll := func() {
 		lc, cancel := context.WithTimeout(ctx, 30*time.Minute)

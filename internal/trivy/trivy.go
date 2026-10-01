@@ -24,11 +24,29 @@ import (
 	"time"
 )
 
-// Config is how the worker reaches Trivy. Bin is the trivy client binary; Server is the trivy
-// server URL (client/server mode). Both come from env (TRIVY_BIN, TRIVY_SERVER).
+// Config is how the worker runs Trivy. Bin is the trivy binary; CacheDir is the trivy cache
+// directory that holds the vulnerability DB. Trivy is run STANDALONE (not client/server): `trivy
+// sbom`/`fs` ignore --server and would otherwise download the ~700MB DB per scan and OOM the worker.
+// Instead the separate `trivy` service downloads/refreshes the DB into a shared cache volume, and the
+// worker scans against it with --skip-db-update (the bolt DB is mmap'd, so RAM stays low). From env
+// TRIVY_BIN, TRIVY_CACHE_DIR.
 type Config struct {
-	Bin    string
-	Server string
+	Bin      string
+	CacheDir string
+}
+
+func (c Config) cacheDir() string {
+	if c.CacheDir != "" {
+		return c.CacheDir
+	}
+	return "/trivy-cache"
+}
+
+func (c Config) bin() string {
+	if c.Bin != "" {
+		return c.Bin
+	}
+	return "trivy"
 }
 
 // Package is one installed package (mirrors agent.Package / vuln.InstalledPackage).
@@ -185,25 +203,19 @@ func sanitizeRel(p string) string {
 	return strings.TrimSpace(p)
 }
 
-// runSCA scans a reconstructed manifest tree and parses language-package findings.
+// runSCA scans a reconstructed manifest tree (standalone, against the shared DB cache) and parses
+// language-package findings.
 func (c Config) runSCA(ctx context.Context, dir string) ([]SCAFinding, error) {
-	bin := c.Bin
-	if bin == "" {
-		bin = "trivy"
-	}
 	args := []string{
 		"fs", "--quiet", "--format", "json", "--scanners", "vuln",
 		"--pkg-types", "library",
-		"--cache-dir", filepath.Join(os.TempDir(), "trivy-cache"),
+		"--skip-db-update", "--skip-java-db-update",
+		"--cache-dir", c.cacheDir(),
+		dir,
 	}
-	if c.Server != "" {
-		args = append(args, "--server", c.Server)
-	}
-	args = append(args, dir)
-
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, bin, args...)
+	cmd := exec.CommandContext(cctx, c.bin(), args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -240,27 +252,21 @@ func (c Config) runSCA(ctx context.Context, dir string) ([]SCAFinding, error) {
 	return out, nil
 }
 
-// run invokes the trivy client against an sbom file and parses OS-package findings.
+// run scans an sbom file (standalone, against the shared DB cache) and parses OS-package findings.
 func (c Config) run(ctx context.Context, mode, target string) ([]Finding, error) {
-	bin := c.Bin
-	if bin == "" {
-		bin = "trivy"
-	}
 	args := []string{
 		mode,
 		"--quiet",
 		"--format", "json",
 		"--scanners", "vuln",
-		"--cache-dir", filepath.Join(os.TempDir(), "trivy-cache"),
+		"--skip-db-update",      // the trivy service owns DB downloads; the worker must never download
+		"--skip-java-db-update", // avoid the worker pulling the java DB (jar SCA is best-effort)
+		"--cache-dir", c.cacheDir(),
+		target,
 	}
-	if c.Server != "" {
-		args = append(args, "--server", c.Server)
-	}
-	args = append(args, target)
-
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, bin, args...)
+	cmd := exec.CommandContext(cctx, c.bin(), args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
