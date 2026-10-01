@@ -306,6 +306,11 @@ services:
       # the `trivy` service downloads into the shared trivy_cache volume (--skip-db-update), which
       # detects the OS correctly and never downloads the DB in-process (that OOM'd the worker). With
       # TRIVY_CACHE_DIR set it replaces the built-in USN/Debian OVAL matcher; unset it to fall back.
+      # Vulnerability source. VULN_SOURCE=osv uses the OSV.dev API: no local DB to download, lock or
+      # keep in memory (Ubuntu/Debian/Alpine/Rocky/AlmaLinux). Leave it unset to use the local Trivy
+      # DB below instead, which is the option that also covers RHEL/SUSE.
+      VULN_SOURCE: "${VULN_SOURCE:-osv}"
+      OSV_SCAN_INTERVAL: "${OSV_SCAN_INTERVAL:-6h}"
       TRIVY_CACHE_DIR: "${TRIVY_CACHE_DIR:-/trivy-cache}"
       TRIVY_SCAN_INTERVAL: "${TRIVY_SCAN_INTERVAL:-6h}"
     volumes:

@@ -6,9 +6,11 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/osv"
 	"deuswatch/internal/respond"
 	"deuswatch/internal/score"
 	"deuswatch/internal/store"
@@ -262,6 +264,171 @@ func runVulnScanner(ctx context.Context, st *store.Store) {
 			}
 		}
 	}
+}
+
+// osvEnabled reports whether the OSV.dev API source should be used. Set VULN_SOURCE=osv.
+func osvEnabled() bool { return strings.EqualFold(os.Getenv("VULN_SOURCE"), "osv") }
+
+// runOSVScanner is the API-based Vulnerability Assessment loop. Unlike Trivy it keeps no local
+// vulnerability database: for each agent it turns the installed packages into package URLs, asks
+// OSV.dev which vulnerabilities affect them, and fills in severity/CVSS/fixed-version from records
+// it caches in the DB. No multi-hundred-MB download, no DB file to lock, no memory spike.
+//
+// Coverage: OSV carries Ubuntu, Debian, Alpine, Rocky and AlmaLinux. Hosts it does not cover (RHEL,
+// SUSE) are skipped with a log line rather than silently reported as clean.
+func runOSVScanner(ctx context.Context, st *store.Store) {
+	client := osv.New(os.Getenv("OSV_API_URL"))
+	interval := durEnv("OSV_SCAN_INTERVAL", 6*time.Hour)
+	log.Printf("worker: OSV vulnerability assessment active (api=%s, every %s)", client.BaseURL, interval)
+
+	scanAll := func() {
+		lc, cancel := context.WithTimeout(ctx, 60*time.Minute)
+		defer cancel()
+		targets, err := st.ListScanTargets(lc)
+		if err != nil {
+			log.Printf("worker: osv: list targets: %v", err)
+			return
+		}
+		scanned := 0
+		var lastErr error
+		for _, t := range targets {
+			if !osv.Supported(t.OSID) {
+				log.Printf("worker: osv: %s runs %q which OSV does not cover, skipping", t.Name, t.OSID)
+				continue
+			}
+			if err := scanAgentOSV(lc, st, client, t); err != nil {
+				log.Printf("worker: osv: scan %s failed (keeping last findings): %v", t.Name, err)
+				lastErr = err
+				continue
+			}
+			scanned++
+		}
+		log.Printf("worker: osv: scanned %d agent(s)", scanned)
+		recordScanStatus(lc, st, "trivy-os", scanned, lastErr) // same status row the UI reads
+	}
+
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	first := time.NewTimer(30 * time.Second)
+	defer first.Stop()
+	catchUp := time.NewTicker(5 * time.Minute)
+	defer catchUp.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-first.C:
+			scanAll()
+		case <-t.C:
+			scanAll()
+		case <-catchUp.C:
+			cc, cancel := context.WithTimeout(ctx, 30*time.Second)
+			needs, err := st.FleetNeedsTrivyScan(cc)
+			cancel()
+			if err == nil && needs {
+				log.Printf("worker: osv: new/updated inventory since the last scan, scanning off-cycle")
+				scanAll()
+			}
+		}
+	}
+}
+
+// scanAgentOSV assesses one agent: packages -> purls -> OSV ids -> cached records -> findings.
+func scanAgentOSV(ctx context.Context, st *store.Store, client *osv.Client, t store.ScanTarget) error {
+	pkgs, err := st.AgentScanPackages(ctx, t.Name)
+	if err != nil {
+		return err
+	}
+	// Build one purl per package, remembering which package each purl came from.
+	purls := make([]string, 0, len(pkgs))
+	owners := make([]store.ScanPackage, 0, len(pkgs))
+	for _, p := range pkgs {
+		purl := osv.PURL(t.OSID, t.PkgManager, p.Name, p.Version, t.OSCodename)
+		if purl == "" {
+			continue
+		}
+		purls = append(purls, purl)
+		owners = append(owners, p)
+	}
+	if len(purls) == 0 {
+		return nil
+	}
+	idsPerPkg, err := client.QueryPackages(ctx, purls)
+	if err != nil {
+		return err
+	}
+
+	// Collect the distinct ids, then fetch only the ones we have never cached.
+	unique := map[string]bool{}
+	for _, ids := range idsPerPkg {
+		for _, id := range ids {
+			unique[id] = true
+		}
+	}
+	allIDs := make([]string, 0, len(unique))
+	for id := range unique {
+		allIDs = append(allIDs, id)
+	}
+	cached, err := st.GetOSVVulns(ctx, allIDs)
+	if err != nil {
+		return err
+	}
+	var fetched []store.CachedVuln
+	for _, id := range allIDs {
+		if _, ok := cached[id]; ok {
+			continue
+		}
+		v, ferr := client.FetchVuln(ctx, id)
+		if ferr != nil {
+			log.Printf("worker: osv: fetch %s: %v", id, ferr)
+			continue
+		}
+		cv := store.CachedVuln{ID: v.ID, CVE: v.CVE, Severity: v.Severity, CVSS: v.CVSS, Fixed: v.Fixed}
+		cached[id] = cv
+		fetched = append(fetched, cv)
+		// Flush periodically so a long first run is not lost if the scan is interrupted.
+		if len(fetched) >= 200 {
+			if err := st.PutOSVVulns(ctx, fetched); err != nil {
+				log.Printf("worker: osv: cache write: %v", err)
+			}
+			fetched = fetched[:0]
+		}
+	}
+	if err := st.PutOSVVulns(ctx, fetched); err != nil {
+		log.Printf("worker: osv: cache write: %v", err)
+	}
+
+	ecoPrefix := osv.EcosystemPrefix(t.OSID)
+	findings := make([]vuln.Finding, 0, 128)
+	seen := map[string]bool{}
+	for i, ids := range idsPerPkg {
+		p := owners[i]
+		for _, id := range ids {
+			cv, ok := cached[id]
+			if !ok {
+				continue
+			}
+			cve := cv.CVE
+			if cve == "" {
+				cve = id
+			}
+			key := cve + "\x00" + p.Name
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			findings = append(findings, vuln.Finding{
+				Package:          p.Name,
+				InstalledVersion: p.Version,
+				FixedVersion:     osv.Vuln{Fixed: cv.Fixed}.FixedFor(ecoPrefix, t.OSVersion, p.Name),
+				CVE:              cve,
+				Severity:         cv.Severity,
+				CVSS:             cv.CVSS,
+				Source:           "osv",
+			})
+		}
+	}
+	return st.ReplaceAgentFindings(ctx, t.Name, findings)
 }
 
 // trivyEnabled reports whether the server-side Trivy scanner should run instead of the built-in

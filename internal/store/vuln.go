@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -221,6 +222,66 @@ func (s *Store) ListScanTargets(ctx context.Context) ([]ScanTarget, error) {
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// CachedVuln is one cached OSV vulnerability record. Kept as a plain store type so the store does
+// not depend on the osv package; the worker maps between the two.
+type CachedVuln struct {
+	ID       string
+	CVE      string
+	Severity string
+	CVSS     float64
+	Fixed    map[string]string
+}
+
+// GetOSVVulns returns the cached records for the given OSV ids (missing ids are simply absent).
+func (s *Store) GetOSVVulns(ctx context.Context, ids []string) (map[string]CachedVuln, error) {
+	out := make(map[string]CachedVuln, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := s.q(ctx).Query(ctx,
+		`SELECT id, cve, severity, COALESCE(cvss,0), fixed FROM osv_vulns WHERE id = ANY($1)`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("store: get osv vulns: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var v CachedVuln
+		var fixed []byte
+		if err := rows.Scan(&v.ID, &v.CVE, &v.Severity, &v.CVSS, &fixed); err != nil {
+			return nil, err
+		}
+		if len(fixed) > 0 {
+			_ = json.Unmarshal(fixed, &v.Fixed)
+		}
+		out[v.ID] = v
+	}
+	return out, rows.Err()
+}
+
+// PutOSVVulns upserts freshly fetched OSV records into the cache.
+func (s *Store) PutOSVVulns(ctx context.Context, vulns []CachedVuln) error {
+	if len(vulns) == 0 {
+		return nil
+	}
+	tx, err := s.q(ctx).Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	for _, v := range vulns {
+		fixed, _ := json.Marshal(v.Fixed)
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO osv_vulns (id, cve, severity, cvss, fixed, cached_at)
+			VALUES ($1,$2,$3,$4,$5, now())
+			ON CONFLICT (id) DO UPDATE SET cve=EXCLUDED.cve, severity=EXCLUDED.severity,
+			  cvss=EXCLUDED.cvss, fixed=EXCLUDED.fixed, cached_at=now()`,
+			v.ID, v.CVE, v.Severity, nilFloat(v.CVSS), fixed); err != nil {
+			return fmt.Errorf("store: put osv vuln %s: %w", v.ID, err)
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // FleetNeedsTrivyScan reports whether any agent reported (or refreshed) its inventory AFTER the last
