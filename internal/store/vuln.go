@@ -223,6 +223,25 @@ func (s *Store) ListScanTargets(ctx context.Context) ([]ScanTarget, error) {
 	return out, rows.Err()
 }
 
+// FleetNeedsTrivyScan reports whether any agent reported (or refreshed) its inventory AFTER the last
+// Trivy OS scan ran, i.e. there is an endpoint waiting to be scanned. Without this a host that
+// enrols between the 6-hourly scans sits with no findings (or stale "unknown" ones) until the next
+// cycle, which is exactly how a fresh agent looks broken.
+func (s *Store) FleetNeedsTrivyScan(ctx context.Context) (bool, error) {
+	var needs bool
+	err := s.q(ctx).QueryRow(ctx, `
+		SELECT EXISTS (
+		  SELECT 1 FROM agent_os_inventory oi
+		  WHERE oi.updated_at > COALESCE(
+		          (SELECT updated_at FROM scan_status WHERE scanner = 'trivy-os'),
+		          to_timestamp(0))
+		)`).Scan(&needs)
+	if err != nil {
+		return false, fmt.Errorf("store: fleet needs trivy scan: %w", err)
+	}
+	return needs, nil
+}
+
 // AgentScanPackages returns an agent's installed packages for the Trivy scanner.
 func (s *Store) AgentScanPackages(ctx context.Context, agentName string) ([]ScanPackage, error) {
 	rows, err := s.q(ctx).Query(ctx,

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -359,7 +360,12 @@ func main() {
 	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing
 	// did, this worker was once absent for 11+ hours with a clean-looking dashboard, because
 	// every alarm for that condition (including AGENT_DISCONNECT_AFTER) runs inside this process.
+	// Arm the watchdog clock BEFORE the heartbeat loop starts, so a worker that can never write its
+	// first heartbeat (DB wedged from boot) still force-restarts instead of hanging forever.
+	lastHeartbeatOK.Store(time.Now().UnixNano())
 	safeGo(ctx, "service-heartbeat", func() { runServiceHeartbeat(ctx, st) })
+	// Separate goroutine: it only reads a clock, so no wedged DB call can stop it from firing.
+	safeGo(ctx, "heartbeat-watchdog", func() { runHeartbeatWatchdog(ctx, st) })
 
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
@@ -496,7 +502,6 @@ func safeGo(ctx context.Context, name string, fn func()) {
 // hosts. A failed write is logged and retried on the next tick, the api's staleness threshold
 // tolerates three misses, so a transient DB blip must not be allowed to look like a crash.
 func runServiceHeartbeat(ctx context.Context, st *store.Store) {
-	lastOK := time.Now()
 	beat := func() {
 		wc, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -504,7 +509,7 @@ func runServiceHeartbeat(ctx context.Context, st *store.Store) {
 			log.Printf("worker: heartbeat write failed: %v [%s]", err, st.PoolStats())
 			return
 		}
-		lastOK = time.Now()
+		lastHeartbeatOK.Store(time.Now().UnixNano())
 	}
 	beat() // immediately, so a restart clears the banner in seconds rather than after a full tick
 	t := time.NewTicker(30 * time.Second)
@@ -515,12 +520,37 @@ func runServiceHeartbeat(ctx context.Context, st *store.Store) {
 			return
 		case <-t.C:
 			beat()
-			// Self-heal watchdog: if we have not written a heartbeat for stallLimit, the DB path
-			// that ALL detection/storage also uses is wedged (pool exhausted, hung query,
-			// deadlock, or a dead-but-cached conn). Exit so docker's restart:unless-stopped brings
-			// the worker back with a fresh pool, instead of sitting silently dead until someone
-			// runs `docker compose up -d worker` by hand. This is exactly the symptom operators hit.
-			if since := time.Since(lastOK); since > heartbeatStallLimit {
+		}
+	}
+}
+
+// lastHeartbeatOK is the unix-nano time of the last successful heartbeat write. It lives at PACKAGE
+// scope (not inside runServiceHeartbeat) on purpose: that loop runs under safeGo, which restarts it
+// after a panic, and a function-local clock would be reset by every restart, silently defeating the
+// watchdog below.
+var lastHeartbeatOK atomic.Int64
+
+// runHeartbeatWatchdog is the self-heal watchdog, deliberately a SEPARATE goroutine that does nothing
+// but read a clock. It must never call the database.
+//
+// Previously the staleness check sat right after beat() in the heartbeat loop, so if beat() ever
+// blocked (hung connection, wedged pool) the os.Exit line below it never ran: the process stayed
+// alive-but-dead, docker's restart:unless-stopped saw a "running" container and never restarted it,
+// and an operator had to `docker compose restart worker` by hand. That was the real "worker must be
+// restarted manually" bug. Isolated here, nothing in the DB path can stop the watchdog from firing.
+func runHeartbeatWatchdog(ctx context.Context, st *store.Store) {
+	t := time.NewTicker(15 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			last := lastHeartbeatOK.Load()
+			if last == 0 {
+				continue // not armed yet
+			}
+			if since := time.Since(time.Unix(0, last)); since > heartbeatStallLimit {
 				log.Printf("worker: FATAL detection wedged, no heartbeat for %s [%s], exiting for a clean auto-restart", since.Round(time.Second), st.PoolStats())
 				os.Exit(1)
 			}

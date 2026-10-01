@@ -329,6 +329,11 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 	defer t.Stop()
 	first := time.NewTimer(90 * time.Second) // let the trivy service pull its DB first
 	defer first.Stop()
+	// Catch-up tick: an agent that enrols (or refreshes its inventory) between full scans must not
+	// wait up to TRIVY_SCAN_INTERVAL to be assessed, which makes a fresh endpoint look broken,
+	// stuck on "unknown" severities. Cheap EXISTS query, scans only when there is new inventory.
+	catchUp := time.NewTicker(5 * time.Minute)
+	defer catchUp.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -337,6 +342,18 @@ func runTrivyScanner(ctx context.Context, st *store.Store) {
 			scanAll()
 		case <-t.C:
 			scanAll()
+		case <-catchUp.C:
+			cc, cancel := context.WithTimeout(ctx, 30*time.Second)
+			needs, err := st.FleetNeedsTrivyScan(cc)
+			cancel()
+			if err != nil {
+				log.Printf("worker: trivy: catch-up check: %v", err)
+				continue
+			}
+			if needs {
+				log.Printf("worker: trivy: new/updated inventory since the last scan, scanning off-cycle")
+				scanAll()
+			}
 		}
 	}
 }
