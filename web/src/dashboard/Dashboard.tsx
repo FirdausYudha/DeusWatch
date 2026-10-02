@@ -7,7 +7,7 @@ import {
   type DashboardData, type WidgetKind, type EventSearch, type DashRange,
   type StorageStatus, type TimelineBucket, type Me,
 } from '../lib/api'
-import { StatWidget, BarChart, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget, CommunicationGraphWidget, SrcDstGraphWidget } from './widgets'
+import { StatWidget, BarList, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget, CommunicationGraphWidget, SrcDstGraphWidget } from './widgets'
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
 import { PageHeader, Icon, Page, Pagination, usePaged } from '../components/ui'
@@ -237,7 +237,7 @@ const PANELS: Panel[] = [
   { kind: 'watch', source: 'suspicious_ips', title: 'Suspicious IPs (recon)', color: '#f59e0b', span: 1 },
   // Where the attacks LAND, helps operators see whether attention is concentrated on one port or
   // fanning across web/DB/SSH, and which asset/IP is currently the bullseye. Auto-grows as the data
-  // grows (the BarChart tops the list at whatever LIMIT the SQL returns).
+  // grows (the BarList shows whatever the SQL LIMIT returns, every row labelled).
   { kind: 'bar', source: 'destination_ports', title: 'Top destination ports', color: '#22d3ee', span: 1 },
   { kind: 'bar', source: 'destination_ips', title: 'Top destination IPs / agents', color: '#22d3ee', span: 2 },
   // Traffic direction pie (v2.10.0): Inbound / Outbound / Lateral / Unknown. Lateral is the
@@ -313,7 +313,7 @@ function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: Dashboa
       // v2.13.0: external attacker IP → agent it landed on. Independent of ASN enrichment.
       return <SrcDstGraphWidget data={data.src_dst_flow} />
     default:
-      return <BarChart data={data.series[w.source] ?? []} color={w.color} />
+      return <BarList data={data.series[w.source] ?? []} color={w.color} />
   }
 }
 

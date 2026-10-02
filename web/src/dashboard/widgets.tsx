@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import {
   ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
-  BarChart as RBarChart, Bar, AreaChart as RAreaChart, Area, PieChart, Pie, Cell,
+  AreaChart as RAreaChart, Area, PieChart, Pie, Cell,
   LineChart as RLineChart, Line,
 } from 'recharts'
 import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus, CommFlow, CommFlowDirection, SrcDstFlow } from '../lib/api'
@@ -50,20 +50,37 @@ export function StatWidget({ value, color }: { value: number; color: string }) {
   )
 }
 
-// Horizontal bars (categories can be long: IPs, rule names). Labelled count axis + hover value.
-export function BarChart({ data, color }: { data: SeriesPoint[]; color: string }) {
+// Ranked list: label, proportional bar, exact count, one row each.
+//
+// This replaces the horizontal bar chart these panels used to render. That chart put the labels on
+// a category axis inside a height-capped panel, so past roughly nine rows recharts thinned the
+// ticks to stop them colliding and every other bar lost its label. On "Top source IPs" that is
+// fatal: an unlabelled bar tells you an attack volume exists but not who it belongs to, which is
+// the only question the widget is there to answer.
+//
+// A list has no axis to thin out. Every row stays labelled however long the list grows, the count
+// is read instead of estimated against a gridline, and the rows size themselves so nothing is
+// squeezed. Categories here are long and arbitrary (IPs, ports, agent names), which is the case a
+// ranked list fits and a plotted axis does not.
+export function BarList({ data, color }: { data: SeriesPoint[]; color: string }) {
   if (!data?.length) return <Empty />
+  const max = Math.max(1, ...data.map((d) => d.count))
   return (
-    <ResponsiveContainer width="100%" height={Math.min(240, Math.max(120, data.length * 26 + 16))}>
-      <RBarChart data={data} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
-        <CartesianGrid horizontal={false} stroke={AXIS_LINE} strokeDasharray="3 3" />
-        <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} stroke={AXIS_LINE} />
-        <YAxis type="category" dataKey="label" width={112} tick={AXIS_TICK} stroke={AXIS_LINE}
-          tickFormatter={(v: string) => v || '—'} />
-        <Tooltip {...TIP} />
-        <Bar dataKey="count" fill={color} radius={[0, 4, 4, 0]} />
-      </RBarChart>
-    </ResponsiveContainer>
+    <ul className="space-y-2 py-1">
+      {data.map((d, i) => (
+        <li key={i} className="flex items-center gap-2.5 text-[13px]">
+          {/* shrink-0 on both ends: the bar absorbs the slack, so a long IPv6 truncates (full value
+              on hover) rather than crushing the count out of alignment. */}
+          <span className="w-[8.5rem] shrink-0 truncate text-fg" title={d.label || '—'}>{d.label || '—'}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
+            <div className="h-full rounded-full" style={{ width: `${(d.count / max) * 100}%`, background: color }} />
+          </div>
+          {/* min width rather than fixed: counts align at the sizes these panels normally show,
+              and a severity bucket in the tens of thousands grows the column instead of clipping. */}
+          <span className="min-w-9 shrink-0 text-right tabular-nums text-muted">{d.count.toLocaleString('en-US')}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 

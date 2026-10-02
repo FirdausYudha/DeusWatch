@@ -56,6 +56,12 @@ Colors are CSS vars mapped to Tailwind: `bg`, `surface`, `surface-2`, `border`, 
   Y = attack count) and a **hover tooltip** showing the exact number (see `dashboard/widgets.tsx`).
   No axis-less sparkline as a primary chart. Axis/tooltip colors come from the tokens (`TIP`,
   `AXIS_TICK`); series colors from the palette; severity keeps its fixed colors.
+- **A "top N" ranking is a list, not a plotted chart.** Use `BarList` (`dashboard/widgets.tsx`):
+  label, proportional bar, exact count, one row each. A category axis thins its own ticks once the
+  rows outnumber the vertical space, which silently drops labels: "Top source IPs" was rendering ten
+  bars of which only five were identifiable, and an attack volume you cannot attribute to an IP
+  answers nothing. Reach for an axis when the X value is continuous (time, score); reach for a list
+  when the categories are arbitrary strings (IPs, ports, rule names, agents).
 
 ## Feedback & errors
 
