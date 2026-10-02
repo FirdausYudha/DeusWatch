@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the DeusWatch worker watchdog every minute
+
+[Timer]
+# Start a minute after boot so Docker has time to bring the stack up on its own first, then check
+# every minute. A minute is short enough that an outage is measured in minutes, not hours, and cheap
+# enough that it is just two `docker inspect` calls when everything is fine.
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=deuswatch-watchdog.service
+
+[Install]
+WantedBy=timers.target

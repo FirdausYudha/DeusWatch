@@ -83,7 +83,7 @@ separately: the same symptom had three different causes and three different fixe
 | The kernel OOM-kills it | `restart: unless-stopped` | Yes |
 | The DB path wedges, heartbeats stop | The watchdog calls `os.Exit(1)`, docker restarts it | Yes |
 | The process is alive but wedged solid | Container healthcheck marks it unhealthy, optional `autoheal` restarts it | Yes, if enabled |
-| The container was never created | Nothing can. A container that does not exist has no restart policy | No, redeploy |
+| The container was never created | The host watchdog recreates it (`deploy/systemd/`) | Yes, if installed |
 
 Two details in that table are worth the words, because both were real bugs:
 
@@ -110,6 +110,23 @@ The worker image is distroless, so there is no shell, `curl` or `wget` inside it
 binary therefore probes itself: `/app -healthcheck` requests its own `/healthz` and exits `0` or `1`,
 handled before any database or NATS setup so the probe stays cheap and side-effect free. That is what
 `docker compose ps` reads when it shows `Up (healthy)`.
+
+#### The host watchdog (the one that covers everything)
+
+Every mechanism above runs *inside* the stack, and each has a blind spot: `restart: unless-stopped`
+needs a container that exists, the in-process watchdog needs a process healthy enough to run a
+goroutine, and an autoheal container can restart an unhealthy container but cannot recreate a
+missing one. The blind spot they share is the failure that actually caused the longest outage here,
+a deploy that removed the worker and never recreated it.
+
+`deploy/systemd/` contains a small timer that closes all of them from the host: every minute it
+checks whether the worker is running and healthy, and runs `docker compose up -d worker` if it is
+missing, exited, restarting or unhealthy. No extra container, nothing holding the Docker socket.
+Install instructions and a recovery test are in [`deploy/systemd/README.md`](../../deploy/systemd/README.md).
+
+This is the recommended answer if you ever had to restart the worker by hand. Note what it does
+*not* do: it masks the symptom. Check `journalctl -t deuswatch-watchdog` occasionally, because
+repeated recoveries mean something underneath needs fixing rather than restarting.
 
 #### Auto-restarting an unhealthy container (not shipped, on purpose)
 

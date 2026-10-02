@@ -1,0 +1,14 @@
+[Unit]
+Description=DeusWatch worker watchdog (recreate/restart the worker if it is not running healthy)
+# Needs the Docker daemon, but must not fail at boot if Docker is still coming up: the timer will
+# simply try again a minute later.
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+# Point this at YOUR checkout if it is not the default path.
+Environment=DEUSWATCH_DIR=/home/deus/Document/DeusWatch/deploy
+ExecStart=/usr/local/bin/deuswatch-watchdog.sh
+# A failed run is not a reason to disable the unit; the next timer tick retries.
+SuccessExitStatus=0 1
