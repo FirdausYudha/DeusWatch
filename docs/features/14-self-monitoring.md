@@ -128,6 +128,14 @@ This is the recommended answer if you ever had to restart the worker by hand. No
 *not* do: it masks the symptom. Check `journalctl -t deuswatch-watchdog` occasionally, because
 repeated recoveries mean something underneath needs fixing rather than restarting.
 
+**It records the autopsy before it resuscitates.** This was learned the hard way: recovering the
+worker means `docker compose up -d`, which creates a *new* container, and the dead one's exit code,
+OOM flag and logs go with it. Several outages here were never explained for exactly that reason, the
+fix kept destroying its own evidence. So each recovery now logs the dead container's
+`exit`/`oom`/`restarts` and its final 25 log lines to the journal first, and distinguishes a container
+that *exited* from one that was *removed*, which have completely different causes. The diagnostics are
+best-effort and can never block the restart.
+
 #### Auto-restarting an unhealthy container (not shipped, on purpose)
 
 The healthcheck marks a container unhealthy but does not restart it, and Docker Compose has no

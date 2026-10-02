@@ -34,11 +34,33 @@ case "$state:$health" in
 esac
 
 logger -t deuswatch-watchdog "worker state=$state health=$health, bringing it back"
+
+# Capture WHY it died BEFORE recovering. `up -d` creates a new container and the dead one's exit
+# code, OOM flag and logs go with it, which is exactly why repeated outages here were never
+# explained: every recovery destroyed its own evidence. Everything below is best-effort and must
+# never block the actual recovery.
+if [ "$state" != "missing" ]; then
+  post=$(docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}} restarts={{.RestartCount}} finished={{.State.FinishedAt}}' "$CONTAINER" 2>/dev/null || true)
+  # A plain `[ -n "$post" ] && logger ...` would ABORT the script under `set -e` whenever $post is
+  # empty, skipping the recovery below. Diagnostics must never cost us the restart.
+  if [ -n "$post" ]; then
+    logger -t deuswatch-watchdog "post-mortem: $post"
+  fi
+  docker logs --tail 25 "$CONTAINER" 2>&1 | while IFS= read -r line; do
+    logger -t deuswatch-watchdog "last-log: $line"
+  done
+else
+  # A MISSING container means something removed it: a failed deploy, a manual rm, or a compose run
+  # that recreated the stack. Note it explicitly, because this is the case no in-container
+  # mechanism can cover and the one that caused the longest outage here.
+  logger -t deuswatch-watchdog "post-mortem: container was REMOVED, not merely stopped (failed deploy, manual rm, or a compose recreate)"
+fi
+
 # `up -d` both recreates a missing container and restarts a dead one, which is why it is used here
 # instead of `restart` (restart fails outright when the container does not exist).
-if docker compose up -d worker >/dev/null 2>&1; then
+if out=$(docker compose up -d worker 2>&1); then
   logger -t deuswatch-watchdog "worker recovered"
 else
-  logger -t deuswatch-watchdog "worker recovery FAILED, check: docker compose -f $COMPOSE_DIR/docker-compose.yml logs worker"
+  logger -t deuswatch-watchdog "worker recovery FAILED: $(printf '%s' "$out" | tail -3 | tr '\n' ' ')"
   exit 1
 fi

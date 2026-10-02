@@ -54,16 +54,30 @@ journalctl -t deuswatch-watchdog -f # watch it come back within a minute
 
 ## What it logs
 
-Only when it acts, so a healthy system stays quiet:
+Only when it acts, so a healthy system stays quiet. Each recovery records **why** the worker was
+gone before bringing it back, because `docker compose up -d` creates a *new* container and the dead
+one's exit code, OOM flag and logs disappear with it. Without this, every recovery destroyed the only
+evidence of what it was recovering from:
 
 ```
-deuswatch-watchdog: worker state=missing health=none, bringing it back
+deuswatch-watchdog: worker state=exited health=none, bringing it back
+deuswatch-watchdog: post-mortem: exit=137 oom=true err= restarts=4 finished=2026-10-02T09:03:11Z
+deuswatch-watchdog: last-log: <the worker's final 25 lines>
 deuswatch-watchdog: worker recovered
 ```
 
-Read the history with `journalctl -t deuswatch-watchdog`. Repeated recoveries mean something is
-genuinely wrong and the watchdog is only masking it: check `docker compose logs worker` for the
-reason rather than leaving it to flap.
+Read the history with `journalctl -t deuswatch-watchdog`. The post-mortem line is what tells the two
+very different failures apart:
+
+| Line | Meaning | What to do |
+|---|---|---|
+| `state=exited` + `oom=true` | The kernel killed it for memory | Raise the worker's memory limit, or find what allocates |
+| `state=exited` + `exit=1` | It exited on purpose or crashed; `last-log:` says which | Read the last log lines |
+| `state=unhealthy` | Alive but wedged past `WORKER_STALL_LIMIT` | Read the last log lines |
+| `container was REMOVED` | Something deleted the container: a failed deploy, a manual `docker rm`, or a `compose` recreate | Not a worker fault. Check what ran at that time |
+
+Repeated recoveries mean something underneath is genuinely broken and the watchdog is only masking
+it. A `REMOVED` line right after you deployed or ran the recovery test below is expected.
 
 ## Scope
 
