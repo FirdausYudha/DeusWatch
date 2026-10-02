@@ -19,14 +19,35 @@ env-var dance required.
    ```
    $ sudo nft list tables
    table inet deuswatch
-   $ sudo nft list set inet deuswatch blocklist
+   $ sudo nft list table inet deuswatch
    table inet deuswatch {
      set blocklist {
        type ipv4_addr
        elements = { 1.2.3.4, 5.6.7.8 }
      }
+     set blocklist6 {
+       type ipv6_addr
+       elements = { 2001:db8::1 }
+     }
+     chain input {
+       type filter hook input priority filter; policy accept;
+       ip saddr @blocklist drop
+       ip6 saddr @blocklist6 drop
+     }
    }
    ```
+
+**Two sets, one per address family.** An nftables set holds a single family, so IPv4 blocks land
+in `<set>` and IPv6 blocks in `<set>6`. This is not cosmetic: the whole list is applied in one
+transaction, so while the agent only kept an `ipv4_addr` set, a single IPv6 address anywhere in
+the manager's block list made nftables reject the batch and the host blocked **nothing**, while
+the UI still showed every block as applied. The manager stores source IPs in a Postgres `inet`
+column, so an IPv6 attacker is ordinary, not a corner case.
+
+The chain's policy is `accept` with explicit drops, so this table only ever blocks what the
+manager listed. It never becomes the thing that decides what else the host may do. Host isolation
+(the Containment feature) is a separate table with its own DROP policy, see
+[network containment](features/10-network-containment.md).
 
 ## Requirements on the endpoint
 
@@ -138,24 +159,33 @@ which nft
 # must resolve; on minimal Ubuntu run: sudo apt-get install nftables
 ```
 
-If both look right, check the agent's own error output:
+If both look right, the agent's own log now carries the reason verbatim:
 
 ```bash
 sudo journalctl -u deuswatch-agent -n 100 | grep -E "apply blocklist|firewall"
 ```
 
-A line like `agent: apply blocklist: exit status 1` almost always means either `nft` isn't
-on `$PATH` for the service, or another firewall manager (ufw, firewalld) is rejecting the
-add. In that case, run the equivalent by hand as root to see the real error:
+`nft`'s own complaint is included, so the line says what it refused and why:
 
-```bash
-sudo nft add table inet deuswatch
-sudo nft add set inet deuswatch blocklist '{ type ipv4_addr; }'
 ```
+agent: apply blocklist: nft apply blocklist: exit status 1: /dev/stdin:3:1-24: Error: Could not process rule: Operation not permitted
+```
+
+Read that message rather than guessing. `Operation not permitted` is a privilege problem (see the
+`User=` check above), `executable file not found` means `nft` is not on the service's `$PATH`, and
+a parse error points at the exact line of the generated ruleset.
+
+Older agents logged a bare `agent: apply blocklist: exit status 1` with no reason at all, since
+`nft`'s stderr was discarded. If that is what you see, the agent predates this fix and needs
+upgrading.
 
 ### A block set on the manager doesn't remove from the host
 
-The reconcile is atomic (flush + re-add), so a removed IP is gone within the next poll.
-If it persists longer than that, `nft list set inet deuswatch blocklist` on the host will
-tell you what's actually loaded; likely another process (ufw, fail2ban, your own script)
-is re-adding it.
+Each poll replaces the whole table in a single `nft -f` transaction, so a removed IP is gone
+within the next poll and there is never a window where the host sits unprotected mid-update. If an
+IP persists longer than that, `nft list table inet deuswatch` on the host tells you what is
+actually loaded; most likely another process (ufw, fail2ban, your own script) is re-adding it to
+its own table.
+
+The atomic replace also repairs itself: a set left behind by an older agent with the wrong element
+type is recreated rather than silently rejected, so upgrading an agent needs no manual cleanup.
