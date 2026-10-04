@@ -212,6 +212,14 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		if hours <= 0 || hours > 24*30 {
 			hours = 24
 		}
+		od := st.OpsDigestFor(r.Context(), time.Now().Add(-time.Duration(hours)*time.Hour), time.Now())
+		ops := assistant.Ops(assistant.OpsStats{
+			TicketsByStatus: od.TicketsByStatus, TicketsOpenHigh: od.TicketsOpenHigh,
+			FIMRead: od.FIMRead, FileChanges: od.FileChanges, TopFilePaths: od.TopFilePaths,
+			VulnAgents: od.VulnAgents, VulnCritical: od.VulnCritical, VulnHigh: od.VulnHigh,
+			VulnTot: od.VulnTot, WindowHours: hours,
+		})
+
 		rep, err := st.BuildReport(r.Context(), hours)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -249,11 +257,12 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			Roster: roster,
 			Rules:  ruleDigest,
 			UI:     assistant.UIMap,
+			Ops:    ops,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})
 
-		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), llm.Timeout())
 		defer cancel()
 		reply, err := analyzer.Chat(ctx, sys, req.History, req.Message)
 		if err != nil {

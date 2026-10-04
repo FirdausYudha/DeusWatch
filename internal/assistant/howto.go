@@ -247,3 +247,81 @@ Monitoring & Operations: Dashboard (live posture, charts, attack map) | Response
 Asset & Endpoint Management: Agents (enrol, status, uninstall) | Agent Health (vulnerability assessment and SCA)
 Detection & Automation: Rules (every detection rule, searchable) | Decoders | Playbooks | Integrations (connectors: LLM, CTI, firewall, quarantine)
 Administration & Access: Users | Workspaces | Tenants | Settings (2FA, notifications, retention, scoring weights, assistant persona)`
+
+// OpsStats is the ticket queue, file-integrity activity and vulnerability posture, flattened by
+// the caller.
+type OpsStats struct {
+	TicketsByStatus map[string]int
+	TicketsOpenHigh int
+
+	FIMRead      bool
+	FileChanges  int
+	TopFilePaths []string
+
+	VulnAgents                      int
+	VulnCritical, VulnHigh, VulnTot int
+	WindowHours                     int
+}
+
+// Ops renders the three.
+//
+// Each section says explicitly when it has nothing, because the alternative is silence, and silence
+// in a prompt is the vacuum that gets filled with invention. "No open tickets" and "I was not able
+// to read the tickets" are different answers and the model must be able to give the right one.
+func Ops(s OpsStats) string {
+	var b strings.Builder
+
+	b.WriteString("TICKETS: ")
+	if len(s.TicketsByStatus) == 0 {
+		b.WriteString("none have been created.\n")
+	} else {
+		// Workflow order, not alphabetical: "closed" first reads as the headline when the thing an
+		// operator needs to hear is what is still open.
+		parts := make([]string, 0, len(s.TicketsByStatus))
+		seen := map[string]bool{}
+		for _, k := range []string{"open", "in_progress", "resolved", "closed"} {
+			if n := s.TicketsByStatus[k]; n > 0 {
+				parts = append(parts, fmt.Sprintf("%d %s", n, k))
+				seen[k] = true
+			}
+		}
+		rest := make([]string, 0, 2)
+		for k := range s.TicketsByStatus {
+			if !seen[k] {
+				rest = append(rest, k)
+			}
+		}
+		sort.Strings(rest) // any status added later still appears, just after the known ones
+		for _, k := range rest {
+			parts = append(parts, fmt.Sprintf("%d %s", s.TicketsByStatus[k], k))
+		}
+		fmt.Fprintf(&b, "%s.", strings.Join(parts, ", "))
+		if s.TicketsOpenHigh > 0 {
+			fmt.Fprintf(&b, " %d of the open ones are high or critical severity.", s.TicketsOpenHigh)
+		}
+		b.WriteString(" You have counts only, not their titles or contents; send them to the Tickets page for those.\n")
+	}
+
+	switch {
+	case !s.FIMRead:
+		b.WriteString("FILE INTEGRITY: could not be read just now. Say so rather than reporting no changes.\n")
+	case s.FileChanges == 0:
+		fmt.Fprintf(&b, "FILE INTEGRITY: no watched file changed in the last %d hours.\n", s.WindowHours)
+	default:
+		fmt.Fprintf(&b, "FILE INTEGRITY: %d change events in the last %d hours.", s.FileChanges, s.WindowHours)
+		if len(s.TopFilePaths) > 0 {
+			fmt.Fprintf(&b, " Most changed: %s.", strings.Join(s.TopFilePaths, ", "))
+		}
+		b.WriteString("\n")
+	}
+
+	switch {
+	case s.VulnAgents == 0:
+		b.WriteString("VULNERABILITIES: no endpoint has been scanned yet, so there is no posture to report. Scanning runs from Agent Health.\n")
+	default:
+		fmt.Fprintf(&b, "VULNERABILITIES: %d findings across %d scanned endpoint(s): %d critical, %d high.",
+			s.VulnTot, s.VulnAgents, s.VulnCritical, s.VulnHigh)
+		b.WriteString(" Per-package detail is on the Agent Health page; you have totals only.\n")
+	}
+	return b.String()
+}

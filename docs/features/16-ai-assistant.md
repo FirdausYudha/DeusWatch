@@ -70,6 +70,9 @@ Exactly what the Dashboard and Report pages already show for the window being as
 | How many rules are loaded and enabled, per category | |
 | The names of your custom rules | |
 | The navigation map, so it can point at real pages | |
+| Ticket counts by status | Ticket titles or contents |
+| File-integrity activity and the most-changed paths | |
+| Vulnerability totals per severity | Per-package vulnerability detail |
 | Suspicious-IP (recon) list | Anything the asking user lacks `view_dashboard` for |
 | Detection worker liveness | |
 
@@ -176,8 +179,20 @@ Almost always the model, not the prompt. The tell:
 | It answers in English when you wrote Indonesian | Same cause, and the most harmless version of it. |
 | It forgets the persona halfway through a long chat | The prompt no longer fits. See the context-size note below. |
 
-**Context size.** The system prompt is roughly 1500 tokens, and about 2500 when a setup guide is
-attached. Ollama allocates a modest context window by default and **truncates silently** when the
+**Slow answers, or "context deadline exceeded".** The system prompt is about 2200 tokens, and
+4000 when a setup or rule-authoring guide is attached. A local 8B model on CPU reads a prompt at
+tens of tokens a second, so it can spend over a minute before producing its first word, and longer
+still if the model has to be paged in from disk first. The per-call budget is `LLM_TIMEOUT`,
+defaulting to 5 minutes.
+
+Two things make it faster rather than merely more patient. The stable parts of the prompt (persona,
+navigation map, guides) come first and the volatile parts (clock, agents, rules, figures) last, so
+the model server can reuse the cached state of the shared prefix instead of re-reading everything;
+about 79% of the prompt is identical between messages. And the clock sent from the browser is
+rounded to the hour, because a value changing every second would invalidate that cache on every
+message. A test fails if either property is lost.
+
+**Context size.** Ollama allocates a modest context window by default and **truncates silently** when the
 prompt exceeds it, which looks like an assistant that has forgotten its instructions rather than an
 error. If that is what you are seeing, give the model a larger window:
 
@@ -241,6 +256,7 @@ Changes apply to the next message. Existing conversations in an open panel keep 
 | Variable | Default | Effect |
 |---|---|---|
 | `ASSISTANT_PERSONA` | (built-in) | Deployment-level persona for IaC-managed installs. |
+| `LLM_TIMEOUT` | `5m` | How long one model call may take. Raise it on slow CPU-only hosts. |
 
 Precedence is **UI over environment over built-in**: clearing the Settings field falls back to
 `ASSISTANT_PERSONA` if it is set, not straight to the built-in default. The panel says so when the

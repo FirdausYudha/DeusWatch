@@ -145,3 +145,41 @@ func TestUIMapNamesTheRealPages(t *testing.T) {
 		t.Error("UI map lost its no-invention rule")
 	}
 }
+
+func TestOpsRendersAllThree(t *testing.T) {
+	g := Ops(OpsStats{
+		TicketsByStatus: map[string]int{"open": 3, "closed": 7}, TicketsOpenHigh: 2,
+		FIMRead: true, FileChanges: 14, TopFilePaths: []string{"/etc/passwd (9)"},
+		VulnAgents: 1, VulnCritical: 4, VulnHigh: 31, VulnTot: 287, WindowHours: 24,
+	})
+	for _, want := range []string{
+		"3 open, 7 closed", "2 of the open ones are high or critical",
+		"14 change events in the last 24 hours", "/etc/passwd (9)",
+		"287 findings across 1 scanned endpoint(s): 4 critical, 31 high",
+		// Each section must name its own ceiling or the model fills past it.
+		"not their titles or contents", "you have totals only",
+	} {
+		if !strings.Contains(g, want) {
+			t.Errorf("ops digest missing %q:\n%s", want, g)
+		}
+	}
+}
+
+// The distinction that matters most: a failed read must never render as a quiet night. That
+// confusion is the exact silent failure the whole platform exists to prevent.
+func TestOpsSeparatesEmptyFromUnreadable(t *testing.T) {
+	quiet := Ops(OpsStats{FIMRead: true, WindowHours: 24})
+	if !strings.Contains(quiet, "no watched file changed") {
+		t.Errorf("a genuinely quiet window should say so:\n%s", quiet)
+	}
+	broken := Ops(OpsStats{FIMRead: false, WindowHours: 24})
+	if !strings.Contains(broken, "could not be read") || strings.Contains(broken, "no watched file changed") {
+		t.Errorf("an unreadable FIM section must not read as quiet:\n%s", broken)
+	}
+	if !strings.Contains(quiet, "none have been created") {
+		t.Errorf("no tickets should say so explicitly:\n%s", quiet)
+	}
+	if !strings.Contains(quiet, "no endpoint has been scanned yet") {
+		t.Errorf("an unscanned fleet should say so rather than implying zero findings:\n%s", quiet)
+	}
+}

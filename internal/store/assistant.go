@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -170,4 +171,81 @@ func (s *Store) RulesDigest(ctx context.Context) (RuleDigest, error) {
 		d.CustomNames = append(d.CustomNames, name)
 	}
 	return d, nil
+}
+
+// OpsDigest is the ticket queue, recent file-integrity activity and vulnerability posture.
+//
+// Three more vacuums the assistant used to fill with invention. Each is an aggregate for the same
+// reason the rule digest is: nobody asking "any open tickets?" wants every ticket read back, and
+// loading them would cost more than the answer is worth on every message.
+type OpsDigest struct {
+	TicketsByStatus map[string]int
+	TicketsOpenHigh int // open or in_progress at severity >= 3 (high/critical), the ones that matter
+
+	FileChanges  int      // file-integrity events in the window
+	TopFilePaths []string // "path (n)", most changed first
+	// FIMRead separates "no file changed" from "the query failed". Collapsing the two would have
+	// the assistant reporting a quiet night on a broken read, which is the precise failure this
+	// whole platform exists to prevent.
+	FIMRead bool
+
+	VulnAgents                      int // agents with a completed scan
+	VulnCritical, VulnHigh, VulnTot int
+}
+
+// OpsDigestFor gathers the three in one place. Every part is best-effort: a section that cannot be
+// read is left zero and the renderer says it has no data, which is the honest outcome. Partial
+// knowledge beats refusing to answer the other two questions.
+func (s *Store) OpsDigestFor(ctx context.Context, since, until time.Time) OpsDigest {
+	d := OpsDigest{TicketsByStatus: map[string]int{}}
+
+	if rows, err := s.q(ctx).Query(ctx,
+		`SELECT status, count(*), count(*) FILTER (WHERE severity >= 3) FROM tickets GROUP BY status`); err == nil {
+		for rows.Next() {
+			var (
+				st       string
+				n, nHigh int
+			)
+			if rows.Scan(&st, &n, &nHigh) == nil {
+				d.TicketsByStatus[st] = n
+				if st == "open" || st == "in_progress" {
+					d.TicketsOpenHigh += nHigh
+				}
+			}
+		}
+		rows.Close()
+	}
+
+	// File-integrity activity is ordinary events tagged with the file category, the same rows the
+	// File Integrity page lists.
+	if err := s.q(ctx).QueryRow(ctx,
+		`SELECT count(*) FROM events WHERE time >= $1 AND time < $2 AND event_category = 'file'`,
+		since, until).Scan(&d.FileChanges); err == nil {
+		d.FIMRead = true
+	}
+	if rows, err := s.q(ctx).Query(ctx,
+		`SELECT file_path, count(*) AS n FROM events
+		  WHERE time >= $1 AND time < $2 AND event_category = 'file' AND file_path IS NOT NULL AND file_path <> ''
+		  GROUP BY file_path ORDER BY n DESC LIMIT 8`, since, until); err == nil {
+		for rows.Next() {
+			var (
+				p string
+				n int
+			)
+			if rows.Scan(&p, &n) == nil {
+				d.TopFilePaths = append(d.TopFilePaths, fmt.Sprintf("%s (%d)", p, n))
+			}
+		}
+		rows.Close()
+	}
+
+	if sums, err := s.ListVulnSummaries(ctx); err == nil {
+		d.VulnAgents = len(sums)
+		for _, v := range sums {
+			d.VulnCritical += v.Critical
+			d.VulnHigh += v.High
+			d.VulnTot += v.Total
+		}
+	}
+	return d
 }

@@ -1900,6 +1900,12 @@ export async function fetchAssistantStatus(): Promise<AssistantStatus> {
 
 /** A ban/whitelist the operator asked for in words. Parsed server-side from THEIR message, never
  *  produced by the model, and nothing happens until they confirm the card. */
+function localHour(): string {
+  const now = new Date()
+  const day = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
+  return `${day}, around ${String(now.getHours()).padStart(2, '0')}:00`
+}
+
 export type AssistantProposal = {
   kind: 'ban' | 'whitelist' | 'rule'
   target: string
@@ -1915,8 +1921,10 @@ export async function askAssistant(message: string, history: ChatTurn[], hours =
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // The browser's clock, not the server's: the API runs UTC in a container and would otherwise
-    // have the assistant saying good morning at 2am local.
-    body: JSON.stringify({ message, history, hours, local_time: new Date().toLocaleString() }),
+    // have the assistant saying good morning at 2am local. Rounded to the hour on purpose: it sits
+    // in the system prompt, and a value that changes every second would invalidate the model
+    // server's prompt cache on every message, which is minutes of re-evaluation on CPU.
+    body: JSON.stringify({ message, history, hours, local_time: localHour() }),
   })
   // The server's message is the useful part here (budget hit, no model configured, provider
   // unreachable), so it is surfaced verbatim rather than replaced with a status code.

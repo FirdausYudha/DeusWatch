@@ -101,6 +101,10 @@ type Context struct {
 	// that previously had no answer in context and were therefore answered with invention.
 	Rules string
 	UI    string
+	// Ops is tickets, file-integrity activity and vulnerability posture. Added for the same reason
+	// as Roster and Rules: each was a question an operator naturally asks that had no answer in
+	// context, and no answer in context has reliably meant an invented one.
+	Ops string
 }
 
 // SystemPrompt renders the persona plus the current security context.
@@ -108,10 +112,32 @@ func SystemPrompt(persona string, c Context) string {
 	if strings.TrimSpace(persona) == "" {
 		persona = DefaultPersona
 	}
+	// ORDER IS A PERFORMANCE DECISION, not a stylistic one.
+	//
+	// Ollama (and every llama.cpp-based server) caches the KV state of a prompt PREFIX and reuses it
+	// when the next request starts with the same bytes. Everything from the first differing byte
+	// onwards has to be re-evaluated, and on CPU an 8B model reads a prompt at tens of tokens a
+	// second, so a 2000-token prompt costs a minute before a single word comes back.
+	//
+	// So the stable material goes first, longest first, and the volatile material last. The
+	// operator's clock used to sit directly under the persona, which changed on every single
+	// message and therefore invalidated the cache for the entire prompt below it: the worst
+	// possible placement, and the reason a chat could exceed a two-minute timeout.
+	//
+	// Stable: persona, navigation map, setup guides. Volatile: who/when, agents, rules, figures.
 	var b strings.Builder
 	b.WriteString(persona)
-	// Placed between the persona and the data, in its own short block, so it reads as "who you are
-	// talking to" rather than as another statistic to recite.
+	// The navigation map and setup steps are guidance to follow, deliberately kept above the
+	// reference block whose rule is "never quote this": putting them inside it would tell the model
+	// to withhold the one thing the operator asked for.
+	if u := strings.TrimSpace(c.UI); u != "" {
+		b.WriteString("\n\n")
+		b.WriteString(u)
+	}
+	if h := strings.TrimSpace(c.HowTo); h != "" {
+		b.WriteString("\n\n")
+		b.WriteString(h)
+	}
 	if c.Operator != "" || c.LocalTime != "" {
 		b.WriteString("\n\nWHO YOU ARE TALKING TO\n")
 		if c.Operator != "" {
@@ -120,20 +146,6 @@ func SystemPrompt(persona string, c Context) string {
 		if c.LocalTime != "" {
 			fmt.Fprintf(&b, "Their local time right now is %s. Let it colour the greeting and the register: late at night, be brief and let them get back to it.\n", c.LocalTime)
 		}
-	}
-	// Setup steps sit ABOVE the reference-data block, deliberately. They are instructions to follow
-	// and repeat back, which is the exact opposite of the "never quote this" rule guarding the
-	// figures below; putting them inside that block would tell the model to withhold the one thing
-	// the operator asked for.
-	// The navigation map is guidance, not data, so it sits with the setup steps above the
-	// reference block rather than among the figures the model is told never to quote.
-	if u := strings.TrimSpace(c.UI); u != "" {
-		b.WriteString("\n\n")
-		b.WriteString(u)
-	}
-	if h := strings.TrimSpace(c.HowTo); h != "" {
-		b.WriteString("\n\n")
-		b.WriteString(h)
 	}
 	// The rule against reciting these figures is repeated here, right where the temptation is. A
 	// small model that has forgotten the opening instruction by the time it reaches the numbers
@@ -157,6 +169,9 @@ func SystemPrompt(persona string, c Context) string {
 	}
 	if r := strings.TrimSpace(c.Rules); r != "" {
 		b.WriteString(r)
+	}
+	if o := strings.TrimSpace(c.Ops); o != "" {
+		b.WriteString(o)
 	}
 	if d := strings.TrimSpace(c.Data); d != "" {
 		b.WriteString(d)

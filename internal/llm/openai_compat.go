@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 )
 
 // OpenAICompatAnalyzer triages alerts via any OpenAI-compatible Chat Completions API.
@@ -30,7 +29,7 @@ func NewOpenAICompatAnalyzer(baseURL, apiKey, model string) *OpenAICompatAnalyze
 		baseURL: strings.TrimRight(baseURL, "/"),
 		apiKey:  apiKey,
 		model:   model,
-		hc:      &http.Client{Timeout: 120 * time.Second},
+		hc:      &http.Client{Timeout: Timeout()},
 	}
 }
 

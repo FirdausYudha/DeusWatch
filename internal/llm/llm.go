@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"deuswatch/internal/ingest"
 )
@@ -239,4 +240,23 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// DefaultTimeout is how long a single model call may take.
+//
+// 120s was not enough and produced "context deadline exceeded" in the chat panel. A local 8B model
+// on CPU reads a prompt at tens of tokens a second, so a two-thousand-token prompt can spend over a
+// minute before generating its first word, and that is before a cold model is paged in from disk.
+// Raise it with LLM_TIMEOUT (any Go duration, e.g. "10m").
+const DefaultTimeout = 5 * time.Minute
+
+// Timeout resolves the per-call budget. An unparseable or non-positive value falls back to the
+// default rather than failing to start: a bad duration string should not take the feature offline.
+func Timeout() time.Duration {
+	if v := strings.TrimSpace(os.Getenv("LLM_TIMEOUT")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return DefaultTimeout
 }
