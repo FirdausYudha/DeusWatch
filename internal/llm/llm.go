@@ -34,6 +34,12 @@ type AlertInput struct {
 	OTXPulseCount   *int
 }
 
+// ChatTurn is one message in an assistant conversation. Role is "user" or "assistant".
+type ChatTurn struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 // Analyzer analyzes one alert and writes a free-form executive summary for reports.
 type Analyzer interface {
 	Name() string
@@ -41,6 +47,11 @@ type Analyzer interface {
 	// Summarize turns a report data prompt into a concise prose security summary, steered by
 	// systemPrompt (the customizable instruction/template; empty = DefaultReportSystemPrompt).
 	Summarize(ctx context.Context, systemPrompt, dataPrompt string) (string, error)
+	// Chat continues a multi-turn conversation. systemPrompt carries the persona and the
+	// current security context; history is the prior turns, oldest first; user is the new
+	// message. Unlike Analyze/Summarize this is conversational, so it runs warmer than the
+	// temperature 0 those two use for reproducible verdicts.
+	Chat(ctx context.Context, systemPrompt string, history []ChatTurn, user string) (string, error)
 }
 
 // DefaultReportSystemPrompt steers the model for the periodic/on-demand report summary. Users
@@ -67,6 +78,12 @@ func (HeuristicAnalyzer) Name() string { return "heuristic" }
 // generative model (configure Ollama or another provider).
 func (HeuristicAnalyzer) Summarize(_ context.Context, _, _ string) (string, error) {
 	return "", fmt.Errorf("llm: report summary needs a generative model - configure an LLM provider (e.g. Ollama)")
+}
+
+// Chat is not supported by the heuristic analyzer for the same reason as Summarize: there is no
+// model behind it, only scoring rules.
+func (HeuristicAnalyzer) Chat(_ context.Context, _ string, _ []ChatTurn, _ string) (string, error) {
+	return "", fmt.Errorf("llm: the assistant needs a generative model - configure an LLM provider (e.g. Ollama)")
 }
 
 func (HeuristicAnalyzer) Analyze(_ context.Context, in AlertInput) (Result, error) {

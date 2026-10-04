@@ -58,17 +58,24 @@ type ocResponse struct {
 	} `json:"error"`
 }
 
-// chat runs one OpenAI-compatible chat completion and returns the message content.
+// chat runs one OpenAI-compatible chat completion from a system+user pair at temperature 0, the
+// reproducible setting the triage and report paths want.
 func (o *OpenAICompatAnalyzer) chat(ctx context.Context, system, user string, maxTokens int) (string, error) {
+	return o.complete(ctx, []ocMessage{
+		{Role: "system", Content: system},
+		{Role: "user", Content: user},
+	}, maxTokens, 0)
+}
+
+// complete runs one chat completion over an arbitrary message list. Split out from chat so the
+// assistant can send a multi-turn conversation and pick its own temperature.
+func (o *OpenAICompatAnalyzer) complete(ctx context.Context, msgs []ocMessage, maxTokens int, temperature float64) (string, error) {
 	reqBody, _ := json.Marshal(ocRequest{
 		Model:       o.model,
 		Stream:      false,
-		Temperature: 0,
+		Temperature: temperature,
 		MaxTokens:   maxTokens,
-		Messages: []ocMessage{
-			{Role: "system", Content: system},
-			{Role: "user", Content: user},
-		},
+		Messages:    msgs,
 	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.baseURL+"/chat/completions", bytes.NewReader(reqBody))
 	if err != nil {
@@ -113,6 +120,27 @@ func (o *OpenAICompatAnalyzer) Summarize(ctx context.Context, systemPrompt, data
 		systemPrompt = DefaultReportSystemPrompt
 	}
 	text, err := o.chat(ctx, systemPrompt, dataPrompt, 700)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(text), nil
+}
+
+func (o *OpenAICompatAnalyzer) Chat(ctx context.Context, systemPrompt string, history []ChatTurn, user string) (string, error) {
+	msgs := make([]ocMessage, 0, len(history)+2)
+	msgs = append(msgs, ocMessage{Role: "system", Content: systemPrompt})
+	for _, t := range history {
+		// Anything that is not an assistant turn is sent as a user turn. The role comes from the
+		// client, and a request inventing a role like "system" would otherwise let a caller append
+		// instructions to the prompt from outside.
+		role := "user"
+		if t.Role == "assistant" {
+			role = "assistant"
+		}
+		msgs = append(msgs, ocMessage{Role: role, Content: t.Content})
+	}
+	msgs = append(msgs, ocMessage{Role: "user", Content: user})
+	text, err := o.complete(ctx, msgs, 800, 0.4)
 	if err != nil {
 		return "", err
 	}

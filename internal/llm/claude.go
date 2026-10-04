@@ -52,6 +52,37 @@ func (c *ClaudeAnalyzer) Summarize(ctx context.Context, systemPrompt, dataPrompt
 	return strings.TrimSpace(text), nil
 }
 
+func (c *ClaudeAnalyzer) Chat(ctx context.Context, systemPrompt string, history []ChatTurn, user string) (string, error) {
+	msgs := make([]anthropic.MessageParam, 0, len(history)+1)
+	for _, t := range history {
+		// Only two roles exist on the wire here, and an unrecognised one is treated as the user
+		// rather than trusted, so a client cannot smuggle instructions in as another role.
+		if t.Role == "assistant" {
+			msgs = append(msgs, anthropic.NewAssistantMessage(anthropic.NewTextBlock(t.Content)))
+			continue
+		}
+		msgs = append(msgs, anthropic.NewUserMessage(anthropic.NewTextBlock(t.Content)))
+	}
+	msgs = append(msgs, anthropic.NewUserMessage(anthropic.NewTextBlock(user)))
+	resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:       c.model,
+		MaxTokens:   800,
+		Temperature: anthropic.Float(0.4),
+		System:      []anthropic.TextBlockParam{{Text: systemPrompt}},
+		Messages:    msgs,
+	})
+	if err != nil {
+		return "", fmt.Errorf("llm: call Claude: %w", err)
+	}
+	var text string
+	for _, block := range resp.Content {
+		if tb, ok := block.AsAny().(anthropic.TextBlock); ok {
+			text += tb.Text
+		}
+	}
+	return strings.TrimSpace(text), nil
+}
+
 func (c *ClaudeAnalyzer) Analyze(ctx context.Context, in AlertInput) (Result, error) {
 	resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     c.model,

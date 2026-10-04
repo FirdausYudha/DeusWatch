@@ -1884,3 +1884,28 @@ export async function fetchServiceHealth(): Promise<ServiceHealth[]> {
   if (!res.ok) throw new Error(`service health: HTTP ${res.status}`)
   return (await res.json()).services ?? []
 }
+
+// ── Conversational assistant (ADR 0003, phase 1) ──────────
+// Read-only: it answers from the same security posture the Dashboard shows and has no way to
+// change anything. Off unless an LLM integration is configured with "Use for" = assistant.
+export type ChatTurn = { role: 'user' | 'assistant'; content: string }
+
+export type AssistantStatus = { enabled: boolean; model: string }
+
+export async function fetchAssistantStatus(): Promise<AssistantStatus> {
+  const res = await authFetch('/api/assistant/status')
+  if (!res.ok) throw new Error(`assistant status: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function askAssistant(message: string, history: ChatTurn[], hours = 24): Promise<string> {
+  const res = await authFetch('/api/assistant/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history, hours }),
+  })
+  // The server's message is the useful part here (budget hit, no model configured, provider
+  // unreachable), so it is surfaced verbatim rather than replaced with a status code.
+  if (!res.ok) throw new Error((await res.text()).trim() || `assistant: HTTP ${res.status}`)
+  return (await res.json()).reply ?? ''
+}

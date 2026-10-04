@@ -143,8 +143,8 @@ var Catalog = []TypeInfo{
 		Fields: []Field{
 			{Key: "provider", Label: "Provider", Options: []string{"ollama", "openai-compatible", "anthropic"},
 				Help: "ollama = local; openai-compatible = OpenAI/Gemini/Groq/OpenRouter/vLLM (set Base URL); anthropic = Claude."},
-			{Key: "purpose", Label: "Use for", Options: []string{"both", "triage", "report"},
-				Help: "triage = per-alert verdict (needs LLM_PER_ALERT=1 on the worker); report = AI executive summary on the Report page; both = one model for everything (default)."},
+			{Key: "purpose", Label: "Use for", Options: []string{"both", "triage", "report", "assistant"},
+				Help: "triage = per-alert verdict (needs LLM_PER_ALERT=1 on the worker); report = AI executive summary on the Report page; both = triage + report; assistant = the chat assistant, which must be chosen explicitly and is never implied by 'both'."},
 			{Key: "base_url", Label: "Base URL", Optional: true, Help: "OpenAI-compatible endpoint. Ollama: http://host.docker.internal:11434/v1 · OpenAI: https://api.openai.com/v1 · Gemini: https://generativelanguage.googleapis.com/v1beta/openai · Groq: https://api.groq.com/openai/v1. Leave blank for anthropic."},
 			{Key: "model", Label: "Model", Optional: true, Help: "e.g. llama3.1, qwen2.5, gpt-4o-mini, gemini-2.5-flash, or claude-opus-4-8"},
 			{Key: "api_key", Label: "API key", Secret: true, Optional: true, Help: "Not needed for local Ollama; required for hosted providers / Anthropic."},
@@ -152,16 +152,28 @@ var Catalog = []TypeInfo{
 	},
 }
 
+// PurposeAssistant is the conversational assistant (ADR 0003). It is deliberately NOT covered by
+// "both": the assistant ships disabled and has to be switched on deliberately, so upgrading a
+// deployment that already runs an LLM integration must never make a chat panel appear by itself.
+const PurposeAssistant = "assistant"
+
 // LLMPurposeMatches reports whether an LLM integration whose "purpose" field is `configured`
-// (triage | report | both; empty = both, for older integrations) should serve the `want`
-// task ("triage" or "report"). This is what lets one deployment point a small local model at
-// per-alert triage while a stronger model writes the report summaries.
+// (triage | report | both | assistant; empty = both, for older integrations) should serve the
+// `want` task. This is what lets one deployment point a small local model at per-alert triage
+// while a stronger model writes the report summaries.
+//
+// "both" means triage + report only. The assistant is opt-in and matches nothing but an exact
+// "assistant", which is the whole mechanism behind its off-by-default guarantee.
 func LLMPurposeMatches(configured, want string) bool {
 	configured = strings.ToLower(strings.TrimSpace(configured))
+	want = strings.ToLower(strings.TrimSpace(want))
+	if want == PurposeAssistant {
+		return configured == PurposeAssistant
+	}
 	if configured == "" || configured == "both" {
 		return true
 	}
-	return configured == strings.ToLower(strings.TrimSpace(want))
+	return configured == want
 }
 
 // HasEnabled reports whether any enabled integration of the given type exists. It reads

@@ -1,0 +1,207 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"deuswatch/internal/assistant"
+	"deuswatch/internal/auth"
+	"deuswatch/internal/integrations"
+	"deuswatch/internal/llm"
+	"deuswatch/internal/report"
+	"deuswatch/internal/secret"
+	"deuswatch/internal/store"
+)
+
+// ── budget ──────────────────────────────────────────────────────────────────
+//
+// Every message resends the whole conversation plus the security context, so an idle browser tab
+// with a loop in it, or one impatient operator, can run up real cost on a metered provider. The
+// cap is per user and deliberately crude: this is a spend guard, not a fairness scheduler.
+
+const (
+	assistantDailyMessages = 200
+	assistantMinInterval   = 2 * time.Second
+)
+
+type assistantBudget struct {
+	mu   sync.Mutex
+	seen map[string]*budgetEntry
+}
+
+type budgetEntry struct {
+	day   string // YYYY-MM-DD in UTC; a new day resets the count
+	count int
+	last  time.Time
+}
+
+func newAssistantBudget() *assistantBudget {
+	return &assistantBudget{seen: map[string]*budgetEntry{}}
+}
+
+// allow reports whether this user may send now, and why not when they may not.
+func (b *assistantBudget) allow(user string) (bool, string) {
+	now := time.Now()
+	day := now.UTC().Format("2006-01-02")
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	e := b.seen[user]
+	if e == nil || e.day != day {
+		e = &budgetEntry{day: day}
+		b.seen[user] = e
+	}
+	if !e.last.IsZero() && now.Sub(e.last) < assistantMinInterval {
+		return false, "slow down a moment, one message every couple of seconds"
+	}
+	if e.count >= assistantDailyMessages {
+		return false, fmt.Sprintf("daily assistant limit reached (%d messages); it resets at 00:00 UTC", assistantDailyMessages)
+	}
+	e.count++
+	e.last = now
+	return true, ""
+}
+
+// ── provider resolution ─────────────────────────────────────────────────────
+
+// resolveAssistantAnalyzer returns the model configured for the assistant, or false when none is.
+//
+// Unlike the report path this does NOT fall back to AnalyzerFromEnv or to an LLM integration set
+// to "both": the assistant is opt-in, so an operator who never asked for it must never find a chat
+// panel after an upgrade. Choosing purpose="assistant" is the only way to turn it on.
+func resolveAssistantAnalyzer(ctx context.Context, st *store.Store) (llm.Analyzer, bool) {
+	cipher, _, err := secret.FromEnv()
+	if err != nil {
+		return nil, false
+	}
+	rows, rerr := integrations.NewStore(st.Pool(), cipher).Resolve(ctx, "llm")
+	if rerr != nil {
+		return nil, false
+	}
+	for _, row := range rows {
+		c := row.Config
+		if !integrations.LLMPurposeMatches(c["purpose"], integrations.PurposeAssistant) {
+			continue
+		}
+		if a, aerr := llm.NewAnalyzer(c["provider"], c["base_url"], c["api_key"], c["model"]); aerr == nil {
+			return a, true
+		}
+	}
+	return nil, false
+}
+
+// assistantStatusHandler tells the UI whether to render the assistant at all, so a deployment that
+// has not enabled it shows no dead button.
+func assistantStatusHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		a, ok := resolveAssistantAnalyzer(r.Context(), st)
+		out := map[string]any{"enabled": ok, "model": ""}
+		if ok {
+			out["model"] = a.Name()
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+type assistantChatRequest struct {
+	Message string         `json:"message"`
+	History []llm.ChatTurn `json:"history"`
+	Hours   int            `json:"hours"`
+}
+
+// assistantChatHandler answers one message with the current security posture in context.
+//
+// Read-only by construction: it has no tools and no write path, so the worst a hostile string in
+// the ingested data can achieve is a misleading sentence, not a change to the system.
+func assistantChatHandler(st *store.Store, budget *assistantBudget) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, _ := auth.UserFrom(r.Context())
+		username := "unknown"
+		if u != nil {
+			username = u.Username
+		}
+		if ok, why := budget.allow(username); !ok {
+			http.Error(w, why, http.StatusTooManyRequests)
+			return
+		}
+
+		var req assistantChatRequest
+		// 64 KiB: a conversation, never an upload. Anything larger is a client bug or an attempt
+		// to push the bill up by stuffing the prompt.
+		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		req.Message = strings.TrimSpace(req.Message)
+		if req.Message == "" {
+			http.Error(w, "message is empty", http.StatusBadRequest)
+			return
+		}
+		if len(req.History) > assistant.MaxHistoryTurns {
+			req.History = req.History[len(req.History)-assistant.MaxHistoryTurns:]
+		}
+
+		analyzer, ok := resolveAssistantAnalyzer(r.Context(), st)
+		if !ok {
+			http.Error(w, "the assistant is not enabled: add an LLM integration with \"Use for\" set to assistant", http.StatusBadRequest)
+			return
+		}
+
+		hours := req.Hours
+		if hours <= 0 || hours > 24*30 {
+			hours = 24
+		}
+		rep, err := st.BuildReport(r.Context(), hours)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// A worker that stopped makes every figure above stale, so the model is told before it is
+		// asked anything. Failing to read it is not fatal: an assistant that answers without the
+		// health line is better than one that refuses to talk.
+		health, herr := st.ServiceHealthFor(r.Context(), store.ServiceWorker, store.WorkerStaleAfter)
+		workerAlive := true
+		workerDetail := ""
+		if herr == nil {
+			workerAlive = health.Alive
+			// "never reported" and "reported then stopped" need different advice from the operator,
+			// so the distinction is passed through rather than flattened into "down".
+			switch {
+			case health.Alive:
+			case !health.EverSeen:
+				workerDetail = "it has never reported at all, so it was probably never started"
+			default:
+				workerDetail = fmt.Sprintf("last heartbeat %.0f seconds ago", health.Age)
+			}
+		}
+
+		sys := assistant.SystemPrompt(assistantPersona(r.Context(), st), assistant.Context{
+			WindowHours:  hours,
+			Data:         report.SummaryPrompt(rep),
+			WorkerAlive:  workerAlive,
+			WorkerDetail: workerDetail,
+		})
+
+		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+		defer cancel()
+		reply, err := analyzer.Chat(ctx, sys, req.History, req.Message)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"reply": reply, "model": analyzer.Name()})
+	}
+}
+
+// assistantPersona returns the operator's custom persona, or "" for the default. Phase 4 of ADR
+// 0003 makes this configurable in the UI; until then it reads an optional env override so a
+// deployment can already give the assistant its own voice.
+func assistantPersona(_ context.Context, _ *store.Store) string {
+	return strings.TrimSpace(os.Getenv("ASSISTANT_PERSONA"))
+}

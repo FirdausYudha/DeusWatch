@@ -20,6 +20,7 @@ ports it uses**, **what language/tech it's built with**, and **how to change its
 | 13 | [File Integrity](13-file-integrity.md) | Dedicated monitoring for file changes, ransomware, malware and webshell drops |
 | 14 | [Self-monitoring](14-self-monitoring.md) | Agent liveness, worker liveness + auto-recovery, disk watermark, the platform watching itself |
 | 15 | [Agent Health](15-agent-health.md) | Per-endpoint vulnerability assessment (OS packages) + SCA (application dependencies) |
+| 16 | [AI assistant](16-ai-assistant.md) | Chat panel answering questions about your own data. Ships disabled, read-only by design |
 
 ---
 

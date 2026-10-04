@@ -296,6 +296,13 @@ func main() {
 		mux.Handle("GET /api/report/ai-config", protect(auth.PermViewDashboard, reportAIConfigGetHandler(st)))
 		mux.Handle("PUT /api/report/ai-config", protect(auth.PermManageSettings, reportAIConfigSetHandler(st)))
 
+		// Conversational assistant (ADR 0003, phase 1): read-only, no tools, opt-in via an LLM
+		// integration whose purpose is "assistant". view_dashboard is the right gate because it
+		// can answer nothing the caller could not already read on the Dashboard.
+		assistantBudget := newAssistantBudget()
+		mux.Handle("GET /api/assistant/status", protect(auth.PermViewDashboard, assistantStatusHandler(st)))
+		mux.Handle("POST /api/assistant/chat", protect(auth.PermViewDashboard, assistantChatHandler(st, assistantBudget)))
+
 		// Threat-scoring weights (composite score + suspicious-IP watchlist), UI-tunable.
 		mux.Handle("GET /api/score-config", protect(auth.PermViewDashboard, scoreConfigGetHandler(st)))
 		mux.Handle("PUT /api/score-config", protect(auth.PermManageSettings, scoreConfigSetHandler(st)))

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Sidebar, { type View } from './components/Sidebar'
+import Assistant from './assistant/Assistant'
 import Topbar from './components/Topbar'
 import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
@@ -120,6 +121,8 @@ export default function App() {
           )}
         </main>
       </div>
+      {/* Reachable from every view, and renders nothing at all unless the deployment enabled it. */}
+      <Assistant me={me} />
     </div>
   )
 }
