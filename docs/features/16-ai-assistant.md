@@ -103,6 +103,25 @@ HTTPS or localhost, and the button explains itself when the page is served over 
 
 Closing the panel stops the speech and releases the microphone.
 
+## When the answers are off
+
+Almost always the model, not the prompt. The tell:
+
+| Symptom | What it means |
+|---|---|
+| "hello" is answered with event counts | The model is too small. It sees the reference data and summarises it whatever you asked. |
+| It claims it blocked an IP | Same cause. It never did; only the confirmation card can, and only when you press it. |
+| It invents an IP or a number | Same cause. Nothing in the pipeline can verify a figure the model made up. |
+| It answers in English when you wrote Indonesian | Same cause, and the most harmless version of it. |
+
+The default persona puts the rules that prevent these at the very start and repeats the important
+one immediately above and below the data, because a 3B model keeps the first and last instructions
+and loses the middle. That helps; it does not cure.
+
+The actual fix is a bigger model. Change **Model** on the LLM integration to `llama3.1:8b` or
+`qwen2.5:7b` and pull it on the Ollama host (`ollama pull llama3.1:8b`). Nothing else changes, and
+the difference on instruction-following is not subtle.
+
 ## Limits
 
 - **`view_dashboard`** is required to use it. It can tell you nothing you could not already read.

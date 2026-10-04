@@ -10,9 +10,14 @@ import (
 )
 
 // MaxPersonaLen caps the stored persona. It is prepended to every assistant turn, so an essay here
-// is paid for on every message; this is generous for an instruction and far short of a prompt that
-// would crowd out the security context beneath it.
-const MaxPersonaLen = 4000
+// is paid for on every message, and it still has to stay far short of crowding out the reference
+// data beneath it.
+//
+// The floor is not taste: the built-in default must fit with room to extend it, because the UI
+// offers "Load the default to edit" and the editor truncates at this length. A cap below the
+// default would silently cut the tail off whatever the operator loaded, and the tail is where the
+// prompt-injection boundary lives. Raise this before growing assistant.DefaultPersona, never after.
+const MaxPersonaLen = 8000
 
 // AssistantConfig is the operator-editable part of the assistant (ADR 0003, phase 4).
 type AssistantConfig struct {
