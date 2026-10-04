@@ -94,3 +94,80 @@ func (s *Store) AgentRoster(ctx context.Context) ([]AgentRow, error) {
 	}
 	return out, rows.Err()
 }
+
+// RuleDigest summarises the loaded detection rules.
+//
+// Deliberately an aggregate, not a list. There are hundreds of built-in rules and enumerating them
+// would crowd out everything else in the prompt; it would also be the wrong answer, since nobody
+// asking "what rules are running" wants 800 names read back. The custom rules are listed because
+// those are the ones an operator wrote and remembers.
+type RuleDigest struct {
+	Total, Enabled, Builtin, Custom, Aggregation int
+	ByCategory                                   map[string]int
+	CustomNames                                  []string
+}
+
+// MaxCustomRuleNames caps the named list for the same reason the roster is capped.
+const MaxCustomRuleNames = 30
+
+// RulesDigest counts the rule table instead of loading it. rules.Store.List pulls every rule's full
+// YAML, which is hundreds of kilobytes and would be read on every single chat message.
+func (s *Store) RulesDigest(ctx context.Context) (RuleDigest, error) {
+	d := RuleDigest{ByCategory: map[string]int{}}
+	rows, err := s.q(ctx).Query(ctx,
+		`SELECT COALESCE(category,'general'), kind, enabled, builtin, count(*)
+		   FROM rules GROUP BY 1,2,3,4`)
+	if err != nil {
+		return d, fmt.Errorf("store: rules digest: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cat, kind   string
+			enabled, bi bool
+			n           int
+		)
+		if err := rows.Scan(&cat, &kind, &enabled, &bi, &n); err != nil {
+			return d, err
+		}
+		d.Total += n
+		if enabled {
+			d.Enabled += n
+			// Only enabled rules are counted per category: a disabled rule is not "running", and
+			// reporting it as coverage is the kind of quiet overstatement this assistant must avoid.
+			d.ByCategory[cat] += n
+		}
+		if bi {
+			d.Builtin += n
+		} else {
+			d.Custom += n
+		}
+		if kind == "aggregation" {
+			d.Aggregation += n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return d, err
+	}
+
+	nameRows, err := s.q(ctx).Query(ctx,
+		`SELECT name, enabled FROM rules WHERE NOT builtin ORDER BY name LIMIT $1`, MaxCustomRuleNames)
+	if err != nil {
+		return d, nil // the counts are still worth having
+	}
+	defer nameRows.Close()
+	for nameRows.Next() {
+		var (
+			name string
+			on   bool
+		)
+		if err := nameRows.Scan(&name, &on); err != nil {
+			return d, nil
+		}
+		if !on {
+			name += " (disabled)"
+		}
+		d.CustomNames = append(d.CustomNames, name)
+	}
+	return d, nil
+}

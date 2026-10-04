@@ -98,3 +98,50 @@ func TestRosterCapsLongFleets(t *testing.T) {
 		t.Errorf("capped roster must account for the remainder:\n%s", g)
 	}
 }
+
+func TestRulesDigestAnswersAndAdmitsItsLimit(t *testing.T) {
+	g := Rules(RuleStats{
+		Total: 824, Enabled: 820, Builtin: 812, Custom: 12, Aggregation: 15,
+		ByCategory:  map[string]int{"judi": 406, "fim": 156, "custom": 12},
+		CustomNames: []string{"Webshell upload attempt", "Sudo brute force"},
+		Truncated:   true,
+	})
+	for _, want := range []string{
+		"824 loaded, 820 enabled",
+		"812 built-in, 12 custom",
+		"judi 406", // ordered by count, not alphabetically
+		"Webshell upload attempt; Sudo brute force; and more",
+		// Without this sentence the model answers "is there a rule for X?" by inventing one.
+		"cannot see individual built-in rules",
+		"Never guess a rule name",
+	} {
+		if !strings.Contains(g, want) {
+			t.Errorf("digest missing %q:\n%s", want, g)
+		}
+	}
+}
+
+// A fresh install must not read as though custom rules exist but were omitted.
+func TestRulesDigestNoCustomRules(t *testing.T) {
+	g := Rules(RuleStats{Total: 812, Enabled: 812, Builtin: 812})
+	if !strings.Contains(g, "No custom rules have been written yet") {
+		t.Errorf("digest should say so when there are none:\n%s", g)
+	}
+}
+
+// Every page the assistant is allowed to send someone to has to be a page that exists; this is the
+// list it reads instead of inventing one.
+func TestUIMapNamesTheRealPages(t *testing.T) {
+	for _, page := range []string{
+		"Dashboard", "Response", "Tickets", "File Integrity", "Snapshots", "Report",
+		"Agents", "Agent Health", "Rules", "Decoders", "Playbooks", "Integrations",
+		"Users", "Workspaces", "Tenants", "Settings",
+	} {
+		if !strings.Contains(UIMap, page) {
+			t.Errorf("UI map omits the %q page", page)
+		}
+	}
+	if !strings.Contains(UIMap, "never invent a page") {
+		t.Error("UI map lost its no-invention rule")
+	}
+}

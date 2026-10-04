@@ -184,6 +184,19 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			roster = assistant.Roster(lines)
 		}
 
+		// Counts, not a rule list: rules.Store.List loads every rule's full YAML, hundreds of
+		// kilobytes, which is not something to read on every chat message. A failed read leaves
+		// this empty, and an empty block is honest: the model simply has nothing to claim.
+		var ruleDigest string
+		if d, derr := st.RulesDigest(r.Context()); derr == nil {
+			ruleDigest = assistant.Rules(assistant.RuleStats{
+				Total: d.Total, Enabled: d.Enabled, Builtin: d.Builtin,
+				Custom: d.Custom, Aggregation: d.Aggregation,
+				ByCategory: d.ByCategory, CustomNames: d.CustomNames,
+				Truncated: d.Custom > len(d.CustomNames),
+			})
+		}
+
 		var howTo string
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
@@ -234,6 +247,8 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			// context size, for a guide most messages have no use for.
 			HowTo:  howTo,
 			Roster: roster,
+			Rules:  ruleDigest,
+			UI:     assistant.UIMap,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})

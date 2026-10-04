@@ -183,3 +183,67 @@ func orUnknown(s string) string {
 	}
 	return s
 }
+
+// RuleStats is the rule picture, flattened by the caller to keep this package store-free.
+type RuleStats struct {
+	Total, Enabled, Builtin, Custom, Aggregation int
+	ByCategory                                   map[string]int
+	CustomNames                                  []string
+	Truncated                                    bool
+}
+
+// Rules renders the detection coverage.
+//
+// Added for the same reason as the roster: asked which rules were running, the model had nothing to
+// read and answered by inventing a place to look ("Dashboard, bagian Rule Status", a section that
+// does not exist). The counts answer the question that was actually asked, and the closing line
+// tells the model what it CANNOT answer, which is what stops it from inventing a built-in rule name
+// when someone asks whether a particular detection exists.
+func Rules(s RuleStats) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "DETECTION RULES: %d loaded, %d enabled (%d built-in, %d custom, %d of them counting/aggregation rules).\n",
+		s.Total, s.Enabled, s.Builtin, s.Custom, s.Aggregation)
+	if len(s.ByCategory) > 0 {
+		keys := make([]string, 0, len(s.ByCategory))
+		for k := range s.ByCategory {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			if s.ByCategory[keys[i]] != s.ByCategory[keys[j]] {
+				return s.ByCategory[keys[i]] > s.ByCategory[keys[j]]
+			}
+			return keys[i] < keys[j]
+		})
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("%s %d", k, s.ByCategory[k]))
+		}
+		fmt.Fprintf(&b, "Enabled per category: %s.\n", strings.Join(parts, ", "))
+	}
+	switch {
+	case len(s.CustomNames) > 0:
+		fmt.Fprintf(&b, "Custom rules (written here, not shipped): %s", strings.Join(s.CustomNames, "; "))
+		if s.Truncated {
+			b.WriteString("; and more")
+		}
+		b.WriteString(".\n")
+	case s.Custom == 0:
+		b.WriteString("No custom rules have been written yet; everything loaded ships with DeusWatch.\n")
+	}
+	b.WriteString("You do NOT have the names of the built-in rules, only these counts. If asked whether a specific detection exists, say you cannot see individual built-in rules and send them to the Rules page, which lists and searches all of them. Never guess a rule name.\n")
+	return b.String()
+}
+
+// UIMap is where things live in the navigation.
+//
+// Hand-written, unlike the integrations guide, because the menu is defined in the React sidebar and
+// there is no Go-side source to generate from. It is here because its absence produced confident
+// fiction: told to point at a page, a model with no map invents a plausible one, and "Dashboard,
+// Rule Status" is indistinguishable from a real instruction until the operator goes looking. The
+// menu changes rarely and a stale line sends someone one click wide, which is a far better failure
+// than a page that never existed.
+const UIMap = `WHERE THINGS ARE IN THE UI (left navigation; use these names exactly, never invent a page or a section)
+Monitoring & Operations: Dashboard (live posture, charts, attack map) | Response (ban queue, approvals, whitelist) | Tickets | File Integrity (FIM events) | Snapshots (file versions, restore) | Report (periodic and AI summary)
+Asset & Endpoint Management: Agents (enrol, status, uninstall) | Agent Health (vulnerability assessment and SCA)
+Detection & Automation: Rules (every detection rule, searchable) | Decoders | Playbooks | Integrations (connectors: LLM, CTI, firewall, quarantine)
+Administration & Access: Users | Workspaces | Tenants | Settings (2FA, notifications, retention, scoring weights, assistant persona)`

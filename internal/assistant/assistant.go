@@ -96,6 +96,11 @@ type Context struct {
 	// most ordinary questions a SOC asks, and leaving it unanswerable did not produce "I don't
 	// know": it produced invented hostnames.
 	Roster string
+	// Rules is the detection coverage digest, and UI is the navigation map. Both are always
+	// present: between them they cover "what is running" and "where do I click", the two questions
+	// that previously had no answer in context and were therefore answered with invention.
+	Rules string
+	UI    string
 }
 
 // SystemPrompt renders the persona plus the current security context.
@@ -120,6 +125,12 @@ func SystemPrompt(persona string, c Context) string {
 	// and repeat back, which is the exact opposite of the "never quote this" rule guarding the
 	// figures below; putting them inside that block would tell the model to withhold the one thing
 	// the operator asked for.
+	// The navigation map is guidance, not data, so it sits with the setup steps above the
+	// reference block rather than among the figures the model is told never to quote.
+	if u := strings.TrimSpace(c.UI); u != "" {
+		b.WriteString("\n\n")
+		b.WriteString(u)
+	}
 	if h := strings.TrimSpace(c.HowTo); h != "" {
 		b.WriteString("\n\n")
 		b.WriteString(h)
@@ -142,6 +153,9 @@ func SystemPrompt(persona string, c Context) string {
 		b.WriteString("\n")
 	}
 	if r := strings.TrimSpace(c.Roster); r != "" {
+		b.WriteString(r)
+	}
+	if r := strings.TrimSpace(c.Rules); r != "" {
 		b.WriteString(r)
 	}
 	if d := strings.TrimSpace(c.Data); d != "" {
