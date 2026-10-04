@@ -168,6 +168,11 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			return
 		}
 
+		var howTo string
+		if assistant.NeedsIntegrationsGuide(req.Message) {
+			howTo = assistant.IntegrationsGuide()
+		}
+
 		hours := req.Hours
 		if hours <= 0 || hours > 24*30 {
 			hours = 24
@@ -202,6 +207,10 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			WorkerAlive:  workerAlive,
 			WorkerDetail: workerDetail,
 			Operator:     username,
+			// The catalogue rides along only for "how do I set up X" messages. Always sending it
+			// would roughly double the prompt and risk silent truncation at Ollama's default
+			// context size, for a guide most messages have no use for.
+			HowTo: howTo,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})

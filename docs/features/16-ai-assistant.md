@@ -115,6 +115,22 @@ HTTPS or localhost, and the button explains itself when the page is served over 
 
 Closing the panel stops the speech and releases the microphone.
 
+## Asking it how to set something up
+
+"How do I add an LLM integration?" or "cara pasang Telegram" gets the actual steps: which menu,
+which button, which fields, and what belongs in them. It still cannot do it for you, but pointing at
+a page and stopping is not help.
+
+The steps are **generated from the integration catalogue**, the same definition that builds the form
+on screen, so they cannot drift from what you are looking at and a newly added connector teaches the
+assistant about itself for free. The assistant is told not to name a field that does not exist for
+the type asked about.
+
+That guide is about 4000 characters, which roughly doubles the prompt, so it is attached only when
+the message is plainly a how-to question. The check is a plain keyword match in English and
+Indonesian, no model involved. If it misses your phrasing you will get a vaguer answer; say "how do
+I add X" and it will come back.
+
 ## When the answers are off
 
 Almost always the model, not the prompt. The tell:
@@ -125,6 +141,20 @@ Almost always the model, not the prompt. The tell:
 | It claims it blocked an IP | Same cause. It never did; only the confirmation card can, and only when you press it. |
 | It invents an IP or a number | Same cause. Nothing in the pipeline can verify a figure the model made up. |
 | It answers in English when you wrote Indonesian | Same cause, and the most harmless version of it. |
+| It forgets the persona halfway through a long chat | The prompt no longer fits. See the context-size note below. |
+
+**Context size.** The system prompt is roughly 1500 tokens, and about 2500 when a setup guide is
+attached. Ollama allocates a modest context window by default and **truncates silently** when the
+prompt exceeds it, which looks like an assistant that has forgotten its instructions rather than an
+error. If that is what you are seeing, give the model a larger window:
+
+```bash
+printf 'FROM llama3.1:8b
+PARAMETER num_ctx 8192
+' | docker exec -i ollama ollama create deuswatch-llama -f -
+```
+
+Then set **Model** to `deuswatch-llama` on the integration. Nothing else changes.
 
 The default persona puts the rules that prevent these at the very start and repeats the important
 one immediately above and below the data, because a 3B model keeps the first and last instructions
