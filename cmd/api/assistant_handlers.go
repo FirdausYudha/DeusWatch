@@ -211,9 +211,52 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 	}
 }
 
-// assistantPersona returns the operator's custom persona, or "" for the default. Phase 4 of ADR
-// 0003 makes this configurable in the UI; until then it reads an optional env override so a
-// deployment can already give the assistant its own voice.
-func assistantPersona(_ context.Context, _ *store.Store) string {
+// assistantPersona resolves the persona, "" meaning the built-in default.
+//
+// Precedence is UI over environment over built-in. The env var predates the UI field and stays as
+// the deployment-level default for IaC-managed installs; clearing the field in the UI therefore
+// falls back to it rather than to the built-in, which is what "I set this in my compose file"
+// should mean. A read failure is not fatal: answering with the default persona beats refusing to
+// talk because one settings row could not be read.
+func assistantPersona(ctx context.Context, st *store.Store) string {
+	if cfg, err := st.LoadAssistantConfig(ctx); err == nil {
+		if p := strings.TrimSpace(cfg.Persona); p != "" {
+			return p
+		}
+	}
 	return strings.TrimSpace(os.Getenv("ASSISTANT_PERSONA"))
+}
+
+// assistantConfigGetHandler returns the saved persona plus the built-in default, so the UI can show
+// what it falls back to and offer "restore the default" without hardcoding a copy of the text.
+func assistantConfigGetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg, err := st.LoadAssistantConfig(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"persona":         cfg.Persona,
+			"default_persona": assistant.DefaultPersona,
+			"env_persona_set": strings.TrimSpace(os.Getenv("ASSISTANT_PERSONA")) != "",
+			"max_len":         store.MaxPersonaLen,
+		})
+	}
+}
+
+func assistantConfigSetHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var cfg store.AssistantConfig
+		if err := json.NewDecoder(io.LimitReader(r.Body, 32<<10)).Decode(&cfg); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := st.SaveAssistantConfig(r.Context(), cfg); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		out, _ := st.LoadAssistantConfig(r.Context())
+		writeJSON(w, http.StatusOK, out)
+	}
 }

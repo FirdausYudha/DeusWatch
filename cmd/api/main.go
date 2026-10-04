@@ -302,6 +302,10 @@ func main() {
 		assistantBudget := newAssistantBudget()
 		mux.Handle("GET /api/assistant/status", protect(auth.PermViewDashboard, assistantStatusHandler(st)))
 		mux.Handle("POST /api/assistant/chat", protect(auth.PermViewDashboard, assistantChatHandler(st, assistantBudget)))
+		// The persona is readable by anyone who can use the assistant (it is what they are talking
+		// to) but writable only with manage_settings: it steers every answer the platform gives.
+		mux.Handle("GET /api/assistant/config", protect(auth.PermViewDashboard, assistantConfigGetHandler(st)))
+		mux.Handle("PUT /api/assistant/config", protect(auth.PermManageSettings, assistantConfigSetHandler(st)))
 
 		// Threat-scoring weights (composite score + suspicious-IP watchlist), UI-tunable.
 		mux.Handle("GET /api/score-config", protect(auth.PermViewDashboard, scoreConfigGetHandler(st)))

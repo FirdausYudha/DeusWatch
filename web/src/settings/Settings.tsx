@@ -1,10 +1,120 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, can, fetchSubscriptions, createSubscription, toggleSubscription, deleteSubscription, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig, type Subscription } from '../lib/api'
+import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, can, fetchSubscriptions, createSubscription, toggleSubscription, deleteSubscription,
+  fetchAssistantStatus, fetchAssistantConfig, saveAssistantConfig, type AssistantConfig, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig, type Subscription } from '../lib/api'
 import DocLink from '../components/DocLink'
 import { Icon, Page } from '../components/ui'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
+
+// AssistantPersonaPanel edits the instruction prepended to every assistant answer (ADR 0003,
+// phase 4). It hides itself when the assistant is not enabled, so a deployment that never turned it
+// on does not carry a settings panel for something invisible.
+function AssistantPersonaPanel() {
+  const [me, setMe] = useState<Me | null>(null)
+  const [show, setShow] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [cfg, setCfg] = useState<AssistantConfig | null>(null)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const editable = can(me, 'manage_settings')
+
+  useEffect(() => {
+    fetchMe().then(setMe).catch(() => {})
+    fetchAssistantStatus()
+      .then((s) => setShow(s.enabled))
+      .catch(() => setShow(false))
+    fetchAssistantConfig()
+      .then((c) => { setCfg(c); setDraft(c.persona) })
+      .catch(() => {})
+  }, [])
+
+  if (!show || !cfg) return null
+
+  const save = async (value: string) => {
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      await saveAssistantConfig(value)
+      setDraft(value)
+      setCfg({ ...cfg, persona: value })
+      setMsg(value.trim() ? 'Saved. New conversations use it immediately.' : 'Cleared. Back to the default.')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
+        <div>
+          <h2 className="text-[13.5px] font-medium text-fg">AI assistant persona</h2>
+          <p className="mt-0.5 text-[13px] text-muted">
+            The instruction prepended to every answer: tone, language, and what the assistant says it can and cannot do.
+          </p>
+        </div>
+        <span className="inline-flex text-dim"><Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} /></span>
+      </button>
+
+      {open && (
+        <div className="mt-4">
+          {/* A custom persona REPLACES the built-in one, so the safety rules in it are replaced
+              too. Saying so beside the box is the difference between an informed override and an
+              operator who accidentally deletes the prompt-injection boundary. */}
+          <p className="mb-2 rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[12.5px] text-muted">
+            Your text <strong className="text-fg">replaces</strong> the default, it is not added to it. The default tells
+            the model to answer in your language, to never invent data, to admit what it does not know, and to treat the
+            security context as data rather than instructions. If you write your own, carry those rules over.
+            {cfg.env_persona_set && ' An ASSISTANT_PERSONA value is set on the server: leaving this empty falls back to that, not to the built-in default.'}
+          </p>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.slice(0, cfg.max_len))}
+            disabled={!editable || busy}
+            rows={10}
+            placeholder="Empty = use the default persona"
+            className="w-full rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[12.5px] text-fg placeholder:text-dim focus:border-accent focus:outline-none disabled:opacity-60"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-[12px] text-dim">{draft.length} / {cfg.max_len}</span>
+            {editable ? (
+              <>
+                <button
+                  onClick={() => void save(draft)}
+                  disabled={busy || draft === cfg.persona}
+                  className="ml-auto rounded-[8px] bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity disabled:opacity-40"
+                >
+                  {busy ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setDraft(cfg.default_persona)}
+                  disabled={busy}
+                  className="rounded-[8px] border border-border px-3 py-1.5 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                >
+                  Load the default to edit
+                </button>
+                <button
+                  onClick={() => void save('')}
+                  disabled={busy || !cfg.persona}
+                  className="rounded-[8px] border border-border px-3 py-1.5 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+                >
+                  Clear
+                </button>
+              </>
+            ) : (
+              <span className="ml-auto text-[12.5px] text-dim">Read-only: needs the manage_settings permission.</span>
+            )}
+          </div>
+          {msg && <p className="mt-2 text-[12.5px] text-success">{msg}</p>}
+          {err && <p className="mt-2 text-[12.5px] text-critical">{err}</p>}
+        </div>
+      )}
+    </section>
+  )
+}
 
 // ScoringWeightsPanel tunes the two IP scorers. Each group's four weights are shown as their
 // NORMALIZED share (they're divided by their sum on the server), so the operator reasons in
@@ -566,6 +676,8 @@ export default function Settings() {
         {notifyErr && <p className="mt-3 text-[13.5px] text-rose-400">{notifyErr}</p>}
         {notifyMsg && <p className="mt-3 text-[13.5px] text-emerald-400">{notifyMsg}</p>}
       </section>
+
+      <AssistantPersonaPanel />
 
       <ScoringWeightsPanel />
 

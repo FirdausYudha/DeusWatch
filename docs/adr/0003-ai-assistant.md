@@ -2,7 +2,8 @@
 
 - Status: **Phase 1 + 2 built.** Phase 1 (read-only chat) shipped in v2.17.0; phase 2
   (propose-only ban and whitelist) in v2.18.0, with decision 1 revised during the build to a
-  stronger form, recorded below; phase 3 (voice) in v2.19.0. Phase 4 (customisation) not started.
+  stronger form, recorded below; phase 3 (voice) in v2.19.0; phase 4 (persona) in v2.20.0. All
+  four phases built.
 - Date: 2026-10-04
 - Context: adds a conversational assistant an operator can talk to (and talk *with*): daily
   reports, a login greeting, plain-language questions about the current security posture,
@@ -137,7 +138,15 @@ Each phase is independently useful and independently shippable.
    operator approves, calling the existing endpoints under their own session.
 3. **Voice (built, v2.19.0)**, via the browser APIs. Speaker and microphone are separate toggles,
    both off by default; the speaker preference persists and the microphone deliberately does not.
-4. **Customisation.** System prompt and persona, plus a per-role allowlist of tools.
+4. **Customisation (built, v2.20.0).** The persona is editable in Settings, stored in
+   `assistant_config`, with precedence UI > `ASSISTANT_PERSONA` > built-in.
+
+   The per-role tool allowlist this phase originally called for was **not built, deliberately**.
+   There are no tools: the two actions are confirmation cards calling the ordinary ban and whitelist
+   endpoints, which already enforce `execute_block` and `manage_settings` per role. A second
+   authorization layer over the same actions would be a copy of the first, free to drift out of
+   step with it, and the drift would be silent. Build it when a tool exists that is not already
+   covered by an endpoint's own permission.
 
 ## Explicitly out of scope
 

@@ -1916,3 +1916,27 @@ export async function askAssistant(message: string, history: ChatTurn[], hours =
   const body = await res.json()
   return { reply: body.reply ?? '', proposal: body.proposal }
 }
+
+export type AssistantConfig = {
+  persona: string
+  /** The built-in persona, served so the UI can offer "restore default" without copying the text. */
+  default_persona: string
+  /** True when ASSISTANT_PERSONA is set on the API: clearing the field falls back to that, not the built-in. */
+  env_persona_set: boolean
+  max_len: number
+}
+
+export async function fetchAssistantConfig(): Promise<AssistantConfig> {
+  const res = await authFetch('/api/assistant/config')
+  if (!res.ok) throw new Error(`assistant config: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveAssistantConfig(persona: string): Promise<void> {
+  const res = await authFetch('/api/assistant/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persona }),
+  })
+  if (!res.ok) throw new Error((await res.text()).trim() || `assistant config: HTTP ${res.status}`)
+}

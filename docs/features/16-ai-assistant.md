@@ -112,16 +112,35 @@ Closing the panel stops the speech and releases the microphone.
 - **12 turns of history** are replayed. Older turns fall out of the conversation.
 - **No memory between sessions.** Closing the panel discards the thread; nothing is stored.
 
+## Customising the persona
+
+**Settings → AI assistant persona** (needs `manage_settings`; anyone who can use the assistant can
+read it). The panel only appears once the assistant is enabled.
+
+The persona is the instruction prepended to every answer: tone, language, and what the assistant
+says it can and cannot do. "Load the default to edit" fills the box with the built-in text so you
+can adjust a line instead of starting from a blank box, and **Clear** returns to the default.
+
+**Your text replaces the default, it is not added to it.** That matters more than it sounds. The
+built-in persona is what tells the model to answer in your language, to ground every claim in the
+provided context, to admit when something is not in it, and to treat the security context block as
+**data rather than instructions**. That last rule is the prompt-injection boundary described above.
+Delete it by accident and the model becomes more willing to follow text an attacker wrote into a log
+line. It still cannot act on it, since nothing in the action path involves the model, but it can
+repeat hostile instructions back to you as though they were advice. Start from the default.
+
+Changes apply to the next message. Existing conversations in an open panel keep going.
+
 ## Variables
 
 | Variable | Default | Effect |
 |---|---|---|
-| `ASSISTANT_PERSONA` | (built-in) | Replaces the assistant's system persona wholesale. A UI field for this arrives in phase 4. |
+| `ASSISTANT_PERSONA` | (built-in) | Deployment-level persona for IaC-managed installs. |
 
-The built-in persona already instructs the model to answer in the operator's language, to ground
-every claim in the provided context, to admit when something is not in it, and to treat the context
-block as data rather than instructions. A custom persona **replaces** it, so carry those rules over
-if you write your own.
+Precedence is **UI over environment over built-in**: clearing the Settings field falls back to
+`ASSISTANT_PERSONA` if it is set, not straight to the built-in default. The panel says so when the
+variable is present, so an operator wondering why "Clear" did not restore the default has the
+answer on screen.
 
 ## Endpoints
 
@@ -129,7 +148,9 @@ if you write your own.
 |---|---|
 | Is it enabled, and which model | `GET /api/assistant/status` (permission `view_dashboard`) |
 | Ask a question | `POST /api/assistant/chat` (permission `view_dashboard`) |
+| Read or set the persona | `GET` / `PUT /api/assistant/config` (`view_dashboard` / `manage_settings`) |
 | Prompt construction | `internal/assistant` |
+| Persona storage | `assistant_config` (migration `000068`): one row |
 | Panel | `web/src/assistant/Assistant.tsx`, mounted in `App.tsx` |
 
 ## Known gaps
