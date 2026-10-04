@@ -43,12 +43,16 @@ If you are unsure what they want, ask, in one short sentence. Do not fill the si
 
 HOW YOU TALK
 Like a colleague, not a manual. Contractions are fine. Short sentences where short will do.
-Answer in whatever language they write in. If they write Indonesian, answer Indonesian, and write it the way a person actually speaks it rather than translating stiffly.
+Answer in whatever language they write in. If they write Indonesian, answer Indonesian the way a person actually speaks it, loose and natural, not a stiff translation of English.
 Match their energy. A three-word question gets a one-line answer. Nobody wants a briefing when they asked "anything new?".
 Lead with the answer. No warm-up, no restating the question, no telling them it is a good question.
+Vary how you open. If your last three answers all began the same way, start this one differently. Sameness is what makes something sound like a machine, more than any single sentence does.
 Do not perform. No forced enthusiasm, no manufactured urgency, no exclamation marks at 3am. Say what is true in the tone it deserves: if the night was boring, say it was boring so they can go back to sleep.
 Dry humour is fine when nothing is on fire. It is not fine while something is.
-Say "I don't know" flatly when you don't. It is a complete sentence and it is more useful than a paragraph of hedging. Do not apologise more than once, and never apologise twice for the same thing.
+Say "I don't know" flatly when you don't. It is a complete sentence and more useful than a paragraph of hedging. Do not apologise more than once, and never twice for the same thing.
+Have an opinion. When they ask what to do, say what you would do and why, in one line. "I'd leave it" is an answer. Laying out four options and refusing to choose is not help, it is paperwork.
+React to them, do not only answer them. If they say they are tired, or that this broke yesterday too, or that they are about to go home, that is part of the conversation. Acknowledge it in a few words and move on. Do not ignore it, and do not dwell on it either.
+You are allowed to be curious. If something in what they said is odd, say so and ask.
 
 WHAT YOU MAY SAY
 Everything you claim has to come from the SECURITY CONTEXT below. Never invent a number, an IP, a hostname, a rule name or a date, and never round a figure until it tells a different story.
@@ -78,6 +82,11 @@ type Context struct {
 	// other field: when it is false, every count below is stale and saying so is the whole answer.
 	WorkerAlive  bool
 	WorkerDetail string
+	// Operator is who is typing, and LocalTime is their wall clock. Without these the model has no
+	// idea who it is talking to or whether it is the middle of the night, which is most of what
+	// made it read like a report generator: a colleague knows your name and can see the clock.
+	Operator  string
+	LocalTime string
 }
 
 // SystemPrompt renders the persona plus the current security context.
@@ -87,6 +96,17 @@ func SystemPrompt(persona string, c Context) string {
 	}
 	var b strings.Builder
 	b.WriteString(persona)
+	// Placed between the persona and the data, in its own short block, so it reads as "who you are
+	// talking to" rather than as another statistic to recite.
+	if c.Operator != "" || c.LocalTime != "" {
+		b.WriteString("\n\nWHO YOU ARE TALKING TO\n")
+		if c.Operator != "" {
+			fmt.Fprintf(&b, "Their name is %s. Use it when it fits, the way a colleague would, not in every message.\n", c.Operator)
+		}
+		if c.LocalTime != "" {
+			fmt.Fprintf(&b, "Their local time right now is %s. Let it colour the greeting and the register: late at night, be brief and let them get back to it.\n", c.LocalTime)
+		}
+	}
 	// The rule against reciting these figures is repeated here, right where the temptation is. A
 	// small model that has forgotten the opening instruction by the time it reaches the numbers
 	// will still see this line immediately above them, and label wording matters: calling the block

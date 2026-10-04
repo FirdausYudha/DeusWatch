@@ -92,6 +92,18 @@ and that is the honest cost of needing no extra service to run. If it is unaccep
 deployment, leave the microphone off; self-hosted Whisper plus Piper is the replacement path, at the
 price of two more services to operate.
 
+**Pick the voice.** When the speaker is on, a row above the message box lists the voices your
+browser has, best first, with a speed slider and a Test button. This matters more than any other
+setting here: every OS ships a cheap formant synthesiser next to its good voices, and that cheap one
+is what makes speech sound like a 1998 train announcement. The ranking prefers network and
+Natural/Neural voices, but what actually sounds human is something only you can hear, so the choice
+is yours and it is remembered per browser.
+
+If every option in that list sounds robotic, the ceiling is your browser, not DeusWatch. On Windows
+the classic "Microsoft David / Zira" voices are the old ones; Chrome adds much better "Google"
+network voices, and Windows 11 and Edge add "Natural" ones. Installing an Indonesian voice in the
+operating system makes it appear in that list too.
+
 **Dictation does not auto-send.** The transcript lands in the message box for you to read first.
 Recognition misreads addresses often enough that "block 45.134.26.9" deserves a glance before it
 becomes a confirmation card.

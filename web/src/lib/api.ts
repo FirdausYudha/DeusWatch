@@ -1908,7 +1908,9 @@ export async function askAssistant(message: string, history: ChatTurn[], hours =
   const res = await authFetch('/api/assistant/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history, hours }),
+    // The browser's clock, not the server's: the API runs UTC in a container and would otherwise
+    // have the assistant saying good morning at 2am local.
+    body: JSON.stringify({ message, history, hours, local_time: new Date().toLocaleString() }),
   })
   // The server's message is the useful part here (budget hit, no model configured, provider
   // unreachable), so it is surfaced verbatim rather than replaced with a status code.

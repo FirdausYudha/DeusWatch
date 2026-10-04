@@ -113,6 +113,9 @@ type assistantChatRequest struct {
 	Message string         `json:"message"`
 	History []llm.ChatTurn `json:"history"`
 	Hours   int            `json:"hours"`
+	// LocalTime is the operator's wall clock, sent by the browser. The server's clock is UTC in a
+	// container and would have the assistant wishing someone good morning at 2am their time.
+	LocalTime string `json:"local_time"`
 }
 
 // assistantChatHandler answers one message with the current security posture in context.
@@ -198,6 +201,9 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			Data:         report.SummaryPrompt(rep),
 			WorkerAlive:  workerAlive,
 			WorkerDetail: workerDetail,
+			Operator:     username,
+			// Clamped: this lands in a prompt, and a client is free to send anything.
+			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})
 
 		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
@@ -259,4 +265,12 @@ func assistantConfigSetHandler(st *store.Store) http.HandlerFunc {
 		out, _ := st.LoadAssistantConfig(r.Context())
 		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+// truncate caps a client-supplied string before it reaches the prompt.
+func truncate(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
 }

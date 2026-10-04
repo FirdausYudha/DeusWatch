@@ -84,10 +84,22 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
   )
 }
 
+// The opening line, before any model call. It stays local because a greeting that costs a round
+// trip and three seconds is worse than one that is instant, but the wording rotates: an identical
+// sentence every single time is most of what made the panel feel like a vending machine. Once the
+// conversation starts, the model takes over and it knows the name and the clock.
+const OPENERS = [
+  'What are we looking at?',
+  'Anything you want me to check?',
+  'What do you need?',
+  'Where do you want to start?',
+]
+
 function greeting(name: string): string {
   const h = new Date().getHours()
-  const part = h < 11 ? 'Good morning' : h < 15 ? 'Good afternoon' : h < 19 ? 'Good evening' : 'Working late'
-  return `${part}, ${name}. Ask me about the last 24 hours, a source IP, or the health of the platform itself.`
+  const part =
+    h < 5 ? 'Still up' : h < 11 ? 'Morning' : h < 15 ? 'Afternoon' : h < 19 ? 'Evening' : 'Working late'
+  return `${part}, ${name}. ${OPENERS[Math.floor(Math.random() * OPENERS.length)]}`
 }
 
 // Msg is a rendered turn. It carries the optional proposal card, which is view state only: the
@@ -107,7 +119,11 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
   // while recognition streams audio to Google in Chrome, and a setting that silently reopens a
   // microphone on the next login is not a default worth persisting on a security console.
   const [speakReplies, setSpeakReplies] = usePersistedState('assistant.speak', false)
-  const speaker = useSpeaker()
+  // Which voice and how fast are per-viewer taste, and the available voices differ by OS, so both
+  // are remembered in the browser rather than stored server-side.
+  const [voiceURI, setVoiceURI] = usePersistedState('assistant.voice', '')
+  const [rate, setRate] = usePersistedState('assistant.rate', 0.95)
+  const speaker = useSpeaker(voiceURI, rate)
   const mic = useDictation(setDraft)
 
   // Ask once on mount. A deployment that never enabled the assistant shows no launcher at all,
@@ -298,6 +314,44 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
             )}
             <div ref={endRef} />
           </div>
+
+          {speakReplies && speaker.voices.length > 0 && (
+            // Only while reading aloud is on. The default voice is a guess ranked by name and
+            // network-vs-local; whether it actually sounds human is something only the person
+            // listening can judge, so they get to pick.
+            <div className="flex-none items-center gap-2 border-t border-border px-3 py-2 text-[11.5px] text-dim sm:flex">
+              <select
+                value={voiceURI || speaker.voices[0]?.voiceURI || ''}
+                onChange={(e) => {
+                  setVoiceURI(e.target.value)
+                  speaker.cancel()
+                }}
+                aria-label="Voice"
+                className="min-w-0 flex-1 rounded-[6px] border border-border bg-bg px-2 py-1 text-[11.5px] text-fg focus:border-accent focus:outline-none"
+              >
+                {speaker.voices.map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                ))}
+              </select>
+              <input
+                type="range"
+                min={0.7}
+                max={1.3}
+                step={0.05}
+                value={rate}
+                onChange={(e) => setRate(Number(e.target.value))}
+                aria-label="Speech rate"
+                title={`Speed ${rate.toFixed(2)}x`}
+                className="w-20 shrink-0 accent-[var(--color-accent)]"
+              />
+              <button
+                onClick={() => (speaker.speaking ? speaker.cancel() : speaker.speak('Oke, suara ini yang akan kupakai. This is how I will sound.'))}
+                className="shrink-0 rounded-[6px] border border-border px-2 py-1 transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                {speaker.speaking ? 'Stop' : 'Test'}
+              </button>
+            </div>
+          )}
 
           <div className="flex-none border-t border-border p-3">
             <textarea
