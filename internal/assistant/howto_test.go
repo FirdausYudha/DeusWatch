@@ -58,3 +58,43 @@ func TestNeedsIntegrationsGuide(t *testing.T) {
 		}
 	}
 }
+
+// The roster exists to close a vacuum the model filled with invented hostnames, so the sentence
+// that tells it the list is exhaustive matters more than the list itself.
+func TestRosterStatesItIsComplete(t *testing.T) {
+	g := Roster([]AgentLine{
+		{Name: "test-server", OS: "linux", Status: "online", Version: "v2.23.0"},
+		{Name: "old-box", OS: "linux", Status: "stale", Revoked: true},
+	})
+	for _, want := range []string{
+		"COMPLETE list",
+		"Never name an agent that is not on it",
+		"test-server (linux): online, agent v2.23.0",
+		"old-box (linux): stale, REVOKED",
+		"2 in total",
+	} {
+		if !strings.Contains(g, want) {
+			t.Errorf("roster missing %q:\n%s", want, g)
+		}
+	}
+}
+
+// An empty fleet must read as "there are none", not as a missing section the model fills in.
+func TestRosterEmptyFleetSaysSo(t *testing.T) {
+	if g := Roster(nil); !strings.Contains(g, "no enrolled agents at all") {
+		t.Errorf("empty roster should say so explicitly:\n%s", g)
+	}
+}
+
+// A large fleet must not crowd out the rest of the prompt, and the model has to be told that the
+// names it cannot see exist rather than being left to infer the fleet is smaller than it is.
+func TestRosterCapsLongFleets(t *testing.T) {
+	many := make([]AgentLine, MaxRosterLines+5)
+	for i := range many {
+		many[i] = AgentLine{Name: "agent", Status: "online"}
+	}
+	g := Roster(many)
+	if !strings.Contains(g, "5 more not listed individually") || !strings.Contains(g, "5 online") {
+		t.Errorf("capped roster must account for the remainder:\n%s", g)
+	}
+}

@@ -55,3 +55,42 @@ func (s *Store) SaveAssistantConfig(ctx context.Context, c AssistantConfig) erro
 	}
 	return nil
 }
+
+// AgentRow is one endpoint as the assistant needs to describe it.
+type AgentRow struct {
+	Name    string
+	OS      string
+	Status  string // unknown | online | degraded | disconnected | stale
+	Version string
+	Revoked bool
+	Detail  string
+}
+
+// AgentRoster lists the enrolled endpoints for the assistant's context.
+//
+// It reads the table directly rather than going through enroll.Store, which needs the CA loaded
+// and therefore would make the assistant's answers depend on whether enrollment happens to be
+// enabled. Nothing here is a secret: it is the same list the Agents page shows.
+//
+// This exists because its absence was a real failure, not a gap in polish. Asked which agents were
+// online, the model had nothing in context, and a model with nothing in context invents: it named
+// two hosts that do not exist and recommended an upgrade for one of them.
+func (s *Store) AgentRoster(ctx context.Context) ([]AgentRow, error) {
+	rows, err := s.q(ctx).Query(ctx,
+		`SELECT name, COALESCE(os,''), COALESCE(status,'unknown'), COALESCE(agent_version,''),
+		        revoked, COALESCE(health_detail,'')
+		 FROM agents WHERE deleted_at IS NULL ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("store: agent roster: %w", err)
+	}
+	defer rows.Close()
+	out := make([]AgentRow, 0, 16)
+	for rows.Next() {
+		var a AgentRow
+		if err := rows.Scan(&a.Name, &a.OS, &a.Status, &a.Version, &a.Revoked, &a.Detail); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}

@@ -114,3 +114,72 @@ var connectorNames = []string{
 	"ollama", "anthropic", "claude", "openai", "gemini", "groq", "openrouter", "vllm",
 	"telegram", "webhook", "smtp", "elasticsearch", "elastic", "wazuh", "virustotal", "nftables",
 }
+
+// AgentLine is one endpoint, flattened by the caller so this package stays free of a store import.
+type AgentLine struct {
+	Name, OS, Status, Version, Detail string
+	Revoked                           bool
+}
+
+// MaxRosterLines caps the roster. A large fleet would otherwise crowd out everything else in the
+// prompt; past this point the model gets counts per status instead of names, and is told so.
+const MaxRosterLines = 40
+
+// Roster renders the enrolled endpoints.
+//
+// The opening sentence is the load-bearing part. "This is the complete list" is what stops a model
+// from adding plausible hostnames to it, and plausible is exactly what invented ones are: asked to
+// name the online agents with no roster in context, it answered "test-server, web-server-1,
+// db-server" on a fleet of one. A list the model is told is exhaustive is a list it can be caught
+// contradicting; a vacuum is not.
+func Roster(agents []AgentLine) string {
+	var b strings.Builder
+	if len(agents) == 0 {
+		return "ENROLLED ENDPOINTS\nThere are no enrolled agents at all. If asked about agents, say exactly that.\n"
+	}
+	fmt.Fprintf(&b, "ENROLLED ENDPOINTS: %d in total, and this is the COMPLETE list.\n", len(agents))
+	b.WriteString("Never name an agent that is not on it. If asked about one that is absent, say it is not enrolled.\n")
+	b.WriteString("Status means: online = healthy; degraded = reporting a problem about itself; disconnected = missed heartbeats; stale = quiet over a day; unknown = enrolled but never checked in.\n")
+	shown := agents
+	if len(shown) > MaxRosterLines {
+		shown = shown[:MaxRosterLines]
+	}
+	for _, a := range shown {
+		fmt.Fprintf(&b, "- %s (%s): %s", a.Name, orUnknown(a.OS), a.Status)
+		if a.Revoked {
+			b.WriteString(", REVOKED")
+		}
+		if a.Version != "" {
+			fmt.Fprintf(&b, ", agent %s", a.Version)
+		}
+		if d := strings.TrimSpace(a.Detail); d != "" {
+			fmt.Fprintf(&b, ", reports: %s", clip(d, 120))
+		}
+		b.WriteString("\n")
+	}
+	if len(agents) > len(shown) {
+		counts := map[string]int{}
+		for _, a := range agents[len(shown):] {
+			counts[a.Status]++
+		}
+		keys := make([]string, 0, len(counts))
+		for k := range counts {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("%d %s", counts[k], k))
+		}
+		fmt.Fprintf(&b, "...and %d more not listed individually (%s). Say so rather than guessing their names.\n",
+			len(agents)-len(shown), strings.Join(parts, ", "))
+	}
+	return b.String()
+}
+
+func orUnknown(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "OS unknown"
+	}
+	return s
+}

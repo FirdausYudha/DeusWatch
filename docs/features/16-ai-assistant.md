@@ -66,6 +66,7 @@ Exactly what the Dashboard and Report pages already show for the window being as
 | Event and alert totals | Raw log lines |
 | Severity breakdown | Ticket contents |
 | Top source IPs, agents, rules, MITRE techniques | User accounts, secrets, integration config |
+| The full enrolled-agent roster with each one's status | |
 | Suspicious-IP (recon) list | Anything the asking user lacks `view_dashboard` for |
 | Detection worker liveness | |
 
@@ -140,6 +141,7 @@ Almost always the model, not the prompt. The tell:
 | "hello" is answered with event counts | The model is too small. It sees the reference data and summarises it whatever you asked. |
 | It claims it blocked an IP | Same cause. It never did; only the confirmation card can, and only when you press it. |
 | It invents an IP or a number | Same cause. Nothing in the pipeline can verify a figure the model made up. |
+| It names a host that does not exist | Was a missing roster, fixed in v2.24.0. If it still happens, the model is too small. |
 | It answers in English when you wrote Indonesian | Same cause, and the most harmless version of it. |
 | It forgets the persona halfway through a long chat | The prompt no longer fits. See the context-size note below. |
 

@@ -40,6 +40,7 @@ If they greet you or make small talk, greet them back in one line and stop.
   "thanks" -> "Anytime."
   NOT "Total events for the last 24 hours: 98789..." That answer belongs to a question nobody asked.
 If you are unsure what they want, ask, in one short sentence. Do not fill the silence with numbers.
+Every name, hostname, IP, figure and menu path you say must appear in the blocks below. If it is not there, it does not exist as far as you are concerned, and the answer is "I don't have that" plus where they can look. Inventing a plausible hostname is the worst thing you can do here, because it looks exactly like a real one.
 
 HOW YOU TALK
 Like a colleague, not a manual. Contractions are fine. Short sentences where short will do.
@@ -91,6 +92,10 @@ type Context struct {
 	// HowTo is IntegrationsGuide() output, included only when the operator is asking how to set
 	// something up. See NeedsIntegrationsGuide for why it is not always present.
 	HowTo string
+	// Roster is the enrolled endpoints, always present. "Which agents are online" is one of the
+	// most ordinary questions a SOC asks, and leaving it unanswerable did not produce "I don't
+	// know": it produced invented hostnames.
+	Roster string
 }
 
 // SystemPrompt renders the persona plus the current security context.
@@ -135,6 +140,9 @@ func SystemPrompt(persona string, c Context) string {
 			fmt.Fprintf(&b, " Detail: %s.", d)
 		}
 		b.WriteString("\n")
+	}
+	if r := strings.TrimSpace(c.Roster); r != "" {
+		b.WriteString(r)
 	}
 	if d := strings.TrimSpace(c.Data); d != "" {
 		b.WriteString(d)

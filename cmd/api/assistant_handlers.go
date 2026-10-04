@@ -168,6 +168,21 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			return
 		}
 
+		// Always loaded: the roster is small and its absence is what made the model invent hosts.
+		// A failure to read it is not fatal, but it must not silently look like an empty fleet, so
+		// the model is told the list is unavailable rather than being handed nothing.
+		roster := "ENROLLED ENDPOINTS: could not be read just now. Say so if asked about agents; do not guess names.\n"
+		if rows, rerr := st.AgentRoster(r.Context()); rerr == nil {
+			lines := make([]assistant.AgentLine, 0, len(rows))
+			for _, a := range rows {
+				lines = append(lines, assistant.AgentLine{
+					Name: a.Name, OS: a.OS, Status: a.Status,
+					Version: a.Version, Detail: a.Detail, Revoked: a.Revoked,
+				})
+			}
+			roster = assistant.Roster(lines)
+		}
+
 		var howTo string
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
@@ -210,7 +225,8 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			// The catalogue rides along only for "how do I set up X" messages. Always sending it
 			// would roughly double the prompt and risk silent truncation at Ollama's default
 			// context size, for a guide most messages have no use for.
-			HowTo: howTo,
+			HowTo:  howTo,
+			Roster: roster,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})
