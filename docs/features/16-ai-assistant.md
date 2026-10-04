@@ -149,12 +149,16 @@ prompt exceeds it, which looks like an assistant that has forgotten its instruct
 error. If that is what you are seeing, give the model a larger window:
 
 ```bash
-printf 'FROM llama3.1:8b
+docker exec -i ollama sh -c 'printf "FROM llama3.1:8b
 PARAMETER num_ctx 8192
-' | docker exec -i ollama ollama create deuswatch-llama -f -
+" > /tmp/Modelfile && ollama create deuswatch-llama -f /tmp/Modelfile'
 ```
 
 Then set **Model** to `deuswatch-llama` on the integration. Nothing else changes.
+
+The Modelfile is written inside the container first because `ollama create -f -` (reading from
+stdin) is not accepted by every version, and the one that refuses it says only "no Modelfile or
+safetensors files found".
 
 The default persona puts the rules that prevent these at the very start and repeats the important
 one immediately above and below the data, because a 3B model keeps the first and last instructions
