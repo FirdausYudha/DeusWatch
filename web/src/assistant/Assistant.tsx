@@ -94,7 +94,7 @@ function greeting(name: string): string {
 // history sent back to the model is role + content, so a card never becomes part of the prompt.
 type Msg = ChatTurn & { proposal?: AssistantProposal }
 
-export default function Assistant({ me }: { me: Me }) {
+export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona?: () => void }) {
   const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
   const [turns, setTurns] = useState<Msg[]>([])
@@ -189,6 +189,36 @@ export default function Assistant({ me }: { me: Me }) {
             <span className="text-[14.5px] font-semibold text-fg">Assistant</span>
             {/* It stopped being read-only the moment it could prepare a block, so the badge that
                 used to say so is gone. The honest version of that promise is in the footer. */}
+            {/* One ml-auto on the group, not one per button: with three optional controls, deciding
+                which of them is currently first is a bug waiting to happen. */}
+            <div className="ml-auto flex items-center gap-1">
+            {/* The persona is what you are talking to, so the way to change it belongs here rather
+                than only in Settings. Hidden without manage_settings: an operator who cannot edit
+                it gains nothing from a link to a read-only field. */}
+            {onEditPersona && can(me, 'manage_settings') && (
+              <button
+                onClick={() => {
+                  // The hash is what makes the panel on the other end open itself and scroll into
+                  // view, so this lands on the field rather than the top of a long page.
+                  window.location.hash = 'assistant-persona'
+                  close()
+                  onEditPersona()
+                }}
+                title="Edit the assistant's persona"
+                aria-label="Edit the assistant's persona"
+                className="rounded-[8px] p-1.5 text-dim transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            )}
             {speaker.supported && (
               <button
                 onClick={() => {
@@ -198,7 +228,7 @@ export default function Assistant({ me }: { me: Me }) {
                 title={speakReplies ? 'Stop reading replies aloud' : 'Read replies aloud'}
                 aria-label={speakReplies ? 'Stop reading replies aloud' : 'Read replies aloud'}
                 aria-pressed={speakReplies}
-                className={`ml-auto rounded-[8px] p-1.5 transition-colors hover:bg-surface-2 ${
+                className={`rounded-[8px] p-1.5 transition-colors hover:bg-surface-2 ${
                   speakReplies ? 'text-accent' : 'text-dim hover:text-fg'
                 }`}
               >
@@ -215,12 +245,11 @@ export default function Assistant({ me }: { me: Me }) {
             <button
               onClick={close}
               aria-label="Close assistant"
-              className={`rounded-[8px] px-2 py-1 text-dim transition-colors hover:bg-surface-2 hover:text-fg ${
-                speaker.supported ? '' : 'ml-auto'
-              }`}
+              className="rounded-[8px] px-2 py-1 text-dim transition-colors hover:bg-surface-2 hover:text-fg"
             >
               ✕
             </button>
+            </div>
           </header>
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4">

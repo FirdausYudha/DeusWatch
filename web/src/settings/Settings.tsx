@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, can, fetchSubscriptions, createSubscription, toggleSubscription, deleteSubscription,
   fetchAssistantStatus, fetchAssistantConfig, saveAssistantConfig, type AssistantConfig, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig, type Subscription } from '../lib/api'
@@ -13,6 +13,7 @@ const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 function AssistantPersonaPanel() {
   const [me, setMe] = useState<Me | null>(null)
   const [show, setShow] = useState(false)
+  const sectionRef = useRef<HTMLElement>(null)
   const [open, setOpen] = useState(false)
   const [cfg, setCfg] = useState<AssistantConfig | null>(null)
   const [draft, setDraft] = useState('')
@@ -31,6 +32,17 @@ function AssistantPersonaPanel() {
       .catch(() => {})
   }, [])
 
+  // The assistant panel's edit shortcut navigates here with #assistant-persona, so open and scroll
+  // to the field. Landing at the top of a long settings page would make the shortcut pointless.
+  useEffect(() => {
+    if (!show || !cfg) return
+    if (window.location.hash !== '#assistant-persona') return
+    setOpen(true)
+    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Cleared so a later reload of Settings does not keep springing open on its own.
+    history.replaceState(null, '', window.location.pathname + window.location.search)
+  }, [show, cfg])
+
   if (!show || !cfg) return null
 
   const save = async (value: string) => {
@@ -48,7 +60,7 @@ function AssistantPersonaPanel() {
   }
 
   return (
-    <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
+    <section ref={sectionRef} id="assistant-persona" className="mt-6 rounded-[12px] border border-border bg-surface p-5">
       <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
         <div>
           <h2 className="text-[13.5px] font-medium text-fg">AI assistant persona</h2>

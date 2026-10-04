@@ -115,10 +115,17 @@ Closing the panel stops the speech and releases the microphone.
 ## Customising the persona
 
 **Settings → AI assistant persona** (needs `manage_settings`; anyone who can use the assistant can
-read it). The panel only appears once the assistant is enabled.
+read it). The panel only appears once the assistant is enabled. There is also a **pencil in the chat
+panel header** that jumps straight to the field with the section already open, since the persona is
+what you are talking to and you usually want to change it mid-conversation. It is hidden for anyone
+without `manage_settings`, who would only land on a read-only box.
 
 The persona is the instruction prepended to every answer: tone, language, and what the assistant
-says it can and cannot do. "Load the default to edit" fills the box with the built-in text so you
+says it can and cannot do. The default is written as a colleague rather than a manual, and it
+carries a little domain judgement that a general model does not have: that failed SSH logins from a
+crowd of foreign IPs are internet weather rather than an incident, that one successful login
+outweighs ten thousand failures, that a stopped worker means the figures are frozen and not calm,
+and that a category missing entirely usually means a sensor is off rather than a threat is absent. "Load the default to edit" fills the box with the built-in text so you
 can adjust a line instead of starting from a blank box, and **Clear** returns to the default.
 
 **Your text replaces the default, it is not added to it.** That matters more than it sounds. The

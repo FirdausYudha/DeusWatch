@@ -122,7 +122,7 @@ export default function App() {
         </main>
       </div>
       {/* Reachable from every view, and renders nothing at all unless the deployment enabled it. */}
-      <Assistant me={me} />
+      <Assistant me={me} onEditPersona={() => setView('settings')} />
     </div>
   )
 }
