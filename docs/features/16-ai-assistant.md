@@ -296,6 +296,12 @@ Changes apply to the next message. Existing conversations in an open panel keep 
 | `ASSISTANT_PERSONA` | (built-in) | Deployment-level persona for IaC-managed installs. |
 | `LLM_TIMEOUT` | `5m` | How long one model call may take. Raise it on slow CPU-only hosts. |
 
+**If you raise `LLM_TIMEOUT`, raise the web proxy with it.** `web/nginx.conf` sets
+`proxy_read_timeout`, and whichever timeout is shorter is the one you actually get. When nginx gives
+up first you see its own `504 Gateway Time-out` page instead of the API's error, and raising
+`LLM_TIMEOUT` has no effect at all because the request never gets that far. The proxy is currently
+set to 600s against a 5m API budget; keep that gap.
+
 Precedence is **UI over environment over built-in**: clearing the Settings field falls back to
 `ASSISTANT_PERSONA` if it is set, not straight to the built-in default. The panel says so when the
 variable is present, so an operator wondering why "Clear" did not restore the default has the

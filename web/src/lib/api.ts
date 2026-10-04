@@ -1900,6 +1900,19 @@ export async function fetchAssistantStatus(): Promise<AssistantStatus> {
 
 /** A ban/whitelist the operator asked for in words. Parsed server-side from THEIR message, never
  *  produced by the model, and nothing happens until they confirm the card. */
+/** Turns a proxy's HTML error page into one sentence that names the real problem. */
+function readableError(body: string, status: number): string {
+  const t = body.trim()
+  if (t && !t.startsWith('<')) return t
+  if (status === 504 || status === 408) {
+    return 'The model took too long to answer and the connection timed out. A local model on CPU can need several minutes for a long question; raise LLM_TIMEOUT on the api, and make sure the web proxy timeout is higher than it.'
+  }
+  if (status === 502 || status === 503) {
+    return 'The API did not answer. It may be restarting, or the model provider is unreachable.'
+  }
+  return `The request failed (HTTP ${status}).`
+}
+
 function localHour(): string {
   const now = new Date()
   const day = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
@@ -1926,9 +1939,11 @@ export async function askAssistant(message: string, history: ChatTurn[], hours =
     // server's prompt cache on every message, which is minutes of re-evaluation on CPU.
     body: JSON.stringify({ message, history, hours, local_time: localHour() }),
   })
-  // The server's message is the useful part here (budget hit, no model configured, provider
-  // unreachable), so it is surfaced verbatim rather than replaced with a status code.
-  if (!res.ok) throw new Error((await res.text()).trim() || `assistant: HTTP ${res.status}`)
+  // The API's own message is the useful part here (budget hit, no model configured, provider
+  // unreachable), so it is surfaced verbatim. But an error can also come from the reverse proxy
+  // rather than the API, and that arrives as an HTML page: dumping "<html><head><title>504..." into
+  // a chat bubble tells the operator nothing and hides which component actually gave up.
+  if (!res.ok) throw new Error(readableError(await res.text(), res.status))
   const body = await res.json()
   return { reply: body.reply ?? '', proposal: body.proposal }
 }
