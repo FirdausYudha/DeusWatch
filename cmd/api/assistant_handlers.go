@@ -201,6 +201,12 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
 		}
+		if assistant.NeedsPrimer(req.Message) {
+			// Conceptual questions answered from generic SIEM knowledge are close enough to sound
+			// right and wrong where it counts, such as describing response as automatic when this
+			// deployment gates every ban behind an approval.
+			howTo += "\n" + assistant.Primer
+		}
 		draftingRule := assistant.NeedsRuleAuthoring(req.Message)
 		if draftingRule {
 			// Generic Sigma knowledge produces rules this evaluator rejects, so the supported
@@ -209,8 +215,15 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		}
 
 		hours := req.Hours
-		if hours <= 0 || hours > 24*30 {
+		if hours <= 0 || hours > assistant.MaxWindowHours {
 			hours = 24
+		}
+		// A window named in the message wins over the client's default: "apa yang terjadi minggu
+		// lalu" has to actually look at last week, and resolving it here rather than asking the
+		// model for a number keeps the arithmetic off the thing least able to do it. A wrong window
+		// is invisible in the answer, which is what makes guessing it unacceptable.
+		if h, ok := assistant.ParseWindow(req.Message); ok {
+			hours = h
 		}
 		od := st.OpsDigestFor(r.Context(), time.Now().Add(-time.Duration(hours)*time.Hour), time.Now())
 		ops := assistant.Ops(assistant.OpsStats{
@@ -224,6 +237,17 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		// The baseline. Built only for questions about change, because it doubles the report
+		// queries and most messages have no use for it. A failure here is not fatal: the answer
+		// loses its comparison, which is better than losing the answer.
+		var trend string
+		if assistant.NeedsComparison(req.Message) {
+			now := time.Now()
+			span := time.Duration(hours) * time.Hour
+			if prev, perr := st.BuildReportRange(r.Context(), now.Add(-2*span), now.Add(-span)); perr == nil {
+				trend = assistant.Trend(asWindow(rep), asWindow(prev), hours)
+			}
 		}
 		// A worker that stopped makes every figure above stale, so the model is told before it is
 		// asked anything. Failing to read it is not fatal: an assistant that answers without the
@@ -258,6 +282,7 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			Rules:  ruleDigest,
 			UI:     assistant.UIMap,
 			Ops:    ops,
+			Trend:  trend,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})
@@ -348,4 +373,21 @@ func truncate(s string, n int) string {
 		return s[:n]
 	}
 	return s
+}
+
+// asWindow flattens a report into the shape the comparison works on, keeping internal/assistant
+// free of a dependency on the report package.
+func asWindow(r report.Report) assistant.Window {
+	conv := func(in []report.Count) []assistant.Count {
+		out := make([]assistant.Count, 0, len(in))
+		for _, c := range in {
+			out = append(out, assistant.Count{Label: c.Label, Count: int64(c.Count)})
+		}
+		return out
+	}
+	return assistant.Window{
+		Events: r.TotalEvents, Alerts: r.TotalAlerts,
+		BySeverity: conv(r.BySeverity), TopSourceIPs: conv(r.TopSourceIPs),
+		TopRules: conv(r.TopRules), TopAgents: conv(r.TopAgents),
+	}
 }

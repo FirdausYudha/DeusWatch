@@ -15,6 +15,9 @@ import "testing"
 const (
 	maxBasePromptChars   = 12000 // every message pays this
 	maxGuidedPromptChars = 24000 // plus a setup or rule-authoring guide
+	// The pathological case: a conceptual question that also asks for a rule, names a window and
+	// asks what changed. Rare, but it has to fit, or that one message silently loses its tail.
+	maxWorstCasePromptChars = 32000
 )
 
 func realisticContext() Context {
@@ -42,6 +45,22 @@ func TestBasePromptWithinBudget(t *testing.T) {
 	if n > maxBasePromptChars {
 		t.Errorf("base prompt is %d chars, over the %d budget. Gate the newest block behind a "+
 			"keyword check rather than raising this: every message pays for it in latency.", n, maxBasePromptChars)
+	}
+}
+
+// Everything gated, all at once.
+func TestWorstCasePromptWithinBudget(t *testing.T) {
+	c := realisticContext()
+	c.HowTo = IntegrationsGuide() + "\n" + RuleAuthoringGuide + "\n" + Primer
+	c.Trend = Trend(
+		Window{Events: 412, Alerts: 93, BySeverity: []Count{{Label: "high", Count: 40}},
+			TopSourceIPs: []Count{{Label: "45.134.26.9", Count: 49}}},
+		Window{Events: 93, Alerts: 93, BySeverity: []Count{{Label: "high", Count: 10}},
+			TopSourceIPs: []Count{{Label: "1.1.1.1", Count: 9}}}, 24)
+	n := len(SystemPrompt("", c))
+	t.Logf("worst-case prompt %d chars (~%d tokens)", n, n/4)
+	if n > maxWorstCasePromptChars {
+		t.Errorf("worst-case prompt is %d chars, over the %d budget", n, maxWorstCasePromptChars)
 	}
 }
 

@@ -122,6 +122,44 @@ HTTPS or localhost, and the button explains itself when the page is served over 
 
 Closing the panel stops the speech and releases the microphone.
 
+## Asking it to find anomalies
+
+"ada yang aneh minggu ini?" or "anything unusual in the last 3 days?" is answered against a
+**baseline**, not a single snapshot. An anomaly is a deviation, and given one window's figures the
+model has nothing to deviate from: it picks the largest number and calls it notable, which is
+reading the top of a list aloud rather than detecting anything.
+
+Two things make it work.
+
+**The window comes from your sentence.** "7 hari terakhir", "last week", "6 jam", "sebulan" are
+parsed deterministically, in English and Indonesian, and clamped to 90 days. Rolling windows only;
+for calendar ranges like "1 to 3 October" use the Report page, which has a date picker. Resolving
+this in code rather than asking the model matters because a wrong window is invisible in the answer:
+a reply about last week looks exactly like a reply about yesterday.
+
+**The deltas are calculated before the model sees them.** The preceding equal-length window is built
+as a baseline and every movement is handed over already phrased, "93 -> 412, up 343%". Small models
+are poor at arithmetic and a wrong percentage reads as confidently as a right one, so the model's
+job is narrowed to deciding which movement matters and why, which is the part it is good at.
+
+What the comparison surfaces: totals that moved, severity shifts over 25%, source IPs that appeared
+or stopped, detections that started firing, and **agents that were active before and are quiet now**,
+because a host that goes silent is as interesting as one that gets loud. The block ends with the
+rule that keeps it honest: a big number is not an anomaly, a big change is, and a quiet period
+should be reported as quiet.
+
+The baseline doubles the report queries, so it is built only when the question is about change
+("anomali", "unusual", "lonjakan", "compare", "berubah"). Plain "what happened today" does not pay
+for it.
+
+## Asking what something means
+
+"apa itu degraded?", "how does response work?", "bedanya FIM sama SCA apa?" pull in a primer on how
+**DeusWatch** works, as opposed to how SIEMs generally work. Without it the model answers by analogy
+to other products, which is close enough to sound right and wrong exactly where it counts: it will
+describe response as automatic when every ban here waits for a human, or treat all detection as
+single-event when aggregation rules run a different path entirely.
+
 ## Asking it to write a detection rule
 
 "buatkan rule untuk mendeteksi upload webshell" or "write a sigma rule for failed sudo attempts"
