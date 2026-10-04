@@ -109,6 +109,9 @@ export default function Sidebar({
   // Per-group collapse, remembered across reloads (map of group name → collapsed).
   const [collapsed, setCollapsed] = usePersistedState<Record<string, boolean>>('nav.collapsed', {})
   const toggleGroup = (g: string) => setCollapsed({ ...collapsed, [g]: !collapsed[g] })
+  // Rail mode: shrink the whole sidebar to icons so the page gets the width back. Desktop only,
+  // because below `lg` the sidebar is already a slide-over that takes no width when shut.
+  const [rail, setRail] = usePersistedState('nav.rail', false)
 
   const handleLogout = async () => {
     await logout()
@@ -129,15 +132,45 @@ export default function Sidebar({
           className="fixed inset-0 z-20 bg-slate-950/60 lg:hidden"
         />
       )}
+      {/* The rail width only ever applies from `lg` up: the mobile slide-over always opens at its
+          full width, where shrinking to icons would help nobody. */}
       <aside
+        // Exactly ONE lg:w-* is ever emitted. Listing both and relying on the order they appear in
+        // the class string does not work: equal-specificity utilities are resolved by their order
+        // in the generated stylesheet, so the rail silently kept its full width.
         className={`fixed inset-y-0 left-0 z-30 flex h-screen w-[232px] shrink-0 flex-col border-r border-border bg-surface transition-transform lg:sticky lg:top-0 lg:translate-x-0 ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
+          rail ? 'lg:w-[64px]' : 'lg:w-[232px]'
+        } ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
-      {/* Brand */}
-      <div className="flex h-[60px] items-center gap-2.5 px-[18px]">
-        <img src="/deuswatch-eye.png" alt="" aria-hidden="true" className="h-7 w-auto shrink-0" />
-        <span className="text-[16px] font-bold tracking-tight text-fg">DeusWatch</span>
+      {/* Brand. In rail mode the logo and wordmark give way to the toggle: 64px cannot hold both,
+          and the control you need to get back out must never be the thing that got squeezed. */}
+      <div className={`flex h-[60px] items-center gap-2.5 px-[18px] ${rail ? 'lg:justify-center lg:px-0' : ''}`}>
+        <img
+          src="/deuswatch-eye.png"
+          alt=""
+          aria-hidden="true"
+          className={`h-7 w-auto shrink-0 ${rail ? 'lg:hidden' : ''}`}
+        />
+        <span className={`text-[16px] font-bold tracking-tight text-fg ${rail ? 'lg:hidden' : ''}`}>DeusWatch</span>
+        <button
+          onClick={() => setRail(!rail)}
+          title={rail ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={rail ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!rail}
+          className={`ml-auto hidden rounded-[8px] p-1.5 text-dim transition-colors hover:bg-surface-2 hover:text-fg lg:block ${
+            rail ? 'lg:ml-0' : ''
+          }`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d={rail ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'}
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
       </div>
 
       {/* Nav, grouped by feature category */}
@@ -146,7 +179,10 @@ export default function Sidebar({
           const visibleItems = group.items.filter(n => !n.perm || can(me, n.perm))
           if (visibleItems.length === 0) return null
 
-          const isCollapsed = !!collapsed[group.group]
+          // In rail mode the group headers are hidden, so their collapse state must be ignored
+          // too: otherwise a group collapsed before switching to the rail would hide its icons
+          // with no header left to click and no way to get them back.
+          const isCollapsed = !rail && !!collapsed[group.group]
           const hasActive = visibleItems.some((n) => n.view === view)
 
           return (
@@ -156,7 +192,9 @@ export default function Sidebar({
               <button
                 onClick={() => toggleGroup(group.group)}
                 aria-expanded={!isCollapsed}
-                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[12.5px] font-semibold uppercase tracking-wide text-dim transition-colors hover:text-fg"
+                className={`flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[12.5px] font-semibold uppercase tracking-wide text-dim transition-colors hover:text-fg ${
+                  rail ? 'lg:hidden' : ''
+                }`}
               >
                 <svg
                   width="10"
@@ -179,15 +217,18 @@ export default function Sidebar({
                     key={n.id}
                     data-view={n.view}
                     onClick={() => { if (n.view) { onNavigate(n.view); onClose?.() } }}
+                    // The label becomes the tooltip in rail mode: an icon-only nav that cannot be
+                    // read is a guessing game, and these icons are not universal signs.
+                    title={rail ? n.label : undefined}
                     className={`flex w-full items-center gap-[11px] rounded-[8px] px-3 py-[9px] text-left text-[14.5px] font-medium transition-colors ${
                       active ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-fg'
-                    }`}
+                    } ${rail ? 'lg:justify-center lg:px-0' : ''}`}
                   >
                     <span className={active ? 'text-accent' : 'text-dim'}>
                       <NavIcon id={n.id} />
                     </span>
-                    {n.label}
-                    {active && <span className="ml-auto h-[5px] w-[5px] rounded-full bg-accent" />}
+                    <span className={rail ? 'lg:hidden' : ''}>{n.label}</span>
+                    {active && <span className={`ml-auto h-[5px] w-[5px] rounded-full bg-accent ${rail ? 'lg:hidden' : ''}`} />}
                   </button>
                 )
               })}
@@ -197,19 +238,26 @@ export default function Sidebar({
       </nav>
 
       {/* Footer: user, theme, support */}
-      <div className="flex flex-col gap-2 border-t border-border p-3">
-        <div className="flex items-center gap-2.5 px-1">
-          <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-accent text-[12.5px] font-bold text-white">
+      <div className={`flex flex-col gap-2 border-t border-border p-3 ${rail ? 'lg:px-2' : ''}`}>
+        {/* Rail mode keeps the avatar (it is the only "who am I logged in as" cue left) and drops
+            the name, role and the Exit button, which has its own icon-sized form below. */}
+        <div className={`flex items-center gap-2.5 px-1 ${rail ? 'lg:justify-center lg:px-0' : ''}`}>
+          <div
+            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-accent text-[12.5px] font-bold text-white"
+            title={rail ? `${me.username} (${me.role})` : undefined}
+          >
             {initials}
           </div>
-          <div className="min-w-0 leading-tight">
+          <div className={`min-w-0 leading-tight ${rail ? 'lg:hidden' : ''}`}>
             <div className="truncate text-[13.5px] font-medium text-fg">{me.username}</div>
             <div className="truncate text-[12.5px] capitalize text-dim">{me.role}</div>
           </div>
           <button
             onClick={handleLogout}
             title="Log out"
-            className="ml-auto rounded-[8px] border border-border px-2 py-1 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+            className={`ml-auto rounded-[8px] border border-border px-2 py-1 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-fg ${
+              rail ? 'lg:hidden' : ''
+            }`}
           >
             Exit
           </button>
@@ -220,9 +268,33 @@ export default function Sidebar({
         <button
           onClick={() => setShowSupport(true)}
           title="Support DeusWatch"
-          className="flex items-center justify-center gap-1.5 rounded-[8px] border border-border px-2 py-1.5 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-critical"
+          className={`flex items-center justify-center gap-1.5 rounded-[8px] border border-border px-2 py-1.5 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-critical ${
+            rail ? 'lg:px-0' : ''
+          }`}
         >
-          <span aria-hidden="true">♥</span> Support DeusWatch
+          <span aria-hidden="true">♥</span>
+          <span className={rail ? 'lg:hidden' : ''}>Support DeusWatch</span>
+        </button>
+
+        {/* Log out keeps an icon-only form in rail mode, so signing out never requires expanding
+            the sidebar first. */}
+        <button
+          onClick={handleLogout}
+          title="Log out"
+          aria-label="Log out"
+          className={`hidden items-center justify-center rounded-[8px] border border-border px-2 py-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-fg ${
+            rail ? 'lg:flex' : ''
+          }`}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </div>
 

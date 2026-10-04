@@ -49,8 +49,10 @@ export default function Topbar({
   const [theme, toggle] = useTheme()
   const meta = PAGE_META[view] ?? PAGE_META.dashboard
 
+  // Gutter tracks <Page> at every breakpoint: the page title here and the content below it read as
+  // one column, so a mismatch shows up as a visible step down the left edge.
   return (
-    <header className="sticky top-0 z-10 flex h-[60px] flex-none items-center gap-4 border-b border-border bg-surface px-4 sm:px-6">
+    <header className="sticky top-0 z-10 flex h-[60px] flex-none items-center gap-4 border-b border-border bg-surface px-4 sm:px-8 lg:px-10">
       {/* Only reachable below `lg`, where the nav rail collapses into a slide-over. */}
       <button
         onClick={onMenu}

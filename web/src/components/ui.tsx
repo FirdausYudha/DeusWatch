@@ -7,8 +7,11 @@ import { useEffect, useState, type ReactNode } from 'react'
 // One max width + gutter for every screen, so left/right spacing is identical page to page
 // (the redesign brief's "space kanan-kiri tidak seragam"). Every page wraps its content in this
 // instead of its own mx-auto/max-w/px combo.
+// The gutter grows with the viewport (24 → 32 → 40px) instead of staying at a flat 24px, which
+// read as cramped once the content filled the width. It stays a single definition on purpose: the
+// uneven left/right spacing this replaced came from pages setting their own padding.
 export function Page({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`mx-auto max-w-[1400px] px-6 py-6 ${className}`}>{children}</div>
+  return <div className={`mx-auto max-w-[1400px] px-6 py-6 sm:px-8 lg:px-10 ${className}`}>{children}</div>
 }
 
 // ── Pagination ──────────────────────────────────────────────────────────────

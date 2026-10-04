@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { QRCodeSVG } from 'qrcode.react'
 
 // Support / donation modal. Saweria is wired now; Ko-fi can be added later once a
@@ -7,8 +8,16 @@ import { QRCodeSVG } from 'qrcode.react'
 const SAWERIA_PAGE = 'https://saweria.co/DeusLoVult1'
 const KOFI_PAGE = 'https://ko-fi.com/firdausyudha'
 
+// Rendered through a portal into <body>, not inline where it is used.
+//
+// `position: fixed` resolves against the nearest ancestor carrying a transform, not the viewport.
+// The sidebar is the mobile slide-over and therefore always carries `transition-transform`, so
+// mounting the modal inside it pinned this overlay to the 232px rail: the backdrop covered only the
+// nav, and the 200px QR burst out of the panel over the menu below. A portal takes the dialog out
+// of that subtree entirely, which is what a modal wants anyway, and keeps it immune to whatever
+// transforms, overflow or stacking context a future caller happens to sit in.
 export default function SupportModal({ onClose }: { onClose: () => void }) {
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
@@ -63,6 +72,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -17,8 +17,14 @@ Colors are CSS vars mapped to Tailwind: `bg`, `surface`, `surface-2`, `border`, 
 
 ## Layout & spacing
 
-- Every page wraps content in `<Page>` - one max width (1400px) + gutter (`px-6 py-6`). This is the
-  fix for uneven left/right spacing: no page sets its own `mx-auto/max-w/px`.
+- Every page wraps content in `<Page>` - one max width (1400px) + a gutter that grows with the
+  viewport (`px-6 sm:px-8 lg:px-10`). This is the fix for uneven left/right spacing: no page sets
+  its own `mx-auto/max-w/px`. The Topbar repeats the same gutter, because the page title and the
+  content below it read as one column and a mismatch shows as a step down the left edge.
+- **A modal goes through a portal into `<body>`, never inline where it is used.** `position: fixed`
+  resolves against the nearest ancestor carrying a transform, not the viewport. The Support dialog
+  was mounted inside the sidebar, which always carries `transition-transform` for its mobile
+  slide-over, so the overlay was pinned to the 232px rail and its content burst out over the nav.
 - Page name is in the Topbar; a page adds only subtitle + actions via `PageHeader`.
 - Cards via `<Card>`; vertical rhythm in multiples of 4 (`gap-2/3/4`, `mb-4/5`).
 
