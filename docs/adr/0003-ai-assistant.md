@@ -2,7 +2,7 @@
 
 - Status: **Phase 1 + 2 built.** Phase 1 (read-only chat) shipped in v2.17.0; phase 2
   (propose-only ban and whitelist) in v2.18.0, with decision 1 revised during the build to a
-  stronger form, recorded below. Phases 3 (voice) and 4 (customisation) not started.
+  stronger form, recorded below; phase 3 (voice) in v2.19.0. Phase 4 (customisation) not started.
 - Date: 2026-10-04
 - Context: adds a conversational assistant an operator can talk to (and talk *with*): daily
   reports, a login greeting, plain-language questions about the current security posture,
@@ -135,7 +135,8 @@ Each phase is independently useful and independently shippable.
    assistant's perceived value at close to zero risk.
 2. **Propose-only writes (built, v2.18.0).** Ban IP and whitelist, as confirmation cards the
    operator approves, calling the existing endpoints under their own session.
-3. **Voice**, via the browser APIs, microphone off by default.
+3. **Voice (built, v2.19.0)**, via the browser APIs. Speaker and microphone are separate toggles,
+   both off by default; the speaker preference persists and the microphone deliberately does not.
 4. **Customisation.** System prompt and persona, plus a per-role allowlist of tools.
 
 ## Explicitly out of scope

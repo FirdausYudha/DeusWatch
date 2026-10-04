@@ -76,6 +76,33 @@ The worker's liveness is included first and deliberately: when the worker has st
 is stale, and an assistant that reported them as current would be confidently wrong about exactly
 the failure this platform exists to catch.
 
+## Voice
+
+Two independent toggles, both off until you turn them on:
+
+- **Speaker (panel header)**: reads each reply aloud. Remembered across sessions. Speech synthesis
+  runs **inside the browser**, so nothing leaves the host.
+- **Microphone (next to the message box)**: dictates into the message box. **Not** remembered: a
+  setting that silently reopens a microphone at your next login is not a sensible default on a
+  security console.
+
+**Where the audio goes.** Synthesis is local. Recognition is not: in Chrome and Edge the microphone
+audio is streamed to the browser vendor's speech service. The panel says so while it is listening,
+and that is the honest cost of needing no extra service to run. If it is unacceptable for your
+deployment, leave the microphone off; self-hosted Whisper plus Piper is the replacement path, at the
+price of two more services to operate.
+
+**Dictation does not auto-send.** The transcript lands in the message box for you to read first.
+Recognition misreads addresses often enough that "block 45.134.26.9" deserves a glance before it
+becomes a confirmation card.
+
+Both halves use your browser's language (`navigator.language`), so set the browser to Indonesian if
+you want to speak and be answered in Indonesian. Firefox has no speech recognition, so the
+microphone button simply does not appear there; the speaker still works. The microphone also needs
+HTTPS or localhost, and the button explains itself when the page is served over plain HTTP.
+
+Closing the panel stops the speech and releases the microphone.
+
 ## Limits
 
 - **`view_dashboard`** is required to use it. It can tell you nothing you could not already read.
@@ -107,7 +134,9 @@ if you write your own.
 
 ## Known gaps
 
-- **No voice yet.** Phase 3 adds browser speech in and out.
+- **Voice is the browser's, not ours.** Quality, language coverage and privacy are whatever Chrome
+  or Edge provide. Recognition accuracy for Indonesian technical terms, IP addresses especially, is
+  mediocre; read the transcript before sending.
 - **Only two actions**, block and whitelist. Everything else stays a UI task on purpose.
 - **Command phrasing is literal.** English and Indonesian verbs are recognised; anything more
   roundabout than "block <ip>" may not be. An LLM intent classifier fed only your message (never the

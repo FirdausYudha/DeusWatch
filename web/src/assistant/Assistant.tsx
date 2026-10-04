@@ -3,6 +3,8 @@ import {
   addWhitelist, askAssistant, banIP, can, fetchAssistantStatus,
   type AssistantProposal, type ChatTurn, type Me,
 } from '../lib/api'
+import { usePersistedState } from '../lib/usePersistedState'
+import { useDictation, useSpeaker } from './useSpeech'
 
 // Conversational assistant (ADR 0003, phase 1): a launcher and a slide-over panel, mounted beside
 // every view. Read-only by construction, so the panel says so rather than letting an operator
@@ -101,6 +103,12 @@ export default function Assistant({ me }: { me: Me }) {
   const [error, setError] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  // Reading replies aloud is remembered; the microphone is not. Synthesis stays in the browser,
+  // while recognition streams audio to Google in Chrome, and a setting that silently reopens a
+  // microphone on the next login is not a default worth persisting on a security console.
+  const [speakReplies, setSpeakReplies] = usePersistedState('assistant.speak', false)
+  const speaker = useSpeaker()
+  const mic = useDictation(setDraft)
 
   // Ask once on mount. A deployment that never enabled the assistant shows no launcher at all,
   // rather than a button that explains itself only after being clicked.
@@ -117,6 +125,15 @@ export default function Assistant({ me }: { me: Me }) {
     }
   }, [open, turns, busy])
 
+  // Closing the panel must silence it and release the microphone. A security console that keeps
+  // talking, or keeps listening, after you dismissed it is the kind of thing operators disable
+  // permanently and never turn back on.
+  const close = () => {
+    mic.stop()
+    speaker.cancel()
+    setOpen(false)
+  }
+
   if (!enabled) return null
 
   const send = async (text: string) => {
@@ -124,6 +141,7 @@ export default function Assistant({ me }: { me: Me }) {
     if (!msg || busy) return
     setError('')
     setDraft('')
+    mic.stop() // nothing left to dictate into; holding the microphone open past Send is rude
     // The user's turn is appended before the call so the conversation never looks frozen, and the
     // history sent along is the state BEFORE this message (the server appends it as the new turn).
     const history = turns.map(({ role, content }) => ({ role, content }))
@@ -132,6 +150,7 @@ export default function Assistant({ me }: { me: Me }) {
     try {
       const { reply, proposal } = await askAssistant(msg, history)
       setTurns((t) => [...t, { role: 'assistant', content: reply, proposal }])
+      if (speakReplies) speaker.speak(reply)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -170,10 +189,35 @@ export default function Assistant({ me }: { me: Me }) {
             <span className="text-[14.5px] font-semibold text-fg">Assistant</span>
             {/* It stopped being read-only the moment it could prepare a block, so the badge that
                 used to say so is gone. The honest version of that promise is in the footer. */}
+            {speaker.supported && (
+              <button
+                onClick={() => {
+                  if (speakReplies) speaker.cancel()
+                  setSpeakReplies(!speakReplies)
+                }}
+                title={speakReplies ? 'Stop reading replies aloud' : 'Read replies aloud'}
+                aria-label={speakReplies ? 'Stop reading replies aloud' : 'Read replies aloud'}
+                aria-pressed={speakReplies}
+                className={`ml-auto rounded-[8px] p-1.5 transition-colors hover:bg-surface-2 ${
+                  speakReplies ? 'text-accent' : 'text-dim hover:text-fg'
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M11 5 6 9H3v6h3l5 4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                  {speakReplies ? (
+                    <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  ) : (
+                    <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  )}
+                </svg>
+              </button>
+            )}
             <button
-              onClick={() => setOpen(false)}
+              onClick={close}
               aria-label="Close assistant"
-              className="ml-auto rounded-[8px] px-2 py-1 text-dim transition-colors hover:bg-surface-2 hover:text-fg"
+              className={`rounded-[8px] px-2 py-1 text-dim transition-colors hover:bg-surface-2 hover:text-fg ${
+                speaker.supported ? '' : 'ml-auto'
+              }`}
             >
               ✕
             </button>
@@ -243,7 +287,34 @@ export default function Assistant({ me }: { me: Me }) {
               className="w-full resize-none rounded-[8px] border border-border bg-bg px-3 py-2 text-[13.5px] text-fg placeholder:text-dim focus:border-accent focus:outline-none"
             />
             <div className="mt-2 flex items-center gap-2">
-              <p className="text-[11.5px] text-dim">Answers come from your own data. It never changes anything without your confirmation.</p>
+              {!mic.blocker && (
+                <button
+                  onClick={mic.toggle}
+                  title={mic.listening ? 'Stop listening' : 'Dictate a message (audio goes to the browser vendor)'}
+                  aria-label={mic.listening ? 'Stop listening' : 'Dictate a message'}
+                  aria-pressed={mic.listening}
+                  className={`rounded-[8px] border p-1.5 transition-colors ${
+                    mic.listening
+                      ? 'border-critical bg-critical/10 text-critical'
+                      : 'border-border text-dim hover:bg-surface-2 hover:text-fg'
+                  }`}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              )}
+              <p className="text-[11.5px] text-dim">
+                {mic.listening
+                  ? 'Listening… your browser sends this audio to its speech service. Check what it heard before sending.'
+                  : 'Answers come from your own data. It never changes anything without your confirmation.'}
+              </p>
               <button
                 onClick={() => void send(draft)}
                 disabled={busy || !draft.trim()}
@@ -252,6 +323,7 @@ export default function Assistant({ me }: { me: Me }) {
                 Send
               </button>
             </div>
+            {mic.error && <p className="mt-1.5 text-[11.5px] text-critical">{mic.error}</p>}
           </div>
         </aside>
       )}
