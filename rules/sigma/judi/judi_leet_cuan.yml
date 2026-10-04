@@ -15,7 +15,6 @@ detection:
     - 'cu4nn'
     - 'cu@n'
     - 'cu@nn'
-    - 'cuan'
     - 'cuann'
   condition: keywords
 tags:

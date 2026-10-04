@@ -33,7 +33,6 @@ detection:
     - 'dom1noo'
     - 'domin0'
     - 'domin00'
-    - 'domino'
     - 'dominoo'
   condition: keywords
 tags:

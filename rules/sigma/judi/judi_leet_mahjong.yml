@@ -33,7 +33,6 @@ detection:
     - 'mahj0ngg'
     - 'mahjon9'
     - 'mahjon99'
-    - 'mahjong'
     - 'mahjongg'
   condition: keywords
 tags:

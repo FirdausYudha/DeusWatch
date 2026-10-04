@@ -45,7 +45,6 @@ detection:
     - 'nag44'
     - 'nag@'
     - 'nag@@'
-    - 'naga'
     - 'nagaa'
   condition: keywords
 tags:

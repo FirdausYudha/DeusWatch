@@ -45,7 +45,6 @@ detection:
     - 'garud44'
     - 'garud@'
     - 'garud@@'
-    - 'garuda'
     - 'garudaa'
   condition: keywords
 tags:

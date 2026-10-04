@@ -45,7 +45,6 @@ detection:
     - 'withdr4ww'
     - 'withdr@w'
     - 'withdr@ww'
-    - 'withdraw'
     - 'withdraww'
   condition: keywords
 tags:

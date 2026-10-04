@@ -17,7 +17,6 @@ detection:
     - 'p0kerr'
     - 'pok3r'
     - 'pok3rr'
-    - 'poker'
     - 'pokerr'
   condition: keywords
 tags:

@@ -45,7 +45,6 @@ detection:
     - 'ant!!'
     - 'ant1'
     - 'ant11'
-    - 'anti'
     - 'antii'
   condition: keywords
 tags:

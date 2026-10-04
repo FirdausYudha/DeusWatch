@@ -21,7 +21,6 @@ detection:
     - 'dew44'
     - 'dew@'
     - 'dew@@'
-    - 'dewa'
     - 'dewaa'
   condition: keywords
 tags:

@@ -33,7 +33,6 @@ detection:
     - 'men@ngg'
     - 'menan9'
     - 'menan99'
-    - 'menang'
     - 'menangg'
   condition: keywords
 tags:

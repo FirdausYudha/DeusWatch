@@ -33,7 +33,6 @@ detection:
     - 'jackp0tt'
     - 'jackpo7'
     - 'jackpo77'
-    - 'jackpot'
     - 'jackpott'
   condition: keywords
 tags:

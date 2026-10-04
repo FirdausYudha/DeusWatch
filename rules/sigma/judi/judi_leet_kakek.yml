@@ -21,7 +21,6 @@ detection:
     - 'k@kekk'
     - 'kak3k'
     - 'kak3kk'
-    - 'kakek'
     - 'kakekk'
   condition: keywords
 tags:

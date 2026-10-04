@@ -21,7 +21,6 @@ detection:
     - '5ydneyy'
     - 'sydn3y'
     - 'sydn3yy'
-    - 'sydney'
     - 'sydneyy'
   condition: keywords
 tags:

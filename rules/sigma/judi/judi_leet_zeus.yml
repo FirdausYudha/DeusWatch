@@ -21,7 +21,6 @@ detection:
     - 'zeu$$'
     - 'zeu5'
     - 'zeu55'
-    - 'zeus'
     - 'zeuss'
   condition: keywords
 tags:

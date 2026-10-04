@@ -33,7 +33,6 @@ detection:
     - 'pet!rr'
     - 'pet1r'
     - 'pet1rr'
-    - 'petir'
     - 'petirr'
   condition: keywords
 tags:

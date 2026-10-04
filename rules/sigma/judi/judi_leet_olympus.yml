@@ -33,7 +33,6 @@ detection:
     - 'olympu$$'
     - 'olympu5'
     - 'olympu55'
-    - 'olympus'
     - 'olympuss'
   condition: keywords
 tags:

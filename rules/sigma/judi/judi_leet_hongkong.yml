@@ -41,7 +41,6 @@ detection:
     - 'hongk0ngg'
     - 'hongkon9'
     - 'hongkon99'
-    - 'hongkong'
     - 'hongkongg'
   condition: keywords
 tags:

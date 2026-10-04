@@ -27,7 +27,6 @@ detection:
     - 'raj44'
     - 'raj@'
     - 'raj@@'
-    - 'raja'
     - 'rajaa'
   condition: keywords
 tags:

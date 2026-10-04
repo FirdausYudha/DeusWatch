@@ -25,7 +25,6 @@ detection:
     - 'tur8oo'
     - 'turb0'
     - 'turb00'
-    - 'turbo'
     - 'turboo'
   condition: keywords
 tags:
