@@ -1898,7 +1898,13 @@ export async function fetchAssistantStatus(): Promise<AssistantStatus> {
   return res.json()
 }
 
-export async function askAssistant(message: string, history: ChatTurn[], hours = 24): Promise<string> {
+/** A ban/whitelist the operator asked for in words. Parsed server-side from THEIR message, never
+ *  produced by the model, and nothing happens until they confirm the card. */
+export type AssistantProposal = { kind: 'ban' | 'whitelist'; target: string; minutes: number }
+
+export type AssistantReply = { reply: string; proposal?: AssistantProposal }
+
+export async function askAssistant(message: string, history: ChatTurn[], hours = 24): Promise<AssistantReply> {
   const res = await authFetch('/api/assistant/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1907,5 +1913,6 @@ export async function askAssistant(message: string, history: ChatTurn[], hours =
   // The server's message is the useful part here (budget hit, no model configured, provider
   // unreachable), so it is surfaced verbatim rather than replaced with a status code.
   if (!res.ok) throw new Error((await res.text()).trim() || `assistant: HTTP ${res.status}`)
-  return (await res.json()).reply ?? ''
+  const body = await res.json()
+  return { reply: body.reply ?? '', proposal: body.proposal }
 }

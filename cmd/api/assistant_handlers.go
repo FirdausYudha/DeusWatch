@@ -147,6 +147,18 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			req.History = req.History[len(req.History)-assistant.MaxHistoryTurns:]
 		}
 
+		// A recognised command short-circuits the model entirely (ADR 0003 phase 2). Three reasons,
+		// in order of importance: the proposal then provably comes from the operator's own sentence
+		// and never from text an attacker wrote into a log; the target cannot be hallucinated; and
+		// a model asked to narrate an action it is not performing tends to either claim it did it
+		// or deny it can, both of which are wrong. The reply beside the card is written, not
+		// generated. Confirming the card calls the ordinary ban/whitelist endpoint under the
+		// operator's own session, so this handler still has no write path of its own.
+		if p, isCmd := assistant.ParseProposal(req.Message); isCmd {
+			writeJSON(w, http.StatusOK, map[string]any{"reply": p.Reply(), "proposal": p, "model": "deuswatch"})
+			return
+		}
+
 		analyzer, ok := resolveAssistantAnalyzer(r.Context(), st)
 		if !ok {
 			http.Error(w, "the assistant is not enabled: add an LLM integration with \"Use for\" set to assistant", http.StatusBadRequest)

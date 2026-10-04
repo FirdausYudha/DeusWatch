@@ -1,7 +1,8 @@
 # ADR 0003 - Conversational AI assistant ("Jarvis")
 
-- Status: **Planned**, no code written. Decisions below agreed with the product owner on
-  2026-10-04; the phased build plan is not started.
+- Status: **Phase 1 + 2 built.** Phase 1 (read-only chat) shipped in v2.17.0; phase 2
+  (propose-only ban and whitelist) in v2.18.0, with decision 1 revised during the build to a
+  stronger form, recorded below. Phases 3 (voice) and 4 (customisation) not started.
 - Date: 2026-10-04
 - Context: adds a conversational assistant an operator can talk to (and talk *with*): daily
   reports, a login greeting, plain-language questions about the current security posture,
@@ -36,9 +37,31 @@ SIEM, and it has to shape the architecture from the first commit rather than be 
 
 ### 1. The assistant proposes. It never executes.
 
-Every write-shaped tool produces a **pending row in `response_actions`**, the same queue the
-detection engine already feeds, reviewed on the Response page by a human holding
-`approve_remediation`. Consequences:
+**Revised during the phase 2 build, to something stronger than this ADR first specified.** The
+original plan had the assistant insert pending rows into `response_actions` itself, which meant
+giving it a write path and then constraining that path. The implementation does not: the assistant
+API has **no write endpoint at all**. A recognised command returns a *proposal* the UI renders as a
+confirmation card, and pressing the button calls the ordinary `POST /api/responses/ban` or
+`POST /api/whitelist` under the operator's own session.
+
+That is better on three counts. There is no new privileged code path to review, because none was
+created. The permission enforced is the real one those endpoints already require
+(`execute_block`, `manage_settings`), not the weaker `view_dashboard` that merely lets someone use
+the chat. And the ban endpoint's existing guards, the whitelist check and the progressive-ban
+ladder, apply untouched.
+
+A second change, same spirit: **intent is parsed deterministically from the operator's own
+sentence, with no model involved** (`internal/assistant/intent.go`). Had the model been allowed to
+propose actions from what it read in the event context, an attacker could write a log line that
+steers it, and although a human still approves, filling the approval queue with attacker-chosen
+cards is itself an attack: the twentieth bogus card is the one somebody waves through. Parsing the
+operator's text closes that completely, costs no tokens, cannot hallucinate an address, and works
+identically on a 3B local model and on Claude. The trade is coverage: an unusual phrasing is not
+recognised and the operator rephrases, which is a far better failure mode than a confident wrong IP.
+An LLM intent classifier, fed *only* the operator's message and never the event context, is the
+upgrade path if coverage proves too narrow.
+
+Consequences, unchanged from the original intent:
 
 - A successful prompt injection yields **a suggestion a human declines**, not a change.
 - No new privilege path exists to audit, because no new privilege path is created.
@@ -107,11 +130,11 @@ scoping are what the integrations machinery already does.
 
 Each phase is independently useful and independently shippable.
 
-1. **Read-only chat.** Login greeting, "what happened today", "explain this alert", "why is the
-   worker red", self-diagnostics. No write tools exist yet. Delivers most of the assistant's
-   perceived value at close to zero risk, and proves the tool-calling layer against the configured
-   model before anything can change state.
-2. **Propose-only writes.** Ban IP and whitelist, landing in the existing approval queue.
+1. **Read-only chat (built, v2.17.0).** Login greeting, "what happened today", "explain this
+   alert", "why is the worker red", self-diagnostics. No write path exists. Delivers most of the
+   assistant's perceived value at close to zero risk.
+2. **Propose-only writes (built, v2.18.0).** Ban IP and whitelist, as confirmation cards the
+   operator approves, calling the existing endpoints under their own session.
 3. **Voice**, via the browser APIs, microphone off by default.
 4. **Customisation.** System prompt and persona, plus a per-role allowlist of tools.
 

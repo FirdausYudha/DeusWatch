@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { askAssistant, fetchAssistantStatus, type ChatTurn, type Me } from '../lib/api'
+import {
+  addWhitelist, askAssistant, banIP, can, fetchAssistantStatus,
+  type AssistantProposal, type ChatTurn, type Me,
+} from '../lib/api'
 
 // Conversational assistant (ADR 0003, phase 1): a launcher and a slide-over panel, mounted beside
 // every view. Read-only by construction, so the panel says so rather than letting an operator
@@ -11,16 +14,88 @@ const SUGGESTIONS = [
   'Is anything wrong with DeusWatch itself?',
 ]
 
+// Shown under the suggestions, because the command phrasings are parsed literally and an operator
+// has no way to guess that from a chat box that otherwise accepts free text.
+const COMMAND_HINT = 'To act, say it with an address: “block 45.134.26.9 for 2 hours” or “whitelist 10.0.0.0/8”. You confirm before anything happens.'
+
+// ProposalCard is the whole of the assistant's write capability: it shows exactly what will happen
+// and calls the ORDINARY ban/whitelist endpoint under the operator's own session when they confirm.
+// The assistant's own API has no write path at all, so the permission enforced here is the real
+// one (execute_block / manage_settings), not the weaker view_dashboard that lets someone chat.
+function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone: (msg: string) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [done, setDone] = useState(false)
+  const perm = p.kind === 'ban' ? 'execute_block' : 'manage_settings'
+  const allowed = can(me, perm)
+
+  const confirm = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      if (p.kind === 'ban') {
+        await banIP(p.target, p.minutes)
+        onDone(`Blocked ${p.target}.`)
+      } else {
+        await addWhitelist(p.target, 'added from the assistant', 'internal')
+        onDone(`Whitelisted ${p.target}.`)
+      }
+      setDone(true)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const duration = p.minutes > 0 ? `${p.minutes} minute${p.minutes === 1 ? '' : 's'}` : 'per the configured ban ladder'
+
+  return (
+    <div className="rounded-[10px] border border-border bg-surface-2 p-3">
+      <p className="text-[12px] font-semibold uppercase tracking-wide text-dim">
+        {p.kind === 'ban' ? 'Block an IP' : 'Add to whitelist'}
+      </p>
+      <p className="mt-1 break-all font-mono text-[13.5px] text-fg">{p.target}</p>
+      <p className="mt-0.5 text-[12.5px] text-muted">
+        {p.kind === 'ban'
+          ? `Duration: ${duration}.`
+          : 'The response engine will never ban anything matching this.'}
+      </p>
+      {done ? (
+        <p className="mt-2 text-[12.5px] text-success">Applied.</p>
+      ) : !allowed ? (
+        // Say which permission is missing rather than showing a button that fails on click.
+        <p className="mt-2 text-[12.5px] text-dim">
+          You do not have the <span className="font-mono">{perm}</span> permission, so this needs an admin.
+        </p>
+      ) : (
+        <button
+          onClick={confirm}
+          disabled={busy}
+          className="mt-2 rounded-[8px] bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity disabled:opacity-40"
+        >
+          {busy ? 'Applying…' : p.kind === 'ban' ? 'Confirm block' : 'Confirm whitelist'}
+        </button>
+      )}
+      {err && <p className="mt-2 text-[12.5px] text-critical">{err}</p>}
+    </div>
+  )
+}
+
 function greeting(name: string): string {
   const h = new Date().getHours()
   const part = h < 11 ? 'Good morning' : h < 15 ? 'Good afternoon' : h < 19 ? 'Good evening' : 'Working late'
   return `${part}, ${name}. Ask me about the last 24 hours, a source IP, or the health of the platform itself.`
 }
 
+// Msg is a rendered turn. It carries the optional proposal card, which is view state only: the
+// history sent back to the model is role + content, so a card never becomes part of the prompt.
+type Msg = ChatTurn & { proposal?: AssistantProposal }
+
 export default function Assistant({ me }: { me: Me }) {
   const [enabled, setEnabled] = useState(false)
   const [open, setOpen] = useState(false)
-  const [turns, setTurns] = useState<ChatTurn[]>([])
+  const [turns, setTurns] = useState<Msg[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -51,12 +126,12 @@ export default function Assistant({ me }: { me: Me }) {
     setDraft('')
     // The user's turn is appended before the call so the conversation never looks frozen, and the
     // history sent along is the state BEFORE this message (the server appends it as the new turn).
-    const history = turns
-    setTurns([...history, { role: 'user', content: msg }])
+    const history = turns.map(({ role, content }) => ({ role, content }))
+    setTurns([...turns, { role: 'user', content: msg }])
     setBusy(true)
     try {
-      const reply = await askAssistant(msg, history)
-      setTurns((t) => [...t, { role: 'assistant', content: reply }])
+      const { reply, proposal } = await askAssistant(msg, history)
+      setTurns((t) => [...t, { role: 'assistant', content: reply, proposal }])
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -93,7 +168,8 @@ export default function Assistant({ me }: { me: Me }) {
         >
           <header className="flex h-[60px] flex-none items-center gap-2 border-b border-border px-4">
             <span className="text-[14.5px] font-semibold text-fg">Assistant</span>
-            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11.5px] text-dim">read-only</span>
+            {/* It stopped being read-only the moment it could prepare a block, so the badge that
+                used to say so is gone. The honest version of that promise is in the footer. */}
             <button
               onClick={() => setOpen(false)}
               aria-label="Close assistant"
@@ -118,17 +194,27 @@ export default function Assistant({ me }: { me: Me }) {
                     </button>
                   ))}
                 </div>
+                <p className="pt-1 text-[12px] text-dim">{COMMAND_HINT}</p>
               </>
             )}
             {turns.map((t, i) => (
-              <div key={i} className={t.role === 'user' ? 'flex justify-end' : ''}>
-                <div
-                  className={`max-w-[92%] whitespace-pre-wrap rounded-[10px] px-3 py-2 text-[13.5px] ${
-                    t.role === 'user' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-fg'
-                  }`}
-                >
-                  {t.content}
+              <div key={i} className="space-y-2">
+                <div className={t.role === 'user' ? 'flex justify-end' : ''}>
+                  <div
+                    className={`max-w-[92%] whitespace-pre-wrap rounded-[10px] px-3 py-2 text-[13.5px] ${
+                      t.role === 'user' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-fg'
+                    }`}
+                  >
+                    {t.content}
+                  </div>
                 </div>
+                {t.proposal && (
+                  <ProposalCard
+                    me={me}
+                    p={t.proposal}
+                    onDone={(m) => setTurns((prev) => [...prev, { role: 'assistant', content: m }])}
+                  />
+                )}
               </div>
             ))}
             {busy && <p className="text-[13px] text-dim">thinking…</p>}
@@ -157,7 +243,7 @@ export default function Assistant({ me }: { me: Me }) {
               className="w-full resize-none rounded-[8px] border border-border bg-bg px-3 py-2 text-[13.5px] text-fg placeholder:text-dim focus:border-accent focus:outline-none"
             />
             <div className="mt-2 flex items-center gap-2">
-              <p className="text-[11.5px] text-dim">Answers come from your own data. It cannot change anything.</p>
+              <p className="text-[11.5px] text-dim">Answers come from your own data. It never changes anything without your confirmation.</p>
               <button
                 onClick={() => void send(draft)}
                 disabled={busy || !draft.trim()}
