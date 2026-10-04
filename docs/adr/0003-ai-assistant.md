@@ -138,6 +138,14 @@ Each phase is independently useful and independently shippable.
    operator approves, calling the existing endpoints under their own session.
 3. **Voice (built, v2.19.0)**, via the browser APIs. Speaker and microphone are separate toggles,
    both off by default; the speaker preference persists and the microphone deliberately does not.
+5. **Rule drafting (built, v2.25.0).** The assistant drafts a Sigma rule and the operator saves it
+   from a card showing the full YAML. This is the first and so far only place where the MODEL
+   produces the content of a change, which decision 1 otherwise avoids; writing the rule is the
+   task, so it cannot be parsed from the operator's sentence. The substitutes are that the draft is
+   validated by the real engine before any card appears, the operator reviews the text rather than a
+   summary, and saving runs through the ordinary rules endpoint under their session. A rule can only
+   add detection, never remove it, so the realistic failure is noise rather than blindness.
+
 4. **Customisation (built, v2.20.0).** The persona is editable in Settings, stored in
    `assistant_config`, with precedence UI > `ASSISTANT_PERSONA` > built-in.
 

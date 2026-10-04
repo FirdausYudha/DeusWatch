@@ -1900,7 +1900,13 @@ export async function fetchAssistantStatus(): Promise<AssistantStatus> {
 
 /** A ban/whitelist the operator asked for in words. Parsed server-side from THEIR message, never
  *  produced by the model, and nothing happens until they confirm the card. */
-export type AssistantProposal = { kind: 'ban' | 'whitelist'; target: string; minutes: number }
+export type AssistantProposal = {
+  kind: 'ban' | 'whitelist' | 'rule'
+  target: string
+  minutes: number
+  /** KindRule only: the drafted Sigma YAML, already validated by the engine server-side. */
+  yaml?: string
+}
 
 export type AssistantReply = { reply: string; proposal?: AssistantProposal }
 

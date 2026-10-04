@@ -28,6 +28,9 @@ type ProposalKind string
 const (
 	KindBan       ProposalKind = "ban"
 	KindWhitelist ProposalKind = "whitelist"
+	// KindRule is drafted by the model rather than parsed from the operator's sentence, which is
+	// why it is validated with the real engine before it is ever shown. See rulecraft.go.
+	KindRule ProposalKind = "rule"
 )
 
 // Proposal is a parsed request, rendered to the operator as a confirmation card. Nothing happens
@@ -41,6 +44,9 @@ type Proposal struct {
 	// Minutes is the ban duration. 0 means "use the configured progressive-ban ladder", which is
 	// what the ban endpoint already does with an omitted duration.
 	Minutes int `json:"minutes"`
+	// YAML is the drafted rule, for KindRule only. The operator reviews this text itself: they are
+	// approving code, and a summary of code is not something anyone can approve responsibly.
+	YAML string `json:"yaml,omitempty"`
 }
 
 var (

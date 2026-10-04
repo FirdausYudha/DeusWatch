@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  addWhitelist, askAssistant, banIP, can, fetchAssistantStatus,
+  addWhitelist, askAssistant, banIP, can, createRule, fetchAssistantStatus,
   type AssistantProposal, type ChatTurn, type Me,
 } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
@@ -28,14 +28,17 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
-  const perm = p.kind === 'ban' ? 'execute_block' : 'manage_settings'
+  const perm = p.kind === 'ban' ? 'execute_block' : p.kind === 'rule' ? 'manage_rules' : 'manage_settings'
   const allowed = can(me, perm)
 
   const confirm = async () => {
     setBusy(true)
     setErr('')
     try {
-      if (p.kind === 'ban') {
+      if (p.kind === 'rule') {
+        await createRule(p.target, p.yaml ?? '')
+        onDone(`Saved the rule "${p.target}". It is enabled and will apply on the worker's next reload.`)
+      } else if (p.kind === 'ban') {
         await banIP(p.target, p.minutes)
         onDone(`Blocked ${p.target}.`)
       } else {
@@ -55,14 +58,28 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
   return (
     <div className="rounded-[10px] border border-border bg-surface-2 p-3">
       <p className="text-[12px] font-semibold uppercase tracking-wide text-dim">
-        {p.kind === 'ban' ? 'Block an IP' : 'Add to whitelist'}
+        {p.kind === 'ban' ? 'Block an IP' : p.kind === 'rule' ? 'New detection rule' : 'Add to whitelist'}
       </p>
       <p className="mt-1 break-all font-mono text-[13.5px] text-fg">{p.target}</p>
-      <p className="mt-0.5 text-[12.5px] text-muted">
-        {p.kind === 'ban'
-          ? `Duration: ${duration}.`
-          : 'The response engine will never ban anything matching this.'}
-      </p>
+      {p.kind === 'rule' ? (
+        <>
+          {/* The whole rule, not a summary. The operator is approving code that will run against
+              every event, and nobody can approve code they have not been shown. */}
+          <pre className="mt-1.5 max-h-72 overflow-auto rounded-[6px] bg-bg p-2 font-mono text-[11.5px] leading-relaxed text-muted">
+            {p.yaml}
+          </pre>
+          <p className="mt-1 text-[12px] text-dim">
+            Parsed by the detection engine already. Read it before saving: a keyword that is an
+            ordinary word will fire all day.
+          </p>
+        </>
+      ) : (
+        <p className="mt-0.5 text-[12.5px] text-muted">
+          {p.kind === 'ban'
+            ? `Duration: ${duration}.`
+            : 'The response engine will never ban anything matching this.'}
+        </p>
+      )}
       {done ? (
         <p className="mt-2 text-[12.5px] text-success">Applied.</p>
       ) : !allowed ? (
@@ -76,7 +93,7 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
           disabled={busy}
           className="mt-2 rounded-[8px] bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity disabled:opacity-40"
         >
-          {busy ? 'Applying…' : p.kind === 'ban' ? 'Confirm block' : 'Confirm whitelist'}
+          {busy ? 'Applying…' : p.kind === 'ban' ? 'Confirm block' : p.kind === 'rule' ? 'Save rule' : 'Confirm whitelist'}
         </button>
       )}
       {err && <p className="mt-2 text-[12.5px] text-critical">{err}</p>}

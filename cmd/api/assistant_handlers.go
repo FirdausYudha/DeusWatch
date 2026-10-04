@@ -13,6 +13,7 @@ import (
 
 	"deuswatch/internal/assistant"
 	"deuswatch/internal/auth"
+	"deuswatch/internal/detect/sigma"
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/llm"
 	"deuswatch/internal/report"
@@ -187,6 +188,12 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
 		}
+		draftingRule := assistant.NeedsRuleAuthoring(req.Message)
+		if draftingRule {
+			// Generic Sigma knowledge produces rules this evaluator rejects, so the supported
+			// subset goes in rather than being left to the model's memory.
+			howTo += "\n" + assistant.RuleAuthoringGuide
+		}
 
 		hours := req.Hours
 		if hours <= 0 || hours > 24*30 {
@@ -238,7 +245,26 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"reply": reply, "model": analyzer.Name()})
+		out := map[string]any{"reply": reply, "model": analyzer.Name()}
+		// A drafted rule is validated with the engine that will run it, BEFORE the operator is
+		// offered a button. Anything that does not parse stays as text in the conversation: the
+		// model can be told what was wrong and try again, but it never becomes something that
+		// looks approved-and-ready when it would fail on save.
+		if draftingRule {
+			if y, ok := assistant.ExtractRuleYAML(reply); ok {
+				if _, cerr := sigma.Classify([]byte(y)); cerr == nil {
+					out["proposal"] = assistant.Proposal{
+						Kind:   assistant.KindRule,
+						Target: assistant.RuleTitle(y),
+						YAML:   y,
+					}
+				} else {
+					out["reply"] = reply + "\n\n(That draft does not parse: " + cerr.Error() +
+						". Tell me and I will fix it.)"
+				}
+			}
+		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }
 

@@ -116,6 +116,33 @@ HTTPS or localhost, and the button explains itself when the page is served over 
 
 Closing the panel stops the speech and releases the microphone.
 
+## Asking it to write a detection rule
+
+"buatkan rule untuk mendeteksi upload webshell" or "write a sigma rule for failed sudo attempts"
+produces a draft you review and save into **Rules**. The card shows the **whole YAML**, not a
+summary, because you are approving code that will run against every event.
+
+This is the one place where the model produces the content of a change. Ban and whitelist are parsed
+from your own sentence precisely so a model cannot originate them; a rule cannot work that way,
+since writing it is the task. Three things carry the weight instead:
+
+- **The draft is parsed by the real detection engine before the card appears.** Anything that does
+  not parse stays as text in the conversation with the error attached, so it never looks
+  approved-and-ready when it would fail on save.
+- **You read the YAML itself.** Nobody can responsibly approve code they have not been shown.
+- **Saving goes through the ordinary rules API** under your session, so `manage_rules` is enforced
+  by the endpoint that already enforces it, and the rule lands in Rules like any other.
+
+The prompt carries the Sigma **subset this engine actually implements**, not generic Sigma: the real
+field names, the logsource categories, and both rule shapes (single-event and the counting form that
+runs on the SQL path). A model drafting from memory reaches for pipes and field names this evaluator
+never supported, and the rule is rejected with a parse error you cannot act on. A test parses the
+guide's own examples with the engine, so they cannot quietly go stale.
+
+What review is actually for: a rule can only **add** detection, never disable existing detection, so
+the realistic damage from a bad draft is noise. Read the keywords. One that is an ordinary word will
+fire on ordinary traffic all day and teach you to ignore the rule.
+
 ## Asking it how to set something up
 
 "How do I add an LLM integration?" or "cara pasang Telegram" gets the actual steps: which menu,
@@ -232,7 +259,7 @@ answer on screen.
 - **Voice is the browser's, not ours.** Quality, language coverage and privacy are whatever Chrome
   or Edge provide. Recognition accuracy for Indonesian technical terms, IP addresses especially, is
   mediocre; read the transcript before sending.
-- **Only two actions**, block and whitelist. Everything else stays a UI task on purpose.
+- **Three actions**: block, whitelist, and drafting a rule. Everything else stays a UI task.
 - **Command phrasing is literal.** English and Indonesian verbs are recognised; anything more
   roundabout than "block <ip>" may not be. An LLM intent classifier fed only your message (never the
   event data) is the upgrade path if this proves too narrow.
