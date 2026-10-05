@@ -3,6 +3,7 @@ package assistant
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -91,43 +92,53 @@ var (
 	reComment = regexp.MustCompile(`(?s)/\*.*?\*/|--[^\n]*`)
 )
 
-// sqlWords are the shapes of a question that wants the data sliced rather than summarised.
+// smallTalk are the messages that genuinely need no data, and they are the ONLY ones the schema
+// guide is withheld from.
 //
-// The first version listed only explicit database phrasing ("run a query", "tampilkan semua"), and
-// that was too narrow to be useful: an operator exploring their attack data asks "serangan dari
-// negara mana saja hari ini", never "jalankan query". The guide was then absent, no SQL was written
-// and the question was answered from the aggregate blocks, which do not have that breakdown.
+// The gate used to work the other way: list the phrasings that sound like a data question and
+// attach the guide for those. That failed twice in production for the same reason, and the second
+// failure is what prompted this. "the ips of SSH login attempts as root user today, name 5 of it"
+// matched nothing, so the guide was absent, so no query could be written, so the assistant said it
+// did not have the detail while sitting on a table that did.
 //
-// Analytical words are included for the same reason. "Top", "paling", "per agent", "breakdown" all
-// mean the operator wants a cut of the data that no fixed block can anticipate, which is precisely
-// the case this path exists for.
-var sqlWords = []string{
-	// Explicit
-	"query the database", "run a query", "sql", "select from", "how many rows",
-	"list all", "show me all", "count how many", "group by",
-	"query database", "jalankan query", "tampilkan semua", "daftar semua",
-	"cari di database", "query ke database",
-	// Analytical: a cut of the data, not a summary of it
-	"how many", "berapa banyak", "berapa", "hitung",
-	"top ", "paling banyak", "paling sering", "terbanyak", "tersering",
-	"per agent", "per host", "per country", "per negara", "per hari", "per day", "per hour", "per jam",
-	"breakdown", "distribusi", "distribution", "grouped", "dikelompokkan",
-	"which ip", "which agent", "which rule", "ip mana", "agent mana", "rule mana", "negara mana",
-	"average", "rata-rata", "median", "total dari", "sum of",
-	"between", "antara tanggal", "sejak", "since ", "sampai tanggal",
-	"attacked", "serangan dari", "serangan apa", "menyerang",
+// The mistake was enumerating the open set. There is no end to how a person can ask for data, and
+// every miss looks to the operator like the feature not existing. Small talk is a closed set:
+// greetings, thanks, and goodbyes, in two languages. Enumerating THAT is finishable.
+//
+// So the default is now "this probably needs data", and the failure mode flips from "cannot answer"
+// to "a slightly longer prompt". On a slow local model that costs seconds; the old default cost the
+// answer.
+var smallTalk = []string{
+	"hello", "hi", "hey", "yo", "good morning", "good afternoon", "good evening", "good night",
+	"thanks", "thank you", "thx", "ok", "okay", "cool", "nice", "great", "bye", "see you",
+	"halo", "hai", "pagi", "siang", "sore", "malam", "makasih", "terima kasih", "thx ya",
+	"oke", "okee", "sip", "mantap", "dadah", "sampai jumpa", "selamat tinggal",
 }
 
-// NeedsQuery reports whether the question is worth spending the schema guide on. Still gated rather
-// than always on: the guide is large and the base prompt is already paid for on every message.
+// NeedsQuery reports whether to spend the schema guide on this message.
+//
+// True unless the message is small talk, a command, or a memory instruction, each of which is
+// answered without the model or without data. Everything else is assumed to want rows.
 func NeedsQuery(msg string) bool {
-	low := strings.ToLower(msg)
-	for _, w := range sqlWords {
-		if strings.Contains(low, w) {
-			return true
+	low := strings.ToLower(strings.TrimSpace(msg))
+	low = strings.TrimRight(low, " .!?~")
+	if low == "" {
+		return false
+	}
+	// An exact match only. "hi" is small talk; "hi, which IPs hit us?" is not, and a substring
+	// test would silently withhold the guide from the second.
+	if slices.Contains(smallTalk, low) {
+		return false
+	}
+	// A very short message with no question in it is chatter rather than a request for data.
+	if len(low) < 12 && !strings.ContainsAny(low, "?") {
+		for _, w := range smallTalk {
+			if strings.HasPrefix(low, w) {
+				return false
+			}
 		}
 	}
-	return false
+	return true
 }
 
 // ExtractSQL pulls a statement out of a model reply.
@@ -203,23 +214,35 @@ func allowedList() string {
 	return strings.Join(names, ", ")
 }
 
+// commonTables are the ones an operator actually asks about. They get their columns spelled out;
+// everything else in AllowedTables is listed by name only.
+//
+// The split exists because the guide now travels with almost every message, and 25 described tables
+// cost more prompt than the handful anybody queries. A name-only table is still readable: the model
+// can guess ordinary column names, and a wrong guess produces a database error the operator sees,
+// which is a far better failure than the table being invisible.
+var commonTables = []string{"events", "response_actions", "agents", "rules", "tickets", "ip_scores"}
+
 // SQLGuide is the schema the model writes against.
 func SQLGuide() string {
 	var b strings.Builder
 	b.WriteString("QUERYING THE DATABASE\n")
-	b.WriteString("When a question needs data no block above contains, you may write ONE PostgreSQL SELECT and the server will run it and show the operator the rows. Put it in a fenced sql block and say in one sentence what it answers. Do not invent the result: you will not see the rows, the operator will.\n")
-	fmt.Fprintf(&b, "Rules: one statement, SELECT only, always add LIMIT %d or less, and read only the tables listed here. Anything else is refused and the operator sees the refusal instead of an answer.\n", MaxQueryRows)
-	b.WriteString("A result from an earlier query in this conversation appears in the history as a [Query result] table. You MAY read and reason about those rows: comparing them, picking the worst, spotting a pattern. They are real data the server returned, unlike anything you would otherwise assert.\n")
-	b.WriteString("Timestamps are `timestamptz`; use `now() - interval '24 hours'` style bounds. IP columns are `inet`: compare with `source_ip = '1.2.3.4'::inet` and print with `host(source_ip)`.\n")
-	b.WriteString("Readable tables and their useful columns:\n")
-	names := make([]string, 0, len(AllowedTables))
-	for k := range AllowedTables {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	for _, n := range names {
+	b.WriteString("When a question needs rows no block above contains, write ONE PostgreSQL SELECT in a fenced sql block and say in one sentence what it answers. The server runs it and shows the operator the rows. You will not see them: never invent a result.\n")
+	fmt.Fprintf(&b, "One statement, SELECT only, always LIMIT %d or less, and only the tables below. Anything else is refused and the operator sees the refusal instead of an answer.\n", MaxQueryRows)
+	b.WriteString("A result from an earlier query appears in the history as a [Query result] table. You MAY read and reason about those rows.\n")
+	b.WriteString("Timestamps are timestamptz: use `time >= now() - interval '24 hours'`. IP columns are inet: compare with `source_ip = '1.2.3.4'::inet`, print with `host(source_ip)`. An alert is a row where `dw_label IS NOT NULL`. Name a rule with `COALESCE(rule_name, rule_id)`.\n")
+	b.WriteString("Main tables:\n")
+	for _, n := range commonTables {
 		fmt.Fprintf(&b, "- %s: %s\n", n, AllowedTables[n])
 	}
-	b.WriteString("Not readable, and asking for them is refused: users, integrations, sessions, agent_enroll_tokens, cti_config, notify_config, audit_log. They hold credentials or belong on their own page. If a question needs one, say so and name the page instead.\n")
+	rest := make([]string, 0, len(AllowedTables))
+	for k := range AllowedTables {
+		if !slices.Contains(commonTables, k) {
+			rest = append(rest, k)
+		}
+	}
+	sort.Strings(rest)
+	fmt.Fprintf(&b, "Also readable, ask for columns if unsure: %s.\n", strings.Join(rest, ", "))
+	b.WriteString("Not readable, and asking is refused: users, integrations, sessions, agent_enroll_tokens, cti_config, notify_config, audit_log. They hold credentials or belong on their own page. If a question needs one, say so and name the page.\n")
 	return b.String()
 }

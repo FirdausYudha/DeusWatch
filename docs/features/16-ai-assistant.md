@@ -198,10 +198,19 @@ analysis happens when you ask for it and costs nothing until then, which matters
 model call takes minutes. Up to 1500 characters of the result travel back; longer tables are
 truncated rather than allowed to crowd out the prompt they are meant to inform.
 
-**Ordinary analytical phrasing triggers it.** "Serangan dari negara mana saja hari ini", "IP mana
-yang paling sering menyerang", "breakdown per agent", "top 10 source ip minggu ini". The first
-version only recognised explicit database phrasing like "run a query", which nobody actually types
-while exploring their own attack data.
+**Almost every message can query.** The schema travels with anything that is not plainly small talk,
+so you do not have to phrase a question in any particular way.
+
+That is the second version of this gate. The first listed phrasings that sound like data questions
+and attached the schema for those, which failed twice: "the ips of SSH login attempts as root user
+today, name 5 of it" matched nothing, so no query could be written, and the assistant said it did not
+have detail it was sitting on.
+
+The mistake was enumerating the open set. There is no end to how a person asks for data, and every
+miss reads as the feature not existing. Small talk is a closed set, so that is what is enumerated
+now, and the failure mode flipped from "cannot answer" to "a slightly longer prompt". The schema
+itself was trimmed to pay for it: the six tables anyone actually queries keep their column lists, the
+rest are named only.
 
 ### What stops this being a hole
 

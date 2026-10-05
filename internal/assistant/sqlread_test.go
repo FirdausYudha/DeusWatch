@@ -78,7 +78,7 @@ func TestSQLGuideDescribesOnlyAllowedTables(t *testing.T) {
 			t.Errorf("guide does not warn that %q is refused", denied)
 		}
 	}
-	if !strings.Contains(g, "you will not see the rows, the operator will") {
+	if !strings.Contains(g, "You will not see them: never invent a result") {
 		t.Error("guide must stop the model inventing a result it never receives")
 	}
 }
@@ -93,50 +93,43 @@ func TestExtractSQL(t *testing.T) {
 	}
 }
 
-func TestNeedsQuery(t *testing.T) {
-	for _, m := range []string{"berapa banyak event dari IP itu?", "list all tickets", "run a query for me", "tampilkan semua agent"} {
-		if !NeedsQuery(m) {
-			t.Errorf("%q should pull in the schema guide", m)
-		}
-	}
-	for _, m := range []string{"hello", "is 1.2.3.4 dangerous?", "what happened today?"} {
-		if NeedsQuery(m) {
-			t.Errorf("%q should NOT pull in the schema guide", m)
-		}
-	}
-}
-
-// The gate was too narrow to be useful: an operator exploring their attack data asks "serangan dari
-// negara mana saja", never "jalankan query", so the schema guide never arrived and the question was
-// answered from aggregate blocks that do not hold that breakdown.
-func TestNeedsQueryCoversAnalyticalPhrasing(t *testing.T) {
-	for _, m := range []string{
-		"serangan dari negara mana saja hari ini?",
-		"IP mana yang paling sering menyerang?",
-		"breakdown serangan per agent dong",
-		"which rule fired the most this week?",
-		"top 10 source ip minggu ini",
-		"berapa event dari 45.134.26.9?",
-		"rata-rata alert per hari berapa?",
-		"show me the distribution by country",
-	} {
-		if !NeedsQuery(m) {
-			t.Errorf("%q should pull in the schema guide", m)
-		}
-	}
-	// Still gated: the guide is large and every message pays for what is in the prompt.
-	for _, m := range []string{"hello", "halo mia", "thanks", "is the worker ok?"} {
-		if NeedsQuery(m) {
-			t.Errorf("%q should NOT pull in the schema guide", m)
-		}
-	}
-}
-
 // Rows from an earlier query come back in the conversation, so the model must be told it may reason
 // about them. Without this it treats its own prior turn as something it should not quote.
 func TestSQLGuideAllowsReasoningOverPastResults(t *testing.T) {
 	g := SQLGuide()
 	if !strings.Contains(g, "[Query result]") || !strings.Contains(g, "MAY read and reason about those rows") {
 		t.Errorf("guide does not permit analysing a previous result:\n%s", g)
+	}
+}
+
+// The gate is inverted: it enumerates small talk, not data questions. Enumerating the open set of
+// phrasings failed twice, and the second failure is in this list: "name 5 of it" matched nothing,
+// the guide was withheld, and the assistant said it lacked detail it could have queried.
+func TestNeedsQueryDefaultsToYes(t *testing.T) {
+	for _, m := range []string{
+		"the ips of SSH login attempts as root user today, name 5 of it",
+		"serangan dari negara mana saja hari ini?",
+		"IP mana yang paling sering menyerang?",
+		"breakdown serangan per agent dong",
+		"which rule fired the most this week?",
+		"anything from 10.0.0.0/8 lately",
+		"siapa yang nyerang semalam",
+		"hi, which IPs hit us today?", // leads with a greeting but is plainly a question
+	} {
+		if !NeedsQuery(m) {
+			t.Errorf("%q should pull in the schema guide", m)
+		}
+	}
+}
+
+// The closed set: these genuinely need no data, and they are the only exemptions.
+func TestNeedsQuerySkipsSmallTalk(t *testing.T) {
+	for _, m := range []string{
+		"hello", "hi", "halo", "Hai!", "thanks", "makasih", "ok", "oke", "good night",
+		"terima kasih", "bye", "  Hey  ",
+	} {
+		if NeedsQuery(m) {
+			t.Errorf("%q is small talk and should not spend the guide", m)
+		}
 	}
 }

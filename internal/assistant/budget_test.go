@@ -13,7 +13,10 @@ import "testing"
 // one of these fails, the answer is usually to gate the new block behind a keyword check the way
 // the setup and rule-authoring guides are, not to raise the number.
 const (
-	maxBasePromptChars   = 12000 // every message pays this
+	// The schema guide now rides on nearly every message, so "base" includes it. Raised from 12000
+	// when the gate was inverted: withholding the guide saved tokens and cost answers, which is the
+	// wrong trade in a tool whose job is answering.
+	maxBasePromptChars   = 15000 // every message pays this
 	maxGuidedPromptChars = 24000 // plus a setup or rule-authoring guide
 	// The pathological case: a conceptual question that also asks for a rule, names a window and
 	// asks what changed. Rare, but it has to fit, or that one message silently loses its tail.
@@ -48,7 +51,9 @@ func realisticContext() Context {
 }
 
 func TestBasePromptWithinBudget(t *testing.T) {
-	n := len(SystemPrompt("", realisticContext()))
+	c := realisticContext()
+	c.HowTo = SQLGuide() // attached to everything that is not small talk
+	n := len(SystemPrompt("", c))
 	t.Logf("base prompt %d chars (~%d tokens)", n, n/4)
 	if n > maxBasePromptChars {
 		t.Errorf("base prompt is %d chars, over the %d budget. Gate the newest block behind a "+
