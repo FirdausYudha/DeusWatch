@@ -112,6 +112,10 @@ type Context struct {
 	// Threats is process-level malware detection, the one piece of ML that runs in-product rather
 	// than through the external anomaly bridge.
 	Threats string
+	// Remembered is the operator's durable facts. Unlike the transcript, these ride in every
+	// prompt regardless of how long ago they were said: that is the whole difference between a
+	// log and a memory.
+	Remembered string
 	// Accounts is the user roster, present only for callers holding manage_users. It is always
 	// non-empty: when they lack the permission it says so, because an omitted block is a vacuum
 	// and a vacuum gets filled with invented names.
@@ -196,6 +200,9 @@ func SystemPrompt(persona string, c Context) string {
 	}
 	if t := strings.TrimSpace(c.Threats); t != "" {
 		b.WriteString(t)
+	}
+	if m := strings.TrimSpace(c.Remembered); m != "" {
+		b.WriteString(m)
 	}
 	if a := strings.TrimSpace(c.Accounts); a != "" {
 		b.WriteString(a)

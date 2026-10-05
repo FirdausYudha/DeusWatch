@@ -160,6 +160,41 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		// or deny it can, both of which are wrong. The reply beside the card is written, not
 		// generated. Confirming the card calls the ordinary ban/whitelist endpoint under the
 		// operator's own session, so this handler still has no write path of its own.
+		// A memory instruction is handled here and answered without the model, for the same reason
+		// commands are: it comes from the operator's own sentence, the confirmation must say exactly
+		// what was stored, and a model paraphrasing "I'll remember that" while nothing was written
+		// is the worst possible outcome for a feature whose whole value is being trusted.
+		if mem := assistant.ParseMemory(req.Message); u != nil && u.ID != "" && (mem.Remember != "" || mem.Forget != "") {
+			var reply string
+			switch {
+			case mem.Forget != "":
+				n, ferr := st.ForgetMatching(r.Context(), u.ID, mem.Forget)
+				switch {
+				case ferr != nil:
+					reply = "I could not reach the memory store, so nothing was forgotten."
+				case n == 0:
+					reply = fmt.Sprintf("I had nothing remembered about %q, so there was nothing to forget.", mem.Forget)
+				default:
+					reply = fmt.Sprintf("Forgotten: %d note(s) about %q.", n, mem.Forget)
+				}
+			default:
+				ok, aerr := st.AddMemory(r.Context(), u.ID, mem.Remember)
+				switch {
+				case aerr != nil:
+					reply = "I could not reach the memory store, so that is not saved."
+				case !ok:
+					reply = fmt.Sprintf("My memory is full (%d notes). Ask me to forget something first, or clear it in the panel.", store.MaxMemories)
+				default:
+					// Quoted back verbatim: the operator has to be able to see what was stored, not
+					// what the model thought they meant.
+					reply = fmt.Sprintf("Noted, and I will keep this between sessions: %q", mem.Remember)
+				}
+			}
+			recordChat(r.Context(), st, u, req.Message, reply, "")
+			writeJSON(w, http.StatusOK, map[string]any{"reply": reply, "model": "deuswatch"})
+			return
+		}
+
 		if p, isCmd := assistant.ParseProposal(req.Message); isCmd {
 			recordChat(r.Context(), st, u, req.Message, p.Reply(), "")
 			writeJSON(w, http.StatusOK, map[string]any{"reply": p.Reply(), "proposal": p, "model": "deuswatch"})
@@ -221,6 +256,17 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		// Any address the operator named is looked up directly. This is what makes a question about
 		// an arbitrary IP answerable: the offender list is necessarily a slice, and on a busy
 		// deployment the address being asked about is usually outside it.
+		var remembered string
+		if u != nil && u.ID != "" {
+			if facts, merr := st.ListMemories(r.Context(), u.ID); merr == nil && len(facts) > 0 {
+				lines := make([]string, 0, len(facts))
+				for _, f := range facts {
+					lines = append(lines, f.Fact)
+				}
+				remembered = assistant.Memories(lines)
+			}
+		}
+
 		// A property of the deployment, not of any one address, so it is resolved once.
 		mlActive := st.MLAnomalyActive(r.Context())
 
@@ -352,6 +398,7 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			Enforcement: enforcement,
 			Lookups:     lookups.String(),
 			Accounts:    accounts,
+			Remembered:  remembered,
 			Threats:     threats,
 			Trend:       trend,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
@@ -599,5 +646,74 @@ func assistantMessageHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	}
+}
+
+// assistantMemoryHandler lists and deletes the caller's remembered facts.
+//
+// Listing is not a convenience. These lines are prepended to every answer the assistant gives, so
+// an operator who cannot see them cannot tell why it is behaving the way it is, and cannot take
+// something back. Memory that is invisible is memory that has to be trusted blindly, which is not a
+// thing to ask for inside a security product.
+func assistantMemoryHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFrom(r.Context())
+		if !ok || u.ID == "" {
+			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			facts, err := st.ListMemories(r.Context(), u.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if facts == nil {
+				facts = []store.Memory{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"memories": facts, "max": store.MaxMemories})
+		case http.MethodPost:
+			var body struct {
+				Fact string `json:"fact"`
+			}
+			if err := json.NewDecoder(io.LimitReader(r.Body, 4<<10)).Decode(&body); err != nil {
+				http.Error(w, "invalid request body", http.StatusBadRequest)
+				return
+			}
+			added, err := st.AddMemory(r.Context(), u.ID, body.Fact)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if !added {
+				http.Error(w, fmt.Sprintf("memory is full (%d notes)", store.MaxMemories), http.StatusConflict)
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]string{"status": "saved"})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// assistantMemoryItemHandler deletes one remembered fact.
+func assistantMemoryItemHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFrom(r.Context())
+		if !ok || u.ID == "" {
+			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			return
+		}
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id <= 0 {
+			http.Error(w, "bad memory id", http.StatusBadRequest)
+			return
+		}
+		if err := st.ForgetMemory(r.Context(), u.ID, id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "forgotten"})
 	}
 }

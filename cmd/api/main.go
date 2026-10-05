@@ -308,6 +308,10 @@ func main() {
 		// permission needed to have had the conversation in the first place.
 		mux.Handle("/api/assistant/history", protect(auth.PermViewDashboard, assistantHistoryHandler(st)))
 		mux.Handle("DELETE /api/assistant/history/{id}", protect(auth.PermViewDashboard, assistantMessageHandler(st)))
+		// Durable facts, as opposed to the transcript above: these are injected into every prompt,
+		// so the operator must be able to see and withdraw them.
+		mux.Handle("/api/assistant/memory", protect(auth.PermViewDashboard, assistantMemoryHandler(st)))
+		mux.Handle("DELETE /api/assistant/memory/{id}", protect(auth.PermViewDashboard, assistantMemoryItemHandler(st)))
 		mux.Handle("GET /api/assistant/config", protect(auth.PermViewDashboard, assistantConfigGetHandler(st)))
 		mux.Handle("PUT /api/assistant/config", protect(auth.PermManageSettings, assistantConfigSetHandler(st)))
 

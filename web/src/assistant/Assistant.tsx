@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   addWhitelist, askAssistant, banIP, can, clearAssistantHistory, createRule,
-  deleteAssistantMessage, fetchAssistantHistory, fetchAssistantStatus,
+  deleteAssistantMessage, fetchAssistantHistory, fetchAssistantMemory, fetchAssistantStatus,
+  forgetAssistantMemory, type AssistantMemory,
   type AssistantProposal, type ChatTurn, type Me,
 } from '../lib/api'
 import type { AssistantQuery } from '../lib/api'
@@ -228,6 +229,10 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
   // still in flight has no id yet and must still be editable once it lands.
   const [editing, setEditing] = useState<number | null>(null)
   const [editDraft, setEditDraft] = useState('')
+  // What the assistant remembers between sessions, and whether the operator is looking at it.
+  // Shown on demand rather than always: it is reference, not conversation.
+  const [memories, setMemories] = useState<AssistantMemory[]>([])
+  const [showMemory, setShowMemory] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Reading replies aloud is remembered; the microphone is not. Synthesis stays in the browser,
@@ -251,9 +256,12 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
         // Stored turns carry no proposal card or result table: those are live views of state that
         // may have changed since, and re-rendering a stale "Confirm block" button would invite the
         // operator to approve something they already approved.
-        return fetchAssistantHistory().then((rows) =>
-          setTurns(rows.map((r) => ({ id: r.id, role: r.role, content: r.content }))),
-        )
+        return Promise.all([
+          fetchAssistantHistory().then((rows) =>
+            setTurns(rows.map((r) => ({ id: r.id, role: r.role, content: r.content }))),
+          ),
+          fetchAssistantMemory().then((m) => setMemories(m.memories)).catch(() => {}),
+        ]).then(() => undefined)
       })
       .catch(() => setEnabled(false))
   }, [])
@@ -298,6 +306,7 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
+      fetchAssistantMemory().then((m) => setMemories(m.memories)).catch(() => {})
     }
   }
 
@@ -389,6 +398,21 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
             {/* The persona is what you are talking to, so the way to change it belongs here rather
                 than only in Settings. Hidden without manage_settings: an operator who cannot edit
                 it gains nothing from a link to a read-only field. */}
+            {memories.length > 0 && (
+              <button
+                onClick={() => setShowMemory(!showMemory)}
+                title={`What Mia remembers (${memories.length})`}
+                aria-label="What the assistant remembers"
+                aria-pressed={showMemory}
+                className={`rounded-[8px] p-1.5 transition-colors hover:bg-surface-2 ${
+                  showMemory ? 'text-accent' : 'text-dim hover:text-fg'
+                }`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.5c-.6.6-1 1.4-1 2.2V17H9v-1.3c0-.8-.4-1.6-1-2.2A6 6 0 0 1 12 3z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
             {turns.length > 0 && (
               <button
                 onClick={() => void clearAll()}
@@ -457,6 +481,43 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
             </button>
             </div>
           </header>
+
+          {showMemory && (
+            // Listed so a fact cannot shape every answer while staying invisible. Each one is
+            // removable here, which is the same thing "forget X" does in conversation.
+            <div className="flex-none border-b border-border bg-surface-2 px-4 py-3">
+              <p className="text-[12px] font-semibold uppercase tracking-wide text-dim">
+                Remembered between sessions
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {memories.map((m) => (
+                  <li key={m.id} className="flex items-start gap-2 text-[12.5px] text-fg">
+                    <span className="flex-1">{m.fact}</span>
+                    <button
+                      onClick={async () => {
+                        setMemories((xs) => xs.filter((x) => x.id !== m.id))
+                        try {
+                          await forgetAssistantMemory(m.id)
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : String(e))
+                        }
+                      }}
+                      title="Forget this"
+                      aria-label={`Forget: ${m.fact}`}
+                      className="shrink-0 rounded-[6px] p-0.5 text-dim hover:text-critical"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11.5px] text-dim">
+                These go into every answer. Say "remember ..." to add one, "forget ..." to drop it.
+              </p>
+            </div>
+          )}
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {turns.length === 0 && (

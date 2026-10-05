@@ -676,3 +676,88 @@ func clip(s string, n int) string {
 	}
 	return s
 }
+
+// Memory is one durable fact the operator asked the assistant to keep.
+type Memory struct {
+	ID   int64     `json:"id"`
+	Fact string    `json:"fact"`
+	At   time.Time `json:"at"`
+}
+
+const (
+	// MaxMemories bounds what rides in every prompt. Memory that grows without limit stops being
+	// memory and becomes a second persona, paid for on every message.
+	MaxMemories = 40
+	// MaxMemoryLen keeps one fact to a sentence. Anything longer belongs in the persona.
+	MaxMemoryLen = 300
+)
+
+// AddMemory stores a fact, ignoring an exact duplicate. Returns false when the list is full, which
+// the caller reports rather than silently dropping: a memory the operator believes was saved and
+// was not is worse than being told no.
+func (s *Store) AddMemory(ctx context.Context, userID, fact string) (bool, error) {
+	fact = strings.TrimSpace(fact)
+	if fact == "" {
+		return false, nil
+	}
+	if len(fact) > MaxMemoryLen {
+		fact = fact[:MaxMemoryLen]
+	}
+	var n int
+	if err := s.q(ctx).QueryRow(ctx,
+		`SELECT count(*) FROM assistant_memories WHERE user_id = $1`, userID).Scan(&n); err != nil {
+		return false, fmt.Errorf("store: add memory: %w", err)
+	}
+	if n >= MaxMemories {
+		return false, nil
+	}
+	if _, err := s.q(ctx).Exec(ctx,
+		`INSERT INTO assistant_memories (user_id, fact) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+		userID, fact); err != nil {
+		return false, fmt.Errorf("store: add memory: %w", err)
+	}
+	return true, nil
+}
+
+// ListMemories returns a user's facts, oldest first.
+func (s *Store) ListMemories(ctx context.Context, userID string) ([]Memory, error) {
+	rows, err := s.q(ctx).Query(ctx,
+		`SELECT id, fact, created_at FROM assistant_memories
+		  WHERE user_id = $1 ORDER BY created_at ASC, id ASC LIMIT $2`, userID, MaxMemories)
+	if err != nil {
+		return nil, fmt.Errorf("store: list memories: %w", err)
+	}
+	defer rows.Close()
+	out := make([]Memory, 0, 8)
+	for rows.Next() {
+		var m Memory
+		if err := rows.Scan(&m.ID, &m.Fact, &m.At); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// ForgetMemory deletes by id. Scoped by user so an id from another account matches nothing.
+func (s *Store) ForgetMemory(ctx context.Context, userID string, id int64) error {
+	_, err := s.q(ctx).Exec(ctx,
+		`DELETE FROM assistant_memories WHERE user_id = $1 AND id = $2`, userID, id)
+	return err
+}
+
+// ForgetMatching deletes facts containing the given text, case-insensitively, and reports how many
+// went. This is what "forget my nickname" resolves to: the operator names the subject, not an id.
+func (s *Store) ForgetMatching(ctx context.Context, userID, needle string) (int, error) {
+	needle = strings.TrimSpace(needle)
+	if needle == "" {
+		return 0, nil
+	}
+	tag, err := s.q(ctx).Exec(ctx,
+		`DELETE FROM assistant_memories WHERE user_id = $1 AND fact ILIKE '%' || $2 || '%'`,
+		userID, needle)
+	if err != nil {
+		return 0, fmt.Errorf("store: forget memory: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}

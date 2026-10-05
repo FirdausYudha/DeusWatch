@@ -2004,3 +2004,17 @@ export async function deleteAssistantMessage(id: number, after = false): Promise
   const res = await authFetch(`/api/assistant/history/${id}${after ? '?after=1' : ''}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`delete message: HTTP ${res.status}`)
 }
+
+/** A durable fact the assistant keeps between sessions, injected into every answer. */
+export type AssistantMemory = { id: number; fact: string; at: string }
+
+export async function fetchAssistantMemory(): Promise<{ memories: AssistantMemory[]; max: number }> {
+  const res = await authFetch('/api/assistant/memory')
+  if (!res.ok) throw new Error(`assistant memory: HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function forgetAssistantMemory(id: number): Promise<void> {
+  const res = await authFetch(`/api/assistant/memory/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`forget: HTTP ${res.status}`)
+}
