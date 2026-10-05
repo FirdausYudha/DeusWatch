@@ -329,3 +329,57 @@ func TestUsersRosterEmptyIsSuspicious(t *testing.T) {
 		t.Errorf("an empty roster should be flagged rather than reported as fact:\n%s", g)
 	}
 }
+
+// The distinction this block exists for: an anomaly of 0 means "looks ordinary" only when a model
+// is actually running. With no model it means nothing was scored, and presenting that as a clean
+// verdict is the silent kind of wrong.
+func TestIPReportSeparatesNoModelFromNoAnomaly(t *testing.T) {
+	noModel := IPReport(Dossier{IP: "1.2.3.4", Found: true, HasScore: true, Score: 72, Band: "high", MLActive: false})
+	if !strings.Contains(noModel, "no external anomaly model is feeding this deployment") ||
+		!strings.Contains(noModel, "NOT because the address looks normal") {
+		t.Errorf("a missing model must not read as a clean verdict:\n%s", noModel)
+	}
+	if !strings.Contains(noModel, "Composite threat score: 72 (high)") {
+		t.Errorf("the composite score is the most direct answer to \"is it dangerous\":\n%s", noModel)
+	}
+
+	scoredZero := IPReport(Dossier{IP: "1.2.3.4", Found: true, HasScore: true, Score: 5, MLActive: true, Anomaly: 0})
+	if !strings.Contains(scoredZero, "genuinely means it looks ordinary") {
+		t.Errorf("with a model running, zero is a real verdict:\n%s", scoredZero)
+	}
+	scored := IPReport(Dossier{IP: "1.2.3.4", Found: true, HasScore: true, Score: 90, MLActive: true, Anomaly: 83})
+	if !strings.Contains(scored, "scores it 83 out of 100") {
+		t.Errorf("a real anomaly score should be reported:\n%s", scored)
+	}
+}
+
+func TestThreatsLeadsWithMalicious(t *testing.T) {
+	g := Threats(ThreatStats{Read: true, Malicious: 1, Suspicious: 3,
+		RecentNames: []string{"xmrig (malicious)"}, WindowHours: 24})
+	for _, want := range []string{"1 malicious, 3 suspicious", "xmrig (malicious)",
+		"outranks volume", "belongs in your first sentence"} {
+		if !strings.Contains(g, want) {
+			t.Errorf("threat block missing %q:\n%s", want, g)
+		}
+	}
+	// Nothing found and nothing readable are different answers, as everywhere else.
+	if q := Threats(ThreatStats{Read: true, WindowHours: 24}); !strings.Contains(q, "nothing classified suspicious or malicious") {
+		t.Errorf("a clean window should say so:\n%s", q)
+	}
+	if b := Threats(ThreatStats{Read: false}); !strings.Contains(b, "could not be read") {
+		t.Errorf("an unreadable section must not read as clean:\n%s", b)
+	}
+}
+
+// The ML tables must be queryable, or "what does the anomaly model say" has no answer at all.
+func TestMLTablesAreReadable(t *testing.T) {
+	for _, tbl := range []string{"ip_anomaly", "ip_scores", "process_threats", "process_behavior_baseline", "yara_rules"} {
+		if _, ok := AllowedTables[tbl]; !ok {
+			t.Errorf("%q should be readable by the assistant", tbl)
+		}
+	}
+	// And the one that explains an empty result, so the model does not read silence as safety.
+	if !strings.Contains(AllowedTables["ip_anomaly"], "Empty means no model is running") {
+		t.Error("ip_anomaly's description must explain what empty means")
+	}
+}

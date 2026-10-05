@@ -395,6 +395,12 @@ type Dossier struct {
 	LastAgent                string
 	Events24h                int
 	BlockedUntil, LastSeen   string
+	HasScore                 bool
+	Score, Anomaly           int
+	Band                     string
+	// MLActive is whether an external anomaly model has written anything recently. Without it an
+	// anomaly of 0 reads as "looks normal" when it means "nothing is scoring this".
+	MLActive bool
 }
 
 // IPReport renders what is known about an address.
@@ -438,6 +444,51 @@ func IPReport(d Dossier) string {
 	if d.Listed {
 		b.WriteString("It is on the WHITELIST, so the response engine refuses to ban it. If the operator wants it banned they have to remove the whitelist entry first.\n")
 	}
+	if d.HasScore {
+		fmt.Fprintf(&b, "Composite threat score: %d", d.Score)
+		if d.Band != "" {
+			fmt.Fprintf(&b, " (%s)", d.Band)
+		}
+		b.WriteString(". That is the scorer's own view, built from reputation, repeat offences, worst severity and cross-agent fan-out.")
+		switch {
+		case !d.MLActive:
+			// The distinction that makes this worth carrying at all: the same zero means opposite
+			// things depending on whether anything is running, and only one of them is reassuring.
+			b.WriteString(" Its ML anomaly component reads 0 because no external anomaly model is feeding this deployment, NOT because the address looks normal. Do not present that as a clean verdict.")
+		case d.Anomaly > 0:
+			fmt.Fprintf(&b, " The ML anomaly model scores it %d out of 100.", d.Anomaly)
+		default:
+			b.WriteString(" The ML anomaly model scored it 0, and here that genuinely means it looks ordinary to the model.")
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// ThreatStats is the malware/process detection picture, flattened by the caller.
+type ThreatStats struct {
+	Read                  bool
+	Malicious, Suspicious int
+	RecentNames           []string
+	WindowHours           int
+}
+
+// Threats renders process-level malware classification: the one piece of machine learning that runs
+// inside DeusWatch rather than through the external anomaly bridge, and therefore the only one that
+// has anything to say on a deployment that never wired a model up.
+func Threats(s ThreatStats) string {
+	if !s.Read {
+		return "PROCESS THREATS: could not be read just now. Say so rather than reporting none.\n"
+	}
+	if s.Malicious == 0 && s.Suspicious == 0 {
+		return fmt.Sprintf("PROCESS THREATS: nothing classified suspicious or malicious in the last %d hours.\n", s.WindowHours)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "PROCESS THREATS in the last %d hours: %d malicious, %d suspicious.", s.WindowHours, s.Malicious, s.Suspicious)
+	if len(s.RecentNames) > 0 {
+		fmt.Fprintf(&b, " Most recent: %s.", strings.Join(s.RecentNames, ", "))
+	}
+	b.WriteString(" A malicious classification outranks volume: one of these matters more than ten thousand failed logins, and it belongs in your first sentence. The reasons, YARA matches and hashes are not in your context; send them to the process threat view for those.\n")
 	return b.String()
 }
 

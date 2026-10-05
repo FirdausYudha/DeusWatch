@@ -126,6 +126,7 @@ Exactly what the Dashboard and Report pages already show for the window being as
 | Any address you name, looked up individually | |
 | Anything in the allowlisted tables, via a read-only query | `users`, `integrations`, `sessions`, tokens, `audit_log` |
 | Usernames and roles, **only with `manage_users`** | Emails, last login, 2FA status, anything about passwords |
+| Process malware classifications, and the composite threat score per address | YARA match detail, hashes, the reasons behind a classification |
 | Ticket counts by status | Ticket titles or contents |
 | File-integrity activity and the most-changed paths | |
 | Vulnerability totals per severity | Per-package vulnerability detail |
@@ -214,6 +215,33 @@ instruction trying to reach somewhere it should not.
 **Hardening worth doing if this makes you uneasy:** nothing here requires the feature. Leave the
 assistant integration disabled and none of it exists. If you want it but not this, say so and the
 query path can be gated separately.
+
+## What it knows about the machine learning
+
+DeusWatch has two different things called ML, and the assistant treats them differently because they
+fail differently.
+
+**Process threat classification runs in-product.** Counts of malicious and suspicious processes for
+the window, with the most recent names, are in every prompt, and the assistant is told a malicious
+classification outranks volume: one of those matters more than ten thousand failed logins.
+
+**The anomaly score comes from a bridge, not from a model DeusWatch ships.** You run your own
+Isolation Forest, it pulls features and writes a 0-100 score back, and it needs `ML_API_TOKEN` set.
+See [ML anomaly bridge](../ml-anomaly.md). Its weight in the composite score defaults to `0`, so on
+most deployments it contributes nothing.
+
+That creates a trap worth knowing about, and the assistant is built around it: **an anomaly of 0
+means "the model saw nothing unusual" only when a model is running.** With no model it means nothing
+was scored. Those are opposite conclusions from the same number, and the second one presented as the
+first is exactly the quiet reassurance this platform exists to prevent. So the assistant checks
+whether anything has written a score in the last seven days and says which case it is looking at.
+
+The composite threat score itself is now part of any address lookup, which it was not before: asked
+"is this IP dangerous", the assistant was answering from ban history while the scorer had already
+formed a view.
+
+`ip_scores`, `ip_anomaly`, `process_threats`, `process_behavior_baseline` and `yara_rules` are all
+readable through the query path for anything deeper.
 
 ## Asking whether an address is blocked
 

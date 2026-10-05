@@ -340,6 +340,13 @@ type IPDossier struct {
 	LastSeen                 *time.Time
 	Events24h                int
 	Whitelisted              bool
+	// Score is the composite threat score and Band its label; Anomaly is the ML score an external
+	// model writes back. HasScore separates "scored 0" from "never scored", and the caller pairs
+	// Anomaly with MLAnomalyActive, because "the model saw nothing unusual" and "no model is
+	// running" are opposite conclusions drawn from the same zero.
+	Score, Anomaly int
+	Band           string
+	HasScore       bool
 }
 
 // IPDossierFor gathers one address's history. The shape mirrors the Offenders view the Response
@@ -378,7 +385,63 @@ func (s *Store) IPDossierFor(ctx context.Context, ip string) (IPDossier, error) 
 
 	_ = s.q(ctx).QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM ip_whitelist WHERE $1::inet <<= cidr)`, ip).Scan(&d.Whitelisted)
+
+	// The composite threat score is the most direct answer to "is this address dangerous", and it
+	// was missing from this lookup entirely: the assistant was answering that question from ban
+	// history alone while a scorer had already formed a view.
+	if err := s.q(ctx).QueryRow(ctx,
+		`SELECT score, COALESCE(band,''), COALESCE(anomaly,0) FROM ip_scores WHERE ip = $1::inet`, ip).
+		Scan(&d.Score, &d.Band, &d.Anomaly); err == nil {
+		d.HasScore = true
+		d.Found = true
+	}
 	return d, nil
+}
+
+// MLAnomalyActive reports whether an external anomaly model is actually feeding scores.
+//
+// Without this the assistant reads anomaly 0 and concludes the address looks normal, when the real
+// meaning is that nobody is running a model. Those are opposite conclusions from the same number,
+// and the second one is the silent kind this platform exists to avoid.
+func (s *Store) MLAnomalyActive(ctx context.Context) bool {
+	var n int
+	if err := s.q(ctx).QueryRow(ctx,
+		`SELECT count(*) FROM ip_anomaly WHERE updated_at > now() - interval '7 days'`).Scan(&n); err != nil {
+		return false
+	}
+	return n > 0
+}
+
+// ThreatDigest is the malware/process detection picture.
+type ThreatDigest struct {
+	Read                  bool
+	Malicious, Suspicious int
+	RecentNames           []string // "name on agent (level)", most recent first
+}
+
+// ThreatDigestFor summarises process threat detections in the window.
+func (s *Store) ThreatDigestFor(ctx context.Context, since time.Time) ThreatDigest {
+	var d ThreatDigest
+	if err := s.q(ctx).QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE threat_level = 'MALICIOUS'),
+		       count(*) FILTER (WHERE threat_level = 'SUSPICIOUS')
+		  FROM process_threats WHERE detected_at >= $1`, since).Scan(&d.Malicious, &d.Suspicious); err != nil {
+		return d
+	}
+	d.Read = true
+	if rows, err := s.q(ctx).Query(ctx, `
+		SELECT process_name, threat_level FROM process_threats
+		 WHERE detected_at >= $1 AND threat_level <> 'CLEAN'
+		 ORDER BY detected_at DESC LIMIT 8`, since); err == nil {
+		for rows.Next() {
+			var name, lvl string
+			if rows.Scan(&name, &lvl) == nil {
+				d.RecentNames = append(d.RecentNames, fmt.Sprintf("%s (%s)", name, strings.ToLower(lvl)))
+			}
+		}
+		rows.Close()
+	}
+	return d
 }
 
 // QueryResult is one assistant query's output, already stringified for display.

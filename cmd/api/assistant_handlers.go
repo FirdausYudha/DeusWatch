@@ -219,6 +219,9 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		// Any address the operator named is looked up directly. This is what makes a question about
 		// an arbitrary IP answerable: the offender list is necessarily a slice, and on a busy
 		// deployment the address being asked about is usually outside it.
+		// A property of the deployment, not of any one address, so it is resolved once.
+		mlActive := st.MLAnomalyActive(r.Context())
+
 		var lookups strings.Builder
 		for _, ip := range assistant.MentionedIPs(req.Message) {
 			d, derr := st.IPDossierFor(r.Context(), ip)
@@ -231,6 +234,8 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 				LastStatus: d.LastStatus, LastReason: d.LastReason, LastAgent: d.LastAgent,
 				Events24h:    d.Events24h,
 				BlockedUntil: fmtTimePtr(d.BlockedUntil), LastSeen: fmtTimePtr(d.LastSeen),
+				HasScore: d.HasScore, Score: d.Score, Anomaly: d.Anomaly, Band: d.Band,
+				MLActive: mlActive,
 			}))
 		}
 
@@ -279,6 +284,12 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		if h, ok := assistant.ParseWindow(req.Message); ok {
 			hours = h
 		}
+		td := st.ThreatDigestFor(r.Context(), time.Now().Add(-time.Duration(hours)*time.Hour))
+		threats := assistant.Threats(assistant.ThreatStats{
+			Read: td.Read, Malicious: td.Malicious, Suspicious: td.Suspicious,
+			RecentNames: td.RecentNames, WindowHours: hours,
+		})
+
 		od := st.OpsDigestFor(r.Context(), time.Now().Add(-time.Duration(hours)*time.Hour), time.Now())
 		ops := assistant.Ops(assistant.OpsStats{
 			TicketsByStatus: od.TicketsByStatus, TicketsOpenHigh: od.TicketsOpenHigh,
@@ -339,6 +350,7 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			Enforcement: enforcement,
 			Lookups:     lookups.String(),
 			Accounts:    accounts,
+			Threats:     threats,
 			Trend:       trend,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
