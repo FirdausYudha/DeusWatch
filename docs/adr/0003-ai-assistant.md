@@ -114,6 +114,41 @@ The assistant is an Integration of type `ai_assistant`, **disabled by default**.
 microphone render only when it is enabled. No separate installer: enable/disable, configuration and
 scoping are what the integrations machinery already does.
 
+
+### 6. Every question an operator can ask needs a block, or the model answers it anyway
+
+Learned by repetition, not foresight. The same failure arrived four times:
+
+| Asked | Answered | What was missing from the prompt |
+|---|---|---|
+| "name the agents that are online" | "test-server, web-server-1, db-server" on a fleet of one | the agent roster |
+| "what sigma rules are running?" | "look at Dashboard, Rule Status", a section that does not exist | rule counts, and a navigation map |
+| "hello" | the 24-hour event totals | nothing; the data was the only thing it could see |
+| "is anything unusual?" | the largest number in the list, called notable | a baseline to deviate from |
+
+The pattern is the finding. **A model handed a question it has no data for does not say "I don't
+know"; it produces something plausible, and plausible is indistinguishable from true.** The fix is
+never a sterner instruction, it is closing the vacuum. Every block added since exists because of one
+of these, and each one states its own ceiling ("you do NOT have the built-in rule names"), because
+naming the limit is what stops the model extrapolating past the edge of what it was given.
+
+Two obligations follow for anything added later:
+
+**A block that cannot be read must say so, not render as empty.** "No watched file changed" and "the
+file-integrity query failed" are different answers. Collapsing them would have the assistant
+reporting a quiet night on a broken read, which is the exact silent failure this platform exists to
+prevent, reported about the platform itself.
+
+**Arithmetic belongs in Go, not in the prompt.** The period-over-period comparison hands the model
+"93 -> 412, up 343%" rather than two tables. A small model is poor at division and a wrong
+percentage reads as confidently as a right one; the model's job is which movement matters, not what
+the movement is.
+
+The cost is paid on every message, in context window and in latency, so each block is gated on a
+deterministic keyword check unless it is small and universally useful. A budget test fails if the
+base prompt passes 12000 characters, and the right response to that failing is almost always to gate
+the newest block, not to raise the ceiling.
+
 ## Consequences
 
 - No new privileged actor exists in the system, which is the property that makes the feature
@@ -138,14 +173,6 @@ Each phase is independently useful and independently shippable.
    operator approves, calling the existing endpoints under their own session.
 3. **Voice (built, v2.19.0)**, via the browser APIs. Speaker and microphone are separate toggles,
    both off by default; the speaker preference persists and the microphone deliberately does not.
-5. **Rule drafting (built, v2.25.0).** The assistant drafts a Sigma rule and the operator saves it
-   from a card showing the full YAML. This is the first and so far only place where the MODEL
-   produces the content of a change, which decision 1 otherwise avoids; writing the rule is the
-   task, so it cannot be parsed from the operator's sentence. The substitutes are that the draft is
-   validated by the real engine before any card appears, the operator reviews the text rather than a
-   summary, and saving runs through the ordinary rules endpoint under their session. A rule can only
-   add detection, never remove it, so the realistic failure is noise rather than blindness.
-
 4. **Customisation (built, v2.20.0).** The persona is editable in Settings, stored in
    `assistant_config`, with precedence UI > `ASSISTANT_PERSONA` > built-in.
 
@@ -156,12 +183,37 @@ Each phase is independently useful and independently shippable.
    step with it, and the drift would be silent. Build it when a tool exists that is not already
    covered by an endpoint's own permission.
 
+5. **Rule drafting (built, v2.25.0).** The assistant drafts a Sigma rule and the operator saves it
+   from a card showing the full YAML. This is the first and so far only place where the MODEL
+   produces the content of a change, which decision 1 otherwise avoids; writing the rule is the
+   task, so it cannot be parsed from the operator's sentence. The substitutes are that the draft is
+   validated by the real engine before any card appears, the operator reviews the text rather than a
+   summary, and saving runs through the ordinary rules endpoint under their session. A rule can only
+   add detection, never remove it, so the realistic failure is noise rather than blindness.
+
 ## Explicitly out of scope
 
 - **Creating or editing Integrations.** Integrations hold API keys and webhook URLs. An assistant
   that can create one can create a webhook that forwards every alert to an attacker's endpoint, and
   it would look like ordinary configuration while doing it. Excluded entirely, not merely gated.
 - **Auto-execution of any action**, for the reason in decision 1.
+
+## Known constraint: the hardware decides whether this is usable
+
+The context blocks that keep the assistant honest are also what make the prompt long, around 2200
+tokens and up to 4800 in the worst case. Every one of those is read before the first word of the
+answer, so throughput, not RAM, is the limit.
+
+Measured on a development deployment: 1.18 tokens per second prompt evaluation and 0.75 generating,
+which puts one answer past forty minutes. A healthy modern CPU manages 5 to 15 for an 8B model, so a
+figure that low is a symptom (a CPU-limited container, a contended host, or too few vCPUs) rather
+than a baseline to design around.
+
+This is recorded because the tempting response is to cut the prompt, and that is the wrong trade:
+the blocks are what stop the model inventing agents and rule names, so trading them for speed buys
+back the problem decision 6 exists to solve. The honest answers are a GPU, a hosted provider, or
+accepting that the assistant is not interactive on that machine. `docs/features/16-ai-assistant.md`
+carries the measurement procedure and the thresholds.
 
 ## Status / next step
 

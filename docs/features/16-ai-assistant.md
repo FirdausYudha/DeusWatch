@@ -49,13 +49,66 @@ larger) model than the one doing per-alert triage.
 
 ## Choosing a model
 
-The assistant injects your current security posture into the prompt rather than calling tools, so
-it works on small local models. A 3B model like `llama3.2` will answer, but it summarises poorly and
-invents numbers under pressure. For a noticeably better experience use an 8B+ local model
-(`llama3.1:8b`, `qwen2.5:7b`) or a hosted provider.
+The assistant injects your current security posture into the prompt rather than calling tools, so it
+does not need a model that can orchestrate tool calls. It does need one that follows instructions.
 
-If you use a hosted provider, be aware of what leaves your network: counts, top source IPs, agent
-names, rule names and MITRE techniques for the selected window. No raw log lines are sent in phase 1.
+**Use an 8B or larger model**: `llama3.1:8b`, `qwen2.5:7b`, or a hosted provider. A 3B model like
+`llama3.2` answers, but it keeps the first two or three instructions and loses the rest, which in
+practice means greetings answered with event counts and figures invented under pressure.
+
+Then **check the next section before settling on it**, because the model you can run and the model
+your hardware can run at a usable speed are different questions, and the second one is the one that
+decides whether anybody uses this.
+
+If you use a hosted provider, know what leaves your network: counts, top source IPs, agent names,
+rule names, MITRE techniques and the agent roster for the selected window. No raw log lines are
+sent.
+
+## What hardware this needs
+
+This is the part that decides whether the assistant is usable, and it is easy to find out before
+committing to it.
+
+The system prompt is **about 2200 tokens**, or 4800 in the worst case when a setup guide, the
+product primer and a baseline comparison all arrive at once. The model has to read all of it before
+writing a single word. So the number that matters is not RAM, it is **throughput**, and you can
+measure it in one command:
+
+```bash
+docker exec ollama ollama run llama3.1:8b "halo" --verbose
+```
+
+Read `prompt eval rate` and `eval rate`, both in tokens per second:
+
+| Measured | What it means |
+|---|---|
+| prompt eval 50+/s, eval 8+/s | Comfortable. Answers in a few seconds. |
+| prompt eval 20/s, eval 4/s | Usable. Expect 15 to 30 seconds per answer. |
+| prompt eval 5/s, eval 2/s | Painful. A minute or more per answer; raise `LLM_TIMEOUT`. |
+| prompt eval ~1/s, eval under 1/s | **Not viable.** Reading the prompt alone takes over half an hour. |
+
+That last row is not hypothetical, it was measured on a deployment during development: 1.18 tokens
+per second prompt eval and 0.75 generating, which puts a single answer somewhere past forty minutes.
+No timeout, prompt diet or model swap rescues that, because an 8B model on a healthy modern CPU
+manages 5 to 15 tokens per second. A figure that far below is a symptom, not a baseline.
+
+**If the numbers are that low, check these before blaming the model.** A CPU limit on the container
+(`docker inspect ollama --format '{{.HostConfig.NanoCpus}} {{.HostConfig.CpusetCpus}}'`) starves it
+while the rest of the host idles. A loaded host (`uptime` against `nproc`) makes it queue behind
+everything else. And a genuinely small vCPU allocation puts an 8B model out of reach whatever else
+you change.
+
+**If the hardware really is that small**, the honest options are a GPU, a hosted provider (knowing
+that your alert aggregates then leave the host), or accepting the assistant is not an interactive
+feature on this machine. Shrinking the prompt is not on that list: the context blocks are what stop
+the model inventing agents and rule names, and trading them for speed buys back the original problem.
+
+Keep the model resident while you are using it, since Ollama unloads it after five minutes idle and
+the next message then pays a cold load of several gigabytes from disk:
+
+```bash
+docker exec ollama sh -c 'OLLAMA_KEEP_ALIVE=30m true'   # or set it on the ollama container
+```
 
 ## What it can see
 
@@ -328,5 +381,8 @@ answer on screen.
   roundabout than "block <ip>" may not be. An LLM intent classifier fed only your message (never the
   event data) is the upgrade path if this proves too narrow.
 - **No persistent history**, so the assistant cannot refer to yesterday's conversation.
+- **It is only as fast as the host.** The context blocks that keep it honest also make the prompt
+  long, and on a slow CPU that is the whole cost. See the hardware section; this is a real
+  deployment constraint, not a tuning detail.
 - **It does not know about an alert you are looking at.** Context is the aggregate window, not the
   row on screen. Pass the detail in your question for now.
