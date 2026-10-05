@@ -275,6 +275,12 @@ Name an address and you get the whole picture in one place, instead of four page
   and **fetched live if not**, written back so the next question is free.
 - **Its composite score**, and whether the ML anomaly component means anything on this deployment.
 
+**A follow-up keeps the same address.** The two most recent addresses from earlier turns are looked
+up alongside anything in the current message, so "and is it blocked?" still has a report behind it,
+and so does an answer you give to a question the assistant itself asked. Carried addresses are read
+from the local database only: one of them may have come from the model's own turn and therefore may
+not exist, and a made-up address must not spend an AbuseIPDB request.
+
 **Name a file hash and ask for a check** ("cek hash <sha256>", "scan this file") and it reports where
 FIM has seen that hash here, plus the VirusTotal / MalwareBazaar / CIRCL verdict, cache first and
 live if needed. Only on request: a live lookup spends an API quota, and a hash pasted in passing is
@@ -404,11 +410,13 @@ Almost always the model, not the prompt. The tell:
 | It names a host that does not exist | Was a missing roster, fixed in v2.24.0. If it still happens, the model is too small. |
 | It sends you to a page or section that is not there | Was a missing navigation map, fixed in v2.26.0 and extended to the Response tabs in v2.29.0. |
 | It says an IP is not blocked when the Response page shows bans | Was missing ban data, fixed in v2.29.0. |
+| It asks about an address, then says that address is unknown when you answer | Was a lookup that only read the current message, fixed in v2.42.0. Addresses from the last turns are now carried forward. |
 | It answers in English when you wrote Indonesian | Same cause, and the most harmless version of it. |
 | It forgets the persona halfway through a long chat | The prompt no longer fits. See the context-size note below. |
+| It loses the persona right after you switch models, but still answers about the data | Same cause. The new model has the default context window, and truncation eats the prompt head first. |
 
-**Slow answers, or "context deadline exceeded".** The system prompt is about 2200 tokens, and
-4000 when a setup or rule-authoring guide is attached. A local 8B model on CPU reads a prompt at
+**Slow answers, or "context deadline exceeded".** The system prompt is about 3400 tokens, and
+6000 when a setup or rule-authoring guide is attached. A local 8B model on CPU reads a prompt at
 tens of tokens a second, so it can spend over a minute before producing its first word, and longer
 still if the model has to be paged in from disk first. The per-call budget is `LLM_TIMEOUT`,
 defaulting to 5 minutes.
@@ -421,16 +429,34 @@ rounded to the hour, because a value changing every second would invalidate that
 message. A test fails if either property is lost.
 
 **Context size.** Ollama allocates a modest context window by default and **truncates silently** when the
-prompt exceeds it, which looks like an assistant that has forgotten its instructions rather than an
-error. If that is what you are seeing, give the model a larger window:
+prompt exceeds it. It drops the oldest tokens, and the oldest tokens are the persona, because the
+prompt is deliberately ordered stable first. So the failure looks like an assistant that has lost
+its character while still answering questions about the data correctly: the tail of the prompt
+survived, the head did not. It is never reported as an error.
+
+Set the window once, on the server, so it applies to every model:
+
+```bash
+docker run -d --name ollama --restart unless-stopped --network deuswatch_default \
+  -e OLLAMA_CONTEXT_LENGTH=16384 -v ollama:/root/.ollama ollama/ollama:latest
+```
+
+16384 covers the base prompt, a setup or rule-authoring guide, and a long conversation. The
+per-message budget is asserted by `internal/assistant/budget_test.go`; divide those character
+ceilings by four for tokens.
+
+Older Ollama builds predate that variable. There the window is a per-model property and has to be
+baked in:
 
 ```bash
 docker exec -i ollama sh -c 'printf "FROM llama3.1:8b
-PARAMETER num_ctx 8192
+PARAMETER num_ctx 16384
 " > /tmp/Modelfile && ollama create deuswatch-llama -f /tmp/Modelfile'
 ```
 
-Then set **Model** to `deuswatch-llama` on the integration. Nothing else changes.
+Then set **Model** to `deuswatch-llama` on the integration. Note what this costs: the window belongs
+to that one derived model, so **every model you switch to afterwards is back to the default** and
+the persona goes missing again. That is the usual reason this symptom returns after a model change.
 
 The Modelfile is written inside the container first because `ollama create -f -` (reading from
 stdin) is not accepted by every version, and the one that refuses it says only "no Modelfile or

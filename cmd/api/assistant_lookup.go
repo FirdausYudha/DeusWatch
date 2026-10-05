@@ -9,6 +9,7 @@ import (
 	"deuswatch/internal/enrich"
 	"deuswatch/internal/hashrep"
 	"deuswatch/internal/integrations"
+	"deuswatch/internal/llm"
 	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
 )
@@ -73,12 +74,54 @@ func hashProvider(ctx context.Context, st *store.Store) (hashrep.Provider, bool)
 	return hashrep.BuildProvider(vtKey, mbKey, circl)
 }
 
-// reputationFor fills the reputation half of an address report: cache first, live only if needed.
-func reputationFor(ctx context.Context, st *store.Store, ip string, d *assistant.Dossier) {
+// turnTexts flattens a conversation to the message bodies, which is all the address scan needs.
+func turnTexts(h []llm.ChatTurn) []string {
+	out := make([]string, len(h))
+	for i, t := range h {
+		out[i] = t.Content
+	}
+	return out
+}
+
+// addressReport builds one address block. live=false stops short of any network call, which is what
+// a carried-forward address gets: it may have come from the model's own turn and so may not exist.
+func addressReport(ctx context.Context, st *store.Store, ip string, mlActive, live bool) string {
+	d, err := st.IPDossierFor(ctx, ip)
+	if err != nil {
+		return ""
+	}
+	act := st.IPActivityFor(ctx, ip)
+	dos := assistant.Dossier{
+		IP: d.IP, Found: d.Found, Blocked: d.Blocked, Listed: d.Whitelisted,
+		Offenses: d.Offenses, Total: d.Total, Pending: d.Pending,
+		LastStatus: d.LastStatus, LastReason: d.LastReason, LastAgent: d.LastAgent,
+		Events24h:    d.Events24h,
+		BlockedUntil: fmtTimePtr(d.BlockedUntil), LastSeen: fmtTimePtr(d.LastSeen),
+		HasScore: d.HasScore, Score: d.Score, Anomaly: d.Anomaly, Band: d.Band,
+		MLActive: mlActive,
+		Events:   act.Events, Rules: act.Rules, Agents: act.Agents, Countries: act.Countries,
+		FirstSeen: fmtTimePtr(act.FirstSeen), LastSeenEvent: fmtTimePtr(act.LastSeen),
+	}
+	// Reputation last, because it is the only part that may reach the network. Cache first,
+	// live only when nothing usable is stored; see below.
+	reputationFor(ctx, st, ip, &dos, live)
+	return assistant.IPReport(dos)
+}
+
+// reputationFor fills the reputation half of an address report: cache first, live only if needed
+// and only when the caller allows it.
+func reputationFor(ctx context.Context, st *store.Store, ip string, d *assistant.Dossier, live bool) {
 	c := st.CTIFor(ctx, ip)
 	if c.Found && c.Fresh {
 		d.HasCTI, d.Abuse, d.OTX = true, c.AbuseConfidence, c.OTXPulses
 		d.CTICountry, d.CTISource, d.CTIAge = c.Country, c.Feed, humanAge(c.CheckedAt)
+		return
+	}
+	if !live {
+		if c.Found { // stale but free, and better than nothing
+			d.HasCTI, d.Abuse, d.OTX = true, c.AbuseConfidence, c.OTXPulses
+			d.CTICountry, d.CTISource, d.CTIAge = c.Country, c.Feed, humanAge(c.CheckedAt)
+		}
 		return
 	}
 

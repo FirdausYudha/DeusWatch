@@ -272,26 +272,17 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 
 		var lookups strings.Builder
 		for _, ip := range assistant.MentionedIPs(req.Message) {
-			d, derr := st.IPDossierFor(r.Context(), ip)
-			if derr != nil {
-				continue
+			lookups.WriteString(addressReport(r.Context(), st, ip, mlActive, true))
+		}
+		// Addresses carried from earlier turns, otherwise a conversation about one IP loses its
+		// subject the moment the operator stops retyping it. Behind a note, and with no live
+		// reputation call: a carried address can come from the assistant's own turn, so it may not
+		// exist, and a hallucinated IP must not spend an AbuseIPDB request.
+		if carried := assistant.CarriedIPs(turnTexts(req.History), req.Message, 2); len(carried) > 0 {
+			lookups.WriteString(assistant.CarriedNote)
+			for _, ip := range carried {
+				lookups.WriteString(addressReport(r.Context(), st, ip, mlActive, false))
 			}
-			act := st.IPActivityFor(r.Context(), ip)
-			dos := assistant.Dossier{
-				IP: d.IP, Found: d.Found, Blocked: d.Blocked, Listed: d.Whitelisted,
-				Offenses: d.Offenses, Total: d.Total, Pending: d.Pending,
-				LastStatus: d.LastStatus, LastReason: d.LastReason, LastAgent: d.LastAgent,
-				Events24h:    d.Events24h,
-				BlockedUntil: fmtTimePtr(d.BlockedUntil), LastSeen: fmtTimePtr(d.LastSeen),
-				HasScore: d.HasScore, Score: d.Score, Anomaly: d.Anomaly, Band: d.Band,
-				MLActive: mlActive,
-				Events:   act.Events, Rules: act.Rules, Agents: act.Agents, Countries: act.Countries,
-				FirstSeen: fmtTimePtr(act.FirstSeen), LastSeenEvent: fmtTimePtr(act.LastSeen),
-			}
-			// Reputation last, because it is the only part that may reach the network. Cache first,
-			// live only when nothing usable is stored; see assistant_lookup.go.
-			reputationFor(r.Context(), st, ip, &dos)
-			lookups.WriteString(assistant.IPReport(dos))
 		}
 
 		// The roster inherits the caller's RBAC, like every other capability here (ADR 0003

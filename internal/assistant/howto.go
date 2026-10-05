@@ -579,6 +579,47 @@ func MentionedIPs(msg string) []string {
 	return out
 }
 
+// CarriedIPs returns addresses named earlier in the conversation but absent from the current
+// message, so a follow-up stays about the same address.
+//
+// Without this the lookup only ever saw the message in front of it, and a conversation about one
+// address died the moment the operator stopped retyping it. The failure was reported with the
+// assistant asking "what is the status of the ban on 2.57.122.245?" and then, one turn later,
+// claiming that address was unknown to the deployment: it had no dossier because that turn's
+// message did not contain the digits. "and is it blocked?" failed the same way, as does any typo
+// that lands on a different valid address.
+//
+// Turns are scanned newest first and the assistant's own turns count, which is deliberate: the
+// address the assistant itself just asked about is exactly the one the next message is answering.
+// It also means a hallucinated address can be carried, so the caller must look these up locally and
+// NOT spend a live reputation call on them.
+func CarriedIPs(turns []string, current string, max int) []string {
+	if max <= 0 {
+		return nil
+	}
+	skip := map[string]bool{}
+	for _, ip := range MentionedIPs(current) {
+		skip[ip] = true
+	}
+	out := make([]string, 0, max)
+	for i := len(turns) - 1; i >= 0 && len(out) < max; i-- {
+		for _, ip := range MentionedIPs(turns[i]) {
+			if skip[ip] {
+				continue
+			}
+			skip[ip] = true
+			if out = append(out, ip); len(out) == max {
+				break
+			}
+		}
+	}
+	return out
+}
+
+// CarriedNote heads the carried reports. The model has to be told why an address it was not just
+// asked about is in front of it, or it volunteers the report unprompted.
+const CarriedNote = "The reports below are for addresses discussed EARLIER in this conversation, carried forward so a follow-up question still has the data. Use them when the operator is plainly still talking about one of them. Do not bring them up unprompted.\n"
+
 // UserLine is one account, flattened by the caller.
 type UserLine struct {
 	Username, Role string

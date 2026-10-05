@@ -465,3 +465,37 @@ func TestMentionedHashesAndGate(t *testing.T) {
 		t.Error("an ordinary question should not spend an API quota")
 	}
 }
+
+// The reported failure: the assistant asked about an address, the operator answered without
+// retyping it in full, and the lookup had nothing because it only ever saw the current message.
+func TestCarriedIPs(t *testing.T) {
+	turns := []string{
+		"is 2.57.122.245 dangerous?",
+		"What's the status of the ban on 2.57.122.245?",
+	}
+	got := CarriedIPs(turns, "status is executed", 2)
+	if len(got) != 1 || got[0] != "2.57.122.245" {
+		t.Fatalf("expected the address from the earlier turn, got %v", got)
+	}
+
+	// A typo that lands on a different valid address still carries the original forward, which is
+	// the whole point: the operator meant the one under discussion.
+	if got := CarriedIPs(turns, "2.57.122.24 status is executed", 2); len(got) != 1 || got[0] != "2.57.122.245" {
+		t.Errorf("a near-miss typo should not drop the subject, got %v", got)
+	}
+
+	// An address already in the message is not repeated as a carried report.
+	if got := CarriedIPs(turns, "and 2.57.122.245 now?", 2); len(got) != 0 {
+		t.Errorf("already present, should not be carried: %v", got)
+	}
+
+	// Newest first, and capped.
+	many := []string{"1.1.1.1 here", "2.2.2.2 and 3.3.3.3", "4.4.4.4 last"}
+	got = CarriedIPs(many, "what about it", 2)
+	if len(got) != 2 || got[0] != "4.4.4.4" {
+		t.Errorf("expected the two most recent, newest first, got %v", got)
+	}
+	if n := CarriedIPs(many, "", 0); len(n) != 0 {
+		t.Errorf("max 0 should carry nothing, got %v", n)
+	}
+}
