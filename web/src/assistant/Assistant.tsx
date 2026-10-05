@@ -113,6 +113,30 @@ const OPENERS = [
   'Where do you want to start?',
 ]
 
+// MaxHistoryResultChars caps how much of a query result is carried back into the conversation.
+// Fifty rows of wide columns would crowd out the prompt it is meant to inform.
+const MAX_HISTORY_RESULT = 1500
+
+// historyText is what a turn contributes to the NEXT request's history.
+//
+// A query result is rendered as a table for the operator and, separately, folded back into the
+// conversation as text so the model can reason about it on the following turn. That is what makes
+// "so which of those is worst?" answerable: the rows are in the context by then.
+//
+// It is done this way rather than by calling the model a second time with the rows, because on a
+// local CPU a second call costs minutes. The analysis happens when the operator actually asks for
+// it, and costs nothing until then.
+function historyText(t: Msg): string {
+  if (!t.query || t.query.error || !t.query.rows?.length) return t.content
+  const head = (t.query.columns ?? []).join(' | ')
+  const body = t.query.rows.map((r) => r.join(' | ')).join('\n')
+  let table = `${head}\n${body}`
+  if (table.length > MAX_HISTORY_RESULT) {
+    table = `${table.slice(0, MAX_HISTORY_RESULT)}\n...(truncated)`
+  }
+  return `${t.content}\n\n[Query result, ${t.query.rows.length} row(s)]\n${table}`
+}
+
 // QueryResult shows the SQL and the rows the server actually returned.
 //
 // The SQL is shown, not hidden, and that is the point: the operator is reading data the model asked
@@ -241,7 +265,7 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
     mic.stop() // nothing left to dictate into; holding the microphone open past Send is rude
     // The user's turn is appended before the call so the conversation never looks frozen, and the
     // history sent along is the state BEFORE this message (the server appends it as the new turn).
-    const history = turns.map(({ role, content }) => ({ role, content }))
+    const history = turns.map((t) => ({ role: t.role, content: historyText(t) }))
     setTurns([...turns, { role: 'user', content: msg }])
     setBusy(true)
     try {

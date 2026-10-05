@@ -105,3 +105,38 @@ func TestNeedsQuery(t *testing.T) {
 		}
 	}
 }
+
+// The gate was too narrow to be useful: an operator exploring their attack data asks "serangan dari
+// negara mana saja", never "jalankan query", so the schema guide never arrived and the question was
+// answered from aggregate blocks that do not hold that breakdown.
+func TestNeedsQueryCoversAnalyticalPhrasing(t *testing.T) {
+	for _, m := range []string{
+		"serangan dari negara mana saja hari ini?",
+		"IP mana yang paling sering menyerang?",
+		"breakdown serangan per agent dong",
+		"which rule fired the most this week?",
+		"top 10 source ip minggu ini",
+		"berapa event dari 45.134.26.9?",
+		"rata-rata alert per hari berapa?",
+		"show me the distribution by country",
+	} {
+		if !NeedsQuery(m) {
+			t.Errorf("%q should pull in the schema guide", m)
+		}
+	}
+	// Still gated: the guide is large and every message pays for what is in the prompt.
+	for _, m := range []string{"hello", "halo mia", "thanks", "is the worker ok?"} {
+		if NeedsQuery(m) {
+			t.Errorf("%q should NOT pull in the schema guide", m)
+		}
+	}
+}
+
+// Rows from an earlier query come back in the conversation, so the model must be told it may reason
+// about them. Without this it treats its own prior turn as something it should not quote.
+func TestSQLGuideAllowsReasoningOverPastResults(t *testing.T) {
+	g := SQLGuide()
+	if !strings.Contains(g, "[Query result]") || !strings.Contains(g, "MAY read and reason about those rows") {
+		t.Errorf("guide does not permit analysing a previous result:\n%s", g)
+	}
+}

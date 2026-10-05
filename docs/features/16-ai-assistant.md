@@ -188,9 +188,20 @@ server runs it, and the rows appear in the panel as a table. "Show SQL" reveals 
 asked, because a result you cannot check is a number you are taking on trust from a component that
 has invented hostnames before.
 
-**The model never sees the rows.** It translates your question into SQL; you read the answer. That
-keeps one slow model call instead of two, and a wrong figure cannot be narrated confidently when the
-narration never receives it.
+**The model does not see the rows when it writes the query.** It translates your question into SQL;
+you read the answer. That keeps one model call instead of two, and a wrong figure cannot be narrated
+confidently when the narration never receives it.
+
+**It does see them on the next turn.** The result is folded back into the conversation, so a
+follow-up like "which of those is worst?" or "ada pola ngga?" is answered against the real rows. The
+analysis happens when you ask for it and costs nothing until then, which matters on a host where a
+model call takes minutes. Up to 1500 characters of the result travel back; longer tables are
+truncated rather than allowed to crowd out the prompt they are meant to inform.
+
+**Ordinary analytical phrasing triggers it.** "Serangan dari negara mana saja hari ini", "IP mana
+yang paling sering menyerang", "breakdown per agent", "top 10 source ip minggu ini". The first
+version only recognised explicit database phrasing like "run a query", which nobody actually types
+while exploring their own attack data.
 
 ### What stops this being a hole
 

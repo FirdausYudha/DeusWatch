@@ -91,16 +91,35 @@ var (
 	reComment = regexp.MustCompile(`(?s)/\*.*?\*/|--[^\n]*`)
 )
 
+// sqlWords are the shapes of a question that wants the data sliced rather than summarised.
+//
+// The first version listed only explicit database phrasing ("run a query", "tampilkan semua"), and
+// that was too narrow to be useful: an operator exploring their attack data asks "serangan dari
+// negara mana saja hari ini", never "jalankan query". The guide was then absent, no SQL was written
+// and the question was answered from the aggregate blocks, which do not have that breakdown.
+//
+// Analytical words are included for the same reason. "Top", "paling", "per agent", "breakdown" all
+// mean the operator wants a cut of the data that no fixed block can anticipate, which is precisely
+// the case this path exists for.
 var sqlWords = []string{
+	// Explicit
 	"query the database", "run a query", "sql", "select from", "how many rows",
 	"list all", "show me all", "count how many", "group by",
-	"query database", "jalankan query", "berapa banyak", "tampilkan semua", "daftar semua",
-	"hitung berapa", "cari di database", "query ke database",
+	"query database", "jalankan query", "tampilkan semua", "daftar semua",
+	"cari di database", "query ke database",
+	// Analytical: a cut of the data, not a summary of it
+	"how many", "berapa banyak", "berapa", "hitung",
+	"top ", "paling banyak", "paling sering", "terbanyak", "tersering",
+	"per agent", "per host", "per country", "per negara", "per hari", "per day", "per hour", "per jam",
+	"breakdown", "distribusi", "distribution", "grouped", "dikelompokkan",
+	"which ip", "which agent", "which rule", "ip mana", "agent mana", "rule mana", "negara mana",
+	"average", "rata-rata", "median", "total dari", "sum of",
+	"between", "antara tanggal", "sejak", "since ", "sampai tanggal",
+	"attacked", "serangan dari", "serangan apa", "menyerang",
 }
 
-// NeedsQuery reports whether the question is worth spending the schema guide on. Deliberately
-// narrow: the guide is large, the model is slow, and most questions are answered by the blocks
-// already in the prompt without a round trip through SQL.
+// NeedsQuery reports whether the question is worth spending the schema guide on. Still gated rather
+// than always on: the guide is large and the base prompt is already paid for on every message.
 func NeedsQuery(msg string) bool {
 	low := strings.ToLower(msg)
 	for _, w := range sqlWords {
@@ -190,6 +209,7 @@ func SQLGuide() string {
 	b.WriteString("QUERYING THE DATABASE\n")
 	b.WriteString("When a question needs data no block above contains, you may write ONE PostgreSQL SELECT and the server will run it and show the operator the rows. Put it in a fenced sql block and say in one sentence what it answers. Do not invent the result: you will not see the rows, the operator will.\n")
 	fmt.Fprintf(&b, "Rules: one statement, SELECT only, always add LIMIT %d or less, and read only the tables listed here. Anything else is refused and the operator sees the refusal instead of an answer.\n", MaxQueryRows)
+	b.WriteString("A result from an earlier query in this conversation appears in the history as a [Query result] table. You MAY read and reason about those rows: comparing them, picking the worst, spotting a pattern. They are real data the server returned, unlike anything you would otherwise assert.\n")
 	b.WriteString("Timestamps are `timestamptz`; use `now() - interval '24 hours'` style bounds. IP columns are `inet`: compare with `source_ip = '1.2.3.4'::inet` and print with `host(source_ip)`.\n")
 	b.WriteString("Readable tables and their useful columns:\n")
 	names := make([]string, 0, len(AllowedTables))
