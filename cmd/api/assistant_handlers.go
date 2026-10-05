@@ -234,6 +234,20 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			}))
 		}
 
+		// The roster inherits the caller's RBAC, like every other capability here (ADR 0003
+		// decision 2). Knowing which accounts hold admin is reconnaissance, and the Users page
+		// requires manage_users for exactly that reason; the assistant must not be a way around it.
+		accounts := assistant.Users(nil, false)
+		if u != nil && u.Can(auth.PermManageUsers) {
+			if list, uerr := st.UserRoster(r.Context()); uerr == nil {
+				lines := make([]assistant.UserLine, 0, len(list))
+				for _, ur := range list {
+					lines = append(lines, assistant.UserLine{Username: ur.Username, Role: ur.Role, Disabled: ur.Disabled})
+				}
+				accounts = assistant.Users(lines, true)
+			}
+		}
+
 		var howTo string
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
@@ -324,6 +338,7 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			Ops:         ops,
 			Enforcement: enforcement,
 			Lookups:     lookups.String(),
+			Accounts:    accounts,
 			Trend:       trend,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),

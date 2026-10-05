@@ -473,3 +473,37 @@ func MentionedIPs(msg string) []string {
 	}
 	return out
 }
+
+// UserLine is one account, flattened by the caller.
+type UserLine struct {
+	Username, Role string
+	Disabled       bool
+}
+
+// Users renders the account roster.
+//
+// Only usernames and roles, and the closing sentence says so. That limit is not modesty: the users
+// table also holds password hashes and TOTP secrets, which is why it is absent from the SQL
+// allowlist entirely. Naming what the assistant does not have is what stops it filling the rest in,
+// the same rule the rule digest and the roster follow.
+func Users(users []UserLine, visible bool) string {
+	if !visible {
+		// Said explicitly rather than omitted. An absent block is a vacuum, and a vacuum is what
+		// the model fills with invented accounts; a stated refusal is something it can repeat.
+		return "ACCOUNTS: you have NOT been given the user list, because the operator asking does not hold the manage_users permission. If they ask who the users are, say exactly that and point them at an administrator. Do not guess names or roles.\n"
+	}
+	var b strings.Builder
+	if len(users) == 0 {
+		return "ACCOUNTS: the user list came back empty, which should not happen on a running deployment. Say so rather than inventing accounts.\n"
+	}
+	fmt.Fprintf(&b, "ACCOUNTS: %d, and this is the COMPLETE list.\n", len(users))
+	for _, u := range users {
+		fmt.Fprintf(&b, "- %s: %s", u.Username, orUnknown(u.Role))
+		if u.Disabled {
+			b.WriteString(" (disabled)")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("You have usernames and roles only. No email, no last-login, no two-factor status, nothing about passwords, and you cannot query the users table. For anything else about an account, send them to the Users page.\n")
+	return b.String()
+}

@@ -467,3 +467,41 @@ func cellString(v any) string {
 	}
 	return s
 }
+
+// UserRow is one account, deliberately only what the assistant may say about it.
+type UserRow struct {
+	Username string
+	Role     string
+	Disabled bool
+}
+
+// MaxUserRows caps the roster.
+const MaxUserRows = 50
+
+// UserRoster lists accounts for the assistant, selecting ONLY username, role and disabled.
+//
+// The column list is the control. The users table also holds the password hash and the TOTP secret,
+// and this is why the table is absent from the assistant's SQL allowlist: a free-form SELECT over it
+// would be one wildcard away from a credential dump. A fixed projection cannot be talked into
+// returning a column it does not name.
+//
+// The caller decides whether to ask at all: see the manage_users check in the chat handler. Knowing
+// which accounts hold admin is reconnaissance, and the Users page requires that permission for the
+// same reason.
+func (s *Store) UserRoster(ctx context.Context) ([]UserRow, error) {
+	rows, err := s.q(ctx).Query(ctx,
+		`SELECT username, role, COALESCE(disabled, false) FROM users ORDER BY username LIMIT $1`, MaxUserRows)
+	if err != nil {
+		return nil, fmt.Errorf("store: user roster: %w", err)
+	}
+	defer rows.Close()
+	out := make([]UserRow, 0, 8)
+	for rows.Next() {
+		var u UserRow
+		if err := rows.Scan(&u.Username, &u.Role, &u.Disabled); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}

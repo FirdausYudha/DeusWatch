@@ -281,3 +281,51 @@ func TestIPReportDistinguishesTheStates(t *testing.T) {
 		t.Errorf("whitelist membership must be stated:\n%s", wl)
 	}
 }
+
+func TestUsersRosterStatesItsCeiling(t *testing.T) {
+	g := Users([]UserLine{
+		{Username: "admin", Role: "admin"},
+		{Username: "viewer1", Role: "viewer", Disabled: true},
+	}, true)
+	for _, want := range []string{
+		"2, and this is the COMPLETE list",
+		"admin: admin",
+		"viewer1: viewer (disabled)",
+		// Naming what it does not have is what stops it filling the rest in.
+		"usernames and roles only",
+		"nothing about passwords",
+		"cannot query the users table",
+	} {
+		if !strings.Contains(g, want) {
+			t.Errorf("roster missing %q:\n%s", want, g)
+		}
+	}
+	// A password hash or TOTP secret must never appear in the rendered block, whatever is passed.
+	for _, leak := range []string{"hash", "totp", "secret", "password_hash"} {
+		if strings.Contains(strings.ToLower(g), leak) && !strings.Contains(g, "nothing about passwords") {
+			t.Errorf("roster mentions %q:\n%s", leak, g)
+		}
+	}
+}
+
+// Without manage_users the block must REFUSE out loud rather than be absent: an omitted block is
+// the vacuum that gets filled with invented accounts, which is how this whole class of bug works.
+func TestUsersRosterRefusesWithoutPermission(t *testing.T) {
+	g := Users(nil, false)
+	for _, want := range []string{"NOT been given the user list", "manage_users", "Do not guess names or roles"} {
+		if !strings.Contains(g, want) {
+			t.Errorf("refusal missing %q:\n%s", want, g)
+		}
+	}
+	if strings.Contains(g, "COMPLETE list") {
+		t.Errorf("a refusal must not look like a roster:\n%s", g)
+	}
+}
+
+// An empty result on a running deployment is a fault, not an answer, and must read as one.
+func TestUsersRosterEmptyIsSuspicious(t *testing.T) {
+	g := Users(nil, true)
+	if !strings.Contains(g, "should not happen") {
+		t.Errorf("an empty roster should be flagged rather than reported as fact:\n%s", g)
+	}
+}

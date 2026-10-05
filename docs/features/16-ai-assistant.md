@@ -125,6 +125,7 @@ Exactly what the Dashboard and Report pages already show for the window being as
 | The navigation map, so it can point at real pages | |
 | Any address you name, looked up individually | |
 | Anything in the allowlisted tables, via a read-only query | `users`, `integrations`, `sessions`, tokens, `audit_log` |
+| Usernames and roles, **only with `manage_users`** | Emails, last login, 2FA status, anything about passwords |
 | Ticket counts by status | Ticket titles or contents |
 | File-integrity activity and the most-changed paths | |
 | Vulnerability totals per severity | Per-package vulnerability detail |
@@ -366,6 +367,13 @@ the difference on instruction-following is not subtle.
 ## Limits
 
 - **`view_dashboard`** is required to use it. It can tell you nothing you could not already read.
+- **The account list needs `manage_users`**, the same permission the Users page needs. Without it the
+  assistant says so plainly rather than staying silent, because an absent answer is the vacuum that
+  gets filled with invented names. Knowing which accounts hold admin is reconnaissance, and the chat
+  panel must not be a way around the permission that exists to gate it.
+  It carries usernames and roles and nothing else: the `users` table also holds password hashes and
+  TOTP secrets, which is why that table is absent from the SQL allowlist entirely. A fixed
+  projection cannot be talked into returning a column it does not name.
 - **200 messages per user per day**, resetting at 00:00 UTC, and at most one message every two
   seconds. Every message resends the conversation plus the context, so this is a spend guard on
   metered providers.

@@ -109,6 +109,10 @@ type Context struct {
 	// "is this IP blocked" is one of the most consequential questions an operator asks, and the
 	// answer was previously invented.
 	Enforcement string
+	// Accounts is the user roster, present only for callers holding manage_users. It is always
+	// non-empty: when they lack the permission it says so, because an omitted block is a vacuum
+	// and a vacuum gets filled with invented names.
+	Accounts string
 	// Lookups are per-address reports for any IP the operator named. A top-N list cannot answer a
 	// question about an arbitrary address; looking up the one asked about can.
 	Lookups string
@@ -186,6 +190,9 @@ func SystemPrompt(persona string, c Context) string {
 	}
 	if e := strings.TrimSpace(c.Enforcement); e != "" {
 		b.WriteString(e)
+	}
+	if a := strings.TrimSpace(c.Accounts); a != "" {
+		b.WriteString(a)
 	}
 	if l := strings.TrimSpace(c.Lookups); l != "" {
 		b.WriteString(l)

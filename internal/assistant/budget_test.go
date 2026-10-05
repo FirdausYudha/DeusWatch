@@ -31,6 +31,7 @@ func realisticContext() Context {
 		Roster:      Roster([]AgentLine{{Name: "test-server", OS: "linux", Status: "online", Version: "v2.26.0"}}),
 		Rules: Rules(RuleStats{Total: 824, Enabled: 820, Builtin: 812, Custom: 12, Aggregation: 15,
 			ByCategory: map[string]int{"judi": 406, "fim": 156, "endpoint": 89, "deface": 125, "custom": 12}}),
+		Accounts: Users([]UserLine{{Username: "admin", Role: "admin"}}, true),
 		Enforcement: Enforcement(EnforcementStats{
 			Read: true, ActiveCount: 1, ActiveBlocks: []string{"142.93.121.216"},
 			Offenders: []string{"142.93.121.216 (4 bans)"}, Pending: 2,
