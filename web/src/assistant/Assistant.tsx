@@ -3,6 +3,7 @@ import {
   addWhitelist, askAssistant, banIP, can, createRule, fetchAssistantStatus,
   type AssistantProposal, type ChatTurn, type Me,
 } from '../lib/api'
+import type { AssistantQuery } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
 import { useDictation, useSpeaker } from './useSpeech'
 
@@ -112,6 +113,69 @@ const OPENERS = [
   'Where do you want to start?',
 ]
 
+// QueryResult shows the SQL and the rows the server actually returned.
+//
+// The SQL is shown, not hidden, and that is the point: the operator is reading data the model asked
+// for, so they need to see what was asked. A result they cannot check is a number they have to take
+// on trust from a component that has already invented hostnames.
+function QueryResult({ q }: { q: AssistantQuery }) {
+  const [showSQL, setShowSQL] = useState(false)
+  return (
+    <div className="rounded-[10px] border border-border bg-surface-2 p-3">
+      <div className="flex items-center gap-2">
+        <p className="text-[12px] font-semibold uppercase tracking-wide text-dim">Database query</p>
+        <button
+          onClick={() => setShowSQL(!showSQL)}
+          className="ml-auto rounded-[6px] border border-border px-2 py-0.5 text-[11.5px] text-dim transition-colors hover:bg-surface hover:text-fg"
+        >
+          {showSQL ? 'Hide SQL' : 'Show SQL'}
+        </button>
+      </div>
+      {showSQL && (
+        <pre className="mt-2 max-h-40 overflow-auto rounded-[6px] bg-bg p-2 font-mono text-[11px] leading-relaxed text-muted">
+          {q.sql}
+        </pre>
+      )}
+      {q.error ? (
+        <p className="mt-2 text-[12.5px] text-critical">{q.error}</p>
+      ) : !q.rows || q.rows.length === 0 ? (
+        <p className="mt-2 text-[12.5px] text-muted">No rows matched.</p>
+      ) : (
+        <>
+          <div className="mt-2 max-h-72 overflow-auto rounded-[6px] border border-border">
+            <table className="w-full text-left text-[11.5px]">
+              <thead className="sticky top-0 bg-surface">
+                <tr>
+                  {(q.columns ?? []).map((c) => (
+                    <th key={c} className="whitespace-nowrap px-2 py-1.5 font-semibold text-dim">{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {q.rows.map((row, i) => (
+                  <tr key={i} className="border-t border-border">
+                    {row.map((cell, j) => (
+                      <td key={j} className="px-2 py-1 align-top font-mono text-fg">
+                        <div className="max-w-[16rem] truncate" title={cell}>{cell || '-'}</div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1.5 text-[11.5px] text-dim">
+            {q.rows.length} row{q.rows.length === 1 ? '' : 's'}
+            {q.capped ? ' (capped)' : ''}
+            {q.ms !== undefined ? ` in ${q.ms} ms` : ''}. These come straight from the database, not
+            from the model.
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
 function greeting(name: string): string {
   const h = new Date().getHours()
   const part =
@@ -121,7 +185,7 @@ function greeting(name: string): string {
 
 // Msg is a rendered turn. It carries the optional proposal card, which is view state only: the
 // history sent back to the model is role + content, so a card never becomes part of the prompt.
-type Msg = ChatTurn & { proposal?: AssistantProposal }
+type Msg = ChatTurn & { proposal?: AssistantProposal; query?: AssistantQuery }
 
 export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona?: () => void }) {
   const [enabled, setEnabled] = useState(false)
@@ -181,8 +245,8 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
     setTurns([...turns, { role: 'user', content: msg }])
     setBusy(true)
     try {
-      const { reply, proposal } = await askAssistant(msg, history)
-      setTurns((t) => [...t, { role: 'assistant', content: reply, proposal }])
+      const { reply, proposal, query } = await askAssistant(msg, history)
+      setTurns((t) => [...t, { role: 'assistant', content: reply, proposal, query }])
       if (speakReplies) speaker.speak(reply)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -314,6 +378,7 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
                     {t.content}
                   </div>
                 </div>
+                {t.query && <QueryResult q={t.query} />}
                 {t.proposal && (
                   <ProposalCard
                     me={me}

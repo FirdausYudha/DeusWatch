@@ -380,3 +380,90 @@ func (s *Store) IPDossierFor(ctx context.Context, ip string) (IPDossier, error) 
 		`SELECT EXISTS(SELECT 1 FROM ip_whitelist WHERE $1::inet <<= cidr)`, ip).Scan(&d.Whitelisted)
 	return d, nil
 }
+
+// QueryResult is one assistant query's output, already stringified for display.
+type QueryResult struct {
+	Columns  []string
+	Rows     [][]string
+	Capped   bool
+	Duration time.Duration
+}
+
+// RunAssistantQuery executes a validated read-only SELECT.
+//
+// The READ ONLY transaction is the control that actually holds. Validation in internal/assistant
+// decides WHICH tables may be read, which a transaction cannot know, but whether a write can happen
+// at all is decided by Postgres here rather than by a regex upstream: a parser bug is otherwise a
+// full-access bug. statement_timeout is set inside the same transaction so a question phrased as
+// "every event ever" cannot pin the database the detection pipeline is writing into.
+//
+// The caller is responsible for having validated the SQL first. This deliberately does not re-parse
+// it: two half-trusted checks in different places is how one of them ends up wrong.
+func (s *Store) RunAssistantQuery(ctx context.Context, sql string, maxRows, timeoutSeconds int) (QueryResult, error) {
+	var out QueryResult
+	started := time.Now()
+
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return out, fmt.Errorf("store: assistant query: %w", err)
+	}
+	defer conn.Release()
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return out, fmt.Errorf("store: assistant query: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // nothing here is ever committed
+
+	if _, err := tx.Exec(ctx, "SET TRANSACTION READ ONLY"); err != nil {
+		return out, fmt.Errorf("store: assistant query: %w", err)
+	}
+	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", timeoutSeconds*1000)); err != nil {
+		return out, fmt.Errorf("store: assistant query: %w", err)
+	}
+
+	rows, err := tx.Query(ctx, sql)
+	if err != nil {
+		return out, err // the database's own message is the useful one; the operator sees it
+	}
+	defer rows.Close()
+
+	for _, fd := range rows.FieldDescriptions() {
+		out.Columns = append(out.Columns, string(fd.Name))
+	}
+	for rows.Next() {
+		if len(out.Rows) >= maxRows {
+			out.Capped = true
+			break
+		}
+		vals, verr := rows.Values()
+		if verr != nil {
+			return out, verr
+		}
+		cells := make([]string, len(vals))
+		for i, v := range vals {
+			cells[i] = cellString(v)
+		}
+		out.Rows = append(out.Rows, cells)
+	}
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	out.Duration = time.Since(started)
+	return out, nil
+}
+
+// cellString renders one value for display, keeping long text from flooding the panel.
+func cellString(v any) string {
+	if v == nil {
+		return ""
+	}
+	s := fmt.Sprintf("%v", v)
+	if t, ok := v.(time.Time); ok {
+		s = t.UTC().Format("2006-01-02 15:04:05")
+	}
+	if len(s) > 200 {
+		s = s[:200] + "..."
+	}
+	return s
+}

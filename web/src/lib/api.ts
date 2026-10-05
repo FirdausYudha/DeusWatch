@@ -1927,7 +1927,20 @@ export type AssistantProposal = {
   yaml?: string
 }
 
-export type AssistantReply = { reply: string; proposal?: AssistantProposal }
+/** A query the assistant wrote and the server ran. The model never sees these rows: it translates
+ *  the question into SQL, the operator reads the answer. A wrong number cannot be narrated
+ *  confidently when the narration never receives it. */
+export type AssistantQuery = {
+  sql: string
+  columns?: string[]
+  rows?: string[][]
+  capped?: boolean
+  ms?: number
+  /** Set when the query was refused or failed; shown instead of a table. */
+  error?: string
+}
+
+export type AssistantReply = { reply: string; proposal?: AssistantProposal; query?: AssistantQuery }
 
 export async function askAssistant(message: string, history: ChatTurn[], hours = 24): Promise<AssistantReply> {
   const res = await authFetch('/api/assistant/chat', {
@@ -1945,7 +1958,7 @@ export async function askAssistant(message: string, history: ChatTurn[], hours =
   // a chat bubble tells the operator nothing and hides which component actually gave up.
   if (!res.ok) throw new Error(readableError(await res.text(), res.status))
   const body = await res.json()
-  return { reply: body.reply ?? '', proposal: body.proposal }
+  return { reply: body.reply ?? '', proposal: body.proposal, query: body.query }
 }
 
 export type AssistantConfig = {

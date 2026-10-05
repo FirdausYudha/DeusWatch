@@ -238,6 +238,9 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
 		}
+		if assistant.NeedsQuery(req.Message) {
+			howTo += "\n" + assistant.SQLGuide()
+		}
 		if assistant.NeedsPrimer(req.Message) {
 			// Conceptual questions answered from generic SIEM knowledge are close enough to sound
 			// right and wrong where it counts, such as describing response as automatic when this
@@ -334,6 +337,22 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			return
 		}
 		out := map[string]any{"reply": reply, "model": analyzer.Name()}
+		// A generated query is validated, run and its rows returned for the UI to render. The
+		// model never sees the result: it writes the question down as SQL, the operator reads the
+		// answer. That keeps one slow model call instead of two, and it means a wrong number cannot
+		// be narrated confidently, because the narration never gets the chance.
+		if q, ok := assistant.ExtractSQL(reply); ok {
+			if verr := assistant.ValidateQuery(q); verr != nil {
+				out["query"] = map[string]any{"sql": q, "error": verr.Error()}
+			} else if res, qerr := st.RunAssistantQuery(r.Context(), q, assistant.MaxQueryRows, assistant.QueryTimeoutSeconds); qerr != nil {
+				out["query"] = map[string]any{"sql": q, "error": qerr.Error()}
+			} else {
+				out["query"] = map[string]any{
+					"sql": q, "columns": res.Columns, "rows": res.Rows,
+					"capped": res.Capped, "ms": res.Duration.Milliseconds(),
+				}
+			}
+		}
 		// A drafted rule is validated with the engine that will run it, BEFORE the operator is
 		// offered a button. Anything that does not parse stays as text in the conversation: the
 		// model can be told what was wrong and try again, but it never becomes something that

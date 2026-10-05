@@ -198,6 +198,33 @@ Each phase is independently useful and independently shippable.
   it would look like ordinary configuration while doing it. Excluded entirely, not merely gated.
 - **Auto-execution of any action**, for the reason in decision 1.
 
+### 7. Read-only SQL, because a block per question does not scale
+
+Decision 6 closed vacuums one at a time, after an operator found each one. That works and does not
+scale: there is always another question, and the gap is only ever discovered by someone being given
+a wrong answer. Read-only database access is the general form of the same fix.
+
+It is also the most dangerous thing in the feature, so the controls live in code rather than in the
+prompt, which contains attacker-written text by design:
+
+- The query runs in a **READ ONLY transaction**. Postgres refuses writes regardless of what the
+  validator believes, which matters because a parser bug would otherwise be a full-access bug.
+- Tables are **allowlisted**. `users`, `integrations`, `sessions`, `agent_enroll_tokens`,
+  `cti_config` and `notify_config` hold credentials; `audit_log` is excluded separately because a
+  question that needs it deserves the real page rather than a model's summary. A blocklist is one
+  forgotten table from leaking.
+- **RLS still applies**, since the query runs in the caller's tenant scope.
+- One statement, a 15-second timeout and 50 rows.
+
+The model does not receive the result. It writes the SQL, the server runs it, and the operator reads
+the rows: one model call rather than two on a host where a call costs minutes, and a figure that was
+never given to the model cannot be narrated wrongly by it.
+
+The validator's test suite is written as attacks rather than happy paths, and that earned its keep
+immediately: `select * from "users"` was allowed, because the identifier pattern did not match a
+quoted name, so the loop had nothing to check and the query passed. An allowlist that silently skips
+what it cannot parse is not an allowlist, and it now fails closed instead.
+
 ## Known constraint: the hardware decides whether this is usable
 
 The context blocks that keep the assistant honest are also what make the prompt long, around 2200

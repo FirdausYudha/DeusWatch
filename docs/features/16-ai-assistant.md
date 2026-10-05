@@ -123,6 +123,8 @@ Exactly what the Dashboard and Report pages already show for the window being as
 | How many rules are loaded and enabled, per category | |
 | The names of your custom rules | |
 | The navigation map, so it can point at real pages | |
+| Any address you name, looked up individually | |
+| Anything in the allowlisted tables, via a read-only query | `users`, `integrations`, `sessions`, tokens, `audit_log` |
 | Ticket counts by status | Ticket titles or contents |
 | File-integrity activity and the most-changed paths | |
 | Vulnerability totals per severity | Per-package vulnerability detail |
@@ -176,6 +178,41 @@ microphone button simply does not appear there; the speaker still works. The mic
 HTTPS or localhost, and the button explains itself when the page is served over plain HTTP.
 
 Closing the panel stops the speech and releases the microphone.
+
+## Asking it to query the database
+
+For questions no built-in block answers, the assistant can write **one read-only SQL query**, the
+server runs it, and the rows appear in the panel as a table. "Show SQL" reveals exactly what was
+asked, because a result you cannot check is a number you are taking on trust from a component that
+has invented hostnames before.
+
+**The model never sees the rows.** It translates your question into SQL; you read the answer. That
+keeps one slow model call instead of two, and a wrong figure cannot be narrated confidently when the
+narration never receives it.
+
+### What stops this being a hole
+
+The prompt that generates the SQL also contains text written by whoever is attacking you, so the
+controls are in code, not in the prompt:
+
+- **Postgres refuses writes, not just the parser.** The query runs inside a `READ ONLY` transaction,
+  so a bug in the validator cannot become a write. An engine guarantee outranks a regex.
+- **Tables are allowlisted, not blocklisted.** `users` (password hashes), `integrations` (encrypted
+  credentials), `sessions`, `agent_enroll_tokens`, `cti_config` and `notify_config` are not readable,
+  and neither is `audit_log`, which belongs on its own page rather than in a summary. A blocklist is
+  one forgotten table away from leaking; anything not named is refused.
+- **Row-level security still applies.** The query runs in your tenant scope, so it cannot read
+  another tenant's data any more than the UI can.
+- **One statement, 15-second timeout, 50 rows.** A question phrased as "every event ever" cannot pin
+  the database the detection pipeline is writing into.
+
+A refused query is shown with the reason and the list of readable tables, so you can see what was
+attempted. That matters more than it sounds: a refusal is also how you would notice an injected
+instruction trying to reach somewhere it should not.
+
+**Hardening worth doing if this makes you uneasy:** nothing here requires the feature. Leave the
+assistant integration disabled and none of it exists. If you want it but not this, say so and the
+query path can be gated separately.
 
 ## Asking whether an address is blocked
 
