@@ -249,3 +249,73 @@ func (s *Store) OpsDigestFor(ctx context.Context, since, until time.Time) OpsDig
 	}
 	return d
 }
+
+// EnforcementDigest is the response engine's state: what is banned, what is waiting for approval,
+// and which addresses keep coming back.
+//
+// The fifth vacuum of the same kind. Asked whether an IP was already blocked, the model had no ban
+// data at all and said no, while the Response page behind the chat panel showed that address banned
+// four times, the last one still running. Wrong in the most expensive direction: an operator told
+// an address is unhandled acts on it, or worse, stops looking.
+type EnforcementDigest struct {
+	ActiveBlocks []string // currently in force, capped
+	ActiveCount  int
+	Pending      int      // recommendations waiting for a human
+	Offenders    []string // "ip (n bans)", repeat customers first
+}
+
+// MaxEnforcementLines caps each list for the same reason the roster is capped.
+const MaxEnforcementLines = 15
+
+// EnforcementDigestFor reads the response queue. Best-effort per section: a ban list that cannot be
+// read must not look like an empty one, so the renderer is told which it is.
+func (s *Store) EnforcementDigestFor(ctx context.Context) (EnforcementDigest, bool) {
+	var d EnforcementDigest
+	rows, err := s.q(ctx).Query(ctx, `
+		SELECT DISTINCT host(source_ip) FROM response_actions
+		 WHERE action = 'block' AND status IN ('approved','executed')
+		   AND (ban_seconds = 0
+		        OR COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds) > now())`)
+	if err != nil {
+		return d, false
+	}
+	for rows.Next() {
+		var ip string
+		if rows.Scan(&ip) == nil {
+			d.ActiveCount++
+			if len(d.ActiveBlocks) < MaxEnforcementLines {
+				d.ActiveBlocks = append(d.ActiveBlocks, ip)
+			}
+		}
+	}
+	rows.Close()
+
+	_ = s.q(ctx).QueryRow(ctx,
+		`SELECT count(*) FROM response_actions WHERE status = 'recommended'`).Scan(&d.Pending)
+
+	// Offence history is what answers "have we seen this one before", which is a different question
+	// from "is it banned right now" and the one an operator usually means.
+	if orows, oerr := s.q(ctx).Query(ctx, `
+		SELECT host(source_ip), count(*) AS n FROM response_actions
+		 WHERE action = 'block' AND status = 'executed'
+		 GROUP BY 1 ORDER BY n DESC, 1 LIMIT $1`, MaxEnforcementLines); oerr == nil {
+		for orows.Next() {
+			var (
+				ip string
+				n  int
+			)
+			if orows.Scan(&ip, &n) == nil {
+				d.Offenders = append(d.Offenders, fmt.Sprintf("%s (%d ban%s)", ip, n, plural(n)))
+			}
+		}
+		orows.Close()
+	}
+	return d, true
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}

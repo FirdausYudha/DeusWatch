@@ -126,6 +126,8 @@ Exactly what the Dashboard and Report pages already show for the window being as
 | Ticket counts by status | Ticket titles or contents |
 | File-integrity activity and the most-changed paths | |
 | Vulnerability totals per severity | Per-package vulnerability detail |
+| Which addresses are banned right now, and how often each has been banned before | |
+| Whether a ban actually reaches a firewall, or is only recorded | |
 | Suspicious-IP (recon) list | Anything the asking user lacks `view_dashboard` for |
 | Detection worker liveness | |
 
@@ -174,6 +176,22 @@ microphone button simply does not appear there; the speaker still works. The mic
 HTTPS or localhost, and the button explains itself when the page is served over plain HTTP.
 
 Closing the panel stops the speech and releases the microphone.
+
+## Asking whether an address is blocked
+
+"does 142.93.121.216 already in the blocklist?" has a more careful answer than it looks, and the
+assistant now has the data to give it.
+
+**Banned and blocked are different states.** DeusWatch records a ban decision whether or not a
+firewall is connected to act on it. If no responder is configured and `RESPONSE_LIVE` is off, the
+Response page says so in a banner: the addresses are flagged, not blocked, and traffic from them
+still arrives. The assistant is given that status explicitly and told never to describe something as
+blocked while nothing is enforcing it. Telling an operator an attacker is handled when it is not is
+the more expensive direction of that error, because they stop looking.
+
+**Banned before and banned now are also different.** An address can sit on the repeat-offender list
+with four bans behind it and no ban currently in force, because the last one expired. Both the
+in-force list and the offence history go into the prompt for exactly that reason.
 
 ## Asking it to find anomalies
 
@@ -266,7 +284,8 @@ Almost always the model, not the prompt. The tell:
 | It claims it blocked an IP | Same cause. It never did; only the confirmation card can, and only when you press it. |
 | It invents an IP or a number | Same cause. Nothing in the pipeline can verify a figure the model made up. |
 | It names a host that does not exist | Was a missing roster, fixed in v2.24.0. If it still happens, the model is too small. |
-| It sends you to a page or section that is not there | Was a missing navigation map, fixed in v2.26.0. |
+| It sends you to a page or section that is not there | Was a missing navigation map, fixed in v2.26.0 and extended to the Response tabs in v2.29.0. |
+| It says an IP is not blocked when the Response page shows bans | Was missing ban data, fixed in v2.29.0. |
 | It answers in English when you wrote Indonesian | Same cause, and the most harmless version of it. |
 | It forgets the persona halfway through a long chat | The prompt no longer fits. See the context-size note below. |
 

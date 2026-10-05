@@ -105,6 +105,10 @@ type Context struct {
 	// as Roster and Rules: each was a question an operator naturally asks that had no answer in
 	// context, and no answer in context has reliably meant an invented one.
 	Ops string
+	// Enforcement is the ban queue and whether a ban reaches a real firewall. Always present:
+	// "is this IP blocked" is one of the most consequential questions an operator asks, and the
+	// answer was previously invented.
+	Enforcement string
 	// Trend is the period-over-period comparison, present only when the question is about change.
 	// Without it the model has no baseline and "find anomalies" degrades into reading the largest
 	// number aloud.
@@ -176,6 +180,9 @@ func SystemPrompt(persona string, c Context) string {
 	}
 	if o := strings.TrimSpace(c.Ops); o != "" {
 		b.WriteString(o)
+	}
+	if e := strings.TrimSpace(c.Enforcement); e != "" {
+		b.WriteString(e)
 	}
 	if t := strings.TrimSpace(c.Trend); t != "" {
 		b.WriteString(t)

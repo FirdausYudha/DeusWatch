@@ -183,3 +183,50 @@ func TestOpsSeparatesEmptyFromUnreadable(t *testing.T) {
 		t.Errorf("an unscanned fleet should say so rather than implying zero findings:\n%s", quiet)
 	}
 }
+
+// The question that produced this block: "is 142.93.121.216 already in the blocklist?" was answered
+// "no" while the Response page showed it banned four times. Being on the offender list and not
+// currently banned are different states, and so are banned and actually blocked.
+func TestEnforcementSeparatesBannedFromBlocked(t *testing.T) {
+	notLive := Enforcement(EnforcementStats{
+		Read: true, ActiveCount: 1, ActiveBlocks: []string{"142.93.121.216"},
+		Offenders: []string{"142.93.121.216 (4 bans)"}, Pending: 2,
+	})
+	for _, want := range []string{
+		"1 ban(s) currently in force: 142.93.121.216",
+		"142.93.121.216 (4 bans)",
+		"2 recommendation(s) are waiting",
+		// The distinction that decides what the operator does next.
+		"FLAGGED, not blocked",
+		"Never tell the operator an address is blocked while this is the case",
+		"RESPONSE_LIVE=1",
+	} {
+		if !strings.Contains(notLive, want) {
+			t.Errorf("enforcement block missing %q:\n%s", want, notLive)
+		}
+	}
+
+	live := Enforcement(EnforcementStats{Read: true, Enforcing: true, Backends: []string{"mikrotik"}})
+	if !strings.Contains(live, "live through mikrotik") || strings.Contains(live, "FLAGGED, not blocked") {
+		t.Errorf("a live deployment must not carry the not-enforcing warning:\n%s", live)
+	}
+}
+
+// An unreadable ban list must never render as "nothing is banned": that is the one wrong answer
+// that makes an operator stop looking at a live attacker.
+func TestEnforcementUnreadableIsNotEmpty(t *testing.T) {
+	g := Enforcement(EnforcementStats{Read: false})
+	if !strings.Contains(g, "could not be read") || strings.Contains(g, "no ban is currently in force") {
+		t.Errorf("an unreadable ban list must not read as empty:\n%s", g)
+	}
+}
+
+// Mia invented a "Ban queue" section on the Response page. The real tabs are listed so she does not
+// have to guess, and the guard is that the list stays complete.
+func TestUIMapNamesTheResponseTabs(t *testing.T) {
+	for _, tab := range []string{"All", "Recommended", "Executed", "Dismissed", "Unbanned", "Failed"} {
+		if !strings.Contains(UIMap, tab) {
+			t.Errorf("UI map omits the Response tab %q", tab)
+		}
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -197,6 +198,24 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			})
 		}
 
+		// Whether a ban actually reaches a firewall mirrors enforcementHandler: recording a ban and
+		// enforcing one are different states, and the assistant must never collapse them.
+		enfStats := assistant.EnforcementStats{}
+		if ed, ok := st.EnforcementDigestFor(r.Context()); ok {
+			enfStats = assistant.EnforcementStats{
+				Read: true, ActiveBlocks: ed.ActiveBlocks, ActiveCount: ed.ActiveCount,
+				Pending: ed.Pending, Offenders: ed.Offenders,
+			}
+			live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE"))
+			for _, t := range []string{"mikrotik", "crowdsec", "nftables_agent"} {
+				if on, herr := integrations.HasEnabled(r.Context(), st.Pool(), t); herr == nil && on {
+					enfStats.Backends = append(enfStats.Backends, t)
+				}
+			}
+			enfStats.Enforcing = live && len(enfStats.Backends) > 0
+		}
+		enforcement := assistant.Enforcement(enfStats)
+
 		var howTo string
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
@@ -277,12 +296,13 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			// The catalogue rides along only for "how do I set up X" messages. Always sending it
 			// would roughly double the prompt and risk silent truncation at Ollama's default
 			// context size, for a guide most messages have no use for.
-			HowTo:  howTo,
-			Roster: roster,
-			Rules:  ruleDigest,
-			UI:     assistant.UIMap,
-			Ops:    ops,
-			Trend:  trend,
+			HowTo:       howTo,
+			Roster:      roster,
+			Rules:       ruleDigest,
+			UI:          assistant.UIMap,
+			Ops:         ops,
+			Enforcement: enforcement,
+			Trend:       trend,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})

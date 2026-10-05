@@ -31,6 +31,10 @@ func realisticContext() Context {
 		Roster:      Roster([]AgentLine{{Name: "test-server", OS: "linux", Status: "online", Version: "v2.26.0"}}),
 		Rules: Rules(RuleStats{Total: 824, Enabled: 820, Builtin: 812, Custom: 12, Aggregation: 15,
 			ByCategory: map[string]int{"judi": 406, "fim": 156, "endpoint": 89, "deface": 125, "custom": 12}}),
+		Enforcement: Enforcement(EnforcementStats{
+			Read: true, ActiveCount: 1, ActiveBlocks: []string{"142.93.121.216"},
+			Offenders: []string{"142.93.121.216 (4 bans)"}, Pending: 2,
+		}),
 		Ops: Ops(OpsStats{
 			TicketsByStatus: map[string]int{"open": 3, "closed": 7}, TicketsOpenHigh: 1,
 			FIMRead: true, FileChanges: 14, TopFilePaths: []string{"/etc/passwd (9)"},

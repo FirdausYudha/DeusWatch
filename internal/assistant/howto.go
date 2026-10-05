@@ -243,7 +243,8 @@ func Rules(s RuleStats) string {
 // menu changes rarely and a stale line sends someone one click wide, which is a far better failure
 // than a page that never existed.
 const UIMap = `WHERE THINGS ARE IN THE UI (left navigation; use these names exactly, never invent a page or a section)
-Monitoring & Operations: Dashboard (live posture, charts, attack map) | Response (ban queue, approvals, whitelist) | Tickets | File Integrity (FIM events) | Snapshots (file versions, restore) | Report (periodic and AI summary)
+Monitoring & Operations: Dashboard (live posture, charts, attack map) | Response | Tickets | File Integrity (FIM events) | Snapshots (file versions, restore) | Report (periodic and AI summary)
+The Response page has these tabs and no others: All, Recommended, Executed, Dismissed, Unbanned, Failed. Above them sit the progressive-ban policy, the kill-switch auto-approval, the IP whitelist, a manual "Ban an IP" box and the blocklist feed. Name one of these or none; a tab you half-remember from another product does not exist here.
 Asset & Endpoint Management: Agents (enrol, status, uninstall) | Agent Health (vulnerability assessment and SCA)
 Detection & Automation: Rules (every detection rule, searchable) | Decoders | Playbooks | Integrations (connectors: LLM, CTI, firewall, quarantine)
 Administration & Access: Users | Workspaces | Tenants | Settings (2FA, notifications, retention, scoring weights, assistant persona)`
@@ -322,6 +323,64 @@ func Ops(s OpsStats) string {
 		fmt.Fprintf(&b, "VULNERABILITIES: %d findings across %d scanned endpoint(s): %d critical, %d high.",
 			s.VulnTot, s.VulnAgents, s.VulnCritical, s.VulnHigh)
 		b.WriteString(" Per-package detail is on the Agent Health page; you have totals only.\n")
+	}
+	return b.String()
+}
+
+// EnforcementStats is the response engine's state, flattened by the caller.
+type EnforcementStats struct {
+	Read         bool
+	ActiveBlocks []string
+	ActiveCount  int
+	Pending      int
+	Offenders    []string
+	// Enforcing reports whether a ban reaches an actual firewall. Backends lists what it reaches.
+	Enforcing bool
+	Backends  []string
+}
+
+// Enforcement renders what is banned and whether banning does anything.
+//
+// The distinction in the last paragraph is the whole point and is easy to get wrong in both
+// directions. DeusWatch records ban decisions whether or not a firewall is connected, so "banned"
+// and "blocked" are different states. Telling an operator an address is blocked when nothing is
+// enforcing it is the more expensive error: they stop looking at something still reaching them.
+func Enforcement(s EnforcementStats) string {
+	var b strings.Builder
+	if !s.Read {
+		return "RESPONSE / BANS: could not be read just now. Say so if asked whether something is blocked; do not assume it is not.\n"
+	}
+
+	b.WriteString("RESPONSE / BANS: ")
+	switch s.ActiveCount {
+	case 0:
+		b.WriteString("no ban is currently in force.")
+	default:
+		fmt.Fprintf(&b, "%d ban(s) currently in force", s.ActiveCount)
+		if len(s.ActiveBlocks) > 0 {
+			fmt.Fprintf(&b, ": %s", strings.Join(s.ActiveBlocks, ", "))
+			if s.ActiveCount > len(s.ActiveBlocks) {
+				fmt.Fprintf(&b, " and %d more", s.ActiveCount-len(s.ActiveBlocks))
+			}
+		}
+		b.WriteString(".")
+	}
+	if s.Pending > 0 {
+		fmt.Fprintf(&b, " %d recommendation(s) are waiting for someone to approve or dismiss them on the Response page.", s.Pending)
+	}
+	b.WriteString("\n")
+
+	if len(s.Offenders) > 0 {
+		fmt.Fprintf(&b, "Addresses banned before, with how many times: %s. An address can be on this list and NOT currently banned, which means its ban expired. Check the in-force list above before saying something is unhandled.\n",
+			strings.Join(s.Offenders, ", "))
+	}
+
+	if s.Enforcing {
+		fmt.Fprintf(&b, "Enforcement is live through %s, so a ban reaches a real firewall.\n", strings.Join(s.Backends, ", "))
+	} else {
+		// Said in full because the difference decides what the operator does next, and the UI says
+		// the same thing in a banner on the Response page rather than leaving it to be discovered.
+		b.WriteString("IMPORTANT: enforcement is NOT configured. DeusWatch is recording these ban decisions but nothing is pushing them to a firewall, so the addresses above are FLAGGED, not blocked, and traffic from them still arrives. Never tell the operator an address is blocked while this is the case. To change it, set RESPONSE_LIVE=1 and connect a responder (MikroTik, CrowdSec or agent nftables) under Integrations, or enable the blocklist feed on the Response page for an external firewall to pull.\n")
 	}
 	return b.String()
 }
