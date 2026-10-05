@@ -480,6 +480,9 @@ func assistantConfigGetHandler(st *store.Store) http.HandlerFunc {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"persona":         cfg.Persona,
 			"default_persona": assistant.DefaultPersona,
+			// The catalogue, so the UI can offer a starting point instead of a blank box. Every
+			// entry already carries the safety rules a custom persona would have to reproduce.
+			"personas":        assistant.Personas(),
 			"env_persona_set": strings.TrimSpace(os.Getenv("ASSISTANT_PERSONA")) != "",
 			"max_len":         store.MaxPersonaLen,
 		})

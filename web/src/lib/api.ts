@@ -1961,8 +1961,12 @@ export async function askAssistant(message: string, history: ChatTurn[], hours =
   return { reply: body.reply ?? '', proposal: body.proposal, query: body.query }
 }
 
+/** A shipped persona the operator can start from. Each already contains the safety rules. */
+export type PersonaOption = { id: string; name: string; desc: string; text: string; chars: number }
+
 export type AssistantConfig = {
   persona: string
+  personas?: PersonaOption[]
   /** The built-in persona, served so the UI can offer "restore default" without copying the text. */
   default_persona: string
   /** True when ASSISTANT_PERSONA is set on the API: clearing the field falls back to that, not the built-in. */

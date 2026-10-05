@@ -107,13 +107,26 @@ function AssistantPersonaPanel() {
                 >
                   {busy ? 'Saving…' : 'Save'}
                 </button>
-                <button
-                  onClick={() => setDraft(cfg.default_persona)}
+                {/* A starting point rather than a blank box. Each shipped persona already carries
+                    the grounding rules and the prompt-injection boundary that a hand-written one
+                    would have to reproduce, and forgetting the last of those is silent. */}
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const p = (cfg.personas ?? []).find((x) => x.id === e.target.value)
+                    if (p) setDraft(p.text)
+                  }}
                   disabled={busy}
-                  className="rounded-[8px] border border-border px-3 py-1.5 text-[12.5px] text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                  aria-label="Load a persona"
+                  className="rounded-[8px] border border-border bg-bg px-2 py-1.5 text-[12.5px] text-muted focus:border-accent focus:outline-none"
                 >
-                  Load the default to edit
-                </button>
+                  <option value="">Load a persona to edit…</option>
+                  {(cfg.personas ?? []).map((p) => (
+                    <option key={p.id} value={p.id} title={p.desc}>
+                      {p.name} ({p.chars} chars)
+                    </option>
+                  ))}
+                </select>
                 <button
                   onClick={() => void save('')}
                   disabled={busy || !cfg.persona}
