@@ -1984,3 +1984,23 @@ export async function saveAssistantConfig(persona: string): Promise<void> {
   })
   if (!res.ok) throw new Error((await res.text()).trim() || `assistant config: HTTP ${res.status}`)
 }
+
+/** One stored turn of the assistant conversation. */
+export type ChatMessageRow = { id: number; role: 'user' | 'assistant'; content: string; at: string }
+
+export async function fetchAssistantHistory(): Promise<ChatMessageRow[]> {
+  const res = await authFetch('/api/assistant/history')
+  if (!res.ok) throw new Error(`assistant history: HTTP ${res.status}`)
+  return (await res.json()).messages ?? []
+}
+
+export async function clearAssistantHistory(): Promise<void> {
+  const res = await authFetch('/api/assistant/history', { method: 'DELETE' })
+  if (!res.ok) throw new Error(`clear history: HTTP ${res.status}`)
+}
+
+/** Deletes one turn, or that turn and everything after it (`after` is what an edit rewinds with). */
+export async function deleteAssistantMessage(id: number, after = false): Promise<void> {
+  const res = await authFetch(`/api/assistant/history/${id}${after ? '?after=1' : ''}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`delete message: HTTP ${res.status}`)
+}

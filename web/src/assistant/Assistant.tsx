@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  addWhitelist, askAssistant, banIP, can, createRule, fetchAssistantStatus,
+  addWhitelist, askAssistant, banIP, can, clearAssistantHistory, createRule,
+  deleteAssistantMessage, fetchAssistantHistory, fetchAssistantStatus,
   type AssistantProposal, type ChatTurn, type Me,
 } from '../lib/api'
 import type { AssistantQuery } from '../lib/api'
@@ -209,7 +210,12 @@ function greeting(name: string): string {
 
 // Msg is a rendered turn. It carries the optional proposal card, which is view state only: the
 // history sent back to the model is role + content, so a card never becomes part of the prompt.
-type Msg = ChatTurn & { proposal?: AssistantProposal; query?: AssistantQuery }
+type Msg = ChatTurn & {
+  proposal?: AssistantProposal
+  query?: AssistantQuery
+  /** Server id, present once the turn has been stored. Absent on a turn still in flight. */
+  id?: number
+}
 
 export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona?: () => void }) {
   const [enabled, setEnabled] = useState(false)
@@ -218,6 +224,10 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Index of the turn being edited, and its working text. Index rather than id, because a turn
+  // still in flight has no id yet and must still be editable once it lands.
+  const [editing, setEditing] = useState<number | null>(null)
+  const [editDraft, setEditDraft] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Reading replies aloud is remembered; the microphone is not. Synthesis stays in the browser,
@@ -235,7 +245,16 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
   // rather than a button that explains itself only after being clicked.
   useEffect(() => {
     fetchAssistantStatus()
-      .then((s) => setEnabled(s.enabled))
+      .then((s) => {
+        setEnabled(s.enabled)
+        if (!s.enabled) return
+        // Stored turns carry no proposal card or result table: those are live views of state that
+        // may have changed since, and re-rendering a stale "Confirm block" button would invite the
+        // operator to approve something they already approved.
+        return fetchAssistantHistory().then((rows) =>
+          setTurns(rows.map((r) => ({ id: r.id, role: r.role, content: r.content }))),
+        )
+      })
       .catch(() => setEnabled(false))
   }, [])
 
@@ -257,16 +276,19 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
 
   if (!enabled) return null
 
-  const send = async (text: string) => {
+  // `base` is the conversation to continue from, defaulting to everything so far. An edit passes a
+  // shorter one: the turns up to the message being rewritten.
+  const send = async (text: string, base?: Msg[]) => {
     const msg = text.trim()
     if (!msg || busy) return
+    const prior = base ?? turns
     setError('')
     setDraft('')
     mic.stop() // nothing left to dictate into; holding the microphone open past Send is rude
     // The user's turn is appended before the call so the conversation never looks frozen, and the
     // history sent along is the state BEFORE this message (the server appends it as the new turn).
-    const history = turns.map((t) => ({ role: t.role, content: historyText(t) }))
-    setTurns([...turns, { role: 'user', content: msg }])
+    const history = prior.map((t) => ({ role: t.role, content: historyText(t) }))
+    setTurns([...prior, { role: 'user', content: msg }])
     setBusy(true)
     try {
       const { reply, proposal, query } = await askAssistant(msg, history)
@@ -276,6 +298,57 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Removing one turn leaves a question with no answer, or an answer with no question. Both read as
+  // the assistant having lost the thread, so a turn is deleted together with the one it pairs with.
+  const removeTurn = async (i: number) => {
+    const t = turns[i]
+    if (!t || busy) return
+    const partner = t.role === 'user' ? turns[i + 1] : turns[i - 1]
+    const keep = turns.filter((_, j) => j !== i && !(partner && j === (t.role === 'user' ? i + 1 : i - 1)))
+    setTurns(keep)
+    try {
+      for (const m of [t, partner]) {
+        if (m?.id) await deleteAssistantMessage(m.id)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Editing a question discards everything after it before asking again. Keeping the old answer
+  // under a rewritten question would show the assistant saying something it never said.
+  const startEdit = (i: number) => {
+    setEditing(i)
+    setEditDraft(turns[i].content)
+  }
+
+  const commitEdit = async () => {
+    if (editing === null || busy) return
+    const i = editing
+    const text = editDraft.trim()
+    const original = turns[i]
+    setEditing(null)
+    if (!text || text === original.content) return
+    const base = turns.slice(0, i)
+    try {
+      if (original.id) await deleteAssistantMessage(original.id, true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      return // the server still holds the old turns; asking now would duplicate them
+    }
+    await send(text, base)
+  }
+
+  const clearAll = async () => {
+    setTurns([])
+    setEditing(null)
+    try {
+      await clearAssistantHistory()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -316,6 +389,18 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
             {/* The persona is what you are talking to, so the way to change it belongs here rather
                 than only in Settings. Hidden without manage_settings: an operator who cannot edit
                 it gains nothing from a link to a read-only field. */}
+            {turns.length > 0 && (
+              <button
+                onClick={() => void clearAll()}
+                title="Clear this conversation"
+                aria-label="Clear this conversation"
+                className="rounded-[8px] p-1.5 text-dim transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 3v6h6M3.5 13a9 9 0 1 0 2.2-6.4L3 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
             {onEditPersona && can(me, 'manage_settings') && (
               <button
                 onClick={() => {
@@ -392,16 +477,91 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
               </>
             )}
             {turns.map((t, i) => (
-              <div key={i} className="space-y-2">
-                <div className={t.role === 'user' ? 'flex justify-end' : ''}>
-                  <div
-                    className={`max-w-[92%] whitespace-pre-wrap rounded-[10px] px-3 py-2 text-[13.5px] ${
-                      t.role === 'user' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-fg'
-                    }`}
-                  >
-                    {t.content}
+              // `group` so the controls stay out of the way until the turn is hovered: a delete
+              // button sitting permanently beside every message is an invitation to misclick.
+              <div key={t.id ?? `pending-${i}`} className="group space-y-2">
+                {editing === i ? (
+                  <div className="rounded-[10px] border border-accent bg-bg p-2">
+                    <textarea
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          void commitEdit()
+                        }
+                        if (e.key === 'Escape') setEditing(null)
+                      }}
+                      rows={2}
+                      autoFocus
+                      className="w-full resize-none bg-transparent text-[13.5px] text-fg focus:outline-none"
+                    />
+                    <div className="mt-1 flex items-center gap-2">
+                      <p className="text-[11.5px] text-dim">Everything after this is discarded and asked again.</p>
+                      <button
+                        onClick={() => void commitEdit()}
+                        className="ml-auto rounded-[6px] bg-accent px-2 py-0.5 text-[11.5px] font-semibold text-white"
+                      >
+                        Ask again
+                      </button>
+                      <button
+                        onClick={() => setEditing(null)}
+                        className="rounded-[6px] border border-border px-2 py-0.5 text-[11.5px] text-muted hover:text-fg"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className={`flex items-start gap-1.5 ${t.role === 'user' ? 'justify-end' : ''}`}>
+                    {t.role === 'user' && (
+                      <div className="flex shrink-0 gap-1 pt-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          onClick={() => startEdit(i)}
+                          disabled={busy}
+                          title="Edit and ask again"
+                          aria-label="Edit and ask again"
+                          className="rounded-[6px] p-1 text-dim hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => void removeTurn(i)}
+                          disabled={busy}
+                          title="Delete this exchange"
+                          aria-label="Delete this exchange"
+                          className="rounded-[6px] p-1 text-dim hover:bg-surface-2 hover:text-critical disabled:opacity-40"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[92%] whitespace-pre-wrap rounded-[10px] px-3 py-2 text-[13.5px] ${
+                        t.role === 'user' ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-fg'
+                      }`}
+                    >
+                      {t.content}
+                    </div>
+                    {t.role === 'assistant' && (
+                      <button
+                        onClick={() => void removeTurn(i)}
+                        disabled={busy}
+                        title="Delete this exchange"
+                        aria-label="Delete this exchange"
+                        className="mt-1.5 shrink-0 rounded-[6px] p-1 text-dim opacity-0 transition-opacity hover:bg-surface-2 hover:text-critical group-hover:opacity-100 disabled:opacity-40"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                )}
                 {t.query && <QueryResult q={t.query} />}
                 {t.proposal && (
                   <ProposalCard

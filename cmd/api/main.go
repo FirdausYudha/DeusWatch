@@ -304,6 +304,10 @@ func main() {
 		mux.Handle("POST /api/assistant/chat", protect(auth.PermViewDashboard, assistantChatHandler(st, assistantBudget)))
 		// The persona is readable by anyone who can use the assistant (it is what they are talking
 		// to) but writable only with manage_settings: it steers every answer the platform gives.
+		// The transcript is the caller's own, so view_dashboard is the right gate: it is exactly the
+		// permission needed to have had the conversation in the first place.
+		mux.Handle("/api/assistant/history", protect(auth.PermViewDashboard, assistantHistoryHandler(st)))
+		mux.Handle("DELETE /api/assistant/history/{id}", protect(auth.PermViewDashboard, assistantMessageHandler(st)))
 		mux.Handle("GET /api/assistant/config", protect(auth.PermViewDashboard, assistantConfigGetHandler(st)))
 		mux.Handle("PUT /api/assistant/config", protect(auth.PermManageSettings, assistantConfigSetHandler(st)))
 

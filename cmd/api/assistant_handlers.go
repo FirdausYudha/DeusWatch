@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -160,6 +161,7 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		// generated. Confirming the card calls the ordinary ban/whitelist endpoint under the
 		// operator's own session, so this handler still has no write path of its own.
 		if p, isCmd := assistant.ParseProposal(req.Message); isCmd {
+			recordChat(r.Context(), st, u, req.Message, p.Reply(), "")
 			writeJSON(w, http.StatusOK, map[string]any{"reply": p.Reply(), "proposal": p, "model": "deuswatch"})
 			return
 		}
@@ -398,6 +400,7 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 				}
 			}
 		}
+		recordChat(r.Context(), st, u, req.Message, asString(out["reply"]), replayContext(out))
 		writeJSON(w, http.StatusOK, out)
 	}
 }
@@ -483,4 +486,118 @@ func fmtTimePtr(t *time.Time) string {
 		return ""
 	}
 	return t.UTC().Format("2006-01-02 15:04 UTC")
+}
+
+// assistantHistoryHandler serves and clears one operator's stored conversation.
+//
+// Scoped to the caller's own user id, never a parameter. The transcript holds security data and
+// whatever they typed, so there is no legitimate reason for one account to read another's, and the
+// cheapest way to guarantee that is to make it unaskable.
+func assistantHistoryHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFrom(r.Context())
+		if !ok || u.ID == "" {
+			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			msgs, err := st.LoadChat(r.Context(), u.ID, store.MaxStoredMessages)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if msgs == nil {
+				msgs = []store.ChatMessage{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
+		case http.MethodDelete:
+			if err := st.ClearChat(r.Context(), u.ID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// recordChat stores the exchange. Best-effort by design: losing a transcript line is an annoyance,
+// losing the answer the operator is waiting for is not, so a failure here is logged and swallowed.
+// replyContext is what should be replayed to the model later; empty means "same as reply".
+func recordChat(ctx context.Context, st *store.Store, u *auth.User, question, reply, replyContext string) {
+	if u == nil || u.ID == "" {
+		return
+	}
+	err := st.AppendChat(ctx, u.ID,
+		store.ChatMessage{Role: "user", Content: question},
+		store.ChatMessage{Role: "assistant", Content: reply, Context: replyContext},
+	)
+	if err != nil {
+		log.Printf("api: assistant history not saved for %s: %v", u.Username, err)
+	}
+}
+
+func asString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// replayContext rebuilds what the client would have sent back as history for this turn, so a
+// reloaded conversation carries the same rows the live one did. Without it, reopening the panel
+// silently drops the query result and the follow-up question has nothing to reason over.
+func replayContext(out map[string]any) string {
+	reply := asString(out["reply"])
+	q, ok := out["query"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	rows, _ := q["rows"].([][]string)
+	if len(rows) == 0 {
+		return ""
+	}
+	cols, _ := q["columns"].([]string)
+	var b strings.Builder
+	b.WriteString(reply)
+	fmt.Fprintf(&b, "\n\n[Query result, %d row(s)]\n%s\n", len(rows), strings.Join(cols, " | "))
+	for _, r := range rows {
+		b.WriteString(strings.Join(r, " | "))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// assistantMessageHandler deletes one stored turn, or that turn and everything after it.
+//
+// `?after=1` is what an edit is built from: the client rewinds to the message being edited, drops
+// it and the rest, then asks again. Done server-side in one statement so a browser that dies
+// halfway cannot leave an answer stranded under a question that was rewritten.
+func assistantMessageHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		u, ok := auth.UserFrom(r.Context())
+		if !ok || u.ID == "" {
+			http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			return
+		}
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id <= 0 {
+			http.Error(w, "bad message id", http.StatusBadRequest)
+			return
+		}
+		after, _ := strconv.ParseBool(r.URL.Query().Get("after"))
+		// The user id in the WHERE clause, not just here: an id from another account must match no
+		// rows rather than be refused, so nothing can be learned by probing.
+		if err := st.DeleteChatMessage(r.Context(), u.ID, id, after); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	}
 }

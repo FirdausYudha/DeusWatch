@@ -573,3 +573,106 @@ func (s *Store) UserRoster(ctx context.Context) ([]UserRow, error) {
 	}
 	return out, rows.Err()
 }
+
+// ChatMessage is one stored turn of an assistant conversation.
+type ChatMessage struct {
+	// ID lets the operator delete a single turn, or rewind to one and ask again.
+	ID      int64  `json:"id"`
+	Role    string `json:"role"`
+	Content string `json:"content"`
+	// Context is what gets replayed to the model. Empty means "same as Content".
+	Context string    `json:"-"`
+	At      time.Time `json:"at"`
+}
+
+const (
+	// MaxStoredMessages is how much of one operator's conversation is kept. Generous enough to
+	// scroll back through a shift, bounded so a chatty week does not grow without limit. Older
+	// turns are pruned on write rather than by a job: the trim is one statement and it keeps the
+	// table from needing a caretaker.
+	MaxStoredMessages = 200
+	// MaxStoredContent caps one turn. A query result table is folded into Context, and a runaway
+	// one should not become a permanent row.
+	MaxStoredContent = 8000
+)
+
+// AppendChat stores a pair of turns and prunes the user's history back to MaxStoredMessages.
+//
+// Failure here must never fail the chat itself: losing the transcript of an answer is annoying,
+// losing the answer is not acceptable, so the caller logs and continues.
+func (s *Store) AppendChat(ctx context.Context, userID string, msgs ...ChatMessage) error {
+	for _, m := range msgs {
+		if strings.TrimSpace(m.Content) == "" {
+			continue
+		}
+		if _, err := s.q(ctx).Exec(ctx,
+			`INSERT INTO assistant_messages (user_id, role, content, context) VALUES ($1,$2,$3,$4)`,
+			userID, m.Role, clip(m.Content, MaxStoredContent), clip(m.Context, MaxStoredContent)); err != nil {
+			return fmt.Errorf("store: append chat: %w", err)
+		}
+	}
+	_, err := s.q(ctx).Exec(ctx, `
+		DELETE FROM assistant_messages
+		 WHERE user_id = $1
+		   AND id NOT IN (SELECT id FROM assistant_messages
+		                   WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2)`,
+		userID, MaxStoredMessages)
+	return err
+}
+
+// LoadChat returns a user's conversation, oldest first so it renders in reading order.
+func (s *Store) LoadChat(ctx context.Context, userID string, limit int) ([]ChatMessage, error) {
+	if limit <= 0 || limit > MaxStoredMessages {
+		limit = MaxStoredMessages
+	}
+	rows, err := s.q(ctx).Query(ctx, `
+		SELECT id, role, content, context, created_at FROM (
+		    SELECT id, role, content, context, created_at FROM assistant_messages
+		     WHERE user_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
+		) t ORDER BY created_at ASC, id ASC`, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: load chat: %w", err)
+	}
+	defer rows.Close()
+	out := make([]ChatMessage, 0, 32)
+	for rows.Next() {
+		var m ChatMessage
+		if err := rows.Scan(&m.ID, &m.Role, &m.Content, &m.Context, &m.At); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// ClearChat deletes one user's conversation. Theirs alone: the assistant has told them things they
+// may not want sitting in a database, and "clear" has to mean it.
+func (s *Store) ClearChat(ctx context.Context, userID string) error {
+	_, err := s.q(ctx).Exec(ctx, `DELETE FROM assistant_messages WHERE user_id = $1`, userID)
+	return err
+}
+
+// DeleteChatMessage removes one turn, or that turn and everything after it.
+//
+// The `after` form is what an edit is made of. Rewriting a question without discarding what came
+// next would leave the assistant's old answer sitting under a question that no longer asked it,
+// which reads as the assistant having said something it never said.
+//
+// Scoped by user_id as well as id, so a guessed id from another account matches nothing.
+func (s *Store) DeleteChatMessage(ctx context.Context, userID string, id int64, after bool) error {
+	q := `DELETE FROM assistant_messages WHERE user_id = $1 AND id = $2`
+	if after {
+		q = `DELETE FROM assistant_messages WHERE user_id = $1 AND id >= $2`
+	}
+	if _, err := s.q(ctx).Exec(ctx, q, userID, id); err != nil {
+		return fmt.Errorf("store: delete chat message: %w", err)
+	}
+	return nil
+}
+
+func clip(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
+}

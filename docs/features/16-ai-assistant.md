@@ -419,6 +419,31 @@ the difference on instruction-following is not subtle.
 - **12 turns of history** are replayed. Older turns fall out of the conversation.
 - **No memory between sessions.** Closing the panel discards the thread; nothing is stored.
 
+## Conversation history
+
+Conversations are stored per account and reload when you reopen the panel, so a thread survives a
+closed tab, a reload and a shift change. Up to 200 messages are kept; older turns are pruned as new
+ones arrive, so the table never needs a caretaker.
+
+**It is yours alone.** The endpoint reads the caller's own user id and takes no parameter for it, so
+there is no request that returns somebody else's transcript. Deleting an account deletes its
+conversation with it.
+
+Three controls, all of them real deletions rather than hiding:
+
+- **Delete an exchange** (hover a message). The question and its answer go together: removing one
+  leaves the other stranded, and an answer under no question reads as the assistant having said
+  something unprompted.
+- **Edit a question** (hover your own message). Everything after it is discarded and the question is
+  asked again. Rewriting a question while keeping the old reply would show the assistant answering
+  something nobody asked.
+- **Clear** (panel header) removes the whole conversation for your account.
+
+What is **not** restored on reload: confirmation cards and query result tables. Those are live views
+of state that may have moved since, and re-rendering a stale "Confirm block" button would invite
+approving something already approved. The reply text stays, and for a turn that ran a query the rows
+are still replayed to the model, so a follow-up question keeps working.
+
 ## Customising the persona
 
 **Settings → AI assistant persona** (needs `manage_settings`; anyone who can use the assistant can
@@ -483,7 +508,7 @@ answer on screen.
 - **Command phrasing is literal.** English and Indonesian verbs are recognised; anything more
   roundabout than "block <ip>" may not be. An LLM intent classifier fed only your message (never the
   event data) is the upgrade path if this proves too narrow.
-- **No persistent history**, so the assistant cannot refer to yesterday's conversation.
+- **History is per account and capped at 200 messages.** Older turns are pruned on write.
 - **It is only as fast as the host.** The context blocks that keep it honest also make the prompt
   long, and on a slow CPU that is the whole cost. See the hardware section; this is a real
   deployment constraint, not a tuning detail.
