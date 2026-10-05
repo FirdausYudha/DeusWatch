@@ -230,3 +230,54 @@ func TestUIMapNamesTheResponseTabs(t *testing.T) {
 		}
 	}
 }
+
+// The bug this closes: "is 72.167.227.34 dangerous?" was answered "I don't see any information
+// about that IP" while it sat in the first row of the Response page with four offences. Dozens of
+// addresses were tied on the same count, so the one asked about fell outside the top-N slice.
+func TestMentionedIPs(t *testing.T) {
+	got := MentionedIPs("is 72.167.227.34 dangerous? and what about 2001:db8::1 ?")
+	if len(got) != 2 || got[0] != "72.167.227.34" || got[1] != "2001:db8::1" {
+		t.Errorf("got %v", got)
+	}
+	// A CIDR is a range to whitelist, not an address with a history to look up.
+	if g := MentionedIPs("whitelist 10.0.0.0/8"); len(g) != 0 {
+		t.Errorf("a CIDR should not be looked up, got %v", g)
+	}
+	// A pasted log excerpt must not become twenty queries.
+	many := "1.1.1.1 2.2.2.2 3.3.3.3 4.4.4.4 5.5.5.5"
+	if g := MentionedIPs(many); len(g) != 3 {
+		t.Errorf("expected the cap of 3, got %v", g)
+	}
+	// Version strings are not addresses; the same boundary rule as the ban parser applies.
+	if g := MentionedIPs("agent version 1.2.3.4.5.6"); len(g) != 0 {
+		t.Errorf("a version fragment is not an address, got %v", g)
+	}
+}
+
+func TestIPReportDistinguishesTheStates(t *testing.T) {
+	banned := IPReport(Dossier{IP: "72.167.227.34", Found: true, Offenses: 4, Total: 6, Pending: 2,
+		LastReason: "SSH Login Attempt for Invalid User", LastAgent: "test-server", Events24h: 310})
+	for _, want := range []string{
+		"6 total decision(s), 4 executed ban(s), 2 waiting",
+		"SSH Login Attempt for Invalid User",
+		// Banned before and banned now are different, and the operator usually means now.
+		"No ban is in force right now, even though it has been banned before",
+		"310 event(s) in the last 24 hours, so it is active right now",
+	} {
+		if !strings.Contains(banned, want) {
+			t.Errorf("report missing %q:\n%s", want, banned)
+		}
+	}
+
+	// "Never seen" is a real answer and must be given plainly, not hedged into uselessness.
+	unknown := IPReport(Dossier{IP: "8.8.8.8"})
+	if !strings.Contains(unknown, "genuinely unknown to this deployment") {
+		t.Errorf("an unknown address needs a definite answer:\n%s", unknown)
+	}
+
+	// A whitelisted address cannot be banned, and saying so saves a pointless confirmation card.
+	wl := IPReport(Dossier{IP: "10.0.0.5", Found: true, Total: 1, Listed: true})
+	if !strings.Contains(wl, "on the WHITELIST") {
+		t.Errorf("whitelist membership must be stated:\n%s", wl)
+	}
+}

@@ -319,3 +319,64 @@ func plural(n int) string {
 	}
 	return "s"
 }
+
+// IPDossier is everything known about one address the operator named.
+//
+// A top-N offender list cannot answer "is 72.167.227.34 dangerous?". A busy deployment has dozens
+// of addresses tied on the same offence count, so the one being asked about is usually outside any
+// slice short enough to put in a prompt, and the assistant answers "I have no information" about a
+// row sitting on the operator's screen. Looking up the address that was actually named costs one
+// indexed query and scales to any fleet.
+type IPDossier struct {
+	IP string
+	// Found is false when the address appears nowhere in the response history, which is a real
+	// answer ("never seen") and must not be confused with "I could not look".
+	Found                    bool
+	Offenses, Total, Pending int
+	LastStatus, LastReason   string
+	LastAgent                string
+	Blocked                  bool
+	BlockedUntil             *time.Time
+	LastSeen                 *time.Time
+	Events24h                int
+	Whitelisted              bool
+}
+
+// IPDossierFor gathers one address's history. The shape mirrors the Offenders view the Response
+// page shows, so the assistant and the screen agree.
+func (s *Store) IPDossierFor(ctx context.Context, ip string) (IPDossier, error) {
+	d := IPDossier{IP: ip}
+	err := s.q(ctx).QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE status = 'executed'),
+		       count(*),
+		       count(*) FILTER (WHERE status = 'recommended'),
+		       COALESCE((array_agg(status ORDER BY created_at DESC))[1], ''),
+		       COALESCE((array_agg(COALESCE(reason,'') ORDER BY created_at DESC))[1], ''),
+		       COALESCE((array_agg(COALESCE(agent_id,'') ORDER BY created_at DESC))[1], ''),
+		       max(created_at),
+		       max(COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds))
+		           FILTER (WHERE status IN ('approved','executed') AND ban_seconds > 0),
+		       COALESCE(bool_or(status IN ('approved','executed')
+		               AND (ban_seconds = 0
+		                    OR COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds) > now())), false)
+		  FROM response_actions WHERE source_ip = $1::inet`, ip).
+		Scan(&d.Offenses, &d.Total, &d.Pending, &d.LastStatus, &d.LastReason, &d.LastAgent,
+			&d.LastSeen, &d.BlockedUntil, &d.Blocked)
+	if err != nil {
+		return d, err
+	}
+	d.Found = d.Total > 0
+
+	// Activity in the last day, so "never banned" can still be answered with "but it is hitting you
+	// right now", which is the case an offender list cannot show at all.
+	_ = s.q(ctx).QueryRow(ctx,
+		`SELECT count(*) FROM events WHERE source_ip = $1::inet AND time >= now() - interval '24 hours'`,
+		ip).Scan(&d.Events24h)
+	if d.Events24h > 0 {
+		d.Found = true
+	}
+
+	_ = s.q(ctx).QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM ip_whitelist WHERE $1::inet <<= cidr)`, ip).Scan(&d.Whitelisted)
+	return d, nil
+}

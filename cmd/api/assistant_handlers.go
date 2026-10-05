@@ -216,6 +216,24 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		}
 		enforcement := assistant.Enforcement(enfStats)
 
+		// Any address the operator named is looked up directly. This is what makes a question about
+		// an arbitrary IP answerable: the offender list is necessarily a slice, and on a busy
+		// deployment the address being asked about is usually outside it.
+		var lookups strings.Builder
+		for _, ip := range assistant.MentionedIPs(req.Message) {
+			d, derr := st.IPDossierFor(r.Context(), ip)
+			if derr != nil {
+				continue
+			}
+			lookups.WriteString(assistant.IPReport(assistant.Dossier{
+				IP: d.IP, Found: d.Found, Blocked: d.Blocked, Listed: d.Whitelisted,
+				Offenses: d.Offenses, Total: d.Total, Pending: d.Pending,
+				LastStatus: d.LastStatus, LastReason: d.LastReason, LastAgent: d.LastAgent,
+				Events24h:    d.Events24h,
+				BlockedUntil: fmtTimePtr(d.BlockedUntil), LastSeen: fmtTimePtr(d.LastSeen),
+			}))
+		}
+
 		var howTo string
 		if assistant.NeedsIntegrationsGuide(req.Message) {
 			howTo = assistant.IntegrationsGuide()
@@ -302,6 +320,7 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			UI:          assistant.UIMap,
 			Ops:         ops,
 			Enforcement: enforcement,
+			Lookups:     lookups.String(),
 			Trend:       trend,
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
@@ -410,4 +429,12 @@ func asWindow(r report.Report) assistant.Window {
 		BySeverity: conv(r.BySeverity), TopSourceIPs: conv(r.TopSourceIPs),
 		TopRules: conv(r.TopRules), TopAgents: conv(r.TopAgents),
 	}
+}
+
+// fmtTimePtr renders an optional timestamp for the prompt, empty when absent.
+func fmtTimePtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.UTC().Format("2006-01-02 15:04 UTC")
 }

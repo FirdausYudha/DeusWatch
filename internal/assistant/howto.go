@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 
@@ -383,4 +384,92 @@ func Enforcement(s EnforcementStats) string {
 		b.WriteString("IMPORTANT: enforcement is NOT configured. DeusWatch is recording these ban decisions but nothing is pushing them to a firewall, so the addresses above are FLAGGED, not blocked, and traffic from them still arrives. Never tell the operator an address is blocked while this is the case. To change it, set RESPONSE_LIVE=1 and connect a responder (MikroTik, CrowdSec or agent nftables) under Integrations, or enable the blocklist feed on the Response page for an external firewall to pull.\n")
 	}
 	return b.String()
+}
+
+// Dossier is one address the operator named, looked up directly.
+type Dossier struct {
+	IP                       string
+	Found, Blocked, Listed   bool
+	Offenses, Total, Pending int
+	LastStatus, LastReason   string
+	LastAgent                string
+	Events24h                int
+	BlockedUntil, LastSeen   string
+}
+
+// IPReport renders what is known about an address.
+//
+// This exists because a top-N offender list cannot answer a question about an arbitrary address.
+// Asked whether 72.167.227.34 was dangerous, the assistant said it had no information while that
+// address sat in the first row of the Response page with four offences against it: dozens of
+// addresses were tied on the same count and the one being asked about fell outside the slice. A
+// list sized to fit a prompt will always have that failure; looking up the address named does not.
+func IPReport(d Dossier) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "LOOKUP FOR %s (the operator named this address; this is its full history, use it)\n", d.IP)
+	if !d.Found {
+		fmt.Fprintf(&b, "No response action and no event in the last 24 hours involves %s. It is genuinely unknown to this deployment, which is a real answer: say so rather than hedging.\n", d.IP)
+		if d.Listed {
+			b.WriteString("It IS on the whitelist, so the response engine would refuse to ban it even if asked.\n")
+		}
+		return b.String()
+	}
+	fmt.Fprintf(&b, "Response history: %d total decision(s), %d executed ban(s), %d waiting for approval.", d.Total, d.Offenses, d.Pending)
+	if d.LastReason != "" {
+		fmt.Fprintf(&b, " Most recent reason: %q.", d.LastReason)
+	}
+	if d.LastAgent != "" {
+		fmt.Fprintf(&b, " Seen against agent %s.", d.LastAgent)
+	}
+	if d.LastSeen != "" {
+		fmt.Fprintf(&b, " Last decision %s.", d.LastSeen)
+	}
+	b.WriteString("\n")
+	if d.Blocked {
+		fmt.Fprintf(&b, "A ban is currently in force%s.\n", until(d.BlockedUntil))
+	} else if d.Offenses > 0 {
+		b.WriteString("No ban is in force right now, even though it has been banned before: the previous one expired. Those are different states and the operator usually means the current one.\n")
+	} else {
+		b.WriteString("It has never actually been banned; the decisions above are recommendations nobody approved.\n")
+	}
+	if d.Events24h > 0 {
+		fmt.Fprintf(&b, "It generated %d event(s) in the last 24 hours, so it is active right now.\n", d.Events24h)
+	}
+	if d.Listed {
+		b.WriteString("It is on the WHITELIST, so the response engine refuses to ban it. If the operator wants it banned they have to remove the whitelist entry first.\n")
+	}
+	return b.String()
+}
+
+func until(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return ""
+	}
+	return ", until " + s
+}
+
+// MentionedIPs returns the addresses named in a message, so each can be looked up. Capped: a paste
+// of a log excerpt should not turn into twenty queries.
+func MentionedIPs(msg string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, 3)
+	for _, loc := range reAddr.FindAllStringIndex(msg, -1) {
+		if !addressBoundaryOK(msg, loc[0], loc[1]) {
+			continue
+		}
+		m := msg[loc[0]:loc[1]]
+		if strings.Contains(m, "/") {
+			continue // a CIDR is not an address to look up
+		}
+		ip := net.ParseIP(m)
+		if ip == nil || ip.IsUnspecified() || seen[ip.String()] {
+			continue
+		}
+		seen[ip.String()] = true
+		out = append(out, ip.String())
+		if len(out) == 3 {
+			break
+		}
+	}
+	return out
 }

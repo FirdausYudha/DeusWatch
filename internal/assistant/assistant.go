@@ -109,6 +109,9 @@ type Context struct {
 	// "is this IP blocked" is one of the most consequential questions an operator asks, and the
 	// answer was previously invented.
 	Enforcement string
+	// Lookups are per-address reports for any IP the operator named. A top-N list cannot answer a
+	// question about an arbitrary address; looking up the one asked about can.
+	Lookups string
 	// Trend is the period-over-period comparison, present only when the question is about change.
 	// Without it the model has no baseline and "find anomalies" degrades into reading the largest
 	// number aloud.
@@ -183,6 +186,9 @@ func SystemPrompt(persona string, c Context) string {
 	}
 	if e := strings.TrimSpace(c.Enforcement); e != "" {
 		b.WriteString(e)
+	}
+	if l := strings.TrimSpace(c.Lookups); l != "" {
+		b.WriteString(l)
 	}
 	if t := strings.TrimSpace(c.Trend); t != "" {
 		b.WriteString(t)
