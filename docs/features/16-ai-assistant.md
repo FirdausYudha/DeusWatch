@@ -254,6 +254,38 @@ formed a view.
 `ip_scores`, `ip_anomaly`, `process_threats`, `process_behavior_baseline` and `yara_rules` are all
 readable through the query path for anything deeper.
 
+## Asking about an address or a file
+
+Name an address and you get the whole picture in one place, instead of four pages:
+
+- **How often and when.** Event count, first seen, last seen.
+- **What it tripped.** The detections it fired, most frequent first, and which agents it reached.
+- **What was decided.** Total decisions, executed bans, anything waiting for approval, and whether
+  a ban is in force right now.
+- **Its reputation.** AbuseIPDB confidence and OTX pulses, from the cache if a recent lookup exists
+  and **fetched live if not**, written back so the next question is free.
+- **Its composite score**, and whether the ML anomaly component means anything on this deployment.
+
+**Name a file hash and ask for a check** ("cek hash <sha256>", "scan this file") and it reports where
+FIM has seen that hash here, plus the VirusTotal / MalwareBazaar / CIRCL verdict, cache first and
+live if needed. Only on request: a live lookup spends an API quota, and a hash pasted in passing is
+not a request. SHA-256 only, which is what FIM records and what the providers key on.
+
+### Three wordings that are the point of this
+
+**"Unknown" is not "safe".** A hash no provider has an opinion on is the normal shape of something
+new, and a report that lets those blur is how an unexamined file gets cleared.
+
+**"Known good" is about the hash, not the file on disk.** It matched a known-software set or no
+engine flagged it; whether the file was modified is what the FIM snapshot answers.
+
+**No reputation data is an absence, not a verdict.** With no provider configured, or a lookup that
+returned nothing, the assistant says unchecked. It never says clean.
+
+A cached figure is reported with its age for the same reason: a confidence of 0 from a month ago and
+one from this morning are different claims, and an address that has since turned bad would otherwise
+stay clean in the telling.
+
 ## Asking whether an address is blocked
 
 "does 142.93.121.216 already in the blocklist?" has a more careful answer than it looks, and the
@@ -484,6 +516,15 @@ approving something already approved. The reply text stays, and for a turn that 
 are still replayed to the model, so a follow-up question keeps working.
 
 ## Customising the persona
+
+**Settings → AI assistant persona** has a dropdown of shipped personas to start from: the default
+SOC colleague, and **Mia**, a shy catgirl on the quiet shift who drops the character entirely the
+moment something is actually wrong. Load one, edit it, save it.
+
+They ship rather than being left to be written because a persona replaces the built-in one
+wholesale: whoever writes a replacement has to carry over the grounding rules, the capability limits
+and the instruction that the security context is data rather than orders. Forgetting the last one is
+silent. A test fails if any shipped persona stops carrying all six.
 
 **Settings → AI assistant persona** (needs `manage_settings`; anyone who can use the assistant can
 read it). The panel only appears once the assistant is enabled. There is also a **pencil in the chat

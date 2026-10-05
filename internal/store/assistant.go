@@ -761,3 +761,155 @@ func (s *Store) ForgetMatching(ctx context.Context, userID, needle string) (int,
 	}
 	return int(tag.RowsAffected()), nil
 }
+
+// CTICache is a cached threat-intelligence lookup for one address.
+type CTICache struct {
+	Found           bool
+	AbuseConfidence int
+	OTXPulses       int
+	Country         string
+	Feed            string
+	CheckedAt       time.Time
+	Fresh           bool // within its TTL; a stale row is still worth showing, with its age
+}
+
+// CTIFor reads the cache without calling anyone. Separate from the live lookup on purpose: most
+// questions are about addresses the pipeline already enriched, and spending an AbuseIPDB request to
+// learn what is already in the table is how a free tier runs out by lunchtime.
+func (s *Store) CTIFor(ctx context.Context, ip string) CTICache {
+	var c CTICache
+	var expires time.Time
+	err := s.q(ctx).QueryRow(ctx,
+		`SELECT abuse_confidence, otx_pulse_count, COALESCE(country_iso,''), COALESCE(feed_name,''),
+		        checked_at, expires_at
+		   FROM cti_indicators WHERE ip = $1::inet`, ip).
+		Scan(&c.AbuseConfidence, &c.OTXPulses, &c.Country, &c.Feed, &c.CheckedAt, &expires)
+	if err != nil {
+		return c
+	}
+	c.Found = true
+	c.Fresh = expires.After(time.Now())
+	return c
+}
+
+// HashRepCache is a cached file-hash reputation.
+type HashRepCache struct {
+	Found     bool
+	Verdict   string
+	Source    string
+	Detail    string
+	CheckedAt time.Time
+	Fresh     bool
+}
+
+// HashRepFor reads the hash cache without calling anyone.
+func (s *Store) HashRepFor(ctx context.Context, sha256 string) HashRepCache {
+	var h HashRepCache
+	var expires time.Time
+	err := s.q(ctx).QueryRow(ctx,
+		`SELECT verdict, source, detail, checked_at, expires_at
+		   FROM file_hash_reputation WHERE sha256 = lower($1)`, sha256).
+		Scan(&h.Verdict, &h.Source, &h.Detail, &h.CheckedAt, &expires)
+	if err != nil {
+		return h
+	}
+	h.Found = true
+	h.Fresh = expires.After(time.Now())
+	return h
+}
+
+// IPActivity is what the events table knows about an address: when it started, when it stopped, and
+// which detections it tripped. The response history says what was DECIDED about an address; this
+// says what it actually DID, and an operator asking "what has this one been doing" means the second.
+type IPActivity struct {
+	Events    int
+	FirstSeen *time.Time
+	LastSeen  *time.Time
+	Rules     []string // "rule (n)", most frequent first
+	Agents    []string
+	Countries []string
+}
+
+// IPActivityFor summarises one address's events. Bounded by the index on (source_ip, time).
+func (s *Store) IPActivityFor(ctx context.Context, ip string) IPActivity {
+	var a IPActivity
+	_ = s.q(ctx).QueryRow(ctx,
+		`SELECT count(*), min(time), max(time) FROM events WHERE source_ip = $1::inet`, ip).
+		Scan(&a.Events, &a.FirstSeen, &a.LastSeen)
+	if a.Events == 0 {
+		return a
+	}
+	collect := func(q string) []string {
+		rows, err := s.q(ctx).Query(ctx, q, ip)
+		if err != nil {
+			return nil
+		}
+		defer rows.Close()
+		out := make([]string, 0, 6)
+		for rows.Next() {
+			var label string
+			var n int
+			if rows.Scan(&label, &n) == nil && label != "" {
+				out = append(out, fmt.Sprintf("%s (%d)", label, n))
+			}
+		}
+		return out
+	}
+	// COALESCE(rule_name, rule_id) mirrors how the report names a rule, so the assistant and the
+	// Report page call the same detection the same thing.
+	a.Rules = collect(`SELECT COALESCE(rule_name, rule_id) r, count(*) n FROM events
+	                    WHERE source_ip = $1::inet AND rule_id IS NOT NULL
+	                    GROUP BY 1 ORDER BY n DESC LIMIT 6`)
+	a.Agents = collect(`SELECT agent_id, count(*) n FROM events
+	                     WHERE source_ip = $1::inet AND agent_id IS NOT NULL AND agent_id <> ''
+	                     GROUP BY 1 ORDER BY n DESC LIMIT 4`)
+	a.Countries = collect(`SELECT source_geo_country_iso c, count(*) n FROM events
+	                        WHERE source_ip = $1::inet AND source_geo_country_iso IS NOT NULL
+	                          AND source_geo_country_iso <> ''
+	                        GROUP BY 1 ORDER BY n DESC LIMIT 2`)
+	return a
+}
+
+// FileHashSightings lists where a hash has been snapshotted by FIM.
+func (s *Store) FileHashSightings(ctx context.Context, sha256 string) []string {
+	rows, err := s.q(ctx).Query(ctx, `
+		SELECT agent_name, path, count(*) n FROM fim_snapshots
+		 WHERE sha256 = lower($1) GROUP BY 1,2 ORDER BY n DESC LIMIT 6`, sha256)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	out := make([]string, 0, 4)
+	for rows.Next() {
+		var agent, path string
+		var n int
+		if rows.Scan(&agent, &path, &n) == nil {
+			out = append(out, fmt.Sprintf("%s on %s (%d version(s))", path, agent, n))
+		}
+	}
+	return out
+}
+
+// SaveHashRep caches a live reputation result so the next question about the same file costs no
+// API quota. ttl mirrors what the enrichment pipeline uses.
+func (s *Store) SaveHashRep(ctx context.Context, sha256, verdict, source, detail string, ttl time.Duration) {
+	_, _ = s.q(ctx).Exec(ctx, `
+		INSERT INTO file_hash_reputation (sha256, verdict, source, detail, checked_at, expires_at)
+		VALUES (lower($1), $2, $3, $4, now(), now() + $5::interval)
+		ON CONFLICT (sha256) DO UPDATE SET
+		    verdict = EXCLUDED.verdict, source = EXCLUDED.source, detail = EXCLUDED.detail,
+		    checked_at = now(), expires_at = EXCLUDED.expires_at`,
+		sha256, verdict, source, detail, ttl.String())
+}
+
+// SaveCTI caches a live CTI result, for the same reason.
+func (s *Store) SaveCTI(ctx context.Context, ip string, abuse, otx int, country, feed string, ttl time.Duration) {
+	_, _ = s.q(ctx).Exec(ctx, `
+		INSERT INTO cti_indicators (ip, abuse_confidence, otx_pulse_count, country_iso, feed_name, checked_at, expires_at)
+		VALUES ($1::inet, $2, $3, NULLIF($4,''), NULLIF($5,''), now(), now() + $6::interval)
+		ON CONFLICT (ip) DO UPDATE SET
+		    abuse_confidence = EXCLUDED.abuse_confidence, otx_pulse_count = EXCLUDED.otx_pulse_count,
+		    country_iso = EXCLUDED.country_iso, feed_name = EXCLUDED.feed_name,
+		    checked_at = now(), expires_at = EXCLUDED.expires_at`,
+		ip, abuse, otx, country, feed, ttl.String())
+}

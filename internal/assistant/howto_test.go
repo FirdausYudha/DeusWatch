@@ -383,3 +383,85 @@ func TestMLTablesAreReadable(t *testing.T) {
 		t.Error("ip_anomaly's description must explain what empty means")
 	}
 }
+
+// The report the operator asked for: reputation, how often, when it started and stopped, whether it
+// is blocked, and what it tripped. Each in one place rather than spread across four pages.
+func TestIPReportIsComplete(t *testing.T) {
+	g := IPReport(Dossier{
+		IP: "45.134.26.9", Found: true, Blocked: true, BlockedUntil: "2026-10-12 09:00 UTC",
+		Offenses: 4, Total: 6, Pending: 1, LastReason: "Failed SSH Login as root",
+		HasScore: true, Score: 88, Band: "high", MLActive: false,
+		Events: 4912, FirstSeen: "2026-09-30 04:50 UTC", LastSeenEvent: "2026-10-05 21:14 UTC",
+		Rules:  []string{"SSH Brute Force (3100)", "SSH Invalid User (812)"},
+		Agents: []string{"test-server (4912)"}, Countries: []string{"VN (4912)"},
+		HasCTI: true, Abuse: 100, OTX: 7, CTICountry: "VN", CTISource: "abuseipdb,otx", CTIAge: "3 hour(s) ago",
+	})
+	for _, want := range []string{
+		"4 executed ban(s)",                   // how many times acted on
+		"A ban is currently in force",         // blocked or not
+		"4912 event(s) on record",             // how often it attacked
+		"first seen 2026-09-30 04:50 UTC",     // when it started
+		"last seen 2026-10-05 21:14 UTC",      // when it stopped
+		"SSH Brute Force (3100)",              // what its offences were
+		"AbuseIPDB confidence 100/100, 7 OTX", // its reputation
+		"Cached, last checked 3 hour(s) ago",  // and how old that figure is
+		"Composite threat score: 88 (high)",
+	} {
+		if !strings.Contains(g, want) {
+			t.Errorf("report missing %q:\n%s", want, g)
+		}
+	}
+}
+
+// No reputation data is an absence, not a verdict. Letting those blur is how an address nobody has
+// ever checked gets described as clean.
+func TestIPReportAbsentReputationIsNotClean(t *testing.T) {
+	g := IPReport(Dossier{IP: "1.2.3.4", Found: true, Total: 1})
+	if !strings.Contains(g, "absence of data, not a clean verdict") {
+		t.Errorf("missing CTI must not read as a clean verdict:\n%s", g)
+	}
+	live := IPReport(Dossier{IP: "1.2.3.4", Found: true, Total: 1, HasCTI: true, Abuse: 90, CTILive: true})
+	if !strings.Contains(live, "Looked up just now") {
+		t.Errorf("a live lookup should say so:\n%s", live)
+	}
+}
+
+func TestHashReportSeparatesUnknownFromSafe(t *testing.T) {
+	unknown := HashReport(FileReport{SHA256: strings.Repeat("a", 64), ProvidersEnabled: true,
+		HasRep: true, Verdict: "unknown", Source: "virustotal", Detail: "0/70 engines flagged"})
+	if !strings.Contains(unknown, "not the same as safe") {
+		t.Errorf("unknown must not read as safe:\n%s", unknown)
+	}
+	bad := HashReport(FileReport{SHA256: strings.Repeat("b", 64), ProvidersEnabled: true,
+		HasRep: true, Verdict: "known_bad", Source: "virustotal", Detail: "48/70 engines flagged"})
+	if !strings.Contains(bad, "KNOWN BAD") || !strings.Contains(bad, "first sentence") {
+		t.Errorf("a known-bad hash must lead the answer:\n%s", bad)
+	}
+	none := HashReport(FileReport{SHA256: strings.Repeat("c", 64)})
+	if !strings.Contains(none, "unchecked, never that it is clean") {
+		t.Errorf("no provider configured must not read as clean:\n%s", none)
+	}
+	good := HashReport(FileReport{SHA256: strings.Repeat("d", 64), ProvidersEnabled: true,
+		HasRep: true, Verdict: "known_good", Source: "circl", Detail: "NSRL known-good"})
+	// Known-good is about the hash, not about the file currently on disk.
+	if !strings.Contains(good, "does not mean the file on disk is unmodified") {
+		t.Errorf("known-good needs its caveat:\n%s", good)
+	}
+}
+
+func TestMentionedHashesAndGate(t *testing.T) {
+	h := strings.Repeat("a1b2c3d4", 8) // 64 chars
+	if got := MentionedHashes("cek hash " + h + " dong"); len(got) != 1 || got[0] != strings.ToLower(h) {
+		t.Errorf("got %v", got)
+	}
+	// An MD5 is not looked up: the providers key on SHA-256 and a short hash would find nothing.
+	if got := MentionedHashes("d41d8cd98f00b204e9800998ecf8427e"); len(got) != 0 {
+		t.Errorf("an MD5 should not be looked up, got %v", got)
+	}
+	if !NeedsHashLookup("cek file ini berbahaya ngga?") || !NeedsHashLookup("scan this hash") {
+		t.Error("an explicit check should trigger the lookup")
+	}
+	if NeedsHashLookup("what happened today?") {
+		t.Error("an ordinary question should not spend an API quota")
+	}
+}

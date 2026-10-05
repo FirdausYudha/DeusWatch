@@ -276,7 +276,8 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			if derr != nil {
 				continue
 			}
-			lookups.WriteString(assistant.IPReport(assistant.Dossier{
+			act := st.IPActivityFor(r.Context(), ip)
+			dos := assistant.Dossier{
 				IP: d.IP, Found: d.Found, Blocked: d.Blocked, Listed: d.Whitelisted,
 				Offenses: d.Offenses, Total: d.Total, Pending: d.Pending,
 				LastStatus: d.LastStatus, LastReason: d.LastReason, LastAgent: d.LastAgent,
@@ -284,7 +285,13 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 				BlockedUntil: fmtTimePtr(d.BlockedUntil), LastSeen: fmtTimePtr(d.LastSeen),
 				HasScore: d.HasScore, Score: d.Score, Anomaly: d.Anomaly, Band: d.Band,
 				MLActive: mlActive,
-			}))
+				Events:   act.Events, Rules: act.Rules, Agents: act.Agents, Countries: act.Countries,
+				FirstSeen: fmtTimePtr(act.FirstSeen), LastSeenEvent: fmtTimePtr(act.LastSeen),
+			}
+			// Reputation last, because it is the only part that may reach the network. Cache first,
+			// live only when nothing usable is stored; see assistant_lookup.go.
+			reputationFor(r.Context(), st, ip, &dos)
+			lookups.WriteString(assistant.IPReport(dos))
 		}
 
 		// The roster inherits the caller's RBAC, like every other capability here (ADR 0003
@@ -298,6 +305,14 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 					lines = append(lines, assistant.UserLine{Username: ur.Username, Role: ur.Role, Disabled: ur.Disabled})
 				}
 				accounts = assistant.Users(lines, true)
+			}
+		}
+
+		// File hashes are looked up only when the operator asked for a check, since a live
+		// reputation call spends an API quota and a hash pasted in passing is not a request.
+		if assistant.NeedsHashLookup(req.Message) {
+			for _, h := range assistant.MentionedHashes(req.Message) {
+				lookups.WriteString(assistant.HashReport(hashReportFor(r.Context(), st, h)))
 			}
 		}
 

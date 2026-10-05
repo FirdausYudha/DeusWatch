@@ -3,6 +3,7 @@ package assistant
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -398,6 +399,17 @@ type Dossier struct {
 	HasScore                 bool
 	Score, Anomaly           int
 	Band                     string
+	// Activity: what the address DID, as opposed to what was decided about it.
+	Events                   int
+	FirstSeen, LastSeenEvent string
+	Rules, Agents, Countries []string
+	// Reputation, from the CTI cache or a live lookup. Source says which, because a figure from
+	// three weeks ago and one from ten seconds ago deserve different confidence.
+	HasCTI                bool
+	Abuse, OTX            int
+	CTICountry, CTISource string
+	CTIAge                string
+	CTILive               bool
 	// MLActive is whether an external anomaly model has written anything recently. Without it an
 	// anomaly of 0 reads as "looks normal" when it means "nothing is scoring this".
 	MLActive bool
@@ -443,6 +455,48 @@ func IPReport(d Dossier) string {
 	}
 	if d.Listed {
 		b.WriteString("It is on the WHITELIST, so the response engine refuses to ban it. If the operator wants it banned they have to remove the whitelist entry first.\n")
+	}
+	// What the address DID, as opposed to what was decided about it. An operator asking about an
+	// attacker wants the second: how often, since when, against what, and which detections it tripped.
+	if d.Events > 0 {
+		fmt.Fprintf(&b, "Activity: %d event(s) on record", d.Events)
+		if d.FirstSeen != "" {
+			fmt.Fprintf(&b, ", first seen %s", d.FirstSeen)
+		}
+		if d.LastSeenEvent != "" {
+			fmt.Fprintf(&b, ", last seen %s", d.LastSeenEvent)
+		}
+		b.WriteString(".\n")
+		if len(d.Rules) > 0 {
+			fmt.Fprintf(&b, "What it tripped: %s.\n", strings.Join(d.Rules, ", "))
+		}
+		if len(d.Agents) > 0 {
+			fmt.Fprintf(&b, "Against: %s.\n", strings.Join(d.Agents, ", "))
+		}
+		if len(d.Countries) > 0 {
+			fmt.Fprintf(&b, "Geolocated to: %s.\n", strings.Join(d.Countries, ", "))
+		}
+	}
+	if d.HasCTI {
+		fmt.Fprintf(&b, "Reputation: AbuseIPDB confidence %d/100, %d OTX pulse(s)", d.Abuse, d.OTX)
+		if d.CTICountry != "" {
+			fmt.Fprintf(&b, ", %s", d.CTICountry)
+		}
+		if d.CTISource != "" {
+			fmt.Fprintf(&b, " (%s)", d.CTISource)
+		}
+		switch {
+		case d.CTILive:
+			b.WriteString(". Looked up just now, because nothing recent was cached.")
+		case d.CTIAge != "":
+			// Stated rather than hidden: a confidence of 0 from a month ago and one from this
+			// morning are different claims, and reporting them identically is how an address that
+			// has since turned bad stays clean in the telling.
+			fmt.Fprintf(&b, ". Cached, last checked %s.", d.CTIAge)
+		}
+		b.WriteString("\n")
+	} else {
+		b.WriteString("Reputation: no threat-intelligence record for this address, and none could be fetched. That is an absence of data, not a clean verdict; say it that way.\n")
 	}
 	if d.HasScore {
 		fmt.Fprintf(&b, "Composite threat score: %d", d.Score)
@@ -557,4 +611,96 @@ func Users(users []UserLine, visible bool) string {
 	}
 	b.WriteString("You have usernames and roles only. No email, no last-login, no two-factor status, nothing about passwords, and you cannot query the users table. For anything else about an account, send them to the Users page.\n")
 	return b.String()
+}
+
+// reSHA256 finds a file hash the operator pasted. Only SHA-256: it is what FIM records, what the
+// reputation providers key on, and a 32-char MD5 would silently look up nothing.
+var reSHA256 = regexp.MustCompile(`\b[0-9a-fA-F]{64}\b`)
+
+// MentionedHashes returns SHA-256 hashes named in a message, capped like the address lookup.
+func MentionedHashes(msg string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, 2)
+	for _, m := range reSHA256.FindAllString(msg, -1) {
+		h := strings.ToLower(m)
+		if seen[h] {
+			continue
+		}
+		seen[h] = true
+		out = append(out, h)
+		if len(out) == 2 {
+			break
+		}
+	}
+	return out
+}
+
+// FileReport is one hash: where it has been seen here, and what the reputation providers say.
+type FileReport struct {
+	SHA256 string
+	// Seen locally.
+	Paths     []string // "path on agent (n versions)"
+	LocalOnly bool     // recorded by FIM but no reputation available
+	// Reputation.
+	HasRep           bool
+	Verdict          string // known_good | known_bad | unknown
+	Source, Detail   string
+	Age              string
+	Live             bool
+	ProvidersEnabled bool
+}
+
+// HashReport renders what is known about a file hash.
+//
+// The verdict wording is the whole job. "unknown" from VirusTotal means no engine has an opinion,
+// which is not the same as safe, and a report that lets those blur is how an operator clears a file
+// nobody has ever examined.
+func HashReport(f FileReport) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "FILE HASH %s (the operator named this; this is everything known about it)\n", f.SHA256)
+
+	if len(f.Paths) > 0 {
+		fmt.Fprintf(&b, "Seen on this deployment at: %s.\n", strings.Join(f.Paths, ", "))
+	} else {
+		b.WriteString("No file-integrity snapshot on this deployment has this hash, so it is not a file DeusWatch is watching.\n")
+	}
+
+	switch {
+	case !f.ProvidersEnabled:
+		b.WriteString("Reputation: no file-hash reputation provider is configured, so nothing could be checked. Add VirusTotal, MalwareBazaar or CIRCL hashlookup under Integrations. Say this is unchecked, never that it is clean.\n")
+	case !f.HasRep:
+		b.WriteString("Reputation: the lookup returned nothing. Unchecked, not clean.\n")
+	default:
+		switch f.Verdict {
+		case "known_bad":
+			fmt.Fprintf(&b, "Reputation: KNOWN BAD per %s. %s This outranks everything else in the answer and belongs in your first sentence.\n", f.Source, f.Detail)
+		case "known_good":
+			fmt.Fprintf(&b, "Reputation: known good per %s. %s That means it matched a known-software set or no engine flagged it; it does not mean the file on disk is unmodified, which is what the FIM snapshot is for.\n", f.Source, f.Detail)
+		default:
+			fmt.Fprintf(&b, "Reputation: UNKNOWN to %s. %s No provider has an opinion on this hash, which is not the same as safe: an unknown file nobody has examined is the normal shape of something new.\n", f.Source, f.Detail)
+		}
+		if f.Live {
+			b.WriteString("Looked up just now.\n")
+		} else if f.Age != "" {
+			fmt.Fprintf(&b, "Cached, last checked %s.\n", f.Age)
+		}
+	}
+	return b.String()
+}
+
+// NeedsHashLookup reports whether the operator asked for a file to be checked, as opposed to merely
+// pasting a hash in passing. A live reputation call costs an API quota, so it is asked for.
+var hashWords = []string{
+	"scan", "check", "cek", "periksa", "reputation", "reputasi", "virustotal", "vt ", "malware",
+	"berbahaya", "dangerous", "aman", "safe", "hash", "file ini", "this file",
+}
+
+func NeedsHashLookup(msg string) bool {
+	low := strings.ToLower(msg)
+	for _, w := range hashWords {
+		if strings.Contains(low, w) {
+			return true
+		}
+	}
+	return false
 }
