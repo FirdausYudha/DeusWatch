@@ -26,6 +26,10 @@ Colors are CSS vars mapped to Tailwind: `bg`, `surface`, `surface-2`, `border`, 
   was mounted inside the sidebar, which always carries `transition-transform` for its mobile
   slide-over, so the overlay was pinned to the 232px rail and its content burst out over the nav.
 - Page name is in the Topbar; a page adds only subtitle + actions via `PageHeader`.
+- **Any clock shows its zone, and shows UTC next to it.** Every timestamp this platform stores is
+  UTC and several views render it as such, so a bare local time invites an operator to read an alert
+  at 02:14 as their own 02:14. That mistake looks like an attack happening hours from when it did.
+  The zone label is what "location" means on a security console; a city would be decoration.
 - Cards via `<Card>`; vertical rhythm in multiples of 4 (`gap-2/3/4`, `mb-4/5`).
 
 ## Controls

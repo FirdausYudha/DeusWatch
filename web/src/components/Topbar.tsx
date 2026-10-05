@@ -2,6 +2,7 @@ import type { View } from './Sidebar'
 import { useTheme } from '../lib/theme'
 import RangePicker from './RangePicker'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
+import Clock from './Clock'
 import type { DashRangeState } from '../lib/range'
 
 // Topbar is the prototype's global 60px header: it names the page on the left and carries the
@@ -69,6 +70,9 @@ export default function Topbar({
       <p className="hidden truncate text-[13.5px] text-dim sm:block">{meta.subtitle}</p>
 
       <div className="ml-auto flex items-center gap-2.5">
+        {/* Before the workspace switcher: time is read far more often than it is interacted with,
+            and it reads better next to the content than wedged between two controls. */}
+        <Clock />
         <WorkspaceSwitcher />
         {(view === 'dashboard' || view === 'fim') && range && <RangePicker range={range} />}
         <button
