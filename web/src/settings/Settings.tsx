@@ -91,7 +91,13 @@ function AssistantPersonaPanel() {
             className="w-full rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[12.5px] text-fg placeholder:text-dim focus:border-accent focus:outline-none disabled:opacity-60"
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-[12px] text-dim">{draft.length} / {cfg.max_len}</span>
+            {/* The cost is worth stating where the typing happens: the persona is prepended to
+                every single message, so on a slow local model a long one is paid for on every
+                answer, not once. */}
+            <span className="text-[12px] text-dim">
+              {draft.length} / {cfg.max_len}
+              {draft.length > 6000 ? ' · long personas slow every answer on a local model' : ''}
+            </span>
             {editable ? (
               <>
                 <button

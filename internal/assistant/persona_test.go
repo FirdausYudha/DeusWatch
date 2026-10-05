@@ -9,7 +9,7 @@ import (
 // built-in default ever outgrows that cap, loading it silently cuts the tail off, and the tail is
 // where the prompt-injection boundary lives. The constant is duplicated rather than imported to
 // keep this package free of a store dependency; the comment on store.MaxPersonaLen points back.
-const maxPersonaLen = 8000
+const maxPersonaLen = 10000
 
 func TestDefaultPersonaFitsTheEditor(t *testing.T) {
 	if n := len(DefaultPersona); n >= maxPersonaLen {

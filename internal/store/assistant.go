@@ -18,7 +18,12 @@ import (
 // offers "Load the default to edit" and the editor truncates at this length. A cap below the
 // default would silently cut the tail off whatever the operator loaded, and the tail is where the
 // prompt-injection boundary lives. Raise this before growing assistant.DefaultPersona, never after.
-const MaxPersonaLen = 8000
+//
+// Raised from 8000 when a written persona reached 8312 characters. Truncating it would have removed
+// its closing section, which is exactly where the injection boundary sits, and done so without
+// telling anyone: the quiet failure is worse than the extra tokens. The tokens are not free though,
+// since the persona rides in every single message, and the Settings panel says so next to the box.
+const MaxPersonaLen = 10000
 
 // AssistantConfig is the operator-editable part of the assistant (ADR 0003, phase 4).
 type AssistantConfig struct {
