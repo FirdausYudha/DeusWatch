@@ -1,0 +1,20 @@
+# Microsoft SQL Server failed login (ERRORLOG, or the Windows Application log where the same text
+# appears as event 18456).
+#
+# Lines this matches:
+#   2026-10-07 10:00:00.12 Logon       Login failed for user 'sa'. Reason: Password did not match that for the login provided. [CLIENT: 203.0.113.9]
+#   2026-10-07 10:00:00.12 Logon       Login failed for user 'app'. Reason: Could not find a login matching the name provided. [CLIENT: <local machine>]
+#
+# SQL Server logs failed logins only when the audit level includes them, which on a default install
+# it does:
+#
+#   Server Properties -> Security -> Login auditing -> Failed logins only
+#
+# The CLIENT part is optional because a local connection prints "<local machine>" there instead of
+# an address.
+name: mssql-login-failed
+dataset: mssql
+category: authentication
+outcome: failure
+level: low
+regex: "Login failed for user '(?P<user_name>[^']*)'(?:.*?\\[CLIENT: (?P<source_ip>\\d{1,3}(?:\\.\\d{1,3}){3})\\])?"

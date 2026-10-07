@@ -1,0 +1,20 @@
+# ClickHouse authentication failure (clickhouse-server.err.log / clickhouse-server.log).
+#
+# Lines this matches:
+#   2026.10.07 10:00:00.123456 [ 1234 ] {} <Error> TCPHandler: Code: 516. DB::Exception: admin: Authentication failed: password is incorrect, or there is no user with such name. (AUTHENTICATION_FAILED)
+#   2026.10.07 10:00:00.123456 [ 1234 ] {} <Error> TCPHandler: Code: 516. DB::Exception: admin: Authentication failed: password is incorrect. (AUTHENTICATION_FAILED), while receiving query from 203.0.113.9:9000
+#
+# The address is optional because ClickHouse usually does not put it on the exception line: it is
+# on the preceding "Connected ClickHouse client ... from <addr>" line at Debug level, and a decoder
+# sees one line at a time. So on a default install this feeds auth_fail_by_user (count by
+# user.name) but not auth_fail_by_ip, and there is nothing for a ban to act on.
+#
+# If you need the address, the real source is the system.session_log table, which records
+# type = 'LoginFailure' with the client address. That is a query, not a log line, and it is
+# therefore out of scope for a decoder.
+name: clickhouse-auth-failure
+dataset: clickhouse
+category: authentication
+outcome: failure
+level: low
+regex: 'DB::Exception: (?P<user_name>[^:]*): Authentication failed(?:.*?from (?P<source_ip>\d{1,3}(?:\.\d{1,3}){3}):\d+)?'

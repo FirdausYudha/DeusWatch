@@ -1,0 +1,16 @@
+# MongoDB authentication failure (structured JSON log, MongoDB 4.4 and later).
+#
+# Lines this matches:
+#   {"t":{"$date":"2026-10-07T10:00:00.123+00:00"},"s":"I","c":"ACCESS","id":20249,"ctx":"conn12","msg":"Authentication failed","attr":{"mechanism":"SCRAM-SHA-256","principalName":"admin","authenticationDatabase":"admin","remote":"203.0.113.9:43210","error":"AuthenticationFailed: SCRAM authentication failed"}}
+#
+# Both captures are optional and the match anchors on the message alone, so a field order or a
+# field set that differs between MongoDB versions degrades to a categorised event rather than to no
+# event at all. This is the one engine here whose own log carries the client address by default.
+#
+# MongoDB 4.2 and earlier wrote an unstructured line instead and this will not match it.
+name: mongodb-auth-failure
+dataset: mongodb
+category: authentication
+outcome: failure
+level: low
+regex: '"msg":"Authentication failed"(?:.*?"principalName":"(?P<user_name>[^"]*)")?(?:.*?"remote":"(?P<source_ip>\d{1,3}(?:\.\d{1,3}){3}))?'

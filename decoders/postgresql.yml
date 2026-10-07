@@ -1,0 +1,30 @@
+# PostgreSQL authentication failure.
+#
+# Turns a failed Postgres login into category=authentication + outcome=failure, which is what the
+# existing brute-force aggregations (rules/sigma/agg/auth_fail_by_ip.yml and auth_fail_by_user.yml)
+# already count. No new rule is needed: those rules select on the category, not on the dataset.
+#
+# READ THIS OR YOU GET NO IP. Postgres does not put the client address on the FATAL line unless
+# log_line_prefix includes %h. With the Debian/Ubuntu default prefix you get the user but no
+# address, so auth_fail_by_user fires and auth_fail_by_ip never does, and nothing can be banned.
+# In postgresql.conf:
+#
+#   log_line_prefix = '%m [%p] %q%u@%d %h '
+#   log_connections = on
+#
+# The one message that carries the address regardless of prefix is the pg_hba.conf rejection, which
+# is why it is matched separately below.
+#
+# Lines this matches:
+#   2026-10-07 10:00:00.123 UTC [12345] postgres@app 203.0.113.9 FATAL:  password authentication failed for user "postgres"
+#   2026-10-07 10:00:00.123 UTC [12345] FATAL:  no pg_hba.conf entry for host "203.0.113.9", user "admin", database "app", SSL off
+#   2026-10-07 10:00:00.123 UTC [12345] 203.0.113.9 FATAL:  role "nosuchuser" does not exist
+#
+# The third is username enumeration rather than a wrong password, and it counts as a failure on
+# purpose: a scanner walking role names is the same event an operator wants to see.
+name: postgresql-auth-failure
+dataset: postgresql
+category: authentication
+outcome: failure
+level: low
+regex: 'FATAL:\s+no pg_hba\.conf entry for host "(?P<source_ip>\d{1,3}(?:\.\d{1,3}){3})", user "(?P<user_name>[^"]*)"|(?:(?P<source_ip>\d{1,3}(?:\.\d{1,3}){3})\s+)?FATAL:\s+(?:\S+\s+)?authentication failed for user "(?P<user_name>[^"]*)"|(?:(?P<source_ip>\d{1,3}(?:\.\d{1,3}){3})\s+)?FATAL:\s+role "(?P<user_name>[^"]*)" does not exist'

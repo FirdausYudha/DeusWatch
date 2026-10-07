@@ -1,0 +1,19 @@
+# MariaDB authentication failure (error log).
+#
+# Same message as MySQL, separate file because the agent source carries its own dataset name and a
+# decoder only runs against lines from the dataset it is indexed under.
+#
+# Lines this matches:
+#   2026-10-07 10:00:00 12 [Warning] Access denied for user 'root'@'203.0.113.9' (using password: YES)
+#
+# MariaDB needs failed connections turned on, which is off by default:
+#
+#   log_warnings = 2
+#
+# The host is captured only when it is an IPv4 address; see mysql.yml for why.
+name: mariadb-access-denied
+dataset: mariadb
+category: authentication
+outcome: failure
+level: low
+regex: "Access denied for user '(?P<user_name>[^']*)'@'(?:(?P<source_ip>\\d{1,3}(?:\\.\\d{1,3}){3})|[^']*)'"
