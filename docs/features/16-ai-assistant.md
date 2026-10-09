@@ -69,8 +69,9 @@ sent.
 This is the part that decides whether the assistant is usable, and it is easy to find out before
 committing to it.
 
-The system prompt is **about 2200 tokens**, or 4800 in the worst case when a setup guide, the
-product primer and a baseline comparison all arrive at once. The model has to read all of it before
+The system prompt is **about 4300 tokens** with the Mia persona selected, or 6400 in the worst
+case when a setup guide, the product primer and a baseline comparison all arrive at once. Roughly
+half of that is the persona, which is yours to spend: the framework around it is 2250 tokens. The model has to read all of it before
 writing a single word. So the number that matters is not RAM, it is **throughput**, and you can
 measure it in one command:
 
@@ -415,8 +416,8 @@ Almost always the model, not the prompt. The tell:
 | It forgets the persona halfway through a long chat | The prompt no longer fits. See the context-size note below. |
 | It loses the persona right after you switch models, but still answers about the data | Same cause. The new model has the default context window, and truncation eats the prompt head first. |
 
-**Slow answers, or "context deadline exceeded".** The system prompt is about 3400 tokens, and
-6000 when a setup or rule-authoring guide is attached. A local 8B model on CPU reads a prompt at
+**Slow answers, or "context deadline exceeded".** The system prompt is about 4300 tokens, and
+6400 when a setup or rule-authoring guide is attached. A local 8B model on CPU reads a prompt at
 tens of tokens a second, so it can spend over a minute before producing its first word, and longer
 still if the model has to be paged in from disk first. The per-call budget is `LLM_TIMEOUT`,
 defaulting to 5 minutes.
@@ -424,7 +425,7 @@ defaulting to 5 minutes.
 Two things make it faster rather than merely more patient. The stable parts of the prompt (persona,
 navigation map, guides) come first and the volatile parts (clock, agents, rules, figures) last, so
 the model server can reuse the cached state of the shared prefix instead of re-reading everything;
-about 79% of the prompt is identical between messages. And the clock sent from the browser is
+about 66% of the prompt is identical between messages. And the clock sent from the browser is
 rounded to the hour, because a value changing every second would invalidate that cache on every
 message. A test fails if either property is lost.
 
@@ -444,6 +445,14 @@ docker run -d --name ollama --restart unless-stopped --network deuswatch_default
 16384 covers the base prompt, a setup or rule-authoring guide, and a long conversation. The
 per-message budget is asserted by `internal/assistant/budget_test.go`; divide those character
 ceilings by four for tokens.
+
+**The persona is measured separately there, and it is worth knowing why.** A persona replaces the
+built-in one wholesale, so it is the one part of the prompt DeusWatch does not control: the default
+is about 5.5k characters and the shipped Mia persona is 8.3k. A budget measured on the default was
+describing a deployment almost nobody runs. So the framework ceiling covers what the project ships
+and is what a new block spends, and a separate test checks that the framework still leaves room for
+a persona at the full `store.MaxPersonaLen` inside this 16384-token window. Write a long character
+if you want one; that headroom is yours.
 
 Older Ollama builds predate that variable. There the window is a per-model property and has to be
 baked in:
