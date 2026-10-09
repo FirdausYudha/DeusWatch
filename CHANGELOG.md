@@ -29,6 +29,10 @@ A provider that is not Ollama has neither endpoint, so nothing is reported and n
 about. The silence is deliberate: a false alarm would send an operator to change a setting that was
 already correct.
 
+The prompt is converted to tokens at 3.5 characters each rather than the usual 4, measured against
+a live server that logged `task.n_tokens = 5137` for a prompt the 4:1 rule put at 4472. The error
+matters in one direction only: understating it means the warning fires late or never.
+
 **Operator note.** A derived model carries its own `num_ctx` and a baked parameter beats the server
 default, so `OLLAMA_CONTEXT_LENGTH=16384` on the container does **not** lift a `deuswatch-llama`
 built with 8192. Set the variable and point **Model** at a base model such as `llama3.1:8b`, which

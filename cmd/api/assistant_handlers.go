@@ -134,10 +134,14 @@ func assistantStatusHandler(st *store.Store) http.HandlerFunc {
 				out["context_trained_max"] = win.TrainedMax
 			}
 		}
-		// Four characters to a token is the usual ratio for this prompt, which is English prose
-		// plus addresses. Close enough to decide whether something is twice the size it may be.
+		// 3.5 characters to a token, not the usual 4. Measured, not assumed: a live deployment
+		// reported task.n_tokens = 5137 for a prompt the 4:1 rule put at about 4500. This prompt is
+		// denser than ordinary prose, full of addresses, rule names and menu paths, which tokenise
+		// badly. The error matters in one direction only. Underestimating means the warning fires
+		// late or not at all, and a check that stays quiet while the persona is being truncated is
+		// the exact failure this was built to end.
 		if n := lastPromptChars.Load(); n > 0 {
-			tokens := int(n / 4)
+			tokens := int(n * 2 / 7)
 			out["prompt_tokens"] = tokens
 			if fits, detail := win.Fits(tokens); !fits {
 				out["context_warning"] = detail

@@ -512,6 +512,16 @@ A provider that is not Ollama has neither endpoint, so nothing is reported and n
 about. That silence is deliberate: a false alarm would send an operator to change a setting that
 was already correct, and their service does not truncate silently anyway.
 
+The prompt is converted to tokens at **3.5 characters each**, not the usual 4. That is measured, not
+assumed: a live server logged `task.n_tokens = 5137` for a prompt the 4:1 rule put at 4472. This
+prompt is denser than ordinary prose, full of addresses, rule names, menu paths and hex hashes, all
+of which tokenise badly. The error only matters in one direction, since understating the count
+means the warning fires late or never.
+
+While reading those logs, note `n_keep`. It is the number of leading tokens the runtime preserves
+when it shifts context, and on a default setup it is **4**. So there is no graceful degradation
+here: once the window fills, everything after the first four tokens of the persona is gone at once.
+
 ### Checking what is actually in force
 
 Guessing has cost two rounds of this already, and neither produced an error anywhere. Three
