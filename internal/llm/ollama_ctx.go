@@ -115,23 +115,27 @@ func DetectWindow(ctx context.Context, baseURL, model string) (Window, error) {
 	return w, nil
 }
 
-// Fits reports whether a prompt of promptTokens leaves usable room for the conversation and the
-// reply, and says plainly what to do when it does not.
+// Fits reports whether a request of requestTokens (system prompt plus conversation plus the
+// operator's message) leaves usable room for the reply, and says plainly what to do when it does
+// not.
 //
-// headroom is the share of the window the system prompt may claim. Three quarters leaves the rest
-// for the exchange, which matters because the history grows while the window does not.
-func (w Window) Fits(promptTokens int) (ok bool, detail string) {
-	if w.Tokens == 0 || promptTokens <= 0 {
+// Three quarters is the line. The last quarter is the reply, and the margin matters because the
+// conversation grows while the window does not: a live server reported 5137 tokens on a fresh
+// thread and 6331 a few turns later with an identical system prompt. Warning only once the window
+// is already full would be warning after the persona had gone.
+func (w Window) Fits(requestTokens int) (ok bool, detail string) {
+	if w.Tokens == 0 || requestTokens <= 0 {
 		return true, "" // unknown: say nothing rather than warn wrongly
 	}
 	budget := w.Tokens * 3 / 4
-	if promptTokens <= budget {
+	if requestTokens <= budget {
 		return true, ""
 	}
-	d := fmt.Sprintf("The system prompt is about %d tokens and this model runs with a %d-token "+
+	d := fmt.Sprintf("This conversation is about %d tokens and this model runs with a %d-token "+
 		"context, so Ollama will drop the oldest tokens to make it fit. The persona sits first in "+
 		"the prompt, so it goes first: answers stay correct about the data while the character "+
-		"disappears, and nothing is logged.", promptTokens, w.Tokens)
+		"disappears, and nothing is logged. Clearing the conversation frees the room the history "+
+		"is taking.", requestTokens, w.Tokens)
 	if w.TrainedMax > w.Tokens {
 		d += fmt.Sprintf(" This model supports up to %d, so the limit is configuration, not the "+
 			"model. Recreate the Ollama container with OLLAMA_CONTEXT_LENGTH=16384, and point "+

@@ -133,14 +133,25 @@ func TestFits(t *testing.T) {
 	if ok {
 		t.Fatal("4472 tokens in a 4096 window must warn")
 	}
-	for _, want := range []string{"4472", "4096", "persona", "131072", "OLLAMA_CONTEXT_LENGTH"} {
+	for _, want := range []string{"4472", "4096", "persona", "131072", "OLLAMA_CONTEXT_LENGTH", "Clearing the conversation"} {
 		if !strings.Contains(detail, want) {
 			t.Errorf("the warning should mention %q so it can be acted on:\n%s", want, detail)
 		}
 	}
-	// Three quarters is the line: the rest of the window belongs to the conversation.
+	// Three quarters is the line: the rest of the window belongs to the reply.
 	if ok, _ := (Window{Tokens: 8192}).Fits(6500); ok {
-		t.Error("a prompt claiming most of the window leaves no room for the exchange")
+		t.Error("a request claiming most of the window leaves no room for the reply")
+	}
+	// The measurements from a live 16384 server: comfortable on a fresh thread, and still
+	// comfortable a few turns in. Neither should warn, or the check cries wolf on a healthy setup.
+	for _, tok := range []int{5137, 6331} {
+		if ok, d := (Window{Tokens: 16384}).Fits(tok); !ok {
+			t.Errorf("%d tokens in a 16384 window must not warn: %s", tok, d)
+		}
+	}
+	// The same conversation against the window it had before the fix.
+	if ok, _ := (Window{Tokens: 8192}).Fits(6331); ok {
+		t.Error("6331 tokens in an 8192 window must warn: that is the state the operator was in")
 	}
 }
 

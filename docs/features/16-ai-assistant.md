@@ -518,6 +518,13 @@ prompt is denser than ordinary prose, full of addresses, rule names, menu paths 
 of which tokenise badly. The error only matters in one direction, since understating the count
 means the warning fires late or never.
 
+What is compared against the window is the **whole request**, system prompt plus conversation plus
+the message, not the system prompt alone. The system prompt is fixed in size and the history is not,
+so the history is what eventually overflows: the same server reported 5137 tokens on a fresh thread
+and 6331 a few turns later with an identical system prompt. Measuring only the fixed half would give
+a check that goes quiet exactly as the conversation grows into the failure it is watching for. When
+it does fire, clearing the conversation is the fastest way to free the room back.
+
 While reading those logs, note `n_keep`. It is the number of leading tokens the runtime preserves
 when it shifts context, and on a default setup it is **4**. So there is no graceful degradation
 here: once the window fills, everything after the first four tokens of the persona is gone at once.

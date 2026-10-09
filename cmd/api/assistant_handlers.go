@@ -101,14 +101,15 @@ func resolveAssistantAnalyzer(ctx context.Context, st *store.Store) (llm.Analyze
 	return nil, false
 }
 
-// lastPromptChars is the size of the most recent system prompt actually sent. Written by the chat
-// handler, read by the status handler to check it against the model's context window.
+// lastRequestChars is the size of the most recent request sent to the model: system prompt plus
+// conversation plus the operator's message. Written by the chat handler, read by the status handler
+// to check it against the model's context window.
 //
-// Deliberately not persisted and not per-tenant: it answers "is this deployment's prompt too big
-// for this deployment's model", which is a property of the configuration, not of a conversation. A
-// zero means nothing has been sent since the process started, and the status says so rather than
-// guessing a number.
-var lastPromptChars atomic.Int64
+// Deliberately not persisted and not per-tenant: it answers "is this deployment outgrowing this
+// deployment's model", which is a property of the configuration plus how long people chat, not of
+// any one conversation. A zero means nothing has been sent since the process started, and the
+// status says so rather than guessing a number.
+var lastRequestChars atomic.Int64
 
 // assistantStatusHandler tells the UI whether to render the assistant at all, so a deployment that
 // has not enabled it shows no dead button. It also reports the model's context window against the
@@ -140,7 +141,7 @@ func assistantStatusHandler(st *store.Store) http.HandlerFunc {
 		// badly. The error matters in one direction only. Underestimating means the warning fires
 		// late or not at all, and a check that stays quiet while the persona is being truncated is
 		// the exact failure this was built to end.
-		if n := lastPromptChars.Load(); n > 0 {
+		if n := lastRequestChars.Load(); n > 0 {
 			tokens := int(n * 2 / 7)
 			out["prompt_tokens"] = tokens
 			if fits, detail := win.Fits(tokens); !fits {
@@ -491,10 +492,20 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 		})
 
 		// Recorded so the status endpoint can compare it against the model's real context window.
-		// The measurement is the prompt actually sent, not an estimate rebuilt from parts: the
-		// blocks above vary with the window, the operator's permissions and which guides the gates
-		// let through, so anything reconstructed later would be a different number.
-		lastPromptChars.Store(int64(len(sys)))
+		// The measurement is what was actually sent, not an estimate rebuilt from parts: the blocks
+		// above vary with the window, the operator's permissions and which guides the gates let
+		// through, so anything reconstructed later would be a different number.
+		//
+		// The WHOLE request, not just the system prompt. The system prompt is fixed in size and the
+		// history is not, so the history is what eventually overflows the window: a live server
+		// reported 5137 tokens on a fresh conversation and 6331 a few turns later with the same
+		// system prompt. Measuring only the fixed half would have meant a check that never fires
+		// precisely as the conversation grows into the failure it is watching for.
+		total := len(sys) + len(req.Message)
+		for _, t := range req.History {
+			total += len(t.Content)
+		}
+		lastRequestChars.Store(int64(total))
 
 		ctx, cancel := context.WithTimeout(r.Context(), llm.Timeout())
 		defer cancel()
