@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"deuswatch/internal/integrations"
 )
@@ -60,9 +61,15 @@ func IntegrationsGuide() string {
 }
 
 // clip shortens at a word boundary so a truncated hint does not end mid-token and read as a value.
+//
+// n counts bytes, and the cut is pulled back to a rune boundary first. A persona voice line may end
+// in emoji, and slicing one of those in half emits invalid UTF-8 into the prompt.
 func clip(s string, n int) string {
 	if len(s) <= n {
 		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
 	}
 	cut := s[:n]
 	if i := strings.LastIndexAny(cut, " ,;"); i > n/2 {

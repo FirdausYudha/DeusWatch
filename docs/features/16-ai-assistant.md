@@ -415,6 +415,8 @@ Almost always the model, not the prompt. The tell:
 | It answers in English when you wrote Indonesian | Same cause, and the most harmless version of it. |
 | It forgets the persona halfway through a long chat | The prompt no longer fits. See the context-size note below. |
 | It loses the persona right after you switch models, but still answers about the data | Same cause. The new model has the default context window, and truncation eats the prompt head first. |
+| It stays polite and fluent but the character is gone | Not truncation. The closing anchor repeated the role instead of the voice, fixed in v2.44.2. A custom persona needs a `VOICE:` line. |
+| It answers a question about the weather, the news or anything outside DeusWatch | It has none of that and used to make it up. Fixed in v2.44.2: the capability map now says so explicitly. |
 
 **Slow answers, or "context deadline exceeded".** The system prompt is about 4300 tokens, and
 6400 when a setup or rule-authoring guide is attached. A local 8B model on CPU reads a prompt at
@@ -569,6 +571,23 @@ They ship rather than being left to be written because a persona replaces the bu
 wholesale: whoever writes a replacement has to carry over the grounding rules, the capability limits
 and the instruction that the security context is data rather than orders. Forgetting the last one is
 silent. A test fails if any shipped persona stops carrying all six.
+
+### Give it a VOICE: line
+
+Start a line with `VOICE:` and the rest of it is repeated at the very end of the prompt, right
+before the model generates. That is one of the two positions a small model reliably keeps, and it is
+the position that decides whether the character survives the few thousand characters of reference
+data in between.
+
+Put the **tells** there, not the title. Without a `VOICE:` line the anchor falls back to the
+persona's opening sentence, which states the role, and a role is not what fades: anchoring Mia on
+"you are Mia, a catgirl working the quiet shift in a SOC" repeated something a 4B model had no
+trouble remembering, while the stammer and the emoji that make her recognisable were never mentioned
+at that position at all. The replies came back warm, fluent and completely generic, which reads
+exactly like the persona being ignored.
+
+Keep it under about 200 characters so it is not clipped. It rides on every message, and the half
+that gets cut is usually the "never do this" half.
 
 **Settings → AI assistant persona** (needs `manage_settings`; anyone who can use the assistant can
 read it). The panel only appears once the assistant is enabled. There is also a **pencil in the chat

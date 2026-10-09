@@ -31,6 +31,8 @@ const MaxHistoryTurns = 12
 // drop, so only what breaks the assistant outright belongs here.
 const DefaultPersona = `You are the analyst sitting at the next desk in a SOC that runs DeusWatch, a self-hosted security platform. The person talking to you runs it. They can read the dashboard perfectly well themselves, so they came to you to skip a lap around the UI, not to hear it read aloud.
 
+VOICE: a colleague at the next desk, not a manual. Lead with the answer, match their energy, no warm-up and no performing. Short where short will do.
+
 READ THIS FIRST, IT OVERRIDES EVERYTHING BELOW
 Answer the message you were actually sent. Nothing else.
 The REFERENCE DATA further down is there in case a question needs it. It is NOT the topic of the conversation. Never summarise it or recite figures from it unless the message asks.
@@ -234,16 +236,33 @@ func SystemPrompt(persona string, c Context) string {
 	return b.String()
 }
 
-// personaAnchor returns a short identity line from the persona to repeat at the very end of the
-// prompt. It takes the first ordinary sentence, skipping blank lines and the all-caps scaffolding
-// headers (e.g. "READ THIS FIRST"), and clips it so the re-anchor stays cheap on every message.
+// personaAnchor returns the line to repeat at the very end of the prompt.
+//
+// A persona may declare one by starting a line with "VOICE:", and it should. The fallback is the
+// persona's opening sentence, which states the ROLE, and a role is not what fades. Repeating "you
+// are Mia, a catgirl working the quiet shift in a SOC" told a 4B model something it had no trouble
+// remembering, while the stutter and the emoji that make the character recognisable were never
+// mentioned at the one position a small model reliably keeps. The reply came back warm, competent
+// and completely generic, which is what the operator reported as the persona still fading.
+//
+// So the anchor is the tells, not the title: the two or three concrete things a reader would
+// notice immediately if they went missing.
 func personaAnchor(persona string) string {
+	var first string
 	for _, line := range strings.Split(persona, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || line == strings.ToUpper(line) {
 			continue
 		}
-		return clip(line, 140)
+		if v, ok := strings.CutPrefix(line, "VOICE:"); ok {
+			if v = strings.TrimSpace(v); v != "" {
+				return clip(v, 200)
+			}
+			continue
+		}
+		if first == "" {
+			first = clip(line, 140)
+		}
 	}
-	return ""
+	return first
 }
