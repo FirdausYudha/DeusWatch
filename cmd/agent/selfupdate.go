@@ -99,6 +99,8 @@ func performSelfUpdate(ctx context.Context, shipper *agent.Shipper, directive *a
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close tmp: %w", err)
 	}
+	// #nosec G302 -- this is the agent binary about to replace the running one. It has to be
+	// executable, and 0600 would brick the update.
 	if err := os.Chmod(tmpPath, 0o755); err != nil {
 		return fmt.Errorf("chmod tmp: %w", err)
 	}

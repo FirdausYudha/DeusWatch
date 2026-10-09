@@ -73,9 +73,9 @@ var scaSkipDirs = map[string]bool{
 }
 
 const (
-	scaMaxFileSize = 2 << 20  // skip a manifest larger than 2 MiB (a real lockfile is far smaller)
-	scaMaxFiles    = 300      // cap total manifests shipped, so a huge dev box can't flood a report
-	scaMaxDepth    = 8        // how deep below a root to descend
+	scaMaxFileSize = 2 << 20 // skip a manifest larger than 2 MiB (a real lockfile is far smaller)
+	scaMaxFiles    = 300     // cap total manifests shipped, so a huge dev box can't flood a report
+	scaMaxDepth    = 8       // how deep below a root to descend
 )
 
 // collectManifests walks a bounded set of roots for language dependency files and returns their
@@ -109,10 +109,20 @@ func collectManifests(roots []string) []Manifest {
 			if !scaManifestNames[d.Name()] {
 				return nil
 			}
+			// Regular files only. WalkDir does not follow symlinks when traversing, but os.ReadFile
+			// below follows one at the final path element, and this walk covers directories any
+			// local user can write to. A symlink named package-lock.json pointing at /etc/shadow
+			// would otherwise be read by an agent running as root and shipped to the manager.
+			if !d.Type().IsRegular() {
+				return nil
+			}
 			info, ierr := d.Info()
 			if ierr != nil || info.Size() == 0 || info.Size() > scaMaxFileSize {
 				return nil
 			}
+			// #nosec G122 -- the symlink the rule warns about is rejected by the IsRegular check
+			// above, which is the actual mitigation; os.Root cannot be used while the walk root is
+			// operator-configured and may cross filesystems.
 			b, rerr := os.ReadFile(path)
 			if rerr != nil {
 				return nil

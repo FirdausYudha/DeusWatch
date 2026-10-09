@@ -211,6 +211,8 @@ func serveHealth(ctx context.Context, st *store.Store, b *bus.Bus) {
 		_, _ = w.Write([]byte("ready"))
 	})
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	// #nosec G118 -- Background is required here: this goroutine runs BECAUSE ctx was cancelled,
+	// so deriving the shutdown deadline from it would abort the drain instantly.
 	go func() {
 		<-ctx.Done()
 		sc, cancel := context.WithTimeout(context.Background(), 3*time.Second)

@@ -182,6 +182,8 @@ func NewMikrotikResponder(baseURL, user, pass, list string, insecure bool) *Mikr
 	}
 	hc := &http.Client{Timeout: 8 * time.Second}
 	if insecure {
+		// #nosec G402 -- opt-in only: RouterOS ships a self-signed certificate, and the operator
+		// turns this on per integration. Default is verification on.
 		hc.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
 	return &MikrotikResponder{baseURL: baseURL, user: user, pass: pass, list: list, hc: hc}

@@ -84,26 +84,46 @@ func ClientConfig(p CertPaths) (*tls.Config, error) {
 		return nil, err
 	}
 	return &tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            pool,
-		MinVersion:         tls.VersionTLS13,
-		InsecureSkipVerify: true, // we run our own chain check below (no hostname check)
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+		MinVersion:   tls.VersionTLS13,
+		// #nosec G402 -- not unverified: the chain is checked against our private CA in both
+		// callbacks below. Only the hostname check is skipped, deliberately.
+		InsecureSkipVerify: true,
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			if len(rawCerts) == 0 {
 				return fmt.Errorf("mtls: server presented no certificate")
 			}
-			leaf, err := x509.ParseCertificate(rawCerts[0])
-			if err != nil {
-				return fmt.Errorf("mtls: parse server certificate: %w", err)
-			}
-			inter := x509.NewCertPool()
-			for _, raw := range rawCerts[1:] {
-				if c, err := x509.ParseCertificate(raw); err == nil {
-					inter.AddCert(c)
+			certs := make([]*x509.Certificate, 0, len(rawCerts))
+			for _, raw := range rawCerts {
+				c, err := x509.ParseCertificate(raw)
+				if err != nil {
+					return fmt.Errorf("mtls: parse server certificate: %w", err)
 				}
+				certs = append(certs, c)
 			}
-			_, err = leaf.Verify(x509.VerifyOptions{Roots: pool, Intermediates: inter})
-			return err
+			return verifyChain(certs, pool)
+		},
+		// VerifyConnection as well, and this is not belt-and-braces. A resumed TLS session sends
+		// no certificate message, so VerifyPeerCertificate above is never called for it and the
+		// chain check is silently skipped. VerifyConnection runs on every handshake, resumed
+		// included, with the peer chain from the resumed state.
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			if len(cs.PeerCertificates) == 0 {
+				return fmt.Errorf("mtls: server presented no certificate")
+			}
+			return verifyChain(cs.PeerCertificates, pool)
 		},
 	}, nil
+}
+
+// verifyChain checks a server chain against our own CA only. The hostname is deliberately not
+// checked: trust here comes from the per-deployment CA, not from which IP the agent dialled.
+func verifyChain(certs []*x509.Certificate, pool *x509.CertPool) error {
+	inter := x509.NewCertPool()
+	for _, c := range certs[1:] {
+		inter.AddCert(c)
+	}
+	_, err := certs[0].Verify(x509.VerifyOptions{Roots: pool, Intermediates: inter})
+	return err
 }

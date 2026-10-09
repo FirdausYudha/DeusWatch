@@ -139,7 +139,10 @@ func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
 	// a connection and the worker looks dead. Give it real headroom (override with DB_MAX_CONNS).
 	cfg.MaxConns = 30
 	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+		// ParseInt with bitSize 32, not Atoi: int is 64-bit here, so DB_MAX_CONNS=2147483648
+		// would wrap to a negative int32 and the pool would then refuse every connection, with a
+		// typo as the cause and nothing in the message saying so. ParseInt rejects it instead.
+		if n, err := strconv.ParseInt(v, 10, 32); err == nil && n > 0 {
 			cfg.MaxConns = int32(n)
 		}
 	}

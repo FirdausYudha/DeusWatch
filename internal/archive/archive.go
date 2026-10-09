@@ -121,6 +121,8 @@ func (a *Archiver) appendFrame(path string, raw []byte) error {
 		return err
 	}
 	frame := a.enc.EncodeAll(raw, nil) // one self-contained zstd frame
+	// #nosec G302 -- archived events are readable by the operator tooling that ships them off
+	// the box; the directory above is what restricts access.
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
@@ -140,6 +142,8 @@ func (a *Archiver) sweep() {
 		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".log.zst") {
 			return nil
 		}
+		// #nosec G122 -- the walk root is the archive directory this service owns and writes, and
+		// os.Remove unlinks a symlink itself rather than following it to a target.
 		if fi, e := d.Info(); e == nil && fi.ModTime().Before(cutoff) {
 			_ = os.Remove(p)
 		}

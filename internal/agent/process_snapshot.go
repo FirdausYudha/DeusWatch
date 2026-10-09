@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -20,7 +20,7 @@ type ProcessSnapshot struct {
 	Path      string    `json:"path"` // full path to executable
 	StartTime time.Time `json:"start_time"`
 	MemoryMB  uint64    `json:"memory_mb"`
-	FileHash  string    `json:"file_hash"` // MD5 of executable
+	FileHash  string    `json:"file_hash"` // SHA-256 of executable, "" when unavailable
 }
 
 // ProcessSnapshotBatch is a collection of process snapshots from one agent at a point in time.
@@ -32,10 +32,10 @@ type ProcessSnapshotBatch struct {
 // hashFileCache stores computed hashes to avoid re-hashing the same file.
 var (
 	hashCacheMu sync.RWMutex
-	hashCache   = make(map[string]string) // path -> MD5 hash
+	hashCache   = make(map[string]string) // path -> SHA-256 hash
 )
 
-// getOrComputeHash returns the MD5 hash of a file, using cache to avoid repeated work.
+// getOrComputeHash returns the SHA-256 hash of a file, using cache to avoid repeated work.
 func getOrComputeHash(path string) string {
 	hashCacheMu.RLock()
 	if cached, ok := hashCache[path]; ok {
@@ -56,7 +56,12 @@ func getOrComputeHash(path string) string {
 	return hash
 }
 
-// computeFileHash computes MD5 hash of file at path. Returns empty string on error.
+// computeFileHash computes the SHA-256 of the file at path.
+//
+// SHA-256, not MD5: this digest is sent to VirusTotal and is the identity a malicious binary
+// would want to forge, and it is also the key the rest of DeusWatch stores hashes under
+// (file_hash_reputation.sha256, FIM sightings), so an MD5 here could never be cross-referenced
+// with either.
 func computeFileHash(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -64,13 +69,23 @@ func computeFileHash(path string) (string, error) {
 	}
 	defer f.Close()
 
-	hasher := md5.New()
-	// Limit read to avoid huge files (just hash first 32MB)
-	_, err = io.CopyN(hasher, f, 32*1024*1024)
-	if err != nil && err != io.EOF {
-		return "", err
+	// Skipped, not truncated. The old code hashed the first 32MB and returned that as the file's
+	// hash: for anything larger it produced a digest belonging to no file at all, so every
+	// VirusTotal lookup missed while reading as an ordinary clean result. maxHashBytes is FIM's
+	// own cap, reused so the agent has one answer to "how big is too big to hash".
+	if fi, serr := f.Stat(); serr == nil {
+		if !fi.Mode().IsRegular() {
+			return "", fmt.Errorf("not a regular file")
+		}
+		if fi.Size() > maxHashBytes {
+			return "", fmt.Errorf("file too large to hash: %d bytes", fi.Size())
+		}
 	}
 
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, io.LimitReader(f, maxHashBytes)); err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 

@@ -97,6 +97,8 @@ func New(cfg Config, cursor []json.RawMessage) *Poller {
 	cfg.Address = strings.TrimRight(strings.TrimSpace(cfg.Address), "/")
 	hc := &http.Client{Timeout: 20 * time.Second}
 	if cfg.Insecure {
+		// #nosec G402 -- opt-in only: cfg.Insecure is set by the operator for an Elasticsearch
+		// behind a self-signed certificate. Default is verification on.
 		hc.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
 	return &Poller{cfg: cfg, hc: hc, cursor: cursor}
