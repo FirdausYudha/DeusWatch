@@ -37,7 +37,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          # Pinned to a patched release. govulncheck reports stdlib advisories against the toolchain
+          # that compiled the code, and '1.26' resolves to whatever setup-go has cached, which was
+          # 1.26.4 and carried seven net/http, net/textproto and crypto/tls advisories.
+          go-version: '1.26.9'
           cache: true
       # internal/malware links libyara through cgo (yara_scanner.go is //go:build cgo). The runner
       # defaults to CGO_ENABLED=1, so without the headers every step below fails at compile time,
@@ -63,10 +66,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          # Pinned to a patched release. govulncheck reports stdlib advisories against the toolchain
+          # that compiled the code, and '1.26' resolves to whatever setup-go has cached, which was
+          # 1.26.4 and carried seven net/http, net/textproto and crypto/tls advisories.
+          go-version: '1.26.9'
           cache: true
       - name: install libyara (cgo dependency of internal/malware)
         run: sudo apt-get update && sudo apt-get install -y libyara-dev
+      # Unpinned on purpose, unlike gosec: this one reports CVEs, and a stale scanner that misses a
+      # new advisory fails the wrong way round. A red build here is meant to be news.
       - name: install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - run: govulncheck ./...
@@ -78,18 +86,32 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          # Pinned to a patched release. govulncheck reports stdlib advisories against the toolchain
+          # that compiled the code, and '1.26' resolves to whatever setup-go has cached, which was
+          # 1.26.4 and carried seven net/http, net/textproto and crypto/tls advisories.
+          go-version: '1.26.9'
           cache: true
       - name: install libyara (cgo dependency of internal/malware)
         run: sudo apt-get update && sudo apt-get install -y libyara-dev
+      # Pinned, not @latest. An unpinned linter turns CI red on days nobody touched the code,
+      # because upstream shipped a new rule; a red build that nobody caused is a red build nobody
+      # reads. Bump this deliberately and fix what the new rules find in that same commit.
       - name: install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
         # Excluded because they are inherent to this tool's domain (not vulnerabilities):
         #   G204 run nft/cscli/Get-WinEvent       G304 open log/config files per input
         #   G301/G306 cert/buffer file perms      G706 log operational data
         #   G115 bounded int conversion (severity 0..4, etc.)
-        # gosec still guards: hardcoded credentials, SQLi, weak crypto, etc.
-      - run: gosec -exclude-dir=web -exclude=G204,G304,G306,G301,G706,G115 ./...
+        #   G703 path traversal: every site is a deployment path (GEOIP_DB_PATH, CERT_DIR) or a
+        #        path this code built itself. Same category as G304 above.
+        #   G704 SSRF: the flagged URLs come from env or an admin-configured integration, and
+        #        "POST to the webhook the administrator chose" is the feature, not a bypass.
+        #   G104 unhandled errors: best-effort Close and Write on paths that already failed.
+        # Deliberately NOT excluded, so the rule keeps working on new code: G402 InsecureSkipVerify,
+        # G302 file permissions, G118 context, G122 walk races. The few intended sites carry an
+        # inline `#nosec <rule> -- reason` instead.
+        # tools/ is developer utilities that take a path on the command line and never ship.
+      - run: gosec -exclude-dir=web -exclude-dir=tools -exclude=G204,G304,G306,G301,G706,G115,G703,G704,G104 ./...
 
   web:
     name: Web build & type-check
