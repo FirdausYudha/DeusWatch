@@ -460,4 +460,3 @@ func normalizeSeverity(s string) string {
 		return "unknown"
 	}
 }
-

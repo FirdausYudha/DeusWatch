@@ -251,9 +251,9 @@ func (s *Store) Revoke(ctx context.Context, id string) error {
 // DeleteResult reports what DeleteAgent did, so the UI can tell the operator whether the agent is
 // being uninstalled (valid agent) or was just removed from the list (already revoked).
 type DeleteResult struct {
-	Name         string `json:"name"`
-	WasRevoked   bool   `json:"was_revoked"`   // agent was already revoked → hard-deleted immediately
-	SelfUninstall bool  `json:"self_uninstall"` // valid agent → revoked+hidden, will uninstall on next contact
+	Name          string `json:"name"`
+	WasRevoked    bool   `json:"was_revoked"`    // agent was already revoked → hard-deleted immediately
+	SelfUninstall bool   `json:"self_uninstall"` // valid agent → revoked+hidden, will uninstall on next contact
 }
 
 // DeleteAgent removes an agent from the operator's list. The behaviour depends on the agent's state,
@@ -325,7 +325,6 @@ func purgeAgentTelemetry(ctx context.Context, tx pgx.Tx, name string) error {
 	}
 	return nil
 }
-
 
 // IsRevoked reports whether a presented client certificate (CN + serial) must be
 // rejected. Two ways to be dead: the agent row is revoked, or the certificate's

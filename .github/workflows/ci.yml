@@ -42,6 +42,19 @@ jobs:
           # 1.26.4 and carried seven net/http, net/textproto and crypto/tls advisories.
           go-version: '1.26.9'
           cache: true
+      # First, because it needs no toolchain setup beyond Go itself and a formatting complaint
+      # should not wait behind an apt-get and a compile. gofmt -l exits 0 even when it lists files,
+      # so the failure has to be raised here, and it names the files rather than just the exit code.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l ./cmd ./internal ./tools ./migrations ./packs)
+          if [ -n "$unformatted" ]; then
+            echo "Not gofmt'd:"
+            echo "$unformatted"
+            echo
+            echo "Fix with: gofmt -w $(echo $unformatted | tr '\n' ' ')"
+            exit 1
+          fi
       # internal/malware links libyara through cgo (yara_scanner.go is //go:build cgo). The runner
       # defaults to CGO_ENABLED=1, so without the headers every step below fails at compile time,
       # which is what had the whole job red. Setting CGO_ENABLED=0 would pick the nocgo stub and

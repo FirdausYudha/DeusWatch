@@ -125,7 +125,7 @@ func Supported(osID string) bool { return EcosystemPrefix(osID) != "" }
 // ── querybatch ──────────────────────────────────────────────────────────────────
 
 type batchQuery struct {
-	Package   struct {
+	Package struct {
 		PURL string `json:"purl"`
 	} `json:"package"`
 	PageToken string `json:"page_token,omitempty"`
