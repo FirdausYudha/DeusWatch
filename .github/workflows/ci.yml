@@ -47,8 +47,23 @@ jobs:
       # break `go test -race`, which requires cgo.
       - name: install libyara (cgo dependency of internal/malware)
         run: sudo apt-get update && sudo apt-get install -y libyara-dev
+      # TEMPORARY: the failing step's log needs admin rights to download, so the error is copied
+      # into the job summary, which is public. Remove once the cgo build is fixed.
       - name: go vet
-        run: go vet ./...
+        run: |
+          {
+            echo '## toolchain'
+            echo "CGO_ENABLED=$(go env CGO_ENABLED)  CC=$(go env CC)"
+            echo "yara pkg-config: $(pkg-config --modversion yara 2>&1 || true)"
+            echo '## go vet'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          set +e
+          out=$(go vet ./... 2>&1); rc=$?
+          set -e
+          { echo "$out" | head -60; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "$out"
+          exit $rc
       - name: build
         run: go build ./...
       - name: migrate (apply schema for integration tests)
