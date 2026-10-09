@@ -229,6 +229,28 @@ func SystemPrompt(persona string, c Context) string {
 	}
 	// Closing with the rule rather than a bare marker: this is the last thing the model reads
 	// before the conversation, and last position is the other one a small model reliably keeps.
-	b.WriteString("--- END REFERENCE DATA. Answer only the message you were sent; if it was a greeting, just greet back. ---")
+	// The persona is re-anchored here too: a distinctive voice set only at the top fades after
+	// thousands of characters of reference data whose closing was purely factual, which is the
+	// "it forgot its custom persona" complaint. Echoing the persona's identity at the generation
+	// boundary re-asserts the voice without repeating the whole thing.
+	b.WriteString("--- END REFERENCE DATA. Answer only the message you were sent; if it was a greeting, just greet back.")
+	if a := personaAnchor(persona); a != "" {
+		fmt.Fprintf(&b, " Stay in the voice set at the top for the whole reply (%s), in the user's language.", a)
+	}
+	b.WriteString(" ---")
 	return b.String()
+}
+
+// personaAnchor returns a short identity line from the persona to repeat at the very end of the
+// prompt. It takes the first ordinary sentence, skipping blank lines and the all-caps scaffolding
+// headers (e.g. "READ THIS FIRST"), and clips it so the re-anchor stays cheap on every message.
+func personaAnchor(persona string) string {
+	for _, line := range strings.Split(persona, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line == strings.ToUpper(line) {
+			continue
+		}
+		return clip(line, 140)
+	}
+	return ""
 }

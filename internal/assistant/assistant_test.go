@@ -54,6 +54,29 @@ func TestSystemPromptEmptyDataAndCustomPersona(t *testing.T) {
 	}
 }
 
+// The "it forgot its custom persona" complaint: a distinctive voice set only at the top fades after
+// thousands of characters of reference data. The persona identity must be re-anchored in the closing
+// too, the position a small model reliably keeps, so the voice survives to the point it generates.
+func TestSystemPromptReAnchorsPersonaAtClose(t *testing.T) {
+	persona := "You are Mia, a shy catgirl on the night shift.\nYou stammer and use emoji."
+	got := SystemPrompt(persona, Context{WindowHours: 24, Data: "Total events: 5.", WorkerAlive: true})
+	end := got[strings.Index(got, "END REFERENCE DATA"):]
+	if !strings.Contains(end, "You are Mia") {
+		t.Errorf("custom persona was not re-anchored in the closing marker:\n%s", end)
+	}
+}
+
+func TestPersonaAnchorSkipsAllCapsHeaders(t *testing.T) {
+	// The identity sentence is wanted, not the scaffolding header above it.
+	got := personaAnchor("READ THIS FIRST, IT OVERRIDES EVERYTHING\nYou are a terse incident commander.")
+	if got != "You are a terse incident commander." {
+		t.Errorf("anchor should skip the all-caps header and take the identity line, got %q", got)
+	}
+	if personaAnchor("") != "" {
+		t.Error("an empty persona must yield no anchor")
+	}
+}
+
 // The capability map's whole job is to stop "DeusWatch can't do that" when a data-guide gate missed.
 // It must name every domain the assistant covers and carry the instruction not to deny a capability.
 func TestCapabilityMapCoversEveryDomain(t *testing.T) {
