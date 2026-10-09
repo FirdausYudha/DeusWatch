@@ -25,6 +25,8 @@ var ruleWords = []string{
 	"sigma", "rule for", "a rule", "new rule", "write a rule", "create a rule", "detection rule",
 	"buat rule", "bikin rule", "buat aturan", "bikin aturan", "buatkan rule", "rule baru",
 	"deteksi", "detect ",
+	// More ways to ask for a rule, including the signature/alert vocabulary and Indonesian phrasings.
+	"rule untuk", "rule buat", "aturan deteksi", "buatkan aturan", "alert for", "alert untuk", "signature",
 }
 
 // NeedsRuleAuthoring reports whether the message is asking for a rule to be written. Like the other

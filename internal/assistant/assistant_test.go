@@ -47,4 +47,25 @@ func TestSystemPromptEmptyDataAndCustomPersona(t *testing.T) {
 	if !strings.Contains(got, "No events recorded in the last 6 hours.") {
 		t.Errorf("empty data should say so explicitly:\n%s", got)
 	}
+	// The capability map must ride every prompt - including a custom persona - so the assistant never
+	// falsely denies a feature a missed keyword gate happened to leave out of context.
+	if !strings.Contains(got, "WHAT YOU CAN HELP WITH IN DEUSWATCH") {
+		t.Errorf("capability map must be present even under a custom persona:\n%s", got)
+	}
+}
+
+// The capability map's whole job is to stop "DeusWatch can't do that" when a data-guide gate missed.
+// It must name every domain the assistant covers and carry the instruction not to deny a capability.
+func TestCapabilityMapCoversEveryDomain(t *testing.T) {
+	got := SystemPrompt("", Context{WindowHours: 24, WorkerAlive: true})
+	for _, want := range []string{
+		"Status & health", "Attack analysis", "File & malware",
+		"Response & firewall", "Setup & how-to", "Detection rules", "Concepts",
+		// The load-bearing instruction: a missed gate becomes "I can help, give me X", not a denial.
+		"do NOT say DeusWatch can't do it",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("capability map missing %q:\n%s", want, got)
+		}
+	}
 }

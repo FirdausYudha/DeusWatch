@@ -11,9 +11,11 @@ import "strings"
 // deployment has auto-approve off.
 var conceptWords = []string{
 	"what is", "what's a", "what does", "what do you mean", "how does", "how do", "explain", "meaning",
-	"difference between", "why does", "why is", "what counts as",
+	"difference between", "why does", "why is", "what counts as", "what are",
 	"apa itu", "apa maksud", "apa bedanya", "bedanya", "jelaskan", "kenapa", "maksudnya", "artinya",
 	"bagaimana cara kerja", "cara kerjanya",
+	// "what's it for" style questions, which ask for meaning just as much as "what is".
+	"apa fungsi", "fungsinya", "fungsi dari", "untuk apa", "gunanya", "kegunaan",
 }
 
 // NeedsPrimer reports whether the message is asking what something means.

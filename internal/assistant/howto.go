@@ -76,8 +76,11 @@ func clip(s string, n int) string {
 // "memasang" and "configure"/"configuration" all land.
 var howToWords = []string{
 	"how ", "how'", "howto", "add ", "adding", "set up", "setup", "install", "configur", "connect",
-	"enable", "integrat", "guide", "walk me", "steps", "where do i", "where can i",
+	"enable", "integrat", "guide", "walk me", "steps", "where do i", "where can i", "wire up", "hook up",
 	"cara", "pasang", "tambah", "atur", "aktif", "hubung", "sambung", "langkah", "gimana", "bagaimana",
+	// More ways an operator asks to set something up, especially in Indonesian, which the original
+	// list under-covered: a missed phrasing left the catalogue out and the answer was a guess.
+	"nyambung", "konek", "koneksi", "integrasikan", "siapkan", "daftarkan", "setting", "settingan",
 }
 
 // NeedsIntegrationsGuide decides whether to spend the catalogue on this message.
@@ -115,6 +118,9 @@ func NeedsIntegrationsGuide(msg string) bool {
 var connectorNames = []string{
 	"ollama", "anthropic", "claude", "openai", "gemini", "groq", "openrouter", "vllm",
 	"telegram", "webhook", "smtp", "elasticsearch", "elastic", "wazuh", "virustotal", "nftables",
+	// Response/CTI connector product names, so "how do I connect CrowdSec" pulls the catalogue even
+	// though these are field VALUES rather than derivable type keys.
+	"crowdsec", "mikrotik", "abuseipdb", "otx", "slack", "discord",
 }
 
 // AgentLine is one endpoint, flattened by the caller so this package stays free of a store import.
@@ -790,6 +796,10 @@ func HashReport(f FileReport) string {
 var hashWords = []string{
 	"scan", "check", "cek", "periksa", "reputation", "reputasi", "virustotal", "vt ", "malware",
 	"berbahaya", "dangerous", "aman", "safe", "hash", "file ini", "this file",
+	// File-analysis phrasings that previously missed. These only matter when a hash is actually in
+	// the message (no hash -> nothing is looked up), so a generous list costs no quota.
+	"analisa", "analisis", "analyze", "analyse", "sha", "md5", "virus", "trojan", "ransomware",
+	"quarantine", "karantina",
 }
 
 func NeedsHashLookup(msg string) bool {

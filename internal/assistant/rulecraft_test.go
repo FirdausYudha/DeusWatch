@@ -83,6 +83,10 @@ func TestNeedsRuleAuthoring(t *testing.T) {
 		"create a rule for failed sudo attempts",
 		"write a sigma rule that catches nmap",
 		"bikin aturan deteksi untuk login root",
+		// Phrasings the original list missed.
+		"a signature for this malware behaviour",
+		"rule untuk port scan",
+		"an alert for brute force",
 	} {
 		if !NeedsRuleAuthoring(m) {
 			t.Errorf("%q should pull in the authoring guide", m)

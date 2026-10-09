@@ -41,6 +41,13 @@ func TestNeedsIntegrationsGuide(t *testing.T) {
 		"setup abuseipdb",
 		"aktifkan notifikasi telegram",
 		"ollama", // a bare connector name is a question about it often enough to be worth the cost
+		// Phrasings the original gate missed, which is what made the assistant feel like it did not
+		// understand the request: the capability was there, the keyword was not.
+		"gimana cara nyambungin crowdsec ke DW?",
+		"konek mikrotik dong",
+		"integrasikan slack",
+		"settingan smtp di mana?",
+		"daftarkan webhook baru",
 	} {
 		if !NeedsIntegrationsGuide(msg) {
 			t.Errorf("%q should pull in the setup guide", msg)
@@ -498,6 +505,13 @@ func TestMentionedHashesAndGate(t *testing.T) {
 	}
 	if !NeedsHashLookup("cek file ini berbahaya ngga?") || !NeedsHashLookup("scan this hash") {
 		t.Error("an explicit check should trigger the lookup")
+	}
+	// File-analysis phrasings the original list missed. These only ever spend quota when a hash is
+	// actually present, so being generous here is safe.
+	for _, m := range []string{"tolong analisa file ini", "analyze this md5", "is this ransomware?"} {
+		if !NeedsHashLookup(m) {
+			t.Errorf("%q should trigger a file lookup", m)
+		}
 	}
 	if NeedsHashLookup("what happened today?") {
 		t.Error("an ordinary question should not spend an API quota")

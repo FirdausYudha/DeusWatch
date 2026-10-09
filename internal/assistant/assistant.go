@@ -149,6 +149,12 @@ func SystemPrompt(persona string, c Context) string {
 	// Stable: persona, navigation map, setup guides. Volatile: who/when, agents, rules, figures.
 	var b strings.Builder
 	b.WriteString(persona)
+	// The capability map is stable (a const) and goes high in the prompt, right under the persona:
+	// it tells the model what DeusWatch can do so a question whose data-guide gate did not fire
+	// becomes "I can pull that, give me the hash" rather than a flat "DeusWatch can't". Placed in the
+	// cacheable prefix so it is free after the first message in a thread.
+	b.WriteString("\n\n")
+	b.WriteString(CapabilityMap)
 	// The navigation map and setup steps are guidance to follow, deliberately kept above the
 	// reference block whose rule is "never quote this": putting them inside it would tell the model
 	// to withhold the one thing the operator asked for.
