@@ -212,6 +212,44 @@ func TestEnforcementSeparatesBannedFromBlocked(t *testing.T) {
 	}
 }
 
+// The point of the reachability probe: the assistant can now answer "is nftables connected?" with
+// a verified yes/no instead of restating what is enabled in config. Each probe outcome must render
+// as the state it is, and the dangerous ones (not live, probe failed) must carry the same
+// "FLAGGED, not blocked" warning the not-configured case does.
+func TestEnforcementReachabilityProbe(t *testing.T) {
+	base := EnforcementStats{Read: true, ActiveCount: 1, ActiveBlocks: []string{"1.2.3.4"}}
+
+	// Live and the probe passed: a ban genuinely reaches the firewall.
+	ok := base
+	ok.Probed, ok.EdgeBackend, ok.EdgeLive, ok.EdgeChecked, ok.EdgeReachable = true, "nftables", true, true, true
+	if g := Enforcement(ok); !strings.Contains(g, "nftables passed its last reachability check") || strings.Contains(g, "FLAGGED, not blocked") {
+		t.Errorf("a reachable backend must read as working, not flagged:\n%s", g)
+	}
+
+	// Configured but RESPONSE_LIVE is off: recorded, not pushed.
+	dry := base
+	dry.Probed, dry.EdgeBackend, dry.EdgeLive = true, "nftables", false
+	if g := Enforcement(dry); !strings.Contains(g, "RESPONSE_LIVE is off") || !strings.Contains(g, "FLAGGED, not blocked") {
+		t.Errorf("a dry-run backend must warn it is not blocking:\n%s", g)
+	}
+
+	// Live but the probe FAILED: the most dangerous state - looks set up, bans are not landing.
+	fail := base
+	fail.Probed, fail.EdgeBackend, fail.EdgeLive, fail.EdgeChecked, fail.EdgeReachable = true, "nftables", true, true, false
+	fail.EdgeDetail = "nftables set 'inet deuswatch banlist' is not usable"
+	g := Enforcement(fail)
+	if !strings.Contains(g, "reachability check FAILED") || !strings.Contains(g, "FLAGGED, not blocked") || !strings.Contains(g, "not usable") {
+		t.Errorf("a failed probe must warn and carry the reason:\n%s", g)
+	}
+
+	// Probed, but nothing is configured to push bans.
+	none := base
+	none.Probed = true
+	if g := Enforcement(none); !strings.Contains(g, "enforcement is NOT configured") {
+		t.Errorf("no backend must read as not configured:\n%s", g)
+	}
+}
+
 // An unreadable ban list must never render as "nothing is banned": that is the one wrong answer
 // that makes an operator stop looking at a live attacker.
 func TestEnforcementUnreadableIsNotEmpty(t *testing.T) {

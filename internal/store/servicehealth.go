@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,7 +12,13 @@ import (
 
 // Service names written into service_heartbeats. One constant per component so the writer and
 // the reader can never drift on a string literal.
-const ServiceWorker = "worker"
+const (
+	ServiceWorker = "worker"
+	// ServiceResponder carries the worker's last probe of the enforcement backend (nftables /
+	// crowdsec / mikrotik). It rides the same table as the worker heartbeat so no new schema is
+	// needed, and its detail column holds a ResponderHealth JSON blob rather than free text.
+	ServiceResponder = "responder"
+)
 
 // WorkerStaleAfter is how long the api waits before calling the worker missing. The worker beats
 // every 30s (see runServiceHeartbeat in cmd/worker), so this tolerates three missed beats plus
@@ -79,4 +86,47 @@ func (s *Store) ServiceHealthFor(ctx context.Context, service string, staleAfter
 	out.Version = version
 	out.Detail = detail
 	return out, nil
+}
+
+// ResponderHealth is the worker's last read-only probe of the enforcement backend, carried
+// through the service_heartbeats detail column as JSON. It is what lets the assistant answer
+// "is nftables connected?" with a real check instead of restating what is enabled in config:
+// Live says bans are actually pushed (RESPONSE_LIVE), Checked+Healthy say the backend answered
+// a reachability probe, and Detail carries the reason when it did not.
+type ResponderHealth struct {
+	Backend string `json:"backend"`          // "nftables","crowdsec","mikrotik", or "" (none/dry-run)
+	Live    bool   `json:"live"`             // RESPONSE_LIVE: bans are pushed, not just recorded
+	Checked bool   `json:"checked"`          // a reachability probe ran (backend supports Verify)
+	Healthy bool   `json:"healthy"`          // the probe passed: a ban would reach the backend
+	Detail  string `json:"detail,omitempty"` // human-readable probe error / note
+}
+
+// UpsertResponderHealth records the worker's latest enforcement-backend probe. Called on a timer
+// by the worker; the api reads it back through ResponderHealthNow.
+func (s *Store) UpsertResponderHealth(ctx context.Context, version string, h ResponderHealth) error {
+	blob, err := json.Marshal(h)
+	if err != nil {
+		return fmt.Errorf("store: marshal responder health: %w", err)
+	}
+	return s.UpsertServiceHeartbeat(ctx, ServiceResponder, version, string(blob))
+}
+
+// ResponderHealthNow returns the worker's last enforcement-backend probe plus the heartbeat
+// liveness around it. ok is false (with no error) when the worker has never reported responder
+// health - an older worker, or one started moments ago - so the caller can fall back to the
+// coarser "is a backend configured" signal rather than claiming the backend is down.
+func (s *Store) ResponderHealthNow(ctx context.Context) (h ResponderHealth, sh ServiceHealth, ok bool, err error) {
+	sh, err = s.ServiceHealthFor(ctx, ServiceResponder, WorkerStaleAfter)
+	if err != nil {
+		return h, sh, false, err
+	}
+	if !sh.EverSeen {
+		return h, sh, false, nil
+	}
+	if sh.Detail != "" {
+		if uerr := json.Unmarshal([]byte(sh.Detail), &h); uerr != nil {
+			return h, sh, false, fmt.Errorf("store: parse responder health: %w", uerr)
+		}
+	}
+	return h, sh, true, nil
 }

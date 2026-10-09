@@ -337,8 +337,22 @@ type EnforcementStats struct {
 	Pending      int
 	Offenders    []string
 	// Enforcing reports whether a ban reaches an actual firewall. Backends lists what it reaches.
+	// When Probed is false these two carry the old coarse signal (a backend is configured and
+	// RESPONSE_LIVE is on); when Probed is true, prefer the verified Edge* fields below.
 	Enforcing bool
 	Backends  []string
+
+	// Edge* carry the worker's live reachability probe of the enforcement backend, which is what
+	// turns "nftables is enabled in config" into "a ban actually reaches nftables right now".
+	// Probed is false when the worker has not reported a probe (an older or just-started worker),
+	// in which case the renderer falls back to Enforcing/Backends and claims nothing it cannot back.
+	Probed        bool
+	EdgeBackend   string // "nftables","crowdsec","mikrotik", or "" when nothing is pushed
+	EdgeLive      bool   // RESPONSE_LIVE: bans are pushed, not merely recorded
+	EdgeChecked   bool   // the backend supports a reachability probe and it ran
+	EdgeReachable bool   // the probe passed: a ban would reach the backend
+	EdgeDetail    string // probe error / note, shown so the operator knows what to fix
+	EdgeStale     bool   // the worker's last probe is older than the liveness window
 }
 
 // Enforcement renders what is banned and whether banning does anything.
@@ -377,15 +391,57 @@ func Enforcement(s EnforcementStats) string {
 			strings.Join(s.Offenders, ", "))
 	}
 
-	if s.Enforcing {
-		fmt.Fprintf(&b, "Enforcement is live through %s, so a ban reaches a real firewall.\n", strings.Join(s.Backends, ", "))
-	} else {
-		// Said in full because the difference decides what the operator does next, and the UI says
-		// the same thing in a banner on the Response page rather than leaving it to be discovered.
-		b.WriteString("IMPORTANT: enforcement is NOT configured. DeusWatch is recording these ban decisions but nothing is pushing them to a firewall, so the addresses above are FLAGGED, not blocked, and traffic from them still arrives. Never tell the operator an address is blocked while this is the case. To change it, set RESPONSE_LIVE=1 and connect a responder (MikroTik, CrowdSec or agent nftables) under Integrations, or enable the blocklist feed on the Response page for an external firewall to pull.\n")
-	}
+	writeEnforcementReachability(&b, s)
 	return b.String()
 }
+
+// writeEnforcementReachability renders whether a ban actually reaches a firewall. The distinction
+// is the whole point and is easy to get wrong in both directions, so when the worker has probed the
+// backend (Probed) its verified result is used, and only when it has not do we fall back to the
+// coarse "configured + live" signal - never claiming reachability nothing checked.
+func writeEnforcementReachability(b *strings.Builder, s EnforcementStats) {
+	// The verified path: the worker ran a real reachability probe.
+	if s.Probed {
+		switch {
+		case s.EdgeBackend == "":
+			// Nothing is pushing bans anywhere (RESPONDER=none / dry-run with no backend).
+			b.WriteString(notEnforcingLine)
+		case !s.EdgeLive:
+			fmt.Fprintf(b, "IMPORTANT: a %s backend is configured but RESPONSE_LIVE is off, so DeusWatch is recording ban decisions WITHOUT pushing them: the addresses above are FLAGGED, not blocked, and traffic from them still arrives. Never tell the operator an address is blocked while this is the case. To go live, set RESPONSE_LIVE=1 and restart the worker.\n", s.EdgeBackend)
+		case !s.EdgeChecked:
+			fmt.Fprintf(b, "Enforcement is live through %s, but this backend offers no reachability check, so treat it as unconfirmed rather than guaranteed.\n", s.EdgeBackend)
+		case s.EdgeReachable:
+			line := fmt.Sprintf("Enforcement is live and %s passed its last reachability check, so a ban reaches a real firewall.", s.EdgeBackend)
+			if s.EdgeStale {
+				line += " (The worker's last probe is stale, so this may be out of date - check the worker is running.)"
+			}
+			b.WriteString(line + "\n")
+		default:
+			// Live, probed, and the probe FAILED: the most dangerous state. It looks configured but
+			// bans are not landing, so this is spelled out as plainly as the not-configured case.
+			detail := strings.TrimSpace(s.EdgeDetail)
+			if detail == "" {
+				detail = "no detail reported"
+			}
+			fmt.Fprintf(b, "IMPORTANT: the %s backend is live but its last reachability check FAILED, so bans are NOT reaching the firewall right now and the addresses above are FLAGGED, not blocked. Never tell the operator an address is blocked while this is the case. Reason: %s\n", s.EdgeBackend, detail)
+		}
+		return
+	}
+
+	// Fallback: no probe reported (older or just-started worker). Use the coarse signal and claim
+	// nothing the probe would have had to confirm.
+	if s.Enforcing {
+		fmt.Fprintf(b, "Enforcement is live through %s, so a ban reaches a real firewall.\n", strings.Join(s.Backends, ", "))
+		return
+	}
+	b.WriteString(notEnforcingLine)
+}
+
+// notEnforcingLine is the "nothing is pushing bans to a firewall" warning, shared by the
+// not-configured and nothing-selected cases. Said in full because the difference decides what the
+// operator does next, and the UI says the same thing in a banner on the Response page rather than
+// leaving it to be discovered.
+const notEnforcingLine = "IMPORTANT: enforcement is NOT configured. DeusWatch is recording these ban decisions but nothing is pushing them to a firewall, so the addresses above are FLAGGED, not blocked, and traffic from them still arrives. Never tell the operator an address is blocked while this is the case. To change it, set RESPONSE_LIVE=1 and connect a responder (MikroTik, CrowdSec or agent nftables) under Integrations, or enable the blocklist feed on the Response page for an external firewall to pull.\n"
 
 // Dossier is one address the operator named, looked up directly.
 type Dossier struct {

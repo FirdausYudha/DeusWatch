@@ -376,6 +376,9 @@ func main() {
 	safeGo(ctx, "service-heartbeat", func() { runServiceHeartbeat(ctx, st) })
 	// Separate goroutine: it only reads a clock, so no wedged DB call can stop it from firing.
 	safeGo(ctx, "heartbeat-watchdog", func() { runHeartbeatWatchdog(ctx, st) })
+	// Probes the enforcement backend (nftables/crowdsec/router) so the dashboard and the
+	// assistant can report whether a ban actually reaches a firewall, not just that one is set.
+	safeGo(ctx, "responder-health", func() { runResponderHealth(ctx, st, intStore) })
 
 	// Live-reload the CTI provider AND its cache window (dedup TTL) so adding/editing an
 	// AbuseIPDB/OTX integration in the UI takes effect without restarting the worker.
@@ -1106,43 +1109,120 @@ func resolveHashRep(ctx context.Context, intStore *integrations.Store) (vtKey, m
 // resolveResponder builds the block responder from ALL enabled MikroTik integrations if
 // present (fan-out to every router), otherwise falls back to the RESPONDER env selection.
 func resolveResponder(ctx context.Context, intStore *integrations.Store) respond.Responder {
-	if intStore != nil {
-		if rows, err := intStore.Resolve(ctx, "mikrotik"); err == nil && len(rows) > 0 {
-			cfgs := make([]respond.MikrotikConfig, 0, len(rows))
-			names := make([]string, 0, len(rows))
-			for _, row := range rows {
-				c := row.Config
-				insecure, _ := strconv.ParseBool(c["insecure_tls"])
-				cfgs = append(cfgs, respond.MikrotikConfig{
-					Address: c["address"], User: c["username"], Pass: c["password"],
-					List: c["address_list"], Insecure: insecure,
-				})
-				names = append(names, row.Name)
+	if cfgs, names, ok := mikrotikIntegrationConfigs(ctx, intStore); ok {
+		log.Printf("worker: responder from %d Integrations MikroTik router(s): %s", len(cfgs), strings.Join(names, ", "))
+		// Startup REST health-check per router: surfaces reachability/TLS/auth/list
+		// problems in the log immediately, instead of a silent "bans never arrive".
+		for i, c := range cfgs {
+			list := c.List
+			if list == "" {
+				list = "deuswatch_ban"
 			}
-			log.Printf("worker: responder from %d Integrations MikroTik router(s): %s", len(cfgs), strings.Join(names, ", "))
-			// Startup REST health-check per router: surfaces reachability/TLS/auth/list
-			// problems in the log immediately, instead of a silent "bans never arrive".
-			for i, c := range cfgs {
-				list := c.List
-				if list == "" {
-					list = "deuswatch_ban"
-				}
-				probe := respond.NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure)
-				if err := probe.Verify(ctx); err != nil {
-					log.Printf("worker: MikroTik %q REST check FAILED: %v", names[i], err)
-				} else {
-					log.Printf("worker: MikroTik %q REST check OK (list=%s reachable)", names[i], list)
-				}
+			probe := respond.NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure)
+			if err := probe.Verify(ctx); err != nil {
+				log.Printf("worker: MikroTik %q REST check FAILED: %v", names[i], err)
+			} else {
+				log.Printf("worker: MikroTik %q REST check OK (list=%s reachable)", names[i], list)
 			}
-			// A configured MikroTik that will never receive bans (dry-run) is the single most
-			// confusing failure mode - call it out explicitly with the fix.
-			if live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE")); !live {
-				log.Printf("worker: NOTE - MikroTik is configured but RESPONSE_LIVE!=1: bans will NOT be pushed (dry-run). Set RESPONSE_LIVE=1 in deploy/.env and restart to go live.")
-			}
-			return respond.MikrotikMultiFromConfigs(cfgs)
 		}
+		// A configured MikroTik that will never receive bans (dry-run) is the single most
+		// confusing failure mode - call it out explicitly with the fix.
+		if live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE")); !live {
+			log.Printf("worker: NOTE - MikroTik is configured but RESPONSE_LIVE!=1: bans will NOT be pushed (dry-run). Set RESPONSE_LIVE=1 in deploy/.env and restart to go live.")
+		}
+		return respond.MikrotikMultiFromConfigs(cfgs)
 	}
 	return respond.ResponderFromEnv()
+}
+
+// mikrotikIntegrationConfigs returns the MikroTik routers configured through the Integrations
+// registry, the managed path that takes precedence over the RESPONDER env var. ok is false when
+// none are configured, which sends both the blocking path (resolveResponder) and the health probe
+// (newBackendProbe) on to the env - decided here, once, so the two can never disagree about which
+// backend is actually in use.
+func mikrotikIntegrationConfigs(ctx context.Context, intStore *integrations.Store) (cfgs []respond.MikrotikConfig, names []string, ok bool) {
+	if intStore == nil {
+		return nil, nil, false
+	}
+	rows, err := intStore.Resolve(ctx, "mikrotik")
+	if err != nil || len(rows) == 0 {
+		return nil, nil, false
+	}
+	for _, row := range rows {
+		c := row.Config
+		insecure, _ := strconv.ParseBool(c["insecure_tls"])
+		cfgs = append(cfgs, respond.MikrotikConfig{
+			Address: c["address"], User: c["username"], Pass: c["password"],
+			List: c["address_list"], Insecure: insecure,
+		})
+		names = append(names, row.Name)
+	}
+	return cfgs, names, true
+}
+
+// newBackendProbe builds an UNWRAPPED Verifier for whatever enforcement backend is configured,
+// plus the backend's label. It deliberately bypasses the dry-run wrapper liveOrDry applies: the
+// operator still wants to know whether nftables/crowdsec/the router is actually reachable even
+// while RESPONSE_LIVE is off, so liveness is reported separately (see runResponderHealth). A nil
+// probe with an empty label means there is nothing to reach (RESPONDER=none/dryrun).
+func newBackendProbe(ctx context.Context, intStore *integrations.Store) (respond.Verifier, string) {
+	if cfgs, _, ok := mikrotikIntegrationConfigs(ctx, intStore); ok {
+		members := make([]respond.Responder, 0, len(cfgs))
+		for _, c := range cfgs {
+			members = append(members, respond.NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure))
+		}
+		return respond.NewMultiResponder(members), "mikrotik"
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("RESPONDER"))) {
+	case "nftables":
+		return respond.NewNftablesResponder(os.Getenv("NFT_TABLE"), os.Getenv("NFT_SET")), "nftables"
+	case "crowdsec":
+		return respond.NewCrowdSecResponder(), "crowdsec"
+	case "mikrotik":
+		insecure, _ := strconv.ParseBool(os.Getenv("MIKROTIK_INSECURE"))
+		return respond.NewMikrotikResponder(
+			os.Getenv("MIKROTIK_URL"), os.Getenv("MIKROTIK_USER"),
+			os.Getenv("MIKROTIK_PASS"), os.Getenv("MIKROTIK_LIST"), insecure), "mikrotik"
+	default:
+		return nil, "" // dryrun / none / unset: nothing is pushed anywhere
+	}
+}
+
+// runResponderHealth probes the configured enforcement backend on a timer and records the verdict
+// in service_heartbeats, so the api (and through it the assistant) can tell an operator whether a
+// ban actually reaches a firewall - the question "is nftables connected?" that had no answer
+// before. Re-selected each tick so enabling a backend in the UI is reflected without a restart.
+func runResponderHealth(ctx context.Context, st *store.Store, intStore *integrations.Store) {
+	live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE"))
+	probeOnce := func() {
+		wc, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		probe, backend := newBackendProbe(wc, intStore)
+		h := store.ResponderHealth{Backend: backend, Live: live}
+		if probe != nil {
+			h.Checked = true
+			if err := probe.Verify(wc); err != nil {
+				h.Healthy = false
+				h.Detail = err.Error()
+			} else {
+				h.Healthy = true
+			}
+		}
+		if err := st.UpsertResponderHealth(wc, buildVersion, h); err != nil {
+			log.Printf("worker: responder health write failed: %v", err)
+		}
+	}
+	probeOnce() // immediately, so the assistant has an answer seconds after a restart
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			probeOnce()
+		}
+	}
 }
 
 // runBlocklistSync periodically reconciles DeusWatch's active blocks onto every enforcer

@@ -343,4 +343,94 @@ func TestDryRunResponderNoop(t *testing.T) {
 	if err := r.Block(context.Background(), "1.2.3.4", time.Minute); err != nil {
 		t.Fatalf("dry-run Block must not error: %v", err)
 	}
+	// A dry-run probe has nothing to reach, so it must never report a failure the operator would
+	// chase: liveness (RESPONSE_LIVE) is the signal that something is actually being pushed.
+	if err := r.Verify(context.Background()); err != nil {
+		t.Fatalf("dry-run Verify must not error: %v", err)
+	}
+}
+
+// ── Verify (reachability probes) ──────────────────────────
+
+func TestNftablesVerifyMissingBinary(t *testing.T) {
+	r := &NftablesResponder{table: "t", set: "s",
+		run:      func(context.Context, string, ...string) error { return nil },
+		lookPath: func(string) (string, error) { return "", errors.New("not found") },
+	}
+	err := r.Verify(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "nft binary is not installed") {
+		t.Fatalf("expected a binary-not-installed error, got: %v", err)
+	}
+}
+
+func TestNftablesVerifySetMissing(t *testing.T) {
+	var ran string
+	r := &NftablesResponder{table: "deuswatch", set: "banlist",
+		lookPath: func(string) (string, error) { return "/usr/sbin/nft", nil },
+		run: func(_ context.Context, name string, args ...string) error {
+			ran = name + " " + strings.Join(args, " ")
+			return errors.New("No such file or directory")
+		},
+	}
+	err := r.Verify(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "is not usable") {
+		t.Fatalf("expected an unusable-set error, got: %v", err)
+	}
+	// It must list the set, not add anything: a probe never changes state.
+	if !strings.Contains(ran, "nft list set inet deuswatch banlist") {
+		t.Fatalf("Verify ran the wrong (or a mutating) command: %q", ran)
+	}
+}
+
+func TestNftablesVerifyOK(t *testing.T) {
+	r := &NftablesResponder{table: "t", set: "s",
+		lookPath: func(string) (string, error) { return "/usr/sbin/nft", nil },
+		run:      func(context.Context, string, ...string) error { return nil },
+	}
+	if err := r.Verify(context.Background()); err != nil {
+		t.Fatalf("a reachable nftables set must verify clean: %v", err)
+	}
+}
+
+func TestCrowdSecVerify(t *testing.T) {
+	missing := &CrowdSecResponder{
+		run:      func(context.Context, string, ...string) error { return nil },
+		lookPath: func(string) (string, error) { return "", errors.New("not found") },
+	}
+	if err := missing.Verify(context.Background()); err == nil || !strings.Contains(err.Error(), "cscli binary is not installed") {
+		t.Fatalf("expected a cscli-not-installed error, got: %v", err)
+	}
+
+	var ran string
+	down := &CrowdSecResponder{
+		lookPath: func(string) (string, error) { return "/usr/bin/cscli", nil },
+		run: func(_ context.Context, name string, args ...string) error {
+			ran = name + " " + strings.Join(args, " ")
+			return errors.New("connection refused")
+		},
+	}
+	if err := down.Verify(context.Background()); err == nil || !strings.Contains(err.Error(), "LAPI did not answer") {
+		t.Fatalf("expected a LAPI-unreachable error, got: %v", err)
+	}
+	if !strings.Contains(ran, "cscli lapi status") {
+		t.Fatalf("Verify ran the wrong command: %q", ran)
+	}
+}
+
+// MultiResponder.Verify must surface a failing member rather than let a healthy one mask it.
+func TestMultiResponderVerify(t *testing.T) {
+	ok := &NftablesResponder{table: "t", set: "s",
+		lookPath: func(string) (string, error) { return "/x", nil },
+		run:      func(context.Context, string, ...string) error { return nil },
+	}
+	bad := &NftablesResponder{table: "t", set: "s",
+		lookPath: func(string) (string, error) { return "/x", nil },
+		run:      func(context.Context, string, ...string) error { return errors.New("boom") },
+	}
+	if err := NewMultiResponder([]Responder{ok, bad}).Verify(context.Background()); err == nil {
+		t.Fatal("a failing member must make the multi probe fail")
+	}
+	if err := NewMultiResponder([]Responder{ok, ok}).Verify(context.Background()); err != nil {
+		t.Fatalf("all-healthy members must verify clean: %v", err)
+	}
 }

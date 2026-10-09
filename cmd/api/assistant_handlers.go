@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -243,13 +244,34 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 				Read: true, ActiveBlocks: ed.ActiveBlocks, ActiveCount: ed.ActiveCount,
 				Pending: ed.Pending, Offenders: ed.Offenders,
 			}
-			live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE"))
 			for _, t := range []string{"mikrotik", "crowdsec", "nftables_agent"} {
 				if on, herr := integrations.HasEnabled(r.Context(), st.Pool(), t); herr == nil && on {
 					enfStats.Backends = append(enfStats.Backends, t)
 				}
 			}
-			enfStats.Enforcing = live && len(enfStats.Backends) > 0
+
+			// The worker's live reachability probe is the authoritative answer to "is the firewall
+			// connected?". When it is present, use it; otherwise fall back to the coarse "configured
+			// and RESPONSE_LIVE" signal so an older worker does not regress the answer.
+			if h, sh, ok, herr := st.ResponderHealthNow(r.Context()); herr == nil && ok {
+				enfStats.Probed = true
+				enfStats.EdgeBackend = h.Backend
+				enfStats.EdgeLive = h.Live
+				enfStats.EdgeChecked = h.Checked
+				enfStats.EdgeReachable = h.Checked && h.Healthy
+				enfStats.EdgeDetail = h.Detail
+				enfStats.EdgeStale = !sh.Alive
+				// The env-selected edge backend (e.g. RESPONDER=nftables on the manager) is configured
+				// even when it has no Integrations row, which the integration list above missed - the
+				// bug that made the assistant say "not configured" with a live manager-side nftables.
+				if h.Backend != "" && !slices.Contains(enfStats.Backends, h.Backend) {
+					enfStats.Backends = append(enfStats.Backends, h.Backend)
+				}
+				enfStats.Enforcing = h.Live && h.Checked && h.Healthy
+			} else {
+				live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE"))
+				enfStats.Enforcing = live && len(enfStats.Backends) > 0
+			}
 		}
 		enforcement := assistant.Enforcement(enfStats)
 

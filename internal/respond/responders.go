@@ -53,6 +53,11 @@ func (d *DryRunResponder) Unblock(_ context.Context, ip string) error {
 	return nil
 }
 
+// Verify on a dry-run responder has nothing to reach: it never pushes a ban. It returns nil
+// so a probe does not report a failure, but health code should read liveness separately
+// (RESPONSE_LIVE) rather than infer "working" from this.
+func (d *DryRunResponder) Verify(_ context.Context) error { return nil }
+
 // ── nftables (Linux) ──────────────────────────────────────
 
 // NftablesResponder adds/removes IPs in a named nftables set. The set must already
@@ -62,9 +67,10 @@ func (d *DryRunResponder) Unblock(_ context.Context, ip string) error {
 //	nft add set inet deuswatch banlist { type ipv4_addr\; flags timeout\; }
 //	nft add rule inet deuswatch input ip saddr @banlist drop
 type NftablesResponder struct {
-	table string
-	set   string
-	run   runnerFunc
+	table    string
+	set      string
+	run      runnerFunc
+	lookPath func(string) (string, error) // stubbed in tests; the `nft` binary presence check
 }
 
 func NewNftablesResponder(table, set string) *NftablesResponder {
@@ -74,10 +80,27 @@ func NewNftablesResponder(table, set string) *NftablesResponder {
 	if set == "" {
 		set = "banlist"
 	}
-	return &NftablesResponder{table: table, set: set, run: execRunner}
+	return &NftablesResponder{table: table, set: set, run: execRunner, lookPath: exec.LookPath}
 }
 
 func (n *NftablesResponder) Name() string { return "nftables" }
+
+// Verify confirms nftables can actually take a ban: the `nft` binary is installed and the
+// target table+set exist and are listable (which also fails, usefully, when the process
+// lacks CAP_NET_ADMIN). Read-only - `nft list` changes nothing - so it is safe on a timer.
+func (n *NftablesResponder) Verify(ctx context.Context) error {
+	if n.lookPath != nil {
+		if _, err := n.lookPath("nft"); err != nil {
+			return fmt.Errorf("the nft binary is not installed on this host - install nftables (%v)", err)
+		}
+	}
+	if err := n.run(ctx, "nft", "list", "set", "inet", n.table, n.set); err != nil {
+		return fmt.Errorf("nftables set 'inet %s %s' is not usable - create the table and set "+
+			"(see the nftables-agent integration doc) and run the responder with CAP_NET_ADMIN: %w",
+			n.table, n.set, err)
+	}
+	return nil
+}
 
 func (n *NftablesResponder) Block(ctx context.Context, ip string, dur time.Duration) error {
 	elem := ip
@@ -94,11 +117,30 @@ func (n *NftablesResponder) Unblock(ctx context.Context, ip string) error {
 // ── CrowdSec (cscli) ──────────────────────────────────────
 
 // CrowdSecResponder creates/removes a decision via cscli (local LAPI).
-type CrowdSecResponder struct{ run runnerFunc }
+type CrowdSecResponder struct {
+	run      runnerFunc
+	lookPath func(string) (string, error) // stubbed in tests; the `cscli` binary presence check
+}
 
-func NewCrowdSecResponder() *CrowdSecResponder { return &CrowdSecResponder{run: execRunner} }
+func NewCrowdSecResponder() *CrowdSecResponder {
+	return &CrowdSecResponder{run: execRunner, lookPath: exec.LookPath}
+}
 
 func (c *CrowdSecResponder) Name() string { return "crowdsec" }
+
+// Verify confirms CrowdSec can actually take a ban: the `cscli` binary is installed and the
+// local LAPI answers. Read-only (`cscli lapi status` only queries), so safe on a timer.
+func (c *CrowdSecResponder) Verify(ctx context.Context) error {
+	if c.lookPath != nil {
+		if _, err := c.lookPath("cscli"); err != nil {
+			return fmt.Errorf("the cscli binary is not installed on this host - install CrowdSec (%v)", err)
+		}
+	}
+	if err := c.run(ctx, "cscli", "lapi", "status"); err != nil {
+		return fmt.Errorf("the CrowdSec LAPI did not answer - check the local crowdsec service: %w", err)
+	}
+	return nil
+}
 
 func (c *CrowdSecResponder) Block(ctx context.Context, ip string, dur time.Duration) error {
 	d := "8760h" // permanent ~ 1 year
@@ -403,6 +445,19 @@ func (mr *MultiResponder) Sync(ctx context.Context, desired []string) error {
 		}
 	}
 	return firstErr
+}
+
+// Verify probes every member that supports it and returns the first failure, so one
+// unreachable router among several is reported rather than hidden by a reachable one.
+func (mr *MultiResponder) Verify(ctx context.Context) error {
+	for _, r := range mr.members {
+		if v, ok := r.(Verifier); ok {
+			if err := v.Verify(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func liveOrDry(r Responder) Responder {

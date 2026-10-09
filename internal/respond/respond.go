@@ -65,6 +65,19 @@ type Syncer interface {
 	Sync(ctx context.Context, desired []string) error
 }
 
+// Verifier is an OPTIONAL capability a Responder may implement: a read-only probe that
+// confirms the backend is actually reachable and usable, so startup and health code can
+// tell "configured" apart from "working". This is the difference the assistant could not
+// report before: an operator asking "is nftables connected?" needs a real check, not a
+// restatement of what is enabled in config. A nil error means a ban would reach this
+// backend; a non-nil error carries a human-readable reason to show the operator.
+//
+// It must never change state (no block/unblock), so it is safe to call on a timer and even
+// while wrapped in dry-run.
+type Verifier interface {
+	Verify(ctx context.Context) error
+}
+
 // BanPolicy determines the progressive ban duration based on the offense count.
 type BanPolicy struct {
 	Durations   []time.Duration // durations for the 1st, 2nd, ... offense (escalation ladder)
