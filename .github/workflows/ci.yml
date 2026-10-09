@@ -39,6 +39,14 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+      # internal/malware links libyara through cgo (yara_scanner.go is //go:build cgo). The runner
+      # defaults to CGO_ENABLED=1, so without the headers every step below fails at compile time,
+      # which is what had the whole job red. Setting CGO_ENABLED=0 would pick the nocgo stub and
+      # make it pass, but it would also silently stop testing the gateway: deploy/Dockerfile builds
+      # that one with CGO_ENABLED=1 and yara-dev, so the stub is not what ships. It would also
+      # break `go test -race`, which requires cgo.
+      - name: install libyara (cgo dependency of internal/malware)
+        run: sudo apt-get update && sudo apt-get install -y libyara-dev
       - name: go vet
         run: go vet ./...
       - name: build
@@ -57,6 +65,8 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+      - name: install libyara (cgo dependency of internal/malware)
+        run: sudo apt-get update && sudo apt-get install -y libyara-dev
       - name: install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - run: govulncheck ./...
@@ -70,6 +80,8 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+      - name: install libyara (cgo dependency of internal/malware)
+        run: sudo apt-get update && sudo apt-get install -y libyara-dev
       - name: install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
         # Excluded because they are inherent to this tool's domain (not vulnerabilities):
