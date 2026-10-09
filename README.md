@@ -275,6 +275,7 @@ Full guide incl. email/SMTP (Gmail App Password) and webhook export: **[docs/not
 
 | Doc | Purpose |
 |---|---|
+| [CHANGELOG.md](CHANGELOG.md) | What changed per release, and what an operator has to do about it |
 | [DeusWatch.md](DeusWatch.md) | Full architecture & design reference |
 | [docs/features/](docs/features/) | **Per-menu modules** (14) - how each feature works, how to use it, ports, tech, variables |
 | [docs/new-log-source.md](docs/new-log-source.md) | **Tutorial**: add a new log source end-to-end (decoder → test → rule → ban) |

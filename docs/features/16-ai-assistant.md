@@ -473,6 +473,47 @@ The Modelfile is written inside the container first because `ollama create -f -`
 stdin) is not accepted by every version, and the one that refuses it says only "no Modelfile or
 safetensors files found".
 
+### The two settings fight, and the model wins
+
+A derived model carries its own `num_ctx`, and a baked parameter beats the server default. So
+`OLLAMA_CONTEXT_LENGTH=16384` on the container does **not** lift a `deuswatch-llama` that was built
+with 8192. Pick one:
+
+- **Env var set, and the Model field names the base model** (`llama3.1:8b`). The base has no
+  `num_ctx` of its own, so it takes the server default. This is the one to use.
+- **No env var, and the Model field names the derived model** (`deuswatch-llama`). Older Ollama
+  only, and you are capped at whatever was baked in.
+
+The combination that looks right and is not: env var set, Model field still pointing at the derived
+model. The container reports 16384 and the model runs at 8192.
+
+### Checking what is actually in force
+
+Guessing has cost two rounds of this already, and neither produced an error anywhere. Three
+commands settle it:
+
+```bash
+docker exec ollama env | grep CONTEXT
+```
+
+Empty means the container was never recreated with the variable. Deploying DeusWatch does not
+touch Ollama; they are separate containers.
+
+```bash
+docker exec ollama ollama list
+```
+
+Confirms whether the Model field on the integration names something that exists, and whether it is
+a base model or a derived one.
+
+```bash
+docker logs ollama 2>&1 | grep -i n_ctx | tail -3
+```
+
+The decisive one. Ollama prints the context size when it loads a model. If that number is smaller
+than the prompt, the prompt is being truncated from the front and the persona goes first, which
+looks like a character that will not stay in character rather than like an error.
+
 The default persona puts the rules that prevent these at the very start and repeats the important
 one immediately above and below the data, because a 3B model keeps the first and last instructions
 and loses the middle. That helps; it does not cure.
