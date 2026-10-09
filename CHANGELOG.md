@@ -7,6 +7,33 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.45.0
+
+### Added
+
+**The assistant detects a context window that is too small.** This closes the one failure in the
+feature that never produced an error anywhere. Ollama allocates a context window and silently drops
+the oldest tokens when a prompt exceeds it. The system prompt is ordered stable-first so the cache
+can be reused, which means the oldest tokens are the persona: the assistant keeps answering
+questions about the data correctly while its character disappears. Nothing is logged, nothing
+returns 500, and the only symptom is a personality that will not stick. It cost two rounds of
+guessing on a live deployment before anyone thought to read `n_ctx` out of the container logs.
+
+The status endpoint now asks Ollama what window the configured model runs with and compares it
+against the system prompt actually sent, and the chat panel shows a warning naming both numbers and
+what to change. `/api/ps` is preferred because a loaded model reports the real window after the
+server default, any baked `num_ctx` and the architecture maximum have been resolved against each
+other; `/api/show` supplies a baked `num_ctx` when nothing is loaded yet.
+
+A provider that is not Ollama has neither endpoint, so nothing is reported and nothing is warned
+about. The silence is deliberate: a false alarm would send an operator to change a setting that was
+already correct.
+
+**Operator note.** A derived model carries its own `num_ctx` and a baked parameter beats the server
+default, so `OLLAMA_CONTEXT_LENGTH=16384` on the container does **not** lift a `deuswatch-llama`
+built with 8192. Set the variable and point **Model** at a base model such as `llama3.1:8b`, which
+has no `num_ctx` of its own and therefore takes the server default.
+
 ## v2.44.2
 
 ### Fixed

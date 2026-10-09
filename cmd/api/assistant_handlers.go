@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"deuswatch/internal/assistant"
@@ -100,17 +101,69 @@ func resolveAssistantAnalyzer(ctx context.Context, st *store.Store) (llm.Analyze
 	return nil, false
 }
 
+// lastPromptChars is the size of the most recent system prompt actually sent. Written by the chat
+// handler, read by the status handler to check it against the model's context window.
+//
+// Deliberately not persisted and not per-tenant: it answers "is this deployment's prompt too big
+// for this deployment's model", which is a property of the configuration, not of a conversation. A
+// zero means nothing has been sent since the process started, and the status says so rather than
+// guessing a number.
+var lastPromptChars atomic.Int64
+
 // assistantStatusHandler tells the UI whether to render the assistant at all, so a deployment that
-// has not enabled it shows no dead button.
+// has not enabled it shows no dead button. It also reports the model's context window against the
+// prompt we actually send, because exceeding it is the one failure here that raises nothing: Ollama
+// drops the oldest tokens, the oldest tokens are the persona, and the assistant keeps answering
+// correctly about the data while its character quietly disappears.
 func assistantStatusHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		a, ok := resolveAssistantAnalyzer(r.Context(), st)
 		out := map[string]any{"enabled": ok, "model": ""}
-		if ok {
-			out["model"] = a.Name()
+		if !ok {
+			writeJSON(w, http.StatusOK, out)
+			return
+		}
+		out["model"] = a.Name()
+
+		baseURL, model := assistantEndpoint(r.Context(), st)
+		win, _ := llm.DetectWindow(r.Context(), baseURL, model)
+		if win.Tokens > 0 {
+			out["context_window"] = win.Tokens
+			out["context_source"] = win.Source
+			if win.TrainedMax > 0 {
+				out["context_trained_max"] = win.TrainedMax
+			}
+		}
+		// Four characters to a token is the usual ratio for this prompt, which is English prose
+		// plus addresses. Close enough to decide whether something is twice the size it may be.
+		if n := lastPromptChars.Load(); n > 0 {
+			tokens := int(n / 4)
+			out["prompt_tokens"] = tokens
+			if fits, detail := win.Fits(tokens); !fits {
+				out["context_warning"] = detail
+			}
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+// assistantEndpoint returns the base URL and model of the integration driving the assistant, which
+// resolveAssistantAnalyzer discards once it has built the client.
+func assistantEndpoint(ctx context.Context, st *store.Store) (baseURL, model string) {
+	cipher, _, err := secret.FromEnv()
+	if err != nil {
+		return "", ""
+	}
+	rows, rerr := integrations.NewStore(st.Pool(), cipher).Resolve(ctx, "llm")
+	if rerr != nil {
+		return "", ""
+	}
+	for _, row := range rows {
+		if integrations.LLMPurposeMatches(row.Config["purpose"], integrations.PurposeAssistant) {
+			return row.Config["base_url"], row.Config["model"]
+		}
+	}
+	return "", ""
 }
 
 type assistantChatRequest struct {
@@ -432,6 +485,12 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			// Clamped: this lands in a prompt, and a client is free to send anything.
 			LocalTime: truncate(strings.TrimSpace(req.LocalTime), 40),
 		})
+
+		// Recorded so the status endpoint can compare it against the model's real context window.
+		// The measurement is the prompt actually sent, not an estimate rebuilt from parts: the
+		// blocks above vary with the window, the operator's permissions and which guides the gates
+		// let through, so anything reconstructed later would be a different number.
+		lastPromptChars.Store(int64(len(sys)))
 
 		ctx, cancel := context.WithTimeout(r.Context(), llm.Timeout())
 		defer cancel()

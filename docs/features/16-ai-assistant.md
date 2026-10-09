@@ -487,6 +487,31 @@ with 8192. Pick one:
 The combination that looks right and is not: env var set, Model field still pointing at the derived
 model. The container reports 16384 and the model runs at 8192.
 
+### DeusWatch checks this for you
+
+Since v2.45.0 the assistant does not rely on anyone remembering to look. The status endpoint asks
+Ollama what window the configured model runs with, compares it against the system prompt actually
+sent, and puts a warning in the chat panel when the prompt will not fit:
+
+> Context window too small. The system prompt is about 4472 tokens and this model runs with a
+> 4096-token context, so Ollama will drop the oldest tokens to make it fit. The persona sits first
+> in the prompt, so it goes first. This model supports up to 131072, so the limit is configuration,
+> not the model.
+
+Two sources, in order of authority. `/api/ps` reports the window of a model that is currently
+loaded, which is the real number after the server default, any baked `num_ctx` and the architecture
+maximum have been resolved against each other. `/api/show` reports a `num_ctx` baked into the model,
+used when nothing is loaded yet.
+
+The measurement is the prompt that was really sent, not an estimate: the blocks in it vary with the
+window, the caller's permissions and which gated guides fired, so a number rebuilt afterwards would
+be a different one. That also means the warning needs one message to have gone through after the
+API starts, which is why the panel re-checks after each reply rather than only on open.
+
+A provider that is not Ollama has neither endpoint, so nothing is reported and nothing is warned
+about. That silence is deliberate: a false alarm would send an operator to change a setting that
+was already correct, and their service does not truncate silently anyway.
+
 ### Checking what is actually in force
 
 Guessing has cost two rounds of this already, and neither produced an error anywhere. Three

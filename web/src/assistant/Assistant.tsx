@@ -220,6 +220,10 @@ type Msg = ChatTurn & {
 
 export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona?: () => void }) {
   const [enabled, setEnabled] = useState(false)
+  // Set when the model's context window is known and the prompt we sent does not fit it. The whole
+  // point is that this failure is otherwise invisible: Ollama truncates from the front, the persona
+  // is at the front, and the replies stay correct about the data while the character vanishes.
+  const [ctxWarning, setCtxWarning] = useState('')
   const [open, setOpen] = useState(false)
   const [turns, setTurns] = useState<Msg[]>([])
   const [draft, setDraft] = useState('')
@@ -252,6 +256,7 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
     fetchAssistantStatus()
       .then((s) => {
         setEnabled(s.enabled)
+        setCtxWarning(s.context_warning ?? '')
         if (!s.enabled) return
         // Stored turns carry no proposal card or result table: those are live views of state that
         // may have changed since, and re-rendering a stale "Confirm block" button would invite the
@@ -307,6 +312,10 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
     } finally {
       setBusy(false)
       fetchAssistantMemory().then((m) => setMemories(m.memories)).catch(() => {})
+      // Re-checked here, not only on mount: the server measures the prompt it actually built, so
+      // on a freshly started process there is nothing to compare against until one message has
+      // gone through. Checking after the reply is what makes the warning appear at all.
+      fetchAssistantStatus().then((s) => setCtxWarning(s.context_warning ?? '')).catch(() => {})
     }
   }
 
@@ -634,6 +643,16 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
               </div>
             ))}
             {busy && <p className="text-[13px] text-dim">thinking…</p>}
+            {ctxWarning && (
+              // Warning, not error: the assistant still works, it is just quietly losing its
+              // instructions. Rendered in the conversation rather than in Settings because this is
+              // where the symptom is noticed, and the operator who notices it is the one who can
+              // act on it.
+              <p className="rounded-[8px] border border-medium/40 bg-medium/10 px-3 py-2 text-[12.5px] text-medium">
+                <span className="font-semibold">Context window too small. </span>
+                {ctxWarning}
+              </p>
+            )}
             {error && (
               <p className="rounded-[8px] border border-critical/40 bg-critical/10 px-3 py-2 text-[13px] text-critical">
                 {error}

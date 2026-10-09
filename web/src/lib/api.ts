@@ -1890,7 +1890,19 @@ export async function fetchServiceHealth(): Promise<ServiceHealth[]> {
 // change anything. Off unless an LLM integration is configured with "Use for" = assistant.
 export type ChatTurn = { role: 'user' | 'assistant'; content: string }
 
-export type AssistantStatus = { enabled: boolean; model: string }
+/** `context_warning` is set only when the model's window is known AND the prompt we actually sent
+ *  does not fit in it. Exceeding the window raises nothing: Ollama drops the oldest tokens, which
+ *  is the persona, so the assistant keeps answering correctly while its character disappears. The
+ *  fields are absent for providers that do not advertise a window, and absent must stay silent. */
+export type AssistantStatus = {
+  enabled: boolean
+  model: string
+  context_window?: number
+  context_source?: string
+  context_trained_max?: number
+  prompt_tokens?: number
+  context_warning?: string
+}
 
 export async function fetchAssistantStatus(): Promise<AssistantStatus> {
   const res = await authFetch('/api/assistant/status')
