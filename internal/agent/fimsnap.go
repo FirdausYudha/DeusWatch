@@ -45,8 +45,35 @@ func (s *SnapshotStore) key(path string) string {
 // blobPath is the content-addressed location of a versioned snapshot (ADR 0002). Versions are
 // keyed by their content SHA-256 under a blobs/ subdir, so identical content across files or over
 // time is stored once, and restore-by-date resolves (path, chosen version hash) → this blob.
-func (s *SnapshotStore) blobPath(sha256hex string) string {
-	return filepath.Join(s.dir, "blobs", sha256hex)
+func (s *SnapshotStore) blobPath(sha256hex string) (string, bool) {
+	if !validBlobKey(sha256hex) {
+		return "", false
+	}
+	return filepath.Join(s.dir, "blobs", sha256hex), true
+}
+
+// validBlobKey enforces that a blob key is exactly what it claims to be: 64 hexadecimal digits.
+//
+// This is a path segment, and it arrives from outside. The restore flow is
+// POST /api/fim/restore-version {agent, path, sha256} -> a queued action -> this agent -> a file
+// written to disk. The API and the store both checked len(sha) == 64, which is not the same thing
+// at all: "../" repeated with some padding is also 64 characters, and filepath.Join cleans it into
+// an escape from the blobs directory. With approve_remediation that turned into reading any file
+// on an endpoint and writing it to any other path, as root.
+//
+// Hex is the whole check. A real key is produced by sha256.Sum256 and can never contain a
+// separator or a dot, so nothing legitimate is lost by refusing everything that can.
+func validBlobKey(sha256hex string) bool {
+	if len(sha256hex) != 64 {
+		return false
+	}
+	for i := 0; i < len(sha256hex); i++ {
+		c := sha256hex[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // SaveVersion stores one dated version's content, addressed by its SHA-256 (de-duplicated: an
@@ -56,7 +83,10 @@ func (s *SnapshotStore) SaveVersion(sha256hex, content string) (created bool, er
 	if s == nil || sha256hex == "" {
 		return false, nil
 	}
-	p := s.blobPath(sha256hex)
+	p, ok := s.blobPath(sha256hex)
+	if !ok {
+		return false, fmt.Errorf("agent: refusing to store a version under %q: not a sha256", sha256hex)
+	}
 	if _, err := os.Stat(p); err == nil {
 		return false, nil // already have this content
 	}
@@ -64,6 +94,8 @@ func (s *SnapshotStore) SaveVersion(sha256hex, content string) (created bool, er
 		return false, fmt.Errorf("agent: fim blobs dir: %w", err)
 	}
 	// 0600: a version may contain sensitive config content.
+	// #nosec G703 -- p comes from blobPath, which now rejects anything that is not 64 hex digits,
+	// so it cannot carry a separator or a dot out of the blobs directory.
 	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
 		return false, fmt.Errorf("agent: save version %s: %w", sha256hex, err)
 	}
@@ -76,7 +108,11 @@ func (s *SnapshotStore) ReadVersion(sha256hex string) (string, bool) {
 	if s == nil || sha256hex == "" {
 		return "", false
 	}
-	b, err := os.ReadFile(s.blobPath(sha256hex))
+	p, ok := s.blobPath(sha256hex)
+	if !ok {
+		return "", false
+	}
+	b, err := os.ReadFile(p)
 	if err != nil {
 		return "", false
 	}
@@ -146,7 +182,7 @@ func (s *SnapshotStore) writeAtomic(path, content string) error {
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName) // no-op after a successful rename
 	if _, err := tmp.WriteString(content); err != nil {
-		tmp.Close()
+		_ = tmp.Close() // best effort: the write error is what matters
 		return fmt.Errorf("restore %q: write: %w", path, err)
 	}
 	if err := tmp.Close(); err != nil {

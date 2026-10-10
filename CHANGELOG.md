@@ -7,6 +7,47 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.46.0
+
+### Fixed
+
+**A request-supplied value reached a path segment on the agent.** `POST /api/fim/restore-version`
+takes `{agent, path, sha256}`, queues it, and the agent joins that sha into
+`<snapshot-dir>/blobs/<sha>` to read a blob and write it to `path`. The API and the store both
+checked `len(sha) == 64`, which is not the same as checking it is a digest: `"../"` repeated with
+padding is also 64 characters, and `filepath.Join` cleans it into an escape from the blobs
+directory. With `approve_remediation` that was arbitrary file read and write as root on any
+enrolled endpoint.
+
+The key is now required to be 64 hexadecimal digits, enforced at the API boundary so a bad request
+gets a 400, and again on the agent before anything touches the filesystem. Nothing legitimate is
+lost: a real key comes from `sha256.Sum256` and can never contain a separator or a dot.
+
+**A corrupt VirusTotal cache row read as a clean verdict.** `GetCachedVirusTotalResult` ignored the
+error from `json.Unmarshal` and returned `(result, true)`, so a row that failed to decode reported
+"VirusTotal has an opinion and it is empty". It now reports a cache miss, so the lookup is retried
+against the real provider.
+
+**A replaced binary kept its old clean hash.** The agent's executable-hash cache was keyed by path
+with no invalidation and no expiry, so once `/usr/bin/something` had been hashed, overwriting it in
+place kept the original SHA-256 shipped for the lifetime of the agent process, and every reputation
+lookup was performed on the file the attacker replaced. The cache is now keyed by path plus size
+plus mtime, with a 30-minute TTL because size and mtime are both forgeable, and a bound so it
+cannot grow without limit on a host running many short-lived processes.
+
+**The executable hash guard failed open.** `computeFileHash` only applied the size and regular-file
+checks when `f.Stat()` succeeded, so a Stat error fell through to hashing the first 64MiB, which is
+the truncated-prefix digest the guard was added to prevent in v2.44.0. It fails closed now, and a
+short read is also an error: a digest of a file that changed underneath the read matches nothing.
+
+### Changed
+
+**G104, G703 and G704 came off the gosec exclusion list.** A blanket exclusion silences a rule for
+all future code, which is the opposite of what these three are worth. Taking G104 off is what found
+the VirusTotal cache bug above, and taking G703 off is what found the path traversal. Best-effort
+calls are now written `_ = f.Close()`, which gosec accepts and which says so in the code, and the
+handful of intended sites carry an inline `#nosec <rule> -- reason`.
+
 ## v2.45.0
 
 ### Added

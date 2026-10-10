@@ -103,15 +103,15 @@ func moveFile(src, dst string) error {
 	}
 	out, err := os.Create(dst)
 	if err != nil {
-		in.Close()
+		_ = in.Close() // best effort: an error is already on its way back
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		in.Close()
-		out.Close()
+		_ = in.Close()
+		_ = out.Close()
 		return err
 	}
-	in.Close()
+	_ = in.Close()
 	if err := out.Close(); err != nil {
 		return err
 	}

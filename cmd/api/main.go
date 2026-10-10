@@ -766,12 +766,15 @@ func apiResolveWebhook(ctx context.Context, st *store.Store) string {
 // postJSON sends payload as a JSON POST to url.
 func postJSON(ctx context.Context, url string, payload any) error {
 	body, _ := json.Marshal(payload)
+	// #nosec G704 -- an administrator configured this webhook endpoint under manage_settings, and
+	// posting to the URL they chose is what the feature does.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	hc := &http.Client{Timeout: 10 * time.Second}
+	// #nosec G704 -- same admin-configured webhook as above; gosec flags both lines.
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err
@@ -2234,6 +2237,21 @@ func fimQuarantineHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
+// isHex64 reports whether s is exactly 64 hexadecimal digits, which is what a SHA-256 looks like
+// and what a value destined for a path segment must be. A length check alone is not this.
+func isHex64(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return false
+		}
+	}
+	return true
+}
+
 // fimRestoreVersionHandler (POST /api/fim/restore-version {agent, path, sha256}) queues restoring
 // a watched file to a specific captured version (ADR 0002 restore-by-date).
 func fimRestoreVersionHandler(st *store.Store) http.HandlerFunc {
@@ -2243,9 +2261,12 @@ func fimRestoreVersionHandler(st *store.Store) http.HandlerFunc {
 			Path   string `json:"path"`
 			SHA256 string `json:"sha256"`
 		}
+		// isHex64, not len == 64. The sha travels from here into a path segment on the agent, and
+		// "../" with padding is also 64 characters. Rejected at the boundary so a bad request gets
+		// a 400 rather than being queued; the agent refuses it again before touching the disk.
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
-			strings.TrimSpace(req.Agent) == "" || strings.TrimSpace(req.Path) == "" || len(strings.TrimSpace(req.SHA256)) != 64 {
-			http.Error(w, "agent, path and a 64-char sha256 required", http.StatusBadRequest)
+			strings.TrimSpace(req.Agent) == "" || strings.TrimSpace(req.Path) == "" || !isHex64(strings.TrimSpace(req.SHA256)) {
+			http.Error(w, "agent, path and a 64-hex-character sha256 required", http.StatusBadRequest)
 			return
 		}
 		if err := st.RequestRestoreVersion(r.Context(), req.Agent, req.Path, strings.TrimSpace(req.SHA256), currentUsername(r)); err != nil {

@@ -62,10 +62,13 @@ func FeedURL() string {
 }
 
 func fetch(ctx context.Context, url string, limit int64) ([]byte, error) {
+	// #nosec G704 -- the URL is PACKS_FEED_URL, a deployment setting at the same trust level as
+	// the binary, never request input. Fetching the feed the operator configured is the feature.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+	// #nosec G704 -- same PACKS_FEED_URL as above; gosec flags the construction and the call.
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("rules: fetch %s: %w", url, err)

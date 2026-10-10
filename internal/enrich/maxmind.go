@@ -32,6 +32,7 @@ func NewMaxMindClient(path string) (*MaxMindClient, error) {
 	if path == "" {
 		return nil, nil
 	}
+	// #nosec G703 -- GEOIP_DB_PATH is a deployment setting, not request input.
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("maxmind: db file %q does not exist", path)
 	}
@@ -105,6 +106,7 @@ func NewMaxMindASNClient(path string) (*MaxMindASNClient, error) {
 	if path == "" {
 		return nil, nil
 	}
+	// #nosec G703 -- GEOIP_ASN_DB_PATH is a deployment setting, not request input.
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("maxmind: asn db file %q does not exist", path)
 	}

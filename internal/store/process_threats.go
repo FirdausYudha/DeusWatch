@@ -4,10 +4,36 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"deuswatch/internal/agent"
 )
+
+// decodeThreatBlobs fills the JSON-backed fields of a threat row.
+//
+// Evidence, not verdict, which is why a failure here does not drop the row: a threat shown with
+// missing evidence is more useful than one that silently vanished from the list. But it must not be
+// silent either. A nil YaraMatches renders as "none recorded", indistinguishable from a process
+// that genuinely matched no rule, so the failure is logged where someone can find it.
+func decodeThreatBlobs(t *ProcessThreats, reasons, yara, vt []byte) {
+	for _, b := range []struct {
+		name string
+		raw  []byte
+		into any
+	}{
+		{"reasons", reasons, &t.Reasons},
+		{"yara_matches", yara, &t.YaraMatches},
+		{"virustotal_data", vt, &t.VirusTotalData},
+	} {
+		if len(b.raw) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(b.raw, b.into); err != nil {
+			log.Printf("store: threat %d has an unreadable %s blob: %v", t.ID, b.name, err)
+		}
+	}
+}
 
 // ProcessThreats represents a detected threat from process analysis.
 type ProcessThreats struct {
@@ -124,9 +150,7 @@ func (s *Store) GetProcessThreats(ctx context.Context, tenantID string, threatLe
 			continue
 		}
 
-		json.Unmarshal(reasonsData, &t.Reasons)
-		json.Unmarshal(yaraData, &t.YaraMatches)
-		json.Unmarshal(vtData, &t.VirusTotalData)
+		decodeThreatBlobs(&t, reasonsData, yaraData, vtData)
 
 		threats = append(threats, t)
 	}
@@ -165,9 +189,7 @@ func (s *Store) GetProcessThreatsForAgent(ctx context.Context, tenantID, agentID
 			continue
 		}
 
-		json.Unmarshal(reasonsData, &t.Reasons)
-		json.Unmarshal(yaraData, &t.YaraMatches)
-		json.Unmarshal(vtData, &t.VirusTotalData)
+		decodeThreatBlobs(&t, reasonsData, yaraData, vtData)
 
 		threats = append(threats, t)
 	}
@@ -220,7 +242,13 @@ func (s *Store) GetVirusTotalCached(ctx context.Context, fileHash string) (map[s
 		return nil, false, nil // Cache miss
 	}
 
-	json.Unmarshal(engineData, &result)
+	// Fail closed. Returning (result, true) after a failed decode reports "VirusTotal has an
+	// opinion and it is empty", which an analyzer reads as clean. A corrupt cache row must look
+	// like a cache miss so the lookup is retried against the real provider.
+	if uerr := json.Unmarshal(engineData, &result); uerr != nil {
+		log.Printf("store: vt_cache row for %s is unreadable, treating as a miss: %v", fileHash, uerr)
+		return nil, false, nil
+	}
 	return result, true, nil
 }
 

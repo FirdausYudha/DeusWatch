@@ -115,16 +115,17 @@ jobs:
         #   G204 run nft/cscli/Get-WinEvent       G304 open log/config files per input
         #   G301/G306 cert/buffer file perms      G706 log operational data
         #   G115 bounded int conversion (severity 0..4, etc.)
-        #   G703 path traversal: every site is a deployment path (GEOIP_DB_PATH, CERT_DIR) or a
-        #        path this code built itself. Same category as G304 above.
-        #   G704 SSRF: the flagged URLs come from env or an admin-configured integration, and
-        #        "POST to the webhook the administrator chose" is the feature, not a bypass.
-        #   G104 unhandled errors: best-effort Close and Write on paths that already failed.
-        # Deliberately NOT excluded, so the rule keeps working on new code: G402 InsecureSkipVerify,
-        # G302 file permissions, G118 context, G122 walk races. The few intended sites carry an
-        # inline `#nosec <rule> -- reason` instead.
+        # Nothing else is excluded. G104, G703 and G704 were on this list and came off: a blanket
+        # exclusion silences a rule for all FUTURE code too, and these three are exactly the ones
+        # worth keeping pointed at new work. Taking G104 off found four dropped json.Unmarshal
+        # errors in the malware path, one of which made a corrupt cache row read as a clean
+        # VirusTotal verdict. Taking G703 off found a request-supplied value reaching a path
+        # segment with only a length check in front of it.
+        # Best-effort calls are `_ = f.Close()`, which gosec accepts and which says so in the code.
+        # The few intended sites for G402, G302, G118 and G122 carry an inline
+        # `#nosec <rule> -- reason` rather than a repo-wide switch.
         # tools/ is developer utilities that take a path on the command line and never ship.
-      - run: gosec -exclude-dir=web -exclude-dir=tools -exclude=G204,G304,G306,G301,G706,G115,G703,G704,G104 ./...
+      - run: gosec -exclude-dir=web -exclude-dir=tools -exclude=G204,G304,G306,G301,G706,G115 ./...
 
   web:
     name: Web build & type-check

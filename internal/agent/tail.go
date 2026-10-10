@@ -42,13 +42,13 @@ func FollowFile(ctx context.Context, path string, fromStart bool, out chan<- str
 			if err == nil {
 				info, serr := f.Stat()
 				if serr != nil {
-					f.Close()
+					_ = f.Close() // best effort: serr is what the caller gets
 					return nil, nil, 0, serr
 				}
 				var off int64
 				if seekEnd {
 					if off, err = f.Seek(0, io.SeekEnd); err != nil {
-						f.Close()
+						_ = f.Close()
 						return nil, nil, 0, err
 					}
 				}
@@ -83,7 +83,7 @@ func FollowFile(ctx context.Context, path string, fromStart bool, out chan<- str
 		}
 		return err
 	}
-	defer func() { f.Close() }()
+	defer func() { _ = f.Close() }()
 	reader := bufio.NewReader(f)
 
 	for {
@@ -106,7 +106,7 @@ func FollowFile(ctx context.Context, path string, fromStart bool, out chan<- str
 				// A new file wears this name now. We have already drained the old fd to EOF, so
 				// close it and follow the new file from its beginning.
 				log.Printf("agent: tail %q: rotation detected, reopening", path)
-				f.Close()
+				_ = f.Close() // the old fd is drained to EOF; nothing to salvage from a close error
 				f, openInfo, offset, err = openFollow(false)
 				if err != nil {
 					if ctx.Err() != nil {

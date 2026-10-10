@@ -51,12 +51,12 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	tln, err := net.Listen("tcp", s.addr)
 	if err != nil {
-		uconn.Close()
+		_ = uconn.Close() // best effort: the listen error is what the caller needs
 		return fmt.Errorf("syslog: listen tcp %s: %w", s.addr, err)
 	}
 	log.Printf("syslog: listening on %s (udp+tcp)", s.addr)
 
-	go func() { <-ctx.Done(); uconn.Close(); tln.Close() }()
+	go func() { <-ctx.Done(); _ = uconn.Close(); _ = tln.Close() }()
 	go s.serveUDP(ctx, uconn)
 	go s.serveTCP(ctx, tln)
 	<-ctx.Done()

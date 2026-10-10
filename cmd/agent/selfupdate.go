@@ -138,6 +138,7 @@ func loadCACertPool() (*x509.CertPool, error) {
 	if certDir == "" {
 		certDir = "/etc/deuswatch/certs"
 	}
+	// #nosec G703 -- CERT_DIR is a deployment setting and the filename is a constant.
 	pem, err := os.ReadFile(filepath.Join(certDir, "ca.pem"))
 	if err != nil {
 		return nil, err

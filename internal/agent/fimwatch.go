@@ -41,7 +41,7 @@ func startFIMWatcher(ctx context.Context, roots []string, debounce time.Duration
 		added += addWatchRecursive(w, r)
 	}
 	if added == 0 {
-		w.Close()
+		_ = w.Close() // best effort: the error below is the real one
 		return nil, fmt.Errorf("no watchable paths in %v (do they exist yet?)", roots)
 	}
 	go func() {
@@ -58,7 +58,7 @@ func startFIMWatcher(ctx context.Context, roots []string, debounce time.Duration
 				if timer != nil {
 					timer.Stop()
 				}
-				w.Close()
+				_ = w.Close()
 				return
 			case ev, ok := <-w.Events:
 				if !ok {
@@ -84,7 +84,7 @@ func startFIMWatcher(ctx context.Context, roots []string, debounce time.Duration
 			}
 		}
 	}()
-	return func() { w.Close() }, nil
+	return func() { _ = w.Close() }, nil
 }
 
 // addWatchRecursive adds path (and, for a directory, every sub-directory) to the watcher.

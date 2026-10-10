@@ -178,7 +178,7 @@ func (w *auditWatcher) tail(ctx context.Context, logPath string) {
 		if fi2, err := f.Stat(); err == nil {
 			offset = fi2.Size()
 		}
-		f.Close()
+		_ = f.Close()
 	}
 }
 
