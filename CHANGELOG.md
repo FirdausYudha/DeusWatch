@@ -7,6 +7,34 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.47.0
+
+### Changed
+
+**No shipped default admin password.** With `ADMIN_PASSWORD` unset, the api now generates one on
+first start and prints it once in its log. It used to fall back to a constant that is published in
+this repository's public README, and which the product's own password policy already refuses as too
+weak to choose: the seed was planting a credential no user would have been allowed to pick.
+
+**Operator action, and it is not optional.** A deployment seeded before this release without
+`ADMIN_PASSWORD` set has an `admin` account whose password is public knowledge. Create your own
+named administrator, sign in as them, and delete `admin`. Changing its password is the lesser fix,
+because the account name stays the obvious target.
+
+### Added
+
+**Last-administrator protection.** Delete and role-change now refuse when the change would leave
+nobody holding `manage_users`. Deleting the seeded `admin` is meant to work and is encouraged;
+deleting or demoting the only account that can administer the deployment is a lockout with no
+recovery path inside the product. There is no second console and no break-glass account, and the
+seed does not help because it only runs on a completely empty users table, so the way out was
+editing the database by hand.
+
+The check reuses `User.Can` rather than restating the rule in SQL, so it asks exactly the question
+the request middleware asks. An explicit permission override replaces the role's defaults entirely:
+an `admin` whose override omits `manage_users` does not count, and a `viewer` who was granted it
+does. Disabled users do not count either, since login rejects them.
+
 ## v2.46.0
 
 ### Fixed

@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -602,12 +603,27 @@ func connectStoreWithRetry(dsn string) *store.Store {
 }
 
 // seedAdmin creates the initial admin user if there are no users yet.
+//
+// With no ADMIN_PASSWORD it generates one and prints it once, rather than falling back to a
+// constant. The constant it used to fall back to was published in the README of a public
+// repository, which made "admin" on any deployment that never set the variable an account with a
+// known username AND a known password. The product's own password policy already refused that
+// string, so the seed was planting a credential a user would not have been allowed to choose.
+//
+// Printed once, at creation, and never stored anywhere else: the operator reads it out of the
+// first-start logs, signs in, and changes it.
 func seedAdmin(authStore *auth.Store) {
 	user := getenv("ADMIN_USERNAME", "admin")
 	pass := os.Getenv("ADMIN_PASSWORD")
+	generated := false
 	if pass == "" {
-		pass = "thewatcher"
-		log.Printf("api: ADMIN_PASSWORD empty, using the dev default (CHANGE it for production!)")
+		b := make([]byte, 18)
+		if _, err := rand.Read(b); err != nil {
+			log.Printf("api: cannot generate an initial admin password: %v", err)
+			return
+		}
+		pass = base64.RawURLEncoding.EncodeToString(b)
+		generated = true
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -616,8 +632,17 @@ func seedAdmin(authStore *auth.Store) {
 		log.Printf("api: seed admin failed: %v", err)
 		return
 	}
-	if created {
-		log.Printf("api: initial admin user %q created", user)
+	if !created {
+		return
+	}
+	log.Printf("api: initial admin user %q created", user)
+	if generated {
+		log.Printf("api: ============================================================")
+		log.Printf("api: ADMIN_PASSWORD was not set, so one was generated for %q:", user)
+		log.Printf("api:     %s", pass)
+		log.Printf("api: This is shown once. Sign in, create your own named admin,")
+		log.Printf("api: then delete %q: a default account is the first one attacked.", user)
+		log.Printf("api: ============================================================")
 	}
 }
 

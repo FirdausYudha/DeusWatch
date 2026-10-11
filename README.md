@@ -153,7 +153,7 @@ docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
 - **Web UI:** http://localhost:9173 · **API:** http://localhost:9080
-- **Default login:** `admin` / `thewatcher` (change via `ADMIN_PASSWORD`, or in **Users**/**Settings** after first login)
+- **First login:** the initial `admin` password is **generated on first start and printed once** in the api log (`docker compose logs api | grep -A2 "ADMIN_PASSWORD was not set"`), unless you set `ADMIN_PASSWORD` yourself. There is no shipped default password. Sign in, create your own named admin, then **delete `admin`**: a default account name is the first one anyone tries.
 - Self-registration is **disabled by default** (admins create users in the UI); set `REGISTRATION_ENABLED=1` to allow viewer-role sign-ups from the login page.
 
 ### Custom ports

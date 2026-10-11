@@ -29,6 +29,35 @@ Accounts, role-based access control (RBAC), and the audit trail.
 - Self-registration (if enabled) creates a **viewer** account from the login page.
 - Each user manages their own **password** and **2FA** in [Settings](09-settings.md).
 
+### Delete the seeded `admin`
+
+Do it. A default account name is the first one anyone tries, and it is the one credential about a
+deployment an attacker can guess without knowing anything else. The order:
+
+1. Create your own admin under a name nobody can guess.
+2. Sign out, sign in as that account. You cannot delete the account you are signed in as.
+3. Delete `admin` from the Users page.
+
+It does not come back. The seed runs only when the users table is completely **empty**, so a
+deployment that still has your account will never recreate it.
+
+There is no shipped default password. On first start, with `ADMIN_PASSWORD` unset, the api
+generates one and prints it once in its log. Before v2.47.0 it fell back to a constant that was
+published in this repository's README, so **any deployment seeded before that upgrade, which never
+set `ADMIN_PASSWORD`, still has an `admin` account whose password is public knowledge.** Deleting
+it is the fix; changing its password is not, because the account name remains the obvious target.
+
+### You cannot remove the last administrator
+
+Delete and role-change both refuse when the change would leave nobody holding `manage_users`. This
+is not a formality: there is no second console and no break-glass account, and the seed does not
+help because it only fires on an empty users table. Recovering from zero administrators means
+editing the database by hand.
+
+The check asks the same question the request middleware asks, so an explicit permission override
+counts and a role label does not: an `admin` whose override omits `manage_users` is not an
+administrator for this purpose, and a `viewer` who was granted it is.
+
 ## Endpoints & source
 
 | Endpoint | Purpose | Permission |

@@ -105,9 +105,12 @@ services:
       # openssl rand -hex 24. POST /api/ingest/webhook?token=...&agent=<name>&dataset=wazuh
       INGEST_WEBHOOK_TOKEN: "${INGEST_WEBHOOK_TOKEN:-}"
       DATABASE_URL: "postgres://deuswatch:${POSTGRES_PASSWORD:-deuswatch_dev}@db:5432/deuswatch?sslmode=disable"
-      # The initial admin is seeded when the users table is empty. CHANGE for production.
+      # The initial admin is seeded only when the users table is empty.
+      # ADMIN_PASSWORD has no default on purpose: left unset, the api generates one and prints it
+      # once in its first-start log. A shipped default would be a known password on every
+      # deployment that never changed it, and this repository is public.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-thewatcher}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
       # Self-registration on the login page, off by default (admins add users in the UI).
       REGISTRATION_ENABLED: "${REGISTRATION_ENABLED:-0}"
       # CA for issuing agent certificates during enrollment (mounted read-only).

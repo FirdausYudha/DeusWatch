@@ -231,6 +231,14 @@ func (s *Store) UpdateUserHandler() http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		// Demotion is the quieter way to the same dead end. An operator who strips manage_users
+		// from the only account that has it locks the deployment out just as completely as a
+		// delete does, and is far less likely to expect it.
+		after := UserInfo{ID: id, Role: role, Permissions: perms}
+		if err := s.guardLastAdmin(r.Context(), id, &after, "change this user's access"); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if err := s.UpdateUser(r.Context(), id, role, perms); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -252,6 +260,13 @@ func (s *Store) DeleteUserHandler() http.HandlerFunc {
 		}
 		if u, ok := UserFrom(r.Context()); ok && u.ID == id {
 			http.Error(w, "you cannot delete your own account", http.StatusBadRequest)
+			return
+		}
+		// Deleting the seeded `admin` is meant to work, and is a good idea. Deleting the LAST
+		// account that can manage users is not, and has no recovery path short of editing the
+		// database by hand.
+		if err := s.guardLastAdmin(r.Context(), id, nil, "delete this user"); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if err := s.DeleteUser(r.Context(), id); err != nil {
