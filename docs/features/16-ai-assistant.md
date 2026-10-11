@@ -35,6 +35,32 @@ This also rules out a subtler attack. Had the model been allowed to propose from
 attacker could flood the queue with plausible-looking cards, and the twentieth bogus card is the one
 somebody waves through.
 
+### Blocking several addresses at once
+
+Name as many as you like in one sentence and they all land on one card, as a **checklist**:
+
+```
+block 43.173.126.86, 45.55.148.10, 20.217.80.108 and 68.183.115.64 for 7 days
+```
+
+Each address gets its own tick box, ticked by default since you just named them, and the duration
+is editable on the card itself because that is the thing most often reconsidered while reading the
+list. Confirm applies one call per ticked address, under your own session and the real
+`execute_block` permission, and reports a partial result honestly: a list where one address was
+already blocked should not read as a failed card.
+
+Every address is listed, never summarised to a count. Someone about to cut off nine networks has to
+be able to read which nine.
+
+One card holds at most 20 addresses. Anything past that is **reported**, not dropped: the reply
+says how many were left out so you can send them in a second message. Before v2.49.0 a list like
+the one above prepared a card for the first address only, and said so in a sentence that mentioned
+no others, which is exactly how someone comes away believing they blocked nine.
+
+A CIDR is still refused for a ban even in the middle of a list, while a whitelist takes several
+ranges happily. Widening a ban to a `/8` because a prefix appeared in a sentence is not a mistake
+worth making possible.
+
 ## Turning it on
 
 1. **Integrations → Add → LLM analyzer (AI)**.

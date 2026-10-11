@@ -7,6 +7,30 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.49.0
+
+### Fixed
+
+**A list of addresses prepared a block for the first one.** Asked to block nine IPs, the assistant
+parsed one and replied "Prepared a 7-day block for 43.173.126.86", a sentence that mentions no
+others. An operator reads that, presses confirm, and comes away believing nine networks are cut
+off. `ParseProposal` took the first address it found; it now takes all of them, in the order they
+were typed, de-duplicated.
+
+### Added
+
+**The confirmation card is a checklist.** Several addresses arrive with a tick box each, ticked by
+default since you just named them, and the **duration is editable on the card**, because that is
+the thing most often reconsidered while reading the list. Confirm applies one call per ticked
+address under your own session and reports a partial result rather than failing the whole card: a
+list where one address was already blocked is a normal outcome, not an error.
+
+Every address is listed, never summarised to a count. One card holds at most 20; anything beyond
+that is reported in the reply so it can be sent separately, since quietly keeping the first twenty
+is the same bug as quietly keeping the first one.
+
+A CIDR is still refused for a ban even inside a list, while a whitelist accepts several ranges.
+
 ## v2.48.0
 
 ### Fixed

@@ -539,9 +539,9 @@ func assistantChatHandler(st *store.Store, budget *assistantBudget) http.Handler
 			if y, ok := assistant.ExtractRuleYAML(reply); ok {
 				if _, cerr := sigma.Classify([]byte(y)); cerr == nil {
 					out["proposal"] = assistant.Proposal{
-						Kind:   assistant.KindRule,
-						Target: assistant.RuleTitle(y),
-						YAML:   y,
+						Kind:    assistant.KindRule,
+						Targets: []string{assistant.RuleTitle(y)},
+						YAML:    y,
 					}
 				} else {
 					out["reply"] = reply + "\n\n(That draft does not parse: " + cerr.Error() +

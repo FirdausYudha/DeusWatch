@@ -1933,8 +1933,13 @@ function localHour(): string {
 
 export type AssistantProposal = {
   kind: 'ban' | 'whitelist' | 'rule'
-  target: string
+  /** Every address the operator named, parsed from THEIR sentence server-side, never from the
+   *  model. For `rule` it holds exactly one element: the rule's title. */
+  targets: string[]
   minutes: number
+  /** Addresses named beyond the server's per-card cap, so the card can say they were left out
+   *  rather than quietly dropping them. */
+  overflow?: number
   /** KindRule only: the drafted Sigma YAML, already validated by the engine server-side. */
   yaml?: string
 }

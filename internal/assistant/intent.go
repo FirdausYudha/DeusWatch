@@ -39,15 +39,28 @@ const (
 // the weaker one that merely lets someone talk to the assistant.
 type Proposal struct {
 	Kind ProposalKind `json:"kind"`
-	// Target is a validated IP, or a CIDR for a whitelist entry.
-	Target string `json:"target"`
+	// Targets are the validated IPs, or CIDRs for a whitelist entry. Every one of them is listed on
+	// the card: an operator confirming a block has to see each address it will apply to, so this is
+	// never summarised to a count.
+	//
+	// For KindRule it holds exactly one element, the rule's title.
+	Targets []string `json:"targets"`
 	// Minutes is the ban duration. 0 means "use the configured progressive-ban ladder", which is
 	// what the ban endpoint already does with an omitted duration.
 	Minutes int `json:"minutes"`
+	// Overflow is how many addresses were named beyond MaxProposalTargets and are therefore NOT in
+	// Targets. Reported rather than dropped: taking the first few and saying nothing is how an
+	// operator ends up believing they blocked nine addresses when one was blocked.
+	Overflow int `json:"overflow,omitempty"`
 	// YAML is the drafted rule, for KindRule only. The operator reviews this text itself: they are
 	// approving code, and a summary of code is not something anyone can approve responsibly.
 	YAML string `json:"yaml,omitempty"`
 }
+
+// MaxProposalTargets bounds one card. A deliberate list of addresses is ordinary; a pasted log
+// excerpt is not a command, and turning one into a fifty-address block card behind a single button
+// is how a confirmation step stops being read.
+const MaxProposalTargets = 20
 
 var (
 	// Matched loosely, then validated with net.Parse*, so a port, a version string or a hash
@@ -84,12 +97,12 @@ func ParseProposal(msg string) (Proposal, bool) {
 		return Proposal{}, false
 	}
 
-	target, ok := firstAddress(msg, kind == KindWhitelist)
-	if !ok {
+	targets, overflow := addresses(msg, kind == KindWhitelist)
+	if len(targets) == 0 {
 		return Proposal{}, false // a verb with no address is conversation, not a command
 	}
 
-	p := Proposal{Kind: kind, Target: target}
+	p := Proposal{Kind: kind, Targets: targets, Overflow: overflow}
 	if kind == KindBan {
 		p.Minutes = parseMinutes(low)
 	}
@@ -128,11 +141,30 @@ func isWordByte(b byte) bool {
 	return b == '-' || b == '_' || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
 
-// firstAddress returns the first syntactically valid address in the message. A CIDR is accepted
-// only for a whitelist: whitelisting a range is ordinary, while banning one through this path is
-// not, and silently widening a ban to a /8 because someone typed a prefix is not a mistake worth
-// making possible.
-func firstAddress(msg string, allowCIDR bool) (string, bool) {
+// addresses returns every syntactically valid address in the message, in the order they were
+// typed, de-duplicated, capped at MaxProposalTargets. overflow is how many valid addresses were
+// found beyond the cap.
+//
+// Every one of them, not the first one. "block A, B and C" used to prepare a card for A and say so
+// in a sentence that mentioned no others, so the operator read "Prepared a 7-day block for A",
+// pressed confirm, and believed all three were handled.
+//
+// A CIDR is accepted only for a whitelist: whitelisting a range is ordinary, while banning one
+// through this path is not, and silently widening a ban to a /8 because someone typed a prefix is
+// not a mistake worth making possible.
+func addresses(msg string, allowCIDR bool) (targets []string, overflow int) {
+	seen := map[string]bool{}
+	add := func(s string) {
+		if seen[s] {
+			return // the same address twice in one sentence is one target, not two
+		}
+		seen[s] = true
+		if len(targets) < MaxProposalTargets {
+			targets = append(targets, s)
+			return
+		}
+		overflow++
+	}
 	for _, loc := range reAddr.FindAllStringIndex(msg, -1) {
 		if !addressBoundaryOK(msg, loc[0], loc[1]) {
 			continue
@@ -143,17 +175,17 @@ func firstAddress(msg string, allowCIDR bool) (string, bool) {
 				continue
 			}
 			if _, n, err := net.ParseCIDR(m); err == nil {
-				return n.String(), true
+				add(n.String())
 			}
 			continue
 		}
 		// IsUnspecified rejects "0.0.0.0" and the "::" that the v6 pattern happily finds inside
 		// ordinary punctuation. Neither is ever a thing anyone means to ban or whitelist.
 		if ip := net.ParseIP(m); ip != nil && !ip.IsUnspecified() {
-			return ip.String(), true
+			add(ip.String())
 		}
 	}
-	return "", false
+	return targets, overflow
 }
 
 // addressBoundaryOK rejects a match that is really a slice of a longer dotted string. A word
@@ -210,13 +242,40 @@ func parseMinutes(low string) int {
 // generated, because the card beside it is the thing that matters: a model asked to narrate an
 // action it is not performing tends to either claim it did it or deny it can, and both are wrong.
 func (p Proposal) Reply() string {
+	var b strings.Builder
+	n := len(p.Targets)
+
+	switch {
+	case p.Kind == KindWhitelist && n == 1:
+		fmt.Fprintf(&b, "Prepared a whitelist entry for %s. The response engine will never ban anything matching it, so check the range before confirming.", p.Targets[0])
+	case p.Kind == KindWhitelist:
+		fmt.Fprintf(&b, "Prepared whitelist entries for %d addresses. The response engine will never ban anything matching them, so check the ranges before confirming.", n)
+	case p.Minutes > 0 && n == 1:
+		fmt.Fprintf(&b, "Prepared a %s block for %s.", humanMinutes(p.Minutes), p.Targets[0])
+	case p.Minutes > 0:
+		fmt.Fprintf(&b, "Prepared a %s block for %d addresses.", humanMinutes(p.Minutes), n)
+	case n == 1:
+		fmt.Fprintf(&b, "Prepared a block for %s using the configured ban ladder, so the duration follows this IP's history.", p.Targets[0])
+	default:
+		fmt.Fprintf(&b, "Prepared a block for %d addresses using the configured ban ladder, so each duration follows that IP's own history.", n)
+	}
+
+	if n > 1 {
+		b.WriteString(" Tick the ones you want and adjust the duration on the card below.")
+	} else {
+		b.WriteString(" Review it below.")
+	}
+	// Said out loud. Quietly keeping the first twenty is how someone comes away believing they
+	// actioned a list they only partly actioned.
+	if p.Overflow > 0 {
+		fmt.Fprintf(&b, " You named %d more than I can put on one card; send those in a second message.", p.Overflow)
+	}
 	if p.Kind == KindWhitelist {
-		return fmt.Sprintf("Prepared a whitelist entry for %s. Review it below: the response engine will never ban anything matching it, so check the range before confirming. Nothing is saved until you do.", p.Target)
+		b.WriteString(" Nothing is saved until you confirm.")
+	} else {
+		b.WriteString(" Nothing is applied until you confirm.")
 	}
-	if p.Minutes > 0 {
-		return fmt.Sprintf("Prepared a %s block for %s. Review it below. Nothing is applied until you confirm.", humanMinutes(p.Minutes), p.Target)
-	}
-	return fmt.Sprintf("Prepared a block for %s using the configured ban ladder, so the duration follows this IP's history. Review it below. Nothing is applied until you confirm.", p.Target)
+	return b.String()
 }
 
 func humanMinutes(m int) string {

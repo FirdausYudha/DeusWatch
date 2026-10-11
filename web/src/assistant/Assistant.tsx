@@ -31,23 +31,55 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
+  // Ticked by default: the operator already named these addresses, so the card confirms what they
+  // asked for rather than making them ask twice. Unticking is the cheap part; noticing that nothing
+  // was ticked after pressing Confirm is not.
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(p.targets))
+  // Editable here, because the duration is the thing most often reconsidered while looking at the
+  // list. Empty means the configured ban ladder, which is the server's own default for 0.
+  const [minutes, setMinutes] = useState<string>(p.minutes > 0 ? String(p.minutes) : '')
   const perm = p.kind === 'ban' ? 'execute_block' : p.kind === 'rule' ? 'manage_rules' : 'manage_settings'
   const allowed = can(me, perm)
+  const multi = p.kind !== 'rule' && p.targets.length > 1
+
+  const toggle = (t: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(t)) next.add(t)
+      return next
+    })
 
   const confirm = async () => {
     setBusy(true)
     setErr('')
+    const chosen = p.targets.filter((t) => picked.has(t))
     try {
       if (p.kind === 'rule') {
-        await createRule(p.target, p.yaml ?? '')
-        onDone(`Saved the rule "${p.target}". It is enabled and will apply on the worker's next reload.`)
-      } else if (p.kind === 'ban') {
-        await banIP(p.target, p.minutes)
-        onDone(`Blocked ${p.target}.`)
-      } else {
-        await addWhitelist(p.target, 'added from the assistant', 'internal')
-        onDone(`Whitelisted ${p.target}.`)
+        await createRule(p.targets[0], p.yaml ?? '')
+        onDone(`Saved the rule "${p.targets[0]}". It is enabled and will apply on the worker's next reload.`)
+        setDone(true)
+        return
       }
+      // One call per address, and failures are collected rather than thrown. A partial result is
+      // the normal outcome of a list (one address is already blocked, one is whitelisted), and
+      // reporting "failed" for the whole card would hide the ones that did apply.
+      const mins = Number(minutes) > 0 ? Number(minutes) : 0
+      const failed: string[] = []
+      for (const t of chosen) {
+        try {
+          if (p.kind === 'ban') await banIP(t, mins)
+          else await addWhitelist(t, 'added from the assistant', 'internal')
+        } catch (e) {
+          failed.push(`${t} (${e instanceof Error ? e.message : String(e)})`)
+        }
+      }
+      const ok = chosen.length - failed.length
+      const verb = p.kind === 'ban' ? 'Blocked' : 'Whitelisted'
+      onDone(
+        failed.length === 0
+          ? `${verb} ${ok === 1 ? chosen[0] : `${ok} addresses`}.`
+          : `${verb} ${ok} of ${chosen.length}. Failed: ${failed.join('; ')}`,
+      )
       setDone(true)
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -56,14 +88,43 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
     }
   }
 
-  const duration = p.minutes > 0 ? `${p.minutes} minute${p.minutes === 1 ? '' : 's'}` : 'per the configured ban ladder'
+  const duration = Number(minutes) > 0 ? `${minutes} minute${Number(minutes) === 1 ? '' : 's'}` : 'per the configured ban ladder'
 
   return (
     <div className="rounded-[10px] border border-border bg-surface-2 p-3">
       <p className="text-[12px] font-semibold uppercase tracking-wide text-dim">
-        {p.kind === 'ban' ? 'Block an IP' : p.kind === 'rule' ? 'New detection rule' : 'Add to whitelist'}
+        {p.kind === 'ban'
+          ? multi ? `Block ${p.targets.length} IPs` : 'Block an IP'
+          : p.kind === 'rule'
+            ? 'New detection rule'
+            : multi ? `Whitelist ${p.targets.length} entries` : 'Add to whitelist'}
       </p>
-      <p className="mt-1 break-all font-mono text-[13.5px] text-fg">{p.target}</p>
+      {multi ? (
+        // Every address listed, never a count. Somebody is about to cut off nine networks and has
+        // to be able to read which ones.
+        <div className="mt-1.5 max-h-56 space-y-0.5 overflow-auto">
+          {p.targets.map((t) => (
+            <label key={t} className="flex cursor-pointer items-center gap-2 rounded-[6px] px-1 py-0.5 hover:bg-bg">
+              <input
+                type="checkbox"
+                checked={picked.has(t)}
+                onChange={() => toggle(t)}
+                disabled={busy || done}
+                className="size-3.5 accent-[var(--color-accent)]"
+              />
+              <span className="break-all font-mono text-[13px] text-fg">{t}</span>
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1 break-all font-mono text-[13.5px] text-fg">{p.targets[0]}</p>
+      )}
+      {p.overflow ? (
+        <p className="mt-1 text-[12px] text-medium">
+          {p.overflow} more {p.overflow === 1 ? 'address was' : 'addresses were'} named than fit on one
+          card. Send those in another message.
+        </p>
+      ) : null}
       {p.kind === 'rule' ? (
         <>
           {/* The whole rule, not a summary. The operator is approving code that will run against
@@ -77,11 +138,25 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
           </p>
         </>
       ) : (
-        <p className="mt-0.5 text-[12.5px] text-muted">
-          {p.kind === 'ban'
-            ? `Duration: ${duration}.`
-            : 'The response engine will never ban anything matching this.'}
-        </p>
+        <div className="mt-1 text-[12.5px] text-muted">
+          {p.kind === 'ban' ? (
+            <label className="flex flex-wrap items-center gap-1.5">
+              <span>Duration:</span>
+              <input
+                type="number"
+                min={0}
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value)}
+                disabled={busy || done}
+                placeholder="ladder"
+                className="w-24 rounded-[6px] border border-border bg-bg px-1.5 py-0.5 font-mono text-[12.5px] text-fg"
+              />
+              <span>minutes, {duration}.</span>
+            </label>
+          ) : (
+            <p>The response engine will never ban anything matching {multi ? 'these' : 'this'}.</p>
+          )}
+        </div>
       )}
       {done ? (
         <p className="mt-2 text-[12.5px] text-success">Applied.</p>
@@ -93,10 +168,16 @@ function ProposalCard({ me, p, onDone }: { me: Me; p: AssistantProposal; onDone:
       ) : (
         <button
           onClick={confirm}
-          disabled={busy}
+          // Nothing ticked is not an action. Disabled rather than silently doing nothing, which
+          // would read as the button being broken.
+          disabled={busy || (p.kind !== 'rule' && picked.size === 0)}
           className="mt-2 rounded-[8px] bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity disabled:opacity-40"
         >
-          {busy ? 'Applying…' : p.kind === 'ban' ? 'Confirm block' : p.kind === 'rule' ? 'Save rule' : 'Confirm whitelist'}
+          {busy
+            ? 'Applying…'
+            : p.kind === 'rule'
+              ? 'Save rule'
+              : `${p.kind === 'ban' ? 'Confirm block' : 'Confirm whitelist'}${multi ? ` (${picked.size})` : ''}`}
         </button>
       )}
       {err && <p className="mt-2 text-[12.5px] text-critical">{err}</p>}

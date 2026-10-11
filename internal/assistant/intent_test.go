@@ -26,7 +26,7 @@ func TestParseProposalRecognises(t *testing.T) {
 			t.Errorf("%q: not recognised", c.msg)
 			continue
 		}
-		if p.Kind != c.kind || p.Target != c.target || p.Minutes != c.minutes {
+		if p.Kind != c.kind || len(p.Targets) != 1 || p.Targets[0] != c.target || p.Minutes != c.minutes {
 			t.Errorf("%q: got %+v, want kind=%s target=%s minutes=%d", c.msg, p, c.kind, c.target, c.minutes)
 		}
 	}
@@ -57,12 +57,12 @@ func TestParseProposalIgnores(t *testing.T) {
 
 func TestProposalReplyStatesNothingHappenedYet(t *testing.T) {
 	for _, p := range []Proposal{
-		{Kind: KindBan, Target: "1.2.3.4"},
-		{Kind: KindBan, Target: "1.2.3.4", Minutes: 120},
-		{Kind: KindWhitelist, Target: "10.0.0.0/8"},
+		{Kind: KindBan, Targets: []string{"1.2.3.4"}},
+		{Kind: KindBan, Targets: []string{"1.2.3.4"}, Minutes: 120},
+		{Kind: KindWhitelist, Targets: []string{"10.0.0.0/8"}},
 	} {
 		got := p.Reply()
-		if !contains(got, p.Target) {
+		if !contains(got, p.Targets[0]) {
 			t.Errorf("%+v: reply omits the target: %s", p, got)
 		}
 		// The operator must never read the reply as "done".
