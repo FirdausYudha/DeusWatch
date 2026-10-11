@@ -49,7 +49,7 @@ worker's per-tenant scorers still `GROUP BY tenant_id`.
 
 ## Deployment requirements
 
-1. **Run the migrations.** `000049`–`000054` create the tenant schema, stamp tenant IDs, enable RLS,
+1. **Run the migrations.** `000049` to `000054` create the tenant schema, stamp tenant IDs, enable RLS,
    create the `deuswatch_app` role and the `events` security-barrier view. The API auto-runs migrations
    at start (unless `RUN_MIGRATIONS=0`).
 2. **The API connects as the owner/superuser role** (`deuswatch`). this is expected. Per-request
@@ -69,6 +69,39 @@ worker's per-tenant scorers still `GROUP BY tenant_id`.
   exists). The enrollment token binds the agent, and therefore all of its telemetry, to that tenant.
 - **Switching view**: users in more than one workspace get a workspace switcher in the top bar. It
   sends `X-Workspace-ID` on every request, narrowing their scope to that workspace's tenants.
+
+### New users land in Default
+
+A user created in the UI joins the **Default** workspace automatically, so a new colleague signs in
+to the deployment they were hired to watch rather than to an empty product.
+
+They have to land somewhere. Access flows user to workspace to tenant and `ResolveUserScope` fails
+closed, so an account with no membership resolves to an empty tenant set: no agents, no events, no
+blocklist, and nothing anywhere saying why. Before v2.48.0 that is exactly what happened to every
+account created after migration 000049 ran, because 000049 backfilled the users who existed at that
+moment and nothing assigned a workspace afterwards.
+
+It went unnoticed for the same reason it is easy to miss now: **admins never hit it.** They carry
+`manage_tenants`, which takes the RLS bypass in `withScope` and does not consult membership at all.
+Only the analyst and viewer accounts, the ones created for other people, saw the empty deployment.
+Migration 000071 repairs any account that is still in that state.
+
+### Moving someone out of Default is two steps, not one
+
+**A user's scope is the UNION of every workspace they belong to.** Adding them to a new workspace
+does not take away the old one: the Workspaces page replaces the member list of the workspace you
+are editing and touches no other, which is what makes it safe to edit one workspace without
+disturbing the rest.
+
+So moving someone to their own tenant means:
+
+1. Add them to the new workspace.
+2. **Edit the Default workspace and remove them from its member list.**
+
+Skip the second step and they keep seeing Default's data alongside the new tenant's, which looks
+like isolation failing when it is membership doing exactly what it says. This is deliberately not
+automatic: silently revoking a membership an administrator did not ask to revoke is a worse
+surprise than an explicit second step.
 
 ## Deliberately global in v1 (not tenant-scoped)
 

@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"deuswatch/internal/tenancy"
 )
 
 // ErrAuth is returned for authentication failures (invalid credentials/token).
@@ -110,6 +113,21 @@ func (s *Store) UserCount(ctx context.Context) (int64, error) {
 
 // CreateUser creates a user with an Argon2id-hashed password. perms is the optional
 // per-user permission override (nil = inherit the role's defaults).
+// A new user also joins the Default workspace, in the same transaction.
+//
+// Access flows user -> workspace -> tenant, and ResolveUserScope fails closed: a user who belongs
+// to no workspace resolves to an empty tenant set and sees nothing at all. Migration 000049
+// backfilled the users who existed when it ran, but nothing assigned a workspace to anyone created
+// afterwards, so every account added through the UI since then logged in to an empty product: no
+// agents, no events, no blocklist.
+//
+// It went unnoticed because admins never hit it. They carry manage_tenants, which takes the RLS
+// bypass in withScope, so their view does not depend on membership at all. Only the analyst and
+// viewer accounts, the ones created for other people, landed in the empty deployment.
+//
+// Default is the right landing place for a single-tenant install, which is nearly all of them:
+// a new colleague should see the deployment they were hired to watch. Moving them to another
+// tenant later is an explicit act on the Tenants page.
 func (s *Store) CreateUser(ctx context.Context, username, password string, role Role, perms []Permission) error {
 	if !role.Valid() {
 		return fmt.Errorf("auth: invalid role: %q", role)
@@ -118,9 +136,35 @@ func (s *Store) CreateUser(ctx context.Context, username, password string, role 
 	if err != nil {
 		return err
 	}
-	if _, err := s.pool.Exec(ctx,
-		`INSERT INTO users (username, password_hash, role, permissions) VALUES ($1,$2,$3,$4)`,
-		username, h, string(role), permsArg(perms)); err != nil {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("auth: create user: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op after Commit
+
+	var id string
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO users (username, password_hash, role, permissions) VALUES ($1,$2,$3,$4) RETURNING id`,
+		username, h, string(role), permsArg(perms)).Scan(&id); err != nil {
+		return fmt.Errorf("auth: create user: %w", err)
+	}
+
+	// WHERE EXISTS rather than a bare insert: a deployment whose Default workspace was renamed away
+	// or removed must still be able to add users. That inserts nothing and leaves the account
+	// scopeless, which is the old behaviour, so it is reported rather than passed over in silence.
+	ct, err := tx.Exec(ctx, `
+		INSERT INTO workspace_members (workspace_id, user_id)
+		SELECT $1::uuid, $2::uuid WHERE EXISTS (SELECT 1 FROM workspaces WHERE id = $1::uuid)
+		ON CONFLICT DO NOTHING`, tenancy.DefaultWorkspaceID, id)
+	if err != nil {
+		return fmt.Errorf("auth: assign default workspace: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		log.Printf("auth: user %q created with NO workspace: the Default workspace (%s) is missing, "+
+			"so they will see no data until assigned one on the Tenants page",
+			username, tenancy.DefaultWorkspaceID)
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("auth: create user: %w", err)
 	}
 	return nil

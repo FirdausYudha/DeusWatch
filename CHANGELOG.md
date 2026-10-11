@@ -7,6 +7,36 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.48.0
+
+### Fixed
+
+**A new user saw nothing at all.** Access flows user to workspace to tenant and `ResolveUserScope`
+fails closed, so an account belonging to no workspace resolves to an empty tenant set: no agents,
+no events, no blocklist, and no error anywhere explaining it. Migration 000049 backfilled the users
+who existed when it ran, and nothing assigned a workspace to anyone created afterwards, so every
+account added through the UI since then landed in an empty product.
+
+It stayed hidden because **admins never hit it**. They carry `manage_tenants`, which takes the RLS
+bypass and does not consult membership at all. Only the analyst and viewer accounts, the ones
+created for other people, saw the empty deployment. On a fresh install the seeded `admin` is in the
+same position, since 000049's backfill runs against an empty users table and `seedAdmin` inserts
+afterwards.
+
+`CreateUser` now adds the Default workspace membership in the same transaction as the user row, so
+an account cannot exist in the scopeless state. Migration 000071 repairs the accounts that already
+do, touching only users with no membership anywhere: someone deliberately moved to another tenant
+is left where they were put.
+
+### Operator note: moving someone out of Default is two steps
+
+A user's scope is the **union** of every workspace they belong to, and the Workspaces page replaces
+the member list of the workspace being edited without touching any other. So assigning someone to a
+new workspace does not remove Default; you also have to edit Default and take them out of its
+member list. Skipping that leaves them seeing both, which reads like isolation failing when it is
+membership behaving as described. Not automatic on purpose: silently revoking a membership nobody
+asked to revoke is the worse surprise.
+
 ## v2.47.0
 
 ### Changed
