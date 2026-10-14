@@ -35,6 +35,18 @@ type Report struct {
 	// SuspiciousIPs are the low-and-slow reconnaissance watchlist entries (label carries the
 	// behavioral detail), so the AI summary can call out recon patterns CTI/WAF missed.
 	SuspiciousIPs []Count `json:"suspicious_ips"`
+
+	// The next five mirror the Dashboard's network widgets so the report tells the same story the
+	// live dashboard does rather than a narrower one. They are computed over ALL events in the
+	// window (not just alerts), exactly as the dashboard does, so "top destination port" means the
+	// same number in both places.
+	TopDestPorts     []Count `json:"top_destination_ports"` // busiest destination ports
+	TopDestinations  []Count `json:"top_destinations"`      // most-targeted destination IPs/hosts
+	TopCountries     []Count `json:"top_countries"`         // source geo origins (ISO country)
+	TrafficDirection []Count `json:"traffic_direction"`     // inbound / outbound / lateral / unknown
+	// RiskyIPs is the worker's composite-score leaderboard (label carries the band, count is the
+	// 0-100 score), the same "Top risky IPs" the dashboard shows.
+	RiskyIPs []Count `json:"risky_ips"`
 }
 
 // RenderMarkdown renders the report as compact Markdown.
@@ -54,6 +66,11 @@ func RenderMarkdown(r Report) string {
 
 	section(&b, "Severity", r.BySeverity)
 	section(&b, "Top source IP", r.TopSourceIPs)
+	section(&b, "Top destination IP (targeted host)", r.TopDestinations)
+	section(&b, "Top destination port", r.TopDestPorts)
+	section(&b, "Traffic direction", r.TrafficDirection)
+	section(&b, "Top source country", r.TopCountries)
+	section(&b, "Top risky IP (composite score)", r.RiskyIPs)
 	section(&b, "Top agent (affected host)", r.TopAgents)
 	section(&b, "Top rule", r.TopRules)
 	section(&b, "Top MITRE technique", r.TopTechniques)
@@ -75,6 +92,11 @@ func SummaryPrompt(r Report) string {
 	fmt.Fprintf(&b, "Total events: %d. Total alerts: %d.\n", r.TotalEvents, r.TotalAlerts)
 	promptLine(&b, "Severity breakdown", r.BySeverity)
 	promptLine(&b, "Top source IPs", r.TopSourceIPs)
+	promptLine(&b, "Top destination IPs (targeted hosts)", r.TopDestinations)
+	promptLine(&b, "Top destination ports", r.TopDestPorts)
+	promptLine(&b, "Traffic direction (inbound/outbound/lateral)", r.TrafficDirection)
+	promptLine(&b, "Top source countries", r.TopCountries)
+	promptLine(&b, "Top risky IPs by composite score (label is the risk band)", r.RiskyIPs)
 	promptLine(&b, "Top agents (affected hosts)", r.TopAgents)
 	promptLine(&b, "Top rules", r.TopRules)
 	promptLine(&b, "Top MITRE techniques", r.TopTechniques)
