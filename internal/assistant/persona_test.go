@@ -34,6 +34,26 @@ func TestDefaultPersonaLeadsWithAnswerOnlyWhatWasAsked(t *testing.T) {
 	}
 }
 
+// The default persona used to answer even substantive questions with one flat line, because the only
+// length guidance it carried pushed brevity ("a three-word question gets a one-line answer"). It now
+// has to tell the model to structure a real answer: a list for several items, and more than a shrug
+// for "anything new". Guard that guidance so it is not quietly trimmed back to the terse version.
+func TestDefaultPersonaAsksForStructuredAnswers(t *testing.T) {
+	for _, want := range []string{
+		"SHAPE OF A REAL ANSWER",
+		"lay them out as a list",
+		"headline verdict first",
+	} {
+		if !strings.Contains(DefaultPersona, want) {
+			t.Errorf("DefaultPersona lost the structured-answer guidance %q:\n%s", want, DefaultPersona)
+		}
+	}
+	// The old brevity line that produced the flat one-liners must be gone, or it fights the new rule.
+	if strings.Contains(DefaultPersona, "Nobody wants a briefing when they asked") {
+		t.Error("the old brevity-at-all-costs line is back; it contradicts SHAPE OF A REAL ANSWER")
+	}
+}
+
 // The closing anchor is the last thing a small model reads before it generates, so it has to carry
 // the VOICE, not the role. It used to take the persona's opening sentence, which meant Mia's anchor
 // was "You are Mia, a catgirl working the quiet shift in a SOC" - a title the model had no trouble
