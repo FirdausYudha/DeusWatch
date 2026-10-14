@@ -24,7 +24,7 @@ HTTP client.
 | Field | Meaning |
 |---|---|
 | **Provider** | `ollama` (local), `openai-compatible` (OpenAI / Gemini / Groq / OpenRouter / vLLM / LM Studio), or `anthropic` (Claude). |
-| **Use for** | `both` (default), `triage`, or `report`. Decides which task this model powers. |
+| **Use for** | `both` (default), `triage`, `report`, or `assistant`. Decides which task this model powers. **`assistant` (the chat panel) is separate and is NOT covered by `both`** — see §3. |
 | **Base URL** | The OpenAI-compatible endpoint (see table below). Leave blank for `anthropic`. |
 | **Model** | The model name/tag, e.g. `llama3.1`, `gpt-4o-mini`, `gemini-2.5-flash`, `claude-opus-4-8`. |
 | **API key** | Not needed for local Ollama; required for hosted providers and Anthropic. |
@@ -51,7 +51,55 @@ Gemini works because Google exposes an **OpenAI-compatible** endpoint; DeusWatch
 
 ---
 
-## 3. Turn on per-alert triage
+## 3. Which model for which job
+
+DeusWatch asks the model to do three different jobs, and they do not all need the same tier.
+Choose per **Use for**: a cheap model for the high-volume job, a capable one for the job the
+operator actually reads.
+
+| Job (`Use for`) | What it actually needs | Cost sensitivity |
+|---|---|---|
+| **triage** | Strict JSON (`{"verdict":...,"summary":...}`) and speed; the prose barely matters. | High — runs on many alerts, so this is where a paid API adds up. Pick the cheapest model that holds JSON. |
+| **report** | Readable summarization of the aggregates into an executive paragraph. | Low — a handful per day, or on a schedule. A mid-tier model is plenty. |
+| **assistant** | Strong instruction-following: hold the persona, answer in the operator's language, structure the answer, and above all **never invent** a host/IP/number or obey a log line pretending to be an instruction. | Low — one operator chatting. This is the job that most rewards a capable model. |
+
+> **`assistant` is off by default and not covered by `both`.** The chat panel works only
+> when an LLM integration has **Use for** = `assistant`; the same model set to `report` or
+> `both` will not power it. This is deliberate (ADR 0003): the conversational assistant is the
+> one surface a prompt injection in your logs can try to steer, so turning it on is an
+> explicit choice.
+
+### Recommended models by provider and level
+
+Model names move fast — read these as **capability levels** and check the provider's current
+model list for the exact tag. "Level" is the tier, not a DeusWatch setting.
+
+| Provider | Entry — triage | Standard — report, light assistant | Premium — assistant |
+|---|---|---|---|
+| **Ollama** (local, free) | `llama3.1:8b`, `qwen2.5:7b` — fine for triage; 3B models often miss the strict JSON and fall back to `needs_review` | `qwen2.5:14b`, `gemma2:27b` (real GPU needed) — usable reports, marginal as assistant | `llama3.3:70b`, `qwen2.5:72b` — serious GPU only; roughly the floor where a local model holds the assistant persona without inventing data |
+| **Google Gemini** | `gemini-2.5-flash` | `gemini-2.5-flash` | `gemini-2.5-pro` |
+| **OpenAI (GPT)** | `gpt-4o-mini` | `gpt-4o-mini` | `gpt-4o` (or the current flagship) |
+| **Anthropic (Claude)** | `claude-haiku-5-5` | `claude-sonnet-5-5` | `claude-opus-5-5` |
+
+**Rules of thumb**
+
+- **Triage** → the cheapest thing that keeps JSON: a local 8B, a hosted "mini/flash", or
+  Claude Haiku. Keep `LLM_PER_ALERT` off unless alert volume is controlled.
+- **Report** → any standard-tier hosted model, or a 14B+ local one. This is the easiest job.
+- **Assistant** → a premium-tier model. Its whole value is a grounded, structured answer that
+  never makes a hostname up; small local models drop the persona and sometimes invent data,
+  the one failure this product cannot afford. Claude Sonnet 5.5 is the sweet spot; Claude Opus
+  5.5 / Gemini 2.5 Pro / GPT-4o when you want the best.
+- **Mixing is normal and economical**: a **free local model for triage** plus a **hosted model
+  for report + assistant**. Set two integrations with different **Use for**.
+
+> The example configs below use `claude-opus-4-8`; the current Claude generation
+> (`claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`) is a drop-in replacement — just
+> change the **Model** field.
+
+---
+
+## 4. Turn on per-alert triage
 
 Triage runs **only when you enable it**, because with a paid API it would call the model on
 every alert:
@@ -78,7 +126,7 @@ Report page's "Generate summary" and the scheduled delivery use it.
 
 ---
 
-## 4. Environment fallback (no UI)
+## 5. Environment fallback (no UI)
 
 If no LLM integration is configured, the worker/API fall back to env, in order:
 
@@ -105,7 +153,7 @@ triage and report models.
 
 ---
 
-## 5. Notes for production
+## 6. Notes for production
 
 - **Cost**: with a paid API, keep `LLM_PER_ALERT` off unless alert volume is controlled, or
   point triage at a free local Ollama model and let a hosted model handle only reports.

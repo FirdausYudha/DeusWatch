@@ -1693,6 +1693,11 @@ export type SecurityReport = {
   total_alerts: number
   by_severity: ReportCount[] | null
   top_source_ips: ReportCount[] | null
+  top_destinations: ReportCount[] | null
+  top_destination_ports: ReportCount[] | null
+  traffic_direction: ReportCount[] | null
+  top_countries: ReportCount[] | null
+  risky_ips: ReportCount[] | null
   top_agents: ReportCount[] | null
   top_rules: ReportCount[] | null
   top_techniques: ReportCount[] | null

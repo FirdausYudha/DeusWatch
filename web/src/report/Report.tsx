@@ -462,6 +462,11 @@ export default function Report() {
         <BarList title="Severity" rows={report?.by_severity ?? null} />
         <BarList title="LLM verdict" rows={report?.by_verdict ?? null} />
         <BarList title="Top source IP" rows={report?.top_source_ips ?? null} />
+        <BarList title="Top destination IP (targeted host)" rows={report?.top_destinations ?? null} />
+        <BarList title="Top destination port" rows={report?.top_destination_ports ?? null} />
+        <BarList title="Traffic direction" rows={report?.traffic_direction ?? null} />
+        <BarList title="Top source country" rows={report?.top_countries ?? null} />
+        <BarList title="Top risky IP (composite score)" rows={report?.risky_ips ?? null} />
         <BarList title="Top agent (affected host)" rows={report?.top_agents ?? null} />
         <BarList title="Top rule" rows={report?.top_rules ?? null} />
         <BarList title="Top MITRE technique" rows={report?.top_techniques ?? null} />

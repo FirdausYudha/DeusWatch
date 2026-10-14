@@ -227,6 +227,45 @@ func (s *Store) buildReportRange(ctx context.Context, since, until time.Time) (r
 		 GROUP BY dw_llm_verdict ORDER BY count(*) DESC`, since, until); err != nil {
 		return r, err
 	}
+	// Network widgets mirrored from the Dashboard so the report tells the same story. Computed over
+	// ALL events in the window (no dw_label filter), exactly as dashboard.go does, so a figure like
+	// "top destination port" matches between the two views.
+	if r.TopDestinations, err = s.topCounts(ctx,
+		`SELECT COALESCE(host(destination_ip), agent_id, '(unknown)'), count(*) FROM events
+		 WHERE time >= $1 AND time < $2 AND (destination_ip IS NOT NULL OR (agent_id IS NOT NULL AND agent_id <> ''))
+		 GROUP BY 1 ORDER BY count(*) DESC LIMIT 10`, since, until); err != nil {
+		return r, err
+	}
+	if r.TopDestPorts, err = s.topCounts(ctx,
+		`SELECT destination_port::text, count(*) FROM events
+		 WHERE time >= $1 AND time < $2 AND destination_port IS NOT NULL
+		 GROUP BY destination_port ORDER BY count(*) DESC LIMIT 10`, since, until); err != nil {
+		return r, err
+	}
+	if r.TopCountries, err = s.topCounts(ctx,
+		`SELECT source_geo_country_iso, count(*) FROM events
+		 WHERE time >= $1 AND time < $2 AND source_geo_country_iso IS NOT NULL
+		 GROUP BY source_geo_country_iso ORDER BY count(*) DESC LIMIT 10`, since, until); err != nil {
+		return r, err
+	}
+	// Traffic direction reuses the dashboard's exact classifier (RFC1918 + loopback as internal).
+	// Best-effort like the watchlists below: a classifier failure must not sink the whole report.
+	if dir, derr := s.dashDirectionCounts(ctx, since, until); derr == nil {
+		for _, c := range dir {
+			r.TrafficDirection = append(r.TrafficDirection, report.Count{Label: c.Label, Count: c.Count})
+		}
+	}
+	// The worker's composite-score leaderboard: the label carries the risk band, the count the
+	// 0-100 score (not an event count). Empty until the IP scorer has run at least once.
+	if risky, rerr := s.TopIPScores(ctx, 8); rerr == nil {
+		for _, ip := range risky {
+			r.RiskyIPs = append(r.RiskyIPs, report.Count{
+				Label: fmt.Sprintf("%s (%s)", ip.IP, ip.Band),
+				Count: int64(ip.Score),
+			})
+		}
+	}
+
 	// The suspicious-IP watchlist (maintained by the worker), the label carries the behavioral
 	// detail so the AI summary can reason about the recon pattern.
 	if susp, serr := s.TopSuspiciousIPs(ctx, 8); serr == nil {
