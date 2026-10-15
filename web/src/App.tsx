@@ -11,6 +11,7 @@ import FileIntegrity from './fim/FileIntegrity'
 import Response from './response/Response'
 import Report from './report/Report'
 import ServiceHealth from './servicehealth/ServiceHealth'
+import Network from './network/Network'
 import Tickets from './tickets/Tickets'
 import Rules from './rules/Rules'
 import Decoders from './decoders/Decoders'
@@ -101,6 +102,8 @@ export default function App() {
           <Tickets me={me} prefill={ticketPrefill} onPrefillConsumed={() => setTicketPrefill(null)} />
         ) : view === 'servicehealth' ? (
           <ServiceHealth me={me} />
+        ) : view === 'network' ? (
+          <Network me={me} />
         ) : view === 'report' ? (
           <Report />
         ) : view === 'rules' && can(me, 'manage_rules') ? (

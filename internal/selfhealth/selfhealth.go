@@ -194,3 +194,67 @@ func ServiceCheckEvent(now time.Time, name, group string, down bool, reason stri
 		},
 	}
 }
+
+// SNMPDeviceEvent reports a network device going unreachable over SNMP, or coming back.
+//
+// Severity HIGH on the way down: at this hospital a switch is between the registration desk and
+// everything the desk needs, so an unreachable switch is not an infrastructure footnote. On the
+// way back it is informational — recovery is good news, and paging on good news is how a channel
+// gets muted.
+func SNMPDeviceEvent(now time.Time, name, host, location string, down bool, reason string, consecFailures int) *ingest.Event {
+	sev := ingest.SeverityInfo
+	action, outcome := "snmp_device_recovered", "success"
+	label := name
+	if location != "" {
+		label = location + " / " + name
+	}
+	msg := fmt.Sprintf("Network device %s (%s) is answering SNMP again.", label, host)
+	if down {
+		sev = ingest.SeverityHigh
+		action, outcome = "snmp_device_down", "failure"
+		msg = fmt.Sprintf("Network device %s (%s) is NOT answering SNMP after %d consecutive polls: %s",
+			label, host, consecFailures, reason)
+	}
+	return &ingest.Event{
+		Timestamp: now,
+		Event: ingest.EventFields{
+			Category: "selfhealth",
+			Action:   action,
+			Outcome:  outcome,
+			Severity: sev,
+			Dataset:  "deuswatch.selfhealth",
+			Original: msg,
+		},
+		Rule:      &ingest.Rule{ID: "deuswatch_snmp_device", Name: "SNMP Device Monitor"},
+		DeusWatch: ingest.DeusWatch{Label: "selfhealth", Severity: ingest.SeverityMeta{Original: sev}},
+	}
+}
+
+// SNMPSensorEvent reports one sensor crossing the threshold the operator set for it.
+//
+// MEDIUM, not HIGH: a switch at 86% CPU or a room at 31°C is a thing to look at today, not a
+// thing to wake somebody for, and the device itself is still working. The device-down event above
+// is the one that earns HIGH. The breach text comes from the sensor's own rule, so the alert says
+// which limit was crossed rather than only that one was.
+func SNMPSensorEvent(now time.Time, device, host, location, sensor, breach string) *ingest.Event {
+	label := device
+	if location != "" {
+		label = location + " / " + device
+	}
+	return &ingest.Event{
+		Timestamp: now,
+		Event: ingest.EventFields{
+			Category: "selfhealth",
+			Action:   "snmp_sensor_breach",
+			Outcome:  "failure",
+			Severity: ingest.SeverityMedium,
+			Dataset:  "deuswatch.selfhealth",
+			Original: fmt.Sprintf("%s on %s (%s): %s", sensor, label, host, breach),
+		},
+		Rule: &ingest.Rule{ID: "deuswatch_snmp_sensor", Name: "SNMP Sensor Threshold"},
+		DeusWatch: ingest.DeusWatch{
+			Label:    "selfhealth",
+			Severity: ingest.SeverityMeta{Original: ingest.SeverityMedium},
+		},
+	}
+}

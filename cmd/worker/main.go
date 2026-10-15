@@ -385,6 +385,9 @@ func main() {
 	// an integration that answers 200 with a failure inside — or answers in nine seconds — raises an
 	// alert here instead of being discovered at the registration counter.
 	safeGo(ctx, "service-checks", func() { runServiceChecks(ctx, st, secretCipher, onAlert, pbLive.Annotate) })
+	// SNMP: poll the switches, access points and routers. Their SNMP data lives in three separate
+	// tools today, and the ask was one dashboard. Inert until a device is configured.
+	safeGo(ctx, "snmp-poll", func() { runSNMPPoll(ctx, st, secretCipher, onAlert, pbLive.Annotate) })
 	safeGo(ctx, "serve-health", func() { serveHealth(ctx, st, b) })
 	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing
 	// did, this worker was once absent for 11+ hours with a clean-looking dashboard, because

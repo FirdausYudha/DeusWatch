@@ -2222,3 +2222,140 @@ export async function saveTicketAutomation(c: TicketAutomation): Promise<TicketA
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return res.json()
 }
+
+// ── SNMP network devices ─────────────────────────────────────────────────────
+// Uptime, identity and the interface table are the same on every SNMP device, so they are fields
+// here. CPU, temperature and PSU state have NO standard OID — every vendor differs — so they are
+// operator-defined sensors instead.
+export type SNMPSensor = {
+  id: string
+  device_id: string
+  name: string
+  oid: string
+  unit: string
+  scale: number
+  warn_above: number | null
+  warn_below: number | null
+  position: number
+  // Latest reading; null when the sensor has never been read.
+  last_value: number | null
+  last_text: string
+  last_breach: string
+  last_at: string | null
+}
+
+export type SNMPDevice = {
+  id: string
+  name: string
+  location: string
+  host: string
+  port: number
+  version: '2c' | '3'
+  v3_user: string
+  v3_level: string
+  v3_auth_proto: string
+  v3_priv_proto: string
+  // True when credentials are stored. The values themselves never reach the browser.
+  has_creds: boolean
+  poll_secs: number
+  poll_ifaces: boolean
+  fail_threshold: number
+  enabled: boolean
+  last_polled_at: string | null
+  last_ok: boolean | null
+  last_error: string
+  sys_name: string
+  sys_descr: string
+  uptime_secs: number
+  consec_failures: number
+  alerting: boolean
+  updated_at: string
+  sensors: SNMPSensor[]
+}
+
+export type SNMPReading = { time: string; value: number | null; text?: string; breach?: string }
+
+export type SNMPIface = {
+  time: string
+  index: number
+  name: string
+  admin_status: number
+  oper_status: number
+  in_octets: number
+  out_octets: number
+  in_errors: number
+  out_errors: number
+}
+
+// Credentials are write-only: send them to set them, omit them to keep what is stored.
+export type SNMPSensorInput = {
+  name: string
+  oid: string
+  unit?: string
+  scale?: number
+  warn_above?: number | null
+  warn_below?: number | null
+}
+
+export type SNMPDeviceInput = {
+  name: string
+  location?: string
+  host: string
+  port?: number
+  version?: '2c' | '3'
+  v3_user?: string
+  v3_level?: string
+  v3_auth_proto?: string
+  v3_priv_proto?: string
+  community?: string
+  auth_password?: string
+  priv_password?: string
+  poll_secs?: number
+  poll_ifaces?: boolean
+  fail_threshold?: number
+  enabled?: boolean
+  sensors: SNMPSensorInput[]
+}
+
+export async function fetchSNMPDevices(): Promise<SNMPDevice[]> {
+  const res = await authFetch('/api/snmp/devices')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function createSNMPDevice(input: SNMPDeviceInput): Promise<SNMPDevice> {
+  const res = await authFetch('/api/snmp/devices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function updateSNMPDevice(id: string, input: SNMPDeviceInput): Promise<SNMPDevice> {
+  const res = await authFetch(`/api/snmp/devices/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteSNMPDevice(id: string): Promise<void> {
+  const res = await authFetch(`/api/snmp/devices/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function fetchSNMPSensorHistory(id: string, hours = 24): Promise<SNMPReading[]> {
+  const res = await authFetch(`/api/snmp/sensors/${id}/history?hours=${hours}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function fetchSNMPIfaces(id: string): Promise<SNMPIface[]> {
+  const res = await authFetch(`/api/snmp/devices/${id}/interfaces`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}

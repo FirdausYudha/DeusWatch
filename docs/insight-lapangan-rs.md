@@ -21,7 +21,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 | 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
 | 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | Agent Windows parsial; AD/LDAP belum ada |
 | 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
-| 7 | **SNMP** monitoring perangkat jaringan | P3 | Belum ada |
+| 7 | **SNMP** monitoring perangkat jaringan | P3 | ✅ **Selesai** — menu Network ([snmp.md](snmp.md)) |
 | 8 | Lateral movement antar container **Kubernetes** | P3 | Deteksi ada, konteks container belum |
 | 9 | Multi-tenant untuk **vendor/MSP** (±20 RS satu konsol) | P3 | **Sudah ada** (RLS + workspace) — tinggal diposisikan |
 | 10 | Jalur **ISO 27001** (bukti audit) | P3 | Sebagian (audit log) |
@@ -205,6 +205,20 @@ Mereka menarik sensor SNMP (CPU, suhu, status) tetapi alatnya terpecah: The Dude
 WIS Cloud untuk access point, Grafana di pusat. Keinginan mereka eksplisit: satu dashboard
 terpusat. Menambahkan SNMP ke DeusWatch menyatukan ketiganya.
 
+**Kondisi saat ini.** ✅ **Selesai.** Menu **Network**: polling SNMP v2c dan v3, board
+dikelompokkan per lokasi, uptime dan identitas perangkat, status per port (opsional), serta alert
+saat perangkat tidak menjawab dan saat sensor melewati ambang.
+
+**Satu hal yang menentukan desainnya:** SNMP menstandarkan jauh lebih sedikit daripada yang orang
+kira. Uptime, identitas perangkat, dan tabel interface sama di semua vendor — itu dibaca otomatis.
+Tetapi **CPU, suhu, dan status power supply tidak punya OID standar sama sekali**; setiap vendor
+menaruhnya di tempat berbeda. Padahal persis itu yang narasumber sebut.
+
+Jadi sensor CPU dan suhu **didefinisikan operator**: nama, OID, satuan, pengali, dan ambang batas.
+Tim sudah menarik nilai-nilai ini lewat The Dude, jadi OID-nya sudah ada di tangan mereka. Ini yang
+membuat fitur ini bekerja di Ruijie tanpa saya menebak OID yang tidak bisa diverifikasi — dan tetap
+bekerja di Aruba kalau kontraknya berubah.
+
 ### Gap 8. Lateral movement antar container Kubernetes
 
 Usulan datang dari narasumber sendiri:
@@ -271,5 +285,11 @@ untuk organisasi yang hendak mengejar sertifikasi keamanan.
 - **Gap 5 — agent Windows + Active Directory.** Paling besar; butuh host Windows dan domain
   controller untuk pengujian yang berarti.
 
-Di luar itu, **Gap 7 (SNMP)** secara teknis mengikuti pola prober yang sudah terbentuk di Gap 1,
-jadi itu kandidat termurah berikutnya yang tidak butuh perangkat untuk dikerjakan.
+4. ✅ **Gap 7 — SNMP monitoring.** Mengikuti pola prober Gap 1. Menyatukan The Dude, WIS Cloud,
+   dan Grafana jadi satu board, dengan sensor CPU/suhu yang didefinisikan operator karena SNMP
+   tidak menstandarkan keduanya.
+
+Yang tersisa semuanya butuh akses yang tidak ada di sesi ini: **Gap 3** (perangkat Ruijie untuk
+memverifikasi perintah CLI), **Gap 5** (host Windows dan domain controller), **Gap 8** (klaster
+Kubernetes). **Gap 6** (sensor IoT/Bardi) perlu keputusan soal protokol lebih dulu, dan **Gap 10**
+(ISO 27001) adalah pekerjaan dokumentasi, bukan kode.

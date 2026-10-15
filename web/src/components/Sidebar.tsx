@@ -3,7 +3,7 @@ import { logout, can, type Me } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'servicehealth' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
+export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'servicehealth' | 'network' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
@@ -25,6 +25,7 @@ const NAV: NavGroup[] = [
       { id: 'fim', label: 'File Integrity', view: 'fim', perm: 'view_dashboard' },
       { id: 'snapshots', label: 'Snapshots', view: 'snapshots', perm: 'view_dashboard' },
       { id: 'servicehealth', label: 'Service Health', view: 'servicehealth', perm: 'view_dashboard' },
+      { id: 'network', label: 'Network', view: 'network', perm: 'view_dashboard' },
       { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
     ],
   },
@@ -66,6 +67,7 @@ const ICONS: Record<string, string> = {
   agents: 'M3 5h18v6H3zM3 13h18v6H3zM7 8h.01M7 16h.01',
   inventory: 'M21 8V19a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8M3 8l2-4h14l2 4zM3 8h18M12 4v16',
   servicehealth: 'M3 12h4l2 5 4-14 2 9h6',
+  network: 'M5 3h14v5H5zM5 16h14v5H5zM12 8v8M8 16v-3h8v3',
   agenthealth: 'M12 3l8 3v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6zM7.5 12h2l1.5 3 2-6 1.5 3h2',
   rules: 'M4 6h10M4 12h10M4 18h10M17 5l2 2 3-3M17 17l2 2 3-3',
   decoders: 'M3 4h18l-7 8v7l-4 2v-9z',
