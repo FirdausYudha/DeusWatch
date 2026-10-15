@@ -3,6 +3,7 @@ package tickets
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"deuswatch/internal/auth"
 )
@@ -85,7 +86,7 @@ func (s *Store) UpdateHandler() http.HandlerFunc {
 			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
-		t, err := s.Update(r.Context(), r.PathValue("id"), UpdateFields{
+		t, err := s.Update(r.Context(), r.PathValue("id"), currentUser(r), UpdateFields{
 			Title: req.Title, Description: req.Description, Severity: req.Severity,
 			Status: req.Status, Assignee: req.Assignee,
 		})
@@ -94,6 +95,59 @@ func (s *Store) UpdateHandler() http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, t)
+	}
+}
+
+// SLAHandler: GET /api/tickets/sla?days= (requires view_tickets).
+func (s *Store) SLAHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		days := 30
+		if v := r.URL.Query().Get("days"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 365 {
+				days = n
+			}
+		}
+		stats, err := s.SLAScorecard(r.Context(), days)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, stats)
+	}
+}
+
+// AutomationGetHandler: GET /api/tickets/automation (requires manage_settings).
+func (s *Store) AutomationGetHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, err := s.LoadAutomationConfig(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
+	}
+}
+
+// AutomationSetHandler: PUT /api/tickets/automation (requires manage_settings).
+func (s *Store) AutomationSetHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var c AutomationConfig
+		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if err := s.SaveAutomationConfig(r.Context(), c); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Answer with the stored row: the save clamps the interval and severity, and echoing the
+		// request would show the operator a setting that is not the one in force.
+		saved, err := s.LoadAutomationConfig(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, saved)
 	}
 }
 

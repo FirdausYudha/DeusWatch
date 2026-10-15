@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig, importConfig, fetchNotifyConfig, saveNotifyConfig, fetchStorageStatus, saveRetention, fetchUpdateCheck, fetchScoreConfig, saveScoreConfig, can, fetchSubscriptions, createSubscription, toggleSubscription, deleteSubscription,
-  fetchAssistantStatus, fetchAssistantConfig, saveAssistantConfig, type AssistantConfig, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig, type Subscription } from '../lib/api'
+  fetchAssistantStatus, fetchAssistantConfig, saveAssistantConfig, fetchTicketAutomation, saveTicketAutomation,
+  type AssistantConfig, type Me, type NotifyConfig, type StorageStatus, type UpdateInfo, type ScoreConfig,
+  type Subscription, type TicketAutomation } from '../lib/api'
 import DocLink from '../components/DocLink'
-import { Icon, Page } from '../components/ui'
+import { Icon, Page, Select } from '../components/ui'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -255,6 +257,122 @@ function ScoringWeightsPanel() {
             Weights are relative: each is divided by its group's total, so only the ratios matter. The caps
             (e.g. how many fired-times saturate to 100) keep their built-in values. See docs/suspicious-ips.md.
           </p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// TicketAutomationPanel: alert → ticket, and ticket events into the chat channels.
+//
+// From the hospital field discussion: "User itu kalau ada troubleshoot paling malas isi
+// ticketing... jadi kita kadang dobel: WhatsApp ya kita terima, tiket ya kita isi sendiri." A queue
+// that depends on somebody remembering to fill it in under-reports the work — and that queue is
+// also how the team is judged. So alerts can open their own tickets, and tickets can reach the chat.
+function TicketAutomationPanel() {
+  const [cfg, setCfg] = useState<TicketAutomation | null>(null)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    fetchTicketAutomation().then(setCfg).catch((e) => setErr((e as Error).message))
+  }, [])
+
+  const save = async () => {
+    if (!cfg) return
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      setCfg(await saveTicketAutomation(cfg))
+      setMsg('Saved. The worker picks this up within 30 seconds.')
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!cfg) return null
+
+  return (
+    <section className="mt-6 rounded-[12px] border border-border bg-surface p-5">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
+        <div>
+          <h2 className="text-[13.5px] font-medium text-fg">
+            Ticket automation {cfg.enabled ? <span className="ml-1 text-[12px] text-emerald-400">on</span> : <span className="ml-1 text-[12px] text-dim">off</span>}
+          </h2>
+          <p className="mt-0.5 text-[13px] text-muted">
+            Open a ticket automatically for serious alerts, and announce ticket events on the notification channels.
+          </p>
+        </div>
+        <span className="inline-flex text-dim"><Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} /></span>
+      </button>
+
+      {open && (
+        <div className="mt-4">
+          <label className="mb-3 flex items-center gap-2 text-[13px] text-fg">
+            <input type="checkbox" checked={cfg.enabled} onChange={(e) => setCfg({ ...cfg, enabled: e.target.checked })} />
+            Open a ticket when an alert fires
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-[12.5px] text-muted">
+              <div className="mb-1">Minimum severity</div>
+              <Select value={cfg.min_severity} onChange={(e) => setCfg({ ...cfg, min_severity: Number(e.target.value) })} className="w-full">
+                {[0, 1, 2, 3, 4].map((n) => (
+                  <option key={n} value={n}>{SEVERITY_LABELS[n]}</option>
+                ))}
+              </Select>
+              <div className="mt-1 text-[11.5px] text-dim">Lower catches more; too low and the queue stops being readable.</div>
+            </label>
+
+            <label className="text-[12.5px] text-muted">
+              <div className="mb-1">Group repeats for (minutes)</div>
+              <input
+                type="number" min={1} max={10080} value={cfg.dedupe_window_mins}
+                onChange={(e) => setCfg({ ...cfg, dedupe_window_mins: Number(e.target.value) })}
+                className="w-full rounded-[8px] border border-border bg-surface-2 px-2.5 py-1.5 text-[13px] text-fg outline-none focus:border-accent"
+              />
+              <div className="mt-1 text-[11.5px] text-dim">
+                The same rule from the same host lands on one ticket. A rule firing every few seconds would
+                otherwise bury the queue it is meant to fill.
+              </div>
+            </label>
+
+            <label className="text-[12.5px] text-muted sm:col-span-2">
+              <div className="mb-1">Assign new tickets to</div>
+              <input
+                value={cfg.default_assignee}
+                onChange={(e) => setCfg({ ...cfg, default_assignee: e.target.value })}
+                placeholder="username, or leave empty for unassigned"
+                className="w-full rounded-[8px] border border-border bg-surface-2 px-2.5 py-1.5 text-[13px] text-fg outline-none placeholder:text-dim focus:border-accent"
+              />
+            </label>
+          </div>
+
+          <h3 className="mb-2 mt-4 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Notifications</h3>
+          <label className="mb-2 flex items-center gap-2 text-[13px] text-fg">
+            <input type="checkbox" checked={cfg.notify_on_create} onChange={(e) => setCfg({ ...cfg, notify_on_create: e.target.checked })} />
+            Announce new tickets
+          </label>
+          <label className="mb-1 flex items-center gap-2 text-[13px] text-fg">
+            <input type="checkbox" checked={cfg.notify_on_resolve} onChange={(e) => setCfg({ ...cfg, notify_on_resolve: e.target.checked })} />
+            Announce resolved tickets (includes the time it took)
+          </label>
+          <p className="mt-1 text-[12.5px] text-dim">
+            Sent through the Telegram/email channels configured for alerts. A repeat of an already-ticketed
+            alert is deliberately silent — re-announcing the same incident is how a channel gets muted.
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button onClick={save} disabled={busy}
+              className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            {msg && <span className="text-[12.5px] text-emerald-400">{msg}</span>}
+            {err && <span className="text-[12.5px] text-rose-400">{err}</span>}
+          </div>
         </div>
       )}
     </section>
@@ -707,6 +825,10 @@ export default function Settings() {
         {notifyErr && <p className="mt-3 text-[13.5px] text-rose-400">{notifyErr}</p>}
         {notifyMsg && <p className="mt-3 text-[13.5px] text-emerald-400">{notifyMsg}</p>}
       </section>
+
+      {/* Directly under the alert-notification threshold above: both decide what reaches a human
+          when something fires. */}
+      <TicketAutomationPanel />
 
       <AssistantPersonaPanel />
 

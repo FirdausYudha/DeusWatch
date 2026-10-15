@@ -37,6 +37,7 @@ import (
 	"deuswatch/internal/secret"
 	"deuswatch/internal/store"
 	"deuswatch/internal/syslogin"
+	"deuswatch/internal/tickets"
 	"deuswatch/internal/worker"
 )
 
@@ -252,7 +253,18 @@ func main() {
 	}
 	log.Printf("worker: ransomware kill-switch active (auto=%v, env_forced=%v)", killer.Auto(), killAuto)
 
-	onAlert := makeAlertHook(engine, containEngine, killer, dispatcher)
+	// Alert-to-ticket automation: qualifying alerts open a ticket on their own, because a queue
+	// that depends on somebody remembering to fill it in under-reports the work — and that queue
+	// is also how the team is judged. Off unless the operator switched it on.
+	ticketStore := tickets.NewStore(st.Pool())
+	raiser := newTicketRaiser(ctx, ticketStore, dispatcher)
+	safeGo(ctx, "ticket-automation-config", func() { raiser.run(ctx) })
+
+	// GLPI mirror: push DeusWatch tickets into the ITSM the team already works in, and read their
+	// status back. Inert unless a GLPI connector is configured and enabled.
+	safeGo(ctx, "glpi-sync", func() { runGLPISync(ctx, ticketStore, intStore) })
+
+	onAlert := makeAlertHook(engine, containEngine, killer, dispatcher, raiser)
 
 	// Remediation playbooks (design doc section 9): each alert is stamped with the
 	// remediation steps for its label before it is stored. Live-reloaded on UI edits.
@@ -401,7 +413,7 @@ func main() {
 // makeAlertHook combines the response engine, containment engine + notification dispatcher
 // into a single worker.AlertHook. containment is always evaluated (it self-gates on the rule's
 // mitigation_action), so the hook is never nil.
-func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, killer *respond.KillRecommender, dispatcher *notify.Dispatcher) worker.AlertHook {
+func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, killer *respond.KillRecommender, dispatcher *notify.Dispatcher, raiser *ticketRaiser) worker.AlertHook {
 	return func(ctx context.Context, alert *ingest.Event) {
 		// Ransomware kill-switch: propose terminating the encrypting process. This only ever
 		// WRITES a recommendation - a human approves it (unless KILL_SWITCH_AUTO), and the agent
@@ -442,6 +454,10 @@ func makeAlertHook(engine *respond.Engine, contain *respond.ContainmentEngine, k
 			if err := dispatcher.Dispatch(ctx, notify.FromEvent(alert)); err != nil {
 				log.Printf("worker: notification failed: %v", err)
 			}
+		}
+		// After the dispatch, so a slow ticket insert never delays the alert reaching a human.
+		if raiser != nil {
+			raiser.handle(ctx, alert)
 		}
 	}
 }

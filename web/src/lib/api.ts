@@ -1631,6 +1631,17 @@ export type Ticket = {
   updated_at: string
   resolved_at: string | null
   closed_at: string | null
+  // First human touch: taken, moved off open, or commented on. Null means nobody has picked it up.
+  acked_at: string | null
+  acked_by: string | null
+  // Opened by automation rather than typed by a person.
+  auto_created: boolean
+  // Further alerts that collapsed onto this ticket after it was opened.
+  recurrences: number
+  // The GLPI ticket this one was mirrored as; null when the GLPI connector is off or it has not
+  // been pushed yet.
+  glpi_id: number | null
+  glpi_synced_at: string | null
 }
 
 export type TicketComment = { id: number; author: string; body: string; created_at: string }
@@ -2151,4 +2162,63 @@ export async function fetchServiceCheckHistory(id: string, hours = 24): Promise<
   const res = await authFetch(`/api/service-checks/${id}/history?hours=${hours}`)
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return (await res.json()) ?? []
+}
+
+// ── Ticket SLA scorecard & alert-to-ticket automation ────────────────────────
+// Two measurements kept apart on purpose: response (how long until somebody picked it up) and
+// resolution (how long until it was finished). A team can be fast at one and slow at the other.
+// Null means no ticket in that population reached the milestone — a finding, not a zero.
+export type SLADurations = { p50_secs: number | null; p90_secs: number | null }
+
+export type SLABucket = {
+  key: string
+  total: number
+  resolved: number
+  response: SLADurations
+  resolution: SLADurations
+}
+
+export type SLAStats = {
+  since_days: number
+  total: number
+  auto_created: number
+  still_open: number
+  resolved: number
+  // Live tickets nobody has touched at all — the queue being ignored right now.
+  never_acked: number
+  response: SLADurations
+  resolution: SLADurations
+  by_severity: SLABucket[]
+  by_assignee: SLABucket[]
+}
+
+export type TicketAutomation = {
+  enabled: boolean
+  min_severity: number
+  dedupe_window_mins: number
+  default_assignee: string
+  notify_on_create: boolean
+  notify_on_resolve: boolean
+}
+
+export async function fetchTicketSLA(days = 30): Promise<SLAStats> {
+  const res = await authFetch(`/api/tickets/sla?days=${days}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function fetchTicketAutomation(): Promise<TicketAutomation> {
+  const res = await authFetch('/api/tickets/automation')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function saveTicketAutomation(c: TicketAutomation): Promise<TicketAutomation> {
+  const res = await authFetch('/api/tickets/automation', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(c),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
 }

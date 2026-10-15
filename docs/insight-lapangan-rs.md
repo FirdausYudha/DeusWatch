@@ -15,10 +15,10 @@ gap yang bisa dikerjakan pada DeusWatch.
 
 | # | Gap | Prioritas | Kondisi di DeusWatch |
 |---|---|---|---|
-| 1 | Monitoring kesehatan **API/layanan** per-endpoint ("hijau tapi mati") | **P1** | Belum ada |
-| 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | Belum ada (inventory yang ada hanya paket software) |
+| 1 | Monitoring kesehatan **API/layanan** per-endpoint ("hijau tapi mati") | **P1** | ✅ **Selesai** (v2.51.0) — menu Service Health |
+| 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0) — kartu aset di menu Inventory |
 | 3 | Dukungan **Ruijie** untuk auto-block | P2 | Belum ada (hanya nftables / MikroTik / CrowdSec) |
-| 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA** | P2 | Tickets ada; integrasi GLPI & SLA belum |
+| 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
 | 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | Agent Windows parsial; AD/LDAP belum ada |
 | 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
 | 7 | **SNMP** monitoring perangkat jaringan | P3 | Belum ada |
@@ -61,8 +61,9 @@ pendaftaran komplain.
 Akibatnya: pasien sudah mendaftar lewat Mobile JKN tetapi ditolak karena server JKN mati, lalu
 pendaftaran harus dibatalkan manual dari sisi rumah sakit.
 
-**Kondisi saat ini.** Tidak ada sama sekali. Diverifikasi: tidak ada SNMP, uptime check,
-synthetic monitoring, maupun HTTP probe di seluruh basis kode.
+**Kondisi saat ini.** ✅ **Selesai di v2.51.0.** Menu **Service Health**: cek HTTP dan TCP per
+endpoint, dikelompokkan per fungsi bisnis, dengan tiga aturan (status code, isi body yang
+diharapkan, batas latensi), alert saat turun dan pulih, serta timeline 24 jam.
 
 **Yang perlu dibangun.** Monitoring **per-endpoint**, bukan per-host:
 
@@ -90,8 +91,9 @@ sering mereka pakai (aset dan insiden/ticketing).
 > kalau serial number, dari Windows itu bisa tariknya pakai Shell, PowerShell, WMIC. IP...
 > Merek komputer juga bisa. Jadi lokasinya nanti ketahuan."
 
-**Kondisi saat ini.** Belum ada. `internal/agent/inventory.go` hanya mengumpulkan **daftar paket
-software** untuk dicocokkan dengan data kerentanan vendor (OVAL/USN) — bukan aset perangkat keras.
+**Kondisi saat ini.** ✅ **Selesai di v2.51.0.** Agent mengumpulkan manufacturer, model, serial
+number, core CPU, memori, serta IP dan MAC primer; ditampilkan sebagai kartu aset di menu Inventory.
+Yang belum: label lokasi yang diisi operator, dan ekspor.
 
 **Yang perlu dibangun.** Kolektor aset di agent yang mengirim: hostname, merek/manufacturer,
 model, **serial number**, OS + versi, CPU/RAM, alamat IP/MAC, dan lokasi (label yang bisa diisi
@@ -139,8 +141,21 @@ Dampaknya bukan sekadar repot — tiket adalah **dasar penilaian kinerja IT** me
 > chat Telegram. Jadi setiap ada tiket masuk, masuk ke Telegram. Atau ada dashboard-nya, jamnya
 > awalnya ini masuk, nanti penyelesaiannya kayak gimana. Nanti bisa jadi rapot."
 
-**Kondisi saat ini.** Fitur Tickets sudah ada, tetapi tidak ada integrasi GLPI dan tidak ada
-metrik SLA.
+**Kondisi saat ini.** ✅ **Sebagian selesai.** Yang sudah ada: alert di atas ambang membuka tiket
+sendiri (dengan deduplikasi agar satu rule yang menyala terus tidak menguburkan antrean), notifikasi
+tiket dibuka/selesai ke Telegram dan email, serta **scorecard SLA** — waktu respons (sampai tiket
+dipegang) dan waktu penyelesaian, median dan p90, dipecah per severity dan per penanggap. Semua
+dimatikan secara bawaan sampai operator menyalakannya.
+
+**Mirror GLPI** juga sudah ada: tiket DeusWatch didorong ke GLPI, dan status GLPI dibaca balik
+([glpi.md](glpi.md)). Sengaja **satu arah untuk isi, baca-saja untuk status** — DeusWatch pemilik
+isi tiket, GLPI pemilik sejauh mana pengerjaannya. Tidak ada yang bisa menimpa pekerjaan yang
+dilakukan di GLPI, sehingga pertanyaan "siapa menang saat konflik" tidak pernah muncul.
+
+Batas yang disengaja: mengedit teks tiket di DeusWatch **tidak** memperbarui GLPI, dan tiket yang
+dibuat manusia di GLPI tidak ditarik masuk. Status **Pending** milik GLPI tidak punya padanan dan
+dipetakan ke `in_progress`, karena menyebutnya selesai akan menghentikan jam SLA atas pekerjaan
+yang belum selesai.
 
 **Yang perlu dibangun.** Alert otomatis menjadi tiket; notifikasi tiket masuk ke Telegram
 (kanal notifikasi sudah tersedia); metrik **waktu respons dan waktu penyelesaian** sebagai
@@ -241,8 +256,20 @@ untuk organisasi yang hendak mengejar sertifikasi keamanan.
 
 ## Rekomendasi urutan kerja
 
-1. **Gap 1 — API/Service Health Monitoring.** Dampak tertinggi: masalahnya harian dan nyata,
-   tidak terpecahkan oleh perkakas yang sudah ada, dan dapat didemokan dengan endpoint simulasi.
-2. **Gap 2 — Asset inventory.** Pendamping murah dan cepat; melengkapi sisi ITIL yang mereka pakai.
+1. ✅ **Gap 1 — API/Service Health Monitoring** (v2.51.0). Dampak tertinggi: masalahnya harian dan
+   nyata, tidak terpecahkan oleh perkakas yang sudah ada, dan dapat didemokan dengan endpoint simulasi.
+2. ✅ **Gap 2 — Asset inventory** (v2.51.0). Pendamping murah dan cepat; melengkapi sisi ITIL.
+3. ✅ **Gap 4 — Ticketing: alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI.** Menjawab
+   motif yang disebut narasumber sendiri: tiket sebagai dasar penilaian kinerja IT — dan menaruh
+   tiket itu di GLPI, tempat mereka memang sudah bekerja.
 
-Keduanya menjadi fokus pengerjaan berikutnya.
+**Berikutnya.** Dua kandidat yang tersisa di P2, keduanya butuh akses yang belum ada di sini:
+
+- **Gap 3 — responder SSH/CLI generik** untuk Ruijie dan perangkat multi-vendor. Nilai tertinggi
+  yang tersisa (auto-block saat ini tidak menyentuh edge device mereka sama sekali), tetapi template
+  perintahnya tidak bisa diverifikasi tanpa perangkat asli.
+- **Gap 5 — agent Windows + Active Directory.** Paling besar; butuh host Windows dan domain
+  controller untuk pengujian yang berarti.
+
+Di luar itu, **Gap 7 (SNMP)** secara teknis mengikuti pola prober yang sudah terbentuk di Gap 1,
+jadi itu kandidat termurah berikutnya yang tidak butuh perangkat untuk dikerjakan.
