@@ -470,3 +470,19 @@ func liveOrDry(r Responder) Responder {
 	log.Printf("respond: responder %s wrapped in dry-run (set RESPONSE_LIVE=1 for real execution)", r.Name())
 	return NewDryRunResponder(r.Name())
 }
+
+// LiveOrDryMulti wraps one or more responders for execution, honouring RESPONSE_LIVE.
+//
+// Shared by the backends that can have several devices configured at once, so the dry-run
+// decision is made in exactly one place: a backend that made it independently would eventually
+// disagree with the others about whether bans are real.
+func LiveOrDryMulti(members []Responder) Responder {
+	switch len(members) {
+	case 0:
+		return nil
+	case 1:
+		return liveOrDry(members[0])
+	default:
+		return liveOrDry(NewMultiResponder(members))
+	}
+}

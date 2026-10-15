@@ -17,7 +17,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 |---|---|---|---|
 | 1 | Monitoring kesehatan **API/layanan** per-endpoint ("hijau tapi mati") | **P1** | ✅ **Selesai** (v2.51.0) — menu Service Health |
 | 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0) — kartu aset di menu Inventory |
-| 3 | Dukungan **Ruijie** untuk auto-block | P2 | Belum ada (hanya nftables / MikroTik / CrowdSec) |
+| 3 | Dukungan **Ruijie** untuk auto-block | P2 | ✅ **Selesai** — responder SSH/CLI generik ([ssh-cli.md](ssh-cli.md)) |
 | 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
 | 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | Agent Windows parsial; AD/LDAP belum ada |
 | 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
@@ -124,6 +124,23 @@ Ini juga bersinggungan dengan keluhan umum mereka:
 **Usulan.** Riset API/CLI Ruijie. Bila tidak ada REST yang memadai, bangun **responder generik
 berbasis SSH/CLI** (perintah per-vendor dapat dikonfigurasi) — satu pekerjaan yang sekaligus
 menjawab masalah multi-vendor, bukan hanya Ruijie.
+
+**Kondisi saat ini.** ✅ **Selesai.** Integrasi **Network device over SSH**: DeusWatch menyediakan
+transport SSH, validasi alamat, dan pinning host key; **perintahnya diisi operator**.
+
+Tidak ada konektor "Ruijie" di dalam produk, dan itu disengaja. Daftar perintah vendor yang
+dibundel adalah daftar yang tidak pernah diuji terhadap perangkat, versi firmware, dan konfigurasi
+mereka. Ketika salah, ia tidak gagal dengan keras — perintah ditolak, ban tampak berhasil, dan
+operator percaya jaringannya terlindungi padahal tidak. Jalur penegakan yang rusak diam-diam lebih
+buruk daripada tidak ada sama sekali.
+
+Mekanisme yang sama sekaligus menjawab keluhan multi-vendor mereka: ganti vendor berarti mengubah
+empat kolom teks, bukan menunggu rilis baru.
+
+**Bahaya utama yang ditutup:** alamat yang masuk ke baris perintah perangkat berasal dari alert,
+jadi dipengaruhi penyerang. "Source IP" berisi `1.2.3.4; reload` akan me-reboot switch inti RS.
+Setiap alamat diurai dan **dirender ulang dari hasil penguraian** sebelum masuk template, sehingga
+yang sampai ke perangkat selalu alamat kanonik, tidak pernah string aslinya.
 
 ---
 
@@ -289,7 +306,11 @@ untuk organisasi yang hendak mengejar sertifikasi keamanan.
    dan Grafana jadi satu board, dengan sensor CPU/suhu yang didefinisikan operator karena SNMP
    tidak menstandarkan keduanya.
 
-Yang tersisa semuanya butuh akses yang tidak ada di sesi ini: **Gap 3** (perangkat Ruijie untuk
-memverifikasi perintah CLI), **Gap 5** (host Windows dan domain controller), **Gap 8** (klaster
-Kubernetes). **Gap 6** (sensor IoT/Bardi) perlu keputusan soal protokol lebih dulu, dan **Gap 10**
-(ISO 27001) adalah pekerjaan dokumentasi, bukan kode.
+5. ✅ **Gap 3 — responder SSH/CLI generik.** Hambatan "tidak bisa memverifikasi perintah Ruijie
+   tanpa perangkat" larut dengan pola yang sama seperti SNMP: operator yang mengisi bagian
+   vendor-spesifik, dan tidak ada satu pun perintah tebakan di dalam produk.
+
+Yang tersisa: **Gap 5** (butuh host Windows dan domain controller), **Gap 8** (butuh klaster
+Kubernetes), **Gap 6** (sensor IoT/Bardi — perlu keputusan protokol lebih dulu), **Gap 9** (sudah
+ada, tinggal diposisikan dalam materi penjualan), dan **Gap 10** (ISO 27001 — pekerjaan
+dokumentasi, bukan kode).

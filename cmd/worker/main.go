@@ -1158,7 +1158,113 @@ func resolveResponder(ctx context.Context, intStore *integrations.Store) respond
 		}
 		return respond.MikrotikMultiFromConfigs(cfgs)
 	}
+	if r, names := sshCLIResponders(ctx, intStore); r != nil {
+		log.Printf("worker: responder from %d Integrations SSH/CLI device(s): %s",
+			len(names), strings.Join(names, ", "))
+		if live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE")); !live {
+			log.Printf("worker: NOTE - SSH/CLI devices are configured but RESPONSE_LIVE!=1: bans will NOT be pushed (dry-run). Set RESPONSE_LIVE=1 in deploy/.env and restart to go live.")
+		}
+		return r
+	}
 	return respond.ResponderFromEnv()
+}
+
+// sshCLIDevices builds the SSH/CLI responders configured in the Integrations registry.
+//
+// This is the path for Ruijie and anything else without a usable REST API: DeusWatch supplies the
+// SSH transport, the address validation and the host-key pinning, and the operator supplies their
+// device's own commands.
+//
+// A device whose configuration is rejected is SKIPPED WITH A LOUD LOG rather than quietly
+// dropped. A responder that silently does nothing is worse than no responder at all, because the
+// operator believes the network is protected.
+//
+// announce is false for the health probe, which runs on a timer and must not fill the log.
+func sshCLIDevices(ctx context.Context, intStore *integrations.Store, announce bool) ([]respond.Responder, []string) {
+	if intStore == nil {
+		return nil, nil
+	}
+	rows, err := intStore.Resolve(ctx, "ssh_cli")
+	if err != nil || len(rows) == 0 {
+		return nil, nil
+	}
+
+	var members []respond.Responder
+	var names []string
+	for _, row := range rows {
+		c := row.Config
+		skipHostKey, _ := strconv.ParseBool(c["insecure_skip_host_key"])
+		label := c["label"]
+		if label == "" {
+			label = row.Name
+		}
+		r, berr := respond.NewSSHCLIResponder(respond.SSHCLIConfig{
+			Address:             c["address"],
+			Username:            c["username"],
+			Password:            c["password"],
+			PrivateKey:          c["private_key"],
+			HostKeyFingerprint:  c["host_key_fingerprint"],
+			InsecureSkipHostKey: skipHostKey,
+			BlockCmd:            c["block_cmd"],
+			UnblockCmd:          c["unblock_cmd"],
+			ListCmd:             c["list_cmd"],
+			ListPattern:         c["list_pattern"],
+			VerifyCmd:           c["verify_cmd"],
+			Label:               label,
+		})
+		if berr != nil {
+			if announce {
+				log.Printf("worker: SSH/CLI device %q NOT usable, bans will not reach it: %v", row.Name, berr)
+			}
+			continue
+		}
+		if announce && skipHostKey {
+			log.Printf("worker: SSH/CLI device %q has host key checking DISABLED - an intercepted session could unblock an attacker", row.Name)
+		}
+		members = append(members, r)
+		names = append(names, row.Name)
+	}
+	return members, names
+}
+
+// sshCLIResponders returns the blocking responder for the configured SSH/CLI devices.
+func sshCLIResponders(ctx context.Context, intStore *integrations.Store) (respond.Responder, []string) {
+	members, names := sshCLIDevices(ctx, intStore, true)
+	if len(members) == 0 {
+		return nil, nil
+	}
+	// Startup reachability check per device, so a wrong address, password or host key shows up in
+	// the log now rather than as a ban that silently never arrived.
+	for i, m := range members {
+		v, ok := m.(respond.Verifier)
+		if !ok {
+			continue
+		}
+		if verr := v.Verify(ctx); verr != nil {
+			log.Printf("worker: SSH/CLI device %q check FAILED: %v", names[i], verr)
+		} else {
+			log.Printf("worker: SSH/CLI device %q check OK", names[i])
+		}
+	}
+	return respond.LiveOrDryMulti(members), names
+}
+
+// sshCLIVerifiers returns the same devices UNWRAPPED, for the read-only health probe.
+//
+// Verify must reach the real device even when bans are in dry-run: "would a ban actually arrive"
+// is exactly the question dry-run makes hard to answer, and wrapping the probe would have it
+// report on the dry-run stub instead of the switch.
+func sshCLIVerifiers(ctx context.Context, intStore *integrations.Store) (respond.Verifier, []string) {
+	members, names := sshCLIDevices(ctx, intStore, false)
+	if len(members) == 0 {
+		return nil, nil
+	}
+	if len(members) == 1 {
+		if v, ok := members[0].(respond.Verifier); ok {
+			return v, names
+		}
+	}
+	return respond.NewMultiResponder(members), names
 }
 
 // mikrotikIntegrationConfigs returns the MikroTik routers configured through the Integrations
@@ -1198,6 +1304,11 @@ func newBackendProbe(ctx context.Context, intStore *integrations.Store) (respond
 			members = append(members, respond.NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure))
 		}
 		return respond.NewMultiResponder(members), "mikrotik"
+	}
+	// Same precedence as resolveResponder, so the health probe can never report on a backend
+	// other than the one bans actually go to.
+	if r, _ := sshCLIVerifiers(ctx, intStore); r != nil {
+		return r, "ssh_cli"
 	}
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("RESPONDER"))) {
 	case "nftables":

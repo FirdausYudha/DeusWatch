@@ -54,6 +54,28 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
+		Type: "ssh_cli", Label: "Network device over SSH (any vendor)", Category: "firewall", Doc: "ssh-cli.md",
+		Desc: "Block source IPs by running YOUR device's own CLI commands over SSH. For Ruijie, " +
+			"Aruba, Cisco or anything else with a command line: DeusWatch supplies the transport " +
+			"and the safety checks, you supply the commands your device actually takes.",
+		Fields: []Field{
+			{Key: "address", Label: "Address", Help: "host or host:port (default port 22)"},
+			{Key: "username", Label: "Username"},
+			{Key: "password", Label: "Password", Secret: true, Optional: true, Help: "leave blank if using a private key"},
+			{Key: "private_key", Label: "Private key (PEM)", Secret: true, Optional: true, Help: "preferred over a password where the device supports it"},
+			{Key: "host_key_fingerprint", Label: "Host key fingerprint", Optional: true,
+				Help: "SHA256:… from `ssh-keyscan -t ed25519 <host> | ssh-keygen -lf -`. Required unless you tick the opt-out below"},
+			{Key: "insecure_skip_host_key", Label: "Skip host key check", Optional: true, Options: []string{"false", "true"},
+				Help: "UNSAFE: an intercepted session could unblock an attacker. Only for a first setup, on a trusted link"},
+			{Key: "block_cmd", Label: "Block command", Help: "e.g. configure terminal ; ip access-list extended DEUSWATCH ; deny ip host {{.IP}} any"},
+			{Key: "unblock_cmd", Label: "Unblock command", Optional: true, Help: "the same line prefixed with `no`, on most CLIs. Without it, bans can only be lifted on the device by hand"},
+			{Key: "list_cmd", Label: "List command", Optional: true, Help: "e.g. show ip access-list DEUSWATCH - enables reconciliation after a device reboot"},
+			{Key: "list_pattern", Label: "List pattern", Optional: true, Help: `regex with one capture group, e.g. deny ip host (\S+) any`},
+			{Key: "verify_cmd", Label: "Verify command", Optional: true, Help: "a READ-ONLY command proving the device answers, e.g. show version"},
+			{Key: "label", Label: "Label", Optional: true, Help: "shown in logs, e.g. sw-core-lantai3"},
+		},
+	},
+	{
 		Type: "crowdsec", Label: "CrowdSec LAPI (bouncer)", Category: "bouncer",
 		Desc: "Push block decisions to the CrowdSec Local API so any CrowdSec bouncer enforces them.",
 		Fields: []Field{

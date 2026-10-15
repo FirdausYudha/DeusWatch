@@ -128,6 +128,10 @@ var connectorNames = []string{
 	// Response/CTI connector product names, so "how do I connect CrowdSec" pulls the catalogue even
 	// though these are field VALUES rather than derivable type keys.
 	"crowdsec", "mikrotik", "abuseipdb", "otx", "slack", "discord",
+	// Vendor names an operator would actually type for the generic SSH/CLI responder. Ruijie and
+	// Aruba are not integration types, but "can DeusWatch block on our Ruijie" is the question
+	// the hospital's team asked, and it must reach the catalogue rather than a flat no.
+	"ruijie", "aruba", "ssh", "glpi", "snmp",
 }
 
 // AgentLine is one endpoint, flattened by the caller so this package stays free of a store import.
@@ -454,7 +458,7 @@ func writeEnforcementReachability(b *strings.Builder, s EnforcementStats) {
 // not-configured and nothing-selected cases. Said in full because the difference decides what the
 // operator does next, and the UI says the same thing in a banner on the Response page rather than
 // leaving it to be discovered.
-const notEnforcingLine = "IMPORTANT: enforcement is NOT configured. DeusWatch is recording these ban decisions but nothing is pushing them to a firewall, so the addresses above are FLAGGED, not blocked, and traffic from them still arrives. Never tell the operator an address is blocked while this is the case. To change it, set RESPONSE_LIVE=1 and connect a responder (MikroTik, CrowdSec or agent nftables) under Integrations, or enable the blocklist feed on the Response page for an external firewall to pull.\n"
+const notEnforcingLine = "IMPORTANT: enforcement is NOT configured. DeusWatch is recording these ban decisions but nothing is pushing them to a firewall, so the addresses above are FLAGGED, not blocked, and traffic from them still arrives. Never tell the operator an address is blocked while this is the case. To change it, set RESPONSE_LIVE=1 and connect a responder (MikroTik, SSH/CLI, CrowdSec or agent nftables) under Integrations, or enable the blocklist feed on the Response page for an external firewall to pull.\n"
 
 // Dossier is one address the operator named, looked up directly.
 type Dossier struct {
