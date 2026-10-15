@@ -34,7 +34,7 @@ type Field struct {
 type TypeInfo struct {
 	Type     string  `json:"type"`
 	Label    string  `json:"label"`
-	Category string  `json:"category"` // firewall | bouncer | cti
+	Category string  `json:"category"` // firewall | bouncer | cti | ticketing | ...
 	Desc     string  `json:"desc"`
 	Fields   []Field `json:"fields"`
 	Doc      string  `json:"doc,omitempty"` // docs/<file>.md, the UI links "See documentation" to it
@@ -128,6 +128,20 @@ var Catalog = []TypeInfo{
 			{Key: "query", Label: "Filter (query_string)", Optional: true, Help: "Optional Lucene filter, e.g. rule.level:>=7"},
 			{Key: "poll_interval", Label: "Poll interval", Optional: true, Help: "Go duration, e.g. 30s, 1m. Default 30s."},
 			{Key: "insecure_tls", Label: "Skip TLS verify", Optional: true, Options: []string{"false", "true"}, Help: "true for a self-signed cluster cert reached over a trusted network/tunnel."},
+		},
+	},
+	{
+		Type: "glpi", Label: "GLPI (ITSM ticketing)", Category: "ticketing", Doc: "glpi.md",
+		Desc: "Mirror DeusWatch tickets into GLPI and read their status back. One-way for content " +
+			"(DeusWatch owns what a ticket says), read-only for status (GLPI owns how far along it is), " +
+			"so nothing here can overwrite work done in GLPI.",
+		Fields: []Field{
+			{Key: "url", Label: "GLPI URL", Help: "https://glpi.example.local - the instance root or its /apirest.php, either works"},
+			{Key: "app_token", Label: "App-Token", Secret: true, Help: "Setup → General → API → an API client's application token"},
+			{Key: "user_token", Label: "User API token", Secret: true, Help: "The GLPI user's personal API token (that user's rights are what DeusWatch gets)"},
+			{Key: "category_id", Label: "Category id", Optional: true, Help: "GLPI ITIL category id for pushed tickets; blank leaves GLPI's default"},
+			{Key: "requester_id", Label: "Requester user id", Optional: true, Help: "GLPI user id recorded as the requester; blank leaves it unset"},
+			{Key: "insecure_tls", Label: "Skip TLS verify", Optional: true, Options: []string{"false", "true"}, Help: "true for a self-signed GLPI certificate on a trusted internal network"},
 		},
 	},
 	{

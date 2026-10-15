@@ -1638,6 +1638,10 @@ export type Ticket = {
   auto_created: boolean
   // Further alerts that collapsed onto this ticket after it was opened.
   recurrences: number
+  // The GLPI ticket this one was mirrored as; null when the GLPI connector is off or it has not
+  // been pushed yet.
+  glpi_id: number | null
+  glpi_synced_at: string | null
 }
 
 export type TicketComment = { id: number; author: string; body: string; created_at: string }

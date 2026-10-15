@@ -48,6 +48,9 @@ type Ticket struct {
 	// DedupeKey collapses a repeating alert onto one live ticket. Not exposed: it is bookkeeping,
 	// and showing it invites someone to edit it.
 	DedupeKey string `json:"-"`
+	// GLPIID links this ticket to its counterpart in GLPI; nil when it has not been pushed.
+	GLPIID       *int       `json:"glpi_id"`
+	GLPISyncedAt *time.Time `json:"glpi_synced_at"`
 }
 
 // Comment is one case note on a ticket.
@@ -91,13 +94,14 @@ func (s *Store) q(ctx context.Context) queryer {
 // (pgx won't scan inet directly into *string).
 const cols = `id, title, description, severity, status, assignee, created_by, host(source_ip), rule_id,
 	created_at, updated_at, resolved_at, closed_at, acked_at, acked_by, auto_created, recurrences,
-	COALESCE(dedupe_key,'')`
+	COALESCE(dedupe_key,''), glpi_id, glpi_synced_at`
 
 func scanTicket(row pgx.Row) (*Ticket, error) {
 	var t Ticket
 	if err := row.Scan(&t.ID, &t.Title, &t.Description, &t.Severity, &t.Status, &t.Assignee,
 		&t.CreatedBy, &t.SourceIP, &t.RuleID, &t.CreatedAt, &t.UpdatedAt, &t.ResolvedAt, &t.ClosedAt,
-		&t.AckedAt, &t.AckedBy, &t.AutoCreated, &t.Recurrences, &t.DedupeKey); err != nil {
+		&t.AckedAt, &t.AckedBy, &t.AutoCreated, &t.Recurrences, &t.DedupeKey,
+		&t.GLPIID, &t.GLPISyncedAt); err != nil {
 		return nil, err
 	}
 	return &t, nil

@@ -159,6 +159,14 @@ export default function Tickets({
               <tr key={t.id} className="cursor-pointer hover:bg-surface-2" onClick={() => setSelectedId(t.id)}>
                 <td className="px-4 py-2 font-medium text-fg">
                   {t.title}
+                  {t.glpi_id !== null && (
+                    <span
+                      className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-normal text-dim"
+                      title="Mirrored into GLPI; its status there drives this ticket's status here"
+                    >
+                      GLPI #{t.glpi_id}
+                    </span>
+                  )}
                   {t.auto_created && (
                     <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-normal text-dim" title={t.recurrences > 0 ? `Opened automatically; the same alert fired ${t.recurrences} more time(s)` : 'Opened automatically from an alert'}>
                       auto{t.recurrences > 0 ? ` ×${t.recurrences + 1}` : ''}

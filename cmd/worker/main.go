@@ -256,8 +256,13 @@ func main() {
 	// Alert-to-ticket automation: qualifying alerts open a ticket on their own, because a queue
 	// that depends on somebody remembering to fill it in under-reports the work — and that queue
 	// is also how the team is judged. Off unless the operator switched it on.
-	raiser := newTicketRaiser(ctx, tickets.NewStore(st.Pool()), dispatcher)
+	ticketStore := tickets.NewStore(st.Pool())
+	raiser := newTicketRaiser(ctx, ticketStore, dispatcher)
 	safeGo(ctx, "ticket-automation-config", func() { raiser.run(ctx) })
+
+	// GLPI mirror: push DeusWatch tickets into the ITSM the team already works in, and read their
+	// status back. Inert unless a GLPI connector is configured and enabled.
+	safeGo(ctx, "glpi-sync", func() { runGLPISync(ctx, ticketStore, intStore) })
 
 	onAlert := makeAlertHook(engine, containEngine, killer, dispatcher, raiser)
 

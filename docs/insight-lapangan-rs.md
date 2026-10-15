@@ -18,7 +18,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 | 1 | Monitoring kesehatan **API/layanan** per-endpoint ("hijau tapi mati") | **P1** | ✅ **Selesai** (v2.51.0) — menu Service Health |
 | 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0) — kartu aset di menu Inventory |
 | 3 | Dukungan **Ruijie** untuk auto-block | P2 | Belum ada (hanya nftables / MikroTik / CrowdSec) |
-| 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA** | P2 | ✅ **Sebagian selesai** — alert→tiket, notifikasi, scorecard SLA sudah ada; **integrasi GLPI belum** |
+| 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
 | 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | Agent Windows parsial; AD/LDAP belum ada |
 | 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
 | 7 | **SNMP** monitoring perangkat jaringan | P3 | Belum ada |
@@ -147,7 +147,15 @@ tiket dibuka/selesai ke Telegram dan email, serta **scorecard SLA** — waktu re
 dipegang) dan waktu penyelesaian, median dan p90, dipecah per severity dan per penanggap. Semua
 dimatikan secara bawaan sampai operator menyalakannya.
 
-**Yang belum: integrasi dua arah dengan GLPI.** Itu tetap pekerjaan terpisah.
+**Mirror GLPI** juga sudah ada: tiket DeusWatch didorong ke GLPI, dan status GLPI dibaca balik
+([glpi.md](glpi.md)). Sengaja **satu arah untuk isi, baca-saja untuk status** — DeusWatch pemilik
+isi tiket, GLPI pemilik sejauh mana pengerjaannya. Tidak ada yang bisa menimpa pekerjaan yang
+dilakukan di GLPI, sehingga pertanyaan "siapa menang saat konflik" tidak pernah muncul.
+
+Batas yang disengaja: mengedit teks tiket di DeusWatch **tidak** memperbarui GLPI, dan tiket yang
+dibuat manusia di GLPI tidak ditarik masuk. Status **Pending** milik GLPI tidak punya padanan dan
+dipetakan ke `in_progress`, karena menyebutnya selesai akan menghentikan jam SLA atas pekerjaan
+yang belum selesai.
 
 **Yang perlu dibangun.** Alert otomatis menjadi tiket; notifikasi tiket masuk ke Telegram
 (kanal notifikasi sudah tersedia); metrik **waktu respons dan waktu penyelesaian** sebagai
@@ -251,9 +259,9 @@ untuk organisasi yang hendak mengejar sertifikasi keamanan.
 1. ✅ **Gap 1 — API/Service Health Monitoring** (v2.51.0). Dampak tertinggi: masalahnya harian dan
    nyata, tidak terpecahkan oleh perkakas yang sudah ada, dan dapat didemokan dengan endpoint simulasi.
 2. ✅ **Gap 2 — Asset inventory** (v2.51.0). Pendamping murah dan cepat; melengkapi sisi ITIL.
-3. ✅ **Gap 4 — Ticketing: alert→tiket, notifikasi, scorecard SLA.** Seluruh bahannya sudah ada di
-   dalam DeusWatch, jadi tidak bergantung pada perangkat atau akses eksternal. Menjawab motif yang
-   disebut narasumber sendiri: tiket sebagai dasar penilaian kinerja IT.
+3. ✅ **Gap 4 — Ticketing: alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI.** Menjawab
+   motif yang disebut narasumber sendiri: tiket sebagai dasar penilaian kinerja IT — dan menaruh
+   tiket itu di GLPI, tempat mereka memang sudah bekerja.
 
 **Berikutnya.** Dua kandidat yang tersisa di P2, keduanya butuh akses yang belum ada di sini:
 
@@ -263,5 +271,5 @@ untuk organisasi yang hendak mengejar sertifikasi keamanan.
 - **Gap 5 — agent Windows + Active Directory.** Paling besar; butuh host Windows dan domain
   controller untuk pengujian yang berarti.
 
-Di luar itu, **Gap 4 menyisakan integrasi GLPI**, dan **Gap 7 (SNMP)** secara teknis mengikuti pola
-prober yang sudah terbentuk di Gap 1.
+Di luar itu, **Gap 7 (SNMP)** secara teknis mengikuti pola prober yang sudah terbentuk di Gap 1,
+jadi itu kandidat termurah berikutnya yang tidak butuh perangkat untuk dikerjakan.
