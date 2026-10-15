@@ -60,7 +60,9 @@ func New(base, appToken, userToken string, insecure bool) *Client {
 	}
 	hc := &http.Client{Timeout: 20 * time.Second}
 	if insecure {
-		hc.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // operator opt-in, documented
+		// #nosec G402 -- opt-in only: an internal GLPI commonly ships a self-signed certificate,
+		// and the operator turns this on per integration. Default is verification on.
+		hc.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
 	return &Client{base: base, appToken: appToken, userToken: userToken, hc: hc}
 }
