@@ -118,10 +118,52 @@ export default function Inventory({ me }: { me: Me }) {
               />
             ))}
           </div>
-          {selected && <DetailPanel agent={selected} summary={vulns[selected]} />}
+          {selected && (
+            <div className="min-w-0 space-y-4">
+              <AssetCard a={agents.find((x) => x.agent_name === selected)} />
+              <DetailPanel agent={selected} summary={vulns[selected]} />
+            </div>
+          )}
         </div>
       )}
     </Page>
+  )
+}
+
+// AssetCard shows the hardware facts an asset register is built from: what the machine is called,
+// who made it, which model, and the serial number a warranty claim and a stock-take are keyed on.
+// It reads the inventory summary already loaded for the list, so selecting an agent costs no fetch.
+//
+// A field the agent could not read is shown as "—" rather than hidden, because an asset register
+// needs to make the gap visible: on Linux the DMI serial is root-only, and a blank cell is the
+// prompt to go and fix that, where a missing row just looks complete.
+function AssetCard({ a }: { a?: InventorySummary }) {
+  if (!a) return null
+  const dash = (s: string) => (s.trim() === '' ? '—' : s)
+  const ram = a.memory_mb > 0 ? `${(a.memory_mb / 1024).toFixed(1)} GB` : '—'
+  const cpu = a.cpu_cores > 0 ? `${a.cpu_cores} core` : '—'
+  const fields: [string, string][] = [
+    ['Hostname', dash(a.hostname)],
+    ['Serial number', dash(a.serial_number)],
+    ['Manufacturer', dash(a.manufacturer)],
+    ['Model', dash(a.model)],
+    ['CPU / RAM', `${cpu} · ${ram}`],
+    ['IP / MAC', `${dash(a.primary_ip)} · ${dash(a.primary_mac)}`],
+  ]
+  return (
+    <div className="rounded-[12px] border border-border bg-surface px-4 py-3">
+      <h2 className="mb-3 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Asset</h2>
+      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+        {fields.map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-[12.5px] text-dim">{label}</dt>
+            <dd className="truncate text-[13.5px] text-fg" title={value}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   )
 }
 

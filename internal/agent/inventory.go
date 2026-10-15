@@ -52,6 +52,18 @@ type Inventory struct {
 	Packages    []Package  `json:"packages"`
 	Manifests   []Manifest `json:"manifests,omitempty"` // language dependency files for SCA
 	CollectedAt time.Time  `json:"collected_at"`
+
+	// Hardware asset facts for ITIL-style asset management. Collected here rather than in a
+	// separate report because they are gathered at the same moment, change at the same slow rate,
+	// and belong on the same row. See asset.go for why each one is best-effort.
+	Hostname     string `json:"hostname"`
+	Manufacturer string `json:"manufacturer"`  // Dell Inc. | LENOVO | ...
+	Model        string `json:"model"`         // OptiPlex 7090 | ThinkCentre M70q
+	SerialNumber string `json:"serial_number"` // what an audit and a warranty claim are keyed on
+	CPUCores     int    `json:"cpu_cores"`
+	MemoryMB     int64  `json:"memory_mb"`
+	PrimaryIP    string `json:"primary_ip"`
+	PrimaryMAC   string `json:"primary_mac"`
 }
 
 // scaManifestNames are the dependency-lock / manifest filenames Trivy can scan for language-package
@@ -183,6 +195,9 @@ func CollectInventory(ctx context.Context) Inventory {
 	// Software Composition Analysis: gather language dependency manifests for the manager to scan
 	// with Trivy. Best-effort and bounded; empty roots (DEUSWATCH_SCA_ROOTS="") disables it.
 	inv.Manifests = collectManifests(SCARoots())
+	// Hardware asset facts (hostname, brand, model, serial) for the asset register. Runs on every
+	// platform, unlike package collection, because an asset register cares about Windows most.
+	inv.collectAsset(ctx)
 	return inv
 }
 

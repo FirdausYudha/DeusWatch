@@ -669,6 +669,16 @@ export type InventorySummary = {
   pkg_manager: string
   pkg_count: number
   updated_at: string
+  // Hardware asset facts for the asset register. Each is best-effort at the agent, so an empty
+  // string or 0 means "not collected" (e.g. the DMI serial is root-only on Linux), not "absent".
+  hostname: string
+  manufacturer: string
+  model: string
+  serial_number: string
+  cpu_cores: number
+  memory_mb: number
+  primary_ip: string
+  primary_mac: string
 }
 export type Package = { name: string; version: string; arch?: string; source?: string }
 
