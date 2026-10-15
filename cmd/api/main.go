@@ -36,6 +36,7 @@ import (
 	"deuswatch/internal/llm"
 	"deuswatch/internal/migrate"
 	"deuswatch/internal/mtls"
+	"deuswatch/internal/notify"
 	"deuswatch/internal/playbooks"
 	"deuswatch/internal/report"
 	"deuswatch/internal/respond"
@@ -537,11 +538,22 @@ func main() {
 
 		// Tier-2 DFIR ticketing (case management).
 		ticketStore := tickets.NewStore(st.Pool())
+		// Ticket events reach the chat channels, because the field problem is that people answer
+		// chat and ignore the queue. Resolution happens here in the API, so the API needs its own
+		// dispatcher; without one configured, ticket notifications are simply off.
+		if d, ok := notify.DispatcherFromEnv(); ok {
+			ticketStore.SetNotifier(d.SendText)
+		}
 		mux.Handle("GET /api/tickets", protect(auth.PermViewTickets, ticketStore.ListHandler()))
 		mux.Handle("POST /api/tickets", protect(auth.PermManageTickets, ticketStore.CreateHandler()))
 		mux.Handle("GET /api/tickets/{id}", protect(auth.PermViewTickets, ticketStore.GetHandler()))
 		mux.Handle("PUT /api/tickets/{id}", protect(auth.PermManageTickets, ticketStore.UpdateHandler()))
 		mux.Handle("POST /api/tickets/{id}/comments", protect(auth.PermManageTickets, ticketStore.CommentHandler()))
+		// The scorecard: how fast tickets are picked up and finished. Reading it is a ticket
+		// right; changing what the automation does is a settings right.
+		mux.Handle("GET /api/tickets/sla", protect(auth.PermViewTickets, ticketStore.SLAHandler()))
+		mux.Handle("GET /api/tickets/automation", protect(auth.PermManageSettings, ticketStore.AutomationGetHandler()))
+		mux.Handle("PUT /api/tickets/automation", protect(auth.PermManageSettings, ticketStore.AutomationSetHandler()))
 	} else {
 		// Without a DB: endpoints reply 503.
 		mux.HandleFunc("/api/events", eventsHandler(nil, nil))

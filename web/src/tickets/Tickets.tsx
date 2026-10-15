@@ -14,6 +14,7 @@ import {
   type NewTicketInput,
 } from '../lib/api'
 import { Page, Pagination, usePaged, Select } from '../components/ui'
+import Scorecard from './Scorecard'
 
 const STATUSES: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed']
 const STATUS_LABEL: Record<TicketStatus, string> = {
@@ -115,6 +116,10 @@ export default function Tickets({
         )}
       </header>
 
+      {/* How fast the queue is picked up and finished — the half of the picture the table below
+          cannot show, and the one this team is actually judged on. */}
+      <Scorecard />
+
       {/* Status filter */}
       <div className="mb-4">
         <Select value={filter} onChange={(e) => setFilter(e.target.value as '' | TicketStatus)} aria-label="Filter tickets by status">
@@ -138,20 +143,28 @@ export default function Tickets({
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Assignee</th>
               <th className="px-4 py-2 font-medium">Created</th>
+              <th className="px-4 py-2 font-medium" title="Time from opening until somebody picked it up">Response</th>
               <th className="px-4 py-2 font-medium">Resolve time</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border bg-surface">
             {tickets.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-dim">
+                <td colSpan={7} className="px-4 py-8 text-center text-dim">
                   No tickets. Raise one from an alert on the Dashboard, or create a new one.
                 </td>
               </tr>
             )}
             {paged.slice.map((t) => (
               <tr key={t.id} className="cursor-pointer hover:bg-surface-2" onClick={() => setSelectedId(t.id)}>
-                <td className="px-4 py-2 font-medium text-fg">{t.title}</td>
+                <td className="px-4 py-2 font-medium text-fg">
+                  {t.title}
+                  {t.auto_created && (
+                    <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-normal text-dim" title={t.recurrences > 0 ? `Opened automatically; the same alert fired ${t.recurrences} more time(s)` : 'Opened automatically from an alert'}>
+                      auto{t.recurrences > 0 ? ` ×${t.recurrences + 1}` : ''}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-2"><SeverityBadge sev={t.severity} /></td>
                 <td className="px-4 py-2">
                   <span className={`rounded px-1.5 py-0.5 text-[12.5px] font-medium ${STATUS_BADGE[t.status]}`}>
@@ -160,6 +173,19 @@ export default function Tickets({
                 </td>
                 <td className="px-4 py-2 text-muted">{t.assignee || <span className="text-dim">unassigned</span>}</td>
                 <td className="px-4 py-2 text-muted">{new Date(t.created_at).toLocaleString('en-US')}</td>
+                {/* Untouched is called out rather than shown as a dash: a ticket nobody has picked
+                    up is the one thing on this row worth acting on. */}
+                <td className="px-4 py-2 text-muted">
+                  {t.acked_at ? (
+                    <span title={t.acked_by ? `Picked up by ${t.acked_by}` : undefined}>
+                      {duration(t.created_at, t.acked_at)}
+                    </span>
+                  ) : t.status === 'open' || t.status === 'in_progress' ? (
+                    <span className="text-critical">untouched</span>
+                  ) : (
+                    <span className="text-dim">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-muted">
                   {t.resolved_at ? duration(t.created_at, t.resolved_at) : <span className="text-dim">—</span>}
                 </td>

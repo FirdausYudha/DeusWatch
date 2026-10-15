@@ -33,6 +33,21 @@ type Ticket struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 	ResolvedAt  *time.Time `json:"resolved_at"`
 	ClosedAt    *time.Time `json:"closed_at"`
+
+	// AckedAt is the first time a human did anything with this ticket: took it, moved it off open,
+	// or wrote a note. Distinct from UpdatedAt, which every later edit overwrites. Nil forever on a
+	// ticket nobody ever picked up, and the scorecard reports that rather than hiding it.
+	AckedAt *time.Time `json:"acked_at"`
+	AckedBy *string    `json:"acked_by"`
+	// AutoCreated marks a ticket opened by automation rather than typed by a person. Response time
+	// on a 3am alert and response time on a colleague's request are different measurements.
+	AutoCreated bool `json:"auto_created"`
+	// Recurrences counts the further alerts that collapsed onto this ticket. Deduplication
+	// without it would quietly hide how big the problem is.
+	Recurrences int `json:"recurrences"`
+	// DedupeKey collapses a repeating alert onto one live ticket. Not exposed: it is bookkeeping,
+	// and showing it invites someone to edit it.
+	DedupeKey string `json:"-"`
 }
 
 // Comment is one case note on a ticket.
@@ -44,7 +59,11 @@ type Comment struct {
 }
 
 // Store persists tickets and their comments.
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool *pgxpool.Pool
+	// notify announces ticket events on the chat/mail channels; nil when none is configured.
+	notify TextNotifier
+}
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
@@ -70,12 +89,15 @@ func (s *Store) q(ctx context.Context) queryer {
 
 // host(source_ip) returns the bare address as text (no /32) and scans into *string
 // (pgx won't scan inet directly into *string).
-const cols = `id, title, description, severity, status, assignee, created_by, host(source_ip), rule_id, created_at, updated_at, resolved_at, closed_at`
+const cols = `id, title, description, severity, status, assignee, created_by, host(source_ip), rule_id,
+	created_at, updated_at, resolved_at, closed_at, acked_at, acked_by, auto_created, recurrences,
+	COALESCE(dedupe_key,'')`
 
 func scanTicket(row pgx.Row) (*Ticket, error) {
 	var t Ticket
 	if err := row.Scan(&t.ID, &t.Title, &t.Description, &t.Severity, &t.Status, &t.Assignee,
-		&t.CreatedBy, &t.SourceIP, &t.RuleID, &t.CreatedAt, &t.UpdatedAt, &t.ResolvedAt, &t.ClosedAt); err != nil {
+		&t.CreatedBy, &t.SourceIP, &t.RuleID, &t.CreatedAt, &t.UpdatedAt, &t.ResolvedAt, &t.ClosedAt,
+		&t.AckedAt, &t.AckedBy, &t.AutoCreated, &t.Recurrences, &t.DedupeKey); err != nil {
 		return nil, err
 	}
 	return &t, nil
@@ -89,6 +111,9 @@ type NewTicket struct {
 	Assignee    string
 	SourceIP    string
 	RuleID      string
+	// AutoCreated and DedupeKey are set by automation, not by the API's create handler.
+	AutoCreated bool
+	DedupeKey   string
 }
 
 // Create inserts a ticket and returns it.
@@ -100,10 +125,11 @@ func (s *Store) Create(ctx context.Context, createdBy string, n NewTicket) (*Tic
 		n.Severity = 2
 	}
 	row := s.q(ctx).QueryRow(ctx,
-		`INSERT INTO tickets (title, description, severity, assignee, created_by, source_ip, rule_id)
-		 VALUES ($1,$2,$3,$4,$5,$6::inet,$7) RETURNING `+cols,
+		`INSERT INTO tickets (title, description, severity, assignee, created_by, source_ip, rule_id,
+		                      auto_created, dedupe_key)
+		 VALUES ($1,$2,$3,$4,$5,$6::inet,$7,$8,$9) RETURNING `+cols,
 		n.Title, n.Description, n.Severity, nilIfEmpty(n.Assignee), createdBy,
-		nilIfEmpty(n.SourceIP), nilIfEmpty(n.RuleID))
+		nilIfEmpty(n.SourceIP), nilIfEmpty(n.RuleID), n.AutoCreated, nilIfEmpty(n.DedupeKey))
 	return scanTicket(row)
 }
 
@@ -168,11 +194,17 @@ type UpdateFields struct {
 	Assignee    *string
 }
 
-func (s *Store) Update(ctx context.Context, id string, f UpdateFields) (*Ticket, error) {
+// Update applies the edit. actor is the username making it, recorded as the one who picked the
+// ticket up if this is the first human touch; pass "" for a change no person made.
+func (s *Store) Update(ctx context.Context, id, actor string, f UpdateFields) (*Ticket, error) {
 	cur, _, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	// Taking the ticket or moving it off open is somebody picking it up. Editing the title is not:
+	// that would let a passing typo fix count as a response and quietly flatter the scorecard.
+	pickedUp := (f.Assignee != nil && *f.Assignee != "") ||
+		(f.Status != nil && *f.Status != "open")
 	if f.Title != nil {
 		cur.Title = *f.Title
 	}
@@ -209,11 +241,30 @@ func (s *Store) Update(ctx context.Context, id string, f UpdateFields) (*Ticket,
 			closedAt = nil
 		}
 	}
+	ackedAt, ackedBy := cur.AckedAt, cur.AckedBy
+	if ackedAt == nil && pickedUp && actor != "" {
+		now := time.Now()
+		ackedAt, ackedBy = &now, &actor
+	}
+
+	// Captured before the write: the announcement below must fire on the TRANSITION, not on every
+	// later edit of an already-resolved ticket.
+	wasResolved := cur.ResolvedAt != nil
+
 	row := s.q(ctx).QueryRow(ctx,
 		`UPDATE tickets SET title=$1, description=$2, severity=$3, status=$4, assignee=$5,
-		 resolved_at=$6, closed_at=$7, updated_at=now() WHERE id=$8 RETURNING `+cols,
-		cur.Title, cur.Description, cur.Severity, cur.Status, cur.Assignee, resolvedAt, closedAt, id)
-	return scanTicket(row)
+		 resolved_at=$6, closed_at=$7, acked_at=$8, acked_by=$9, updated_at=now()
+		 WHERE id=$10 RETURNING `+cols,
+		cur.Title, cur.Description, cur.Severity, cur.Status, cur.Assignee, resolvedAt, closedAt,
+		ackedAt, ackedBy, id)
+	t, err := scanTicket(row)
+	if err != nil {
+		return nil, err
+	}
+	if !wasResolved && t.ResolvedAt != nil {
+		s.announceResolved(t)
+	}
+	return t, nil
 }
 
 // AddComment appends a case note and bumps the ticket's updated_at.
@@ -228,7 +279,15 @@ func (s *Store) AddComment(ctx context.Context, ticketID, author, body string) (
 		Scan(&c.ID, &c.Author, &c.Body, &c.CreatedAt); err != nil {
 		return nil, fmt.Errorf("tickets: add comment: %w", err)
 	}
-	_, _ = s.q(ctx).Exec(ctx, `UPDATE tickets SET updated_at=now() WHERE id=$1`, ticketID)
+	// Writing the first note is picking the ticket up just as much as taking it is — on an
+	// auto-opened alert it is usually the FIRST thing that happens, so a scorecard that ignored it
+	// would report "never answered" for tickets that were answered within minutes.
+	_, _ = s.q(ctx).Exec(ctx,
+		`UPDATE tickets
+		    SET updated_at = now(),
+		        acked_at   = COALESCE(acked_at, now()),
+		        acked_by   = COALESCE(acked_by, $2)
+		  WHERE id = $1`, ticketID, author)
 	return &c, nil
 }
 
