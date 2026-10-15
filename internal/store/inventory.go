@@ -41,6 +41,17 @@ type InventorySummary struct {
 	PkgManager string    `json:"pkg_manager"`
 	PkgCount   int       `json:"pkg_count"`
 	UpdatedAt  time.Time `json:"updated_at"`
+
+	// Hardware asset facts (migration 000072), for ITIL-style asset management. Each is
+	// best-effort at the agent, so an empty string or zero means "not collected", not "absent".
+	Hostname     string `json:"hostname"`
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	SerialNumber string `json:"serial_number"`
+	CPUCores     int    `json:"cpu_cores"`
+	MemoryMB     int64  `json:"memory_mb"`
+	PrimaryIP    string `json:"primary_ip"`
+	PrimaryMAC   string `json:"primary_mac"`
 }
 
 // ReplaceInventory stores an agent's full inventory, replacing any previous one atomically. An
@@ -58,14 +69,28 @@ func (s *Store) ReplaceInventory(ctx context.Context, agentName string, inv agen
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO agent_os_inventory
-		  (agent_name, os_id, os_version, os_codename, kernel, arch, pkg_manager, pkg_count, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+		  (agent_name, os_id, os_version, os_codename, kernel, arch, pkg_manager, pkg_count, updated_at,
+		   hostname, manufacturer, model, serial_number, cpu_cores, memory_mb, primary_ip, primary_mac)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now(), $9,$10,$11,$12,$13,$14,$15,$16)
 		ON CONFLICT (agent_name) DO UPDATE SET
 		  os_id=EXCLUDED.os_id, os_version=EXCLUDED.os_version, os_codename=EXCLUDED.os_codename,
 		  kernel=EXCLUDED.kernel, arch=EXCLUDED.arch, pkg_manager=EXCLUDED.pkg_manager,
-		  pkg_count=EXCLUDED.pkg_count, updated_at=now()`,
+		  pkg_count=EXCLUDED.pkg_count, updated_at=now(),
+		  -- An asset fact is only overwritten by a non-empty reading. An agent that loses root (or
+		  -- runs where dmidecode is missing) stops being able to read the serial, and blanking the
+		  -- register on its next report would quietly erase data nothing else holds.
+		  hostname=COALESCE(NULLIF(EXCLUDED.hostname,''), agent_os_inventory.hostname),
+		  manufacturer=COALESCE(NULLIF(EXCLUDED.manufacturer,''), agent_os_inventory.manufacturer),
+		  model=COALESCE(NULLIF(EXCLUDED.model,''), agent_os_inventory.model),
+		  serial_number=COALESCE(NULLIF(EXCLUDED.serial_number,''), agent_os_inventory.serial_number),
+		  cpu_cores=COALESCE(NULLIF(EXCLUDED.cpu_cores,0), agent_os_inventory.cpu_cores),
+		  memory_mb=COALESCE(NULLIF(EXCLUDED.memory_mb,0), agent_os_inventory.memory_mb),
+		  primary_ip=COALESCE(NULLIF(EXCLUDED.primary_ip,''), agent_os_inventory.primary_ip),
+		  primary_mac=COALESCE(NULLIF(EXCLUDED.primary_mac,''), agent_os_inventory.primary_mac)`,
 		agentName, inv.OSID, inv.OSVersion, inv.OSCodename, inv.Kernel, inv.Arch,
-		inv.PkgManager, len(inv.Packages)); err != nil {
+		inv.PkgManager, len(inv.Packages),
+		inv.Hostname, inv.Manufacturer, inv.Model, inv.SerialNumber,
+		inv.CPUCores, inv.MemoryMB, inv.PrimaryIP, inv.PrimaryMAC); err != nil {
 		return fmt.Errorf("store: inventory os upsert: %w", err)
 	}
 
@@ -306,7 +331,10 @@ func (s *Store) AgentSCAFindings(ctx context.Context, agentName string) ([]SCAFi
 func (s *Store) ListInventorySummaries(ctx context.Context) ([]InventorySummary, error) {
 	rows, err := s.q(ctx).Query(ctx, `
 		SELECT agent_name, COALESCE(os_id,''), COALESCE(os_version,''), COALESCE(os_codename,''),
-		       COALESCE(kernel,''), COALESCE(arch,''), COALESCE(pkg_manager,''), pkg_count, updated_at
+		       COALESCE(kernel,''), COALESCE(arch,''), COALESCE(pkg_manager,''), pkg_count, updated_at,
+		       COALESCE(hostname,''), COALESCE(manufacturer,''), COALESCE(model,''),
+		       COALESCE(serial_number,''), COALESCE(cpu_cores,0), COALESCE(memory_mb,0),
+		       COALESCE(primary_ip,''), COALESCE(primary_mac,'')
 		FROM agent_os_inventory ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list inventory: %w", err)
@@ -316,7 +344,9 @@ func (s *Store) ListInventorySummaries(ctx context.Context) ([]InventorySummary,
 	for rows.Next() {
 		var s InventorySummary
 		if err := rows.Scan(&s.AgentName, &s.OSID, &s.OSVersion, &s.OSCodename, &s.Kernel,
-			&s.Arch, &s.PkgManager, &s.PkgCount, &s.UpdatedAt); err != nil {
+			&s.Arch, &s.PkgManager, &s.PkgCount, &s.UpdatedAt,
+			&s.Hostname, &s.Manufacturer, &s.Model, &s.SerialNumber,
+			&s.CPUCores, &s.MemoryMB, &s.PrimaryIP, &s.PrimaryMAC); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

@@ -152,3 +152,45 @@ func orDash(s string) string {
 	}
 	return s
 }
+
+// ServiceCheckEvent is the alert raised when a monitored service/API endpoint goes down, and the
+// informational one when it comes back. It flows through the same pipeline as every other alert
+// so the notification channels and the dashboard need no special case.
+//
+// The outage is HIGH, not critical: one integration being unavailable is urgent but it is not the
+// detection pipeline itself going dark, and a severity that cries wolf gets muted. The recovery is
+// informational on purpose, because the useful part of a recovery is the timestamp, not an alarm.
+//
+// The message names the business function first ("pendaftaran") rather than the URL, because the
+// person reading it at a registration counter knows what they cannot do, not which host serves it.
+func ServiceCheckEvent(now time.Time, name, group string, down bool, reason string, consecFailures int) *ingest.Event {
+	sev := ingest.SeverityInfo
+	action, outcome := "service_recovered", "success"
+	label := name
+	if group != "" {
+		label = group + " / " + name
+	}
+	msg := fmt.Sprintf("Service %s is responding again.", label)
+	if down {
+		sev = ingest.SeverityHigh
+		action, outcome = "service_down", "failure"
+		msg = fmt.Sprintf("Service %s is DOWN after %d consecutive failed checks: %s",
+			label, consecFailures, reason)
+	}
+	return &ingest.Event{
+		Timestamp: now,
+		Event: ingest.EventFields{
+			Category: "selfhealth",
+			Action:   action,
+			Outcome:  outcome,
+			Severity: sev,
+			Dataset:  "deuswatch.selfhealth",
+			Original: msg,
+		},
+		Rule: &ingest.Rule{ID: "deuswatch_service_check", Name: "Service Health Monitor"},
+		DeusWatch: ingest.DeusWatch{
+			Label:    "selfhealth",
+			Severity: ingest.SeverityMeta{Original: sev},
+		},
+	}
+}

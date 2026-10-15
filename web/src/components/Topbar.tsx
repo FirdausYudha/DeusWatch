@@ -20,6 +20,7 @@ import type { DashRangeState } from '../lib/range'
 export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Live security posture' },
   agents: { title: 'Agents', subtitle: 'Endpoints reporting in' },
+  servicehealth: { title: 'Service Health', subtitle: 'Are the endpoints your workflows depend on actually working?' },
   inventory: { title: 'Inventory', subtitle: 'Installed software across the fleet' },
   agenthealth: { title: 'Agent Health', subtitle: 'Vulnerability assessment & software composition analysis' },
   fim: { title: 'File Integrity', subtitle: 'File changes, ransomware and malware' },

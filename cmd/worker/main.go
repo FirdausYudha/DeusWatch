@@ -82,12 +82,15 @@ func main() {
 	// Integrations registry: CTI keys & responder config the admin manages in the UI
 	// take precedence over env vars. nil if the secrets cipher can't be built.
 	var intStore *integrations.Store
+	// Also kept for the service-health prober, which unseals the request credentials it probes with.
+	var secretCipher *secret.Cipher
 	if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
 		log.Printf("worker: secrets cipher unavailable, using env-only integration config: %v", cerr)
 	} else {
 		if dev {
 			log.Printf("worker: SECRETS_KEY not set, using a DEV key (set SECRETS_KEY for production!)")
 		}
+		secretCipher = cipher
 		intStore = integrations.NewStore(st.Pool(), cipher)
 	}
 
@@ -366,6 +369,10 @@ func main() {
 	// quiet, i.e. self-uninstalled, so the row and its cert lock are cleaned up.
 	safeGo(ctx, "agent-reaper", func() { runAgentReaper(ctx, st) })
 	safeGo(ctx, "disk-janitor", func() { runDiskJanitor(ctx, st, onAlert, pbLive.Annotate) })
+	// Service/API health: probe the endpoints the hospital's own workflows depend on, so a
+	// an integration that answers 200 with a failure inside — or answers in nine seconds — raises an
+	// alert here instead of being discovered at the registration counter.
+	safeGo(ctx, "service-checks", func() { runServiceChecks(ctx, st, secretCipher, onAlert, pbLive.Annotate) })
 	safeGo(ctx, "serve-health", func() { serveHealth(ctx, st, b) })
 	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing
 	// did, this worker was once absent for 11+ hours with a clean-looking dashboard, because

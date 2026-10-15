@@ -494,17 +494,31 @@ func main() {
 
 		// Integrations registry (firewalls, bouncers, CTI providers). Secret config
 		// fields are encrypted at rest with the secrets cipher.
+		// Also kept for the service-health checks below, whose request credentials are sealed with
+		// it at the API boundary.
+		var secretCipher *secret.Cipher
 		if cipher, dev, cerr := secret.FromEnv(); cerr != nil {
 			log.Printf("api: secrets cipher unavailable, integrations disabled: %v", cerr)
 		} else {
 			if dev {
 				log.Printf("api: SECRETS_KEY not set, using a DEV key (set SECRETS_KEY for production!)")
 			}
+			secretCipher = cipher
 			intStore := integrations.NewStore(st.Pool(), cipher)
 			mux.Handle("/api/integrations/types", protect(auth.PermManageIntegrations, intStore.TypesHandler()))
 			mux.Handle("/api/integrations", protect(auth.PermManageIntegrations, intStore.CollectionHandler()))
 			mux.Handle("/api/integrations/{id}", protect(auth.PermManageIntegrations, intStore.ItemHandler()))
 		}
+
+		// Service/API health checks: the endpoints the hospital's own workflows depend on. Reading
+		// the board is a dashboard right; editing what gets probed (and with which credentials) is
+		// a settings right.
+		mux.Handle("GET /api/service-checks", protect(auth.PermViewDashboard, serviceChecksListHandler(st)))
+		mux.Handle("GET /api/service-checks/{id}/history", protect(auth.PermViewDashboard, serviceCheckHistoryHandler(st)))
+		mux.Handle("POST /api/service-checks", protect(auth.PermManageSettings, serviceCheckCreateHandler(st, secretCipher)))
+		mux.Handle("PUT /api/service-checks/{id}", protect(auth.PermManageSettings, serviceCheckUpdateHandler(st, secretCipher)))
+		mux.Handle("DELETE /api/service-checks/{id}", protect(auth.PermManageSettings, serviceCheckDeleteHandler(st)))
+		mux.Handle("DELETE /api/service-checks/{id}/headers", protect(auth.PermManageSettings, serviceCheckClearHeadersHandler(st)))
 
 		// Detection rules CRUD (Wazuh-style management).
 		mux.Handle("/api/rules", protect(auth.PermManageRules, ruleStore.CollectionHandler()))
