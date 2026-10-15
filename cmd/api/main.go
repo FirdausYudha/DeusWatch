@@ -521,6 +521,15 @@ func main() {
 		mux.Handle("DELETE /api/service-checks/{id}", protect(auth.PermManageSettings, serviceCheckDeleteHandler(st)))
 		mux.Handle("DELETE /api/service-checks/{id}/headers", protect(auth.PermManageSettings, serviceCheckClearHeadersHandler(st)))
 
+		// SNMP devices: switches, access points and routers. Reading the board is a dashboard
+		// right; changing what is polled (and with which credentials) is a settings right.
+		mux.Handle("GET /api/snmp/devices", protect(auth.PermViewDashboard, snmpDevicesListHandler(st)))
+		mux.Handle("GET /api/snmp/devices/{id}/interfaces", protect(auth.PermViewDashboard, snmpDeviceIfacesHandler(st)))
+		mux.Handle("GET /api/snmp/sensors/{id}/history", protect(auth.PermViewDashboard, snmpSensorHistoryHandler(st)))
+		mux.Handle("POST /api/snmp/devices", protect(auth.PermManageSettings, snmpDeviceCreateHandler(st, secretCipher)))
+		mux.Handle("PUT /api/snmp/devices/{id}", protect(auth.PermManageSettings, snmpDeviceUpdateHandler(st, secretCipher)))
+		mux.Handle("DELETE /api/snmp/devices/{id}", protect(auth.PermManageSettings, snmpDeviceDeleteHandler(st)))
+
 		// Detection rules CRUD (Wazuh-style management).
 		mux.Handle("/api/rules", protect(auth.PermManageRules, ruleStore.CollectionHandler()))
 		mux.Handle("GET /api/rules/packs", protect(auth.PermManageRules, ruleStore.PacksHandler()))

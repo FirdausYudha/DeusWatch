@@ -7,6 +7,7 @@ require (
 	github.com/Velocidex/go-yara v1.1.10-0.20221128055811-346fa19056b2
 	github.com/anthropics/anthropic-sdk-go v1.50.1
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/klauspost/compress v1.18.5
 	github.com/nats-io/nats.go v1.52.0
