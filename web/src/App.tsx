@@ -10,6 +10,7 @@ import Snapshots from './snapshots/Snapshots'
 import FileIntegrity from './fim/FileIntegrity'
 import Response from './response/Response'
 import Report from './report/Report'
+import ServiceHealth from './servicehealth/ServiceHealth'
 import Tickets from './tickets/Tickets'
 import Rules from './rules/Rules'
 import Decoders from './decoders/Decoders'
@@ -98,6 +99,8 @@ export default function App() {
           <Response me={me} />
         ) : view === 'tickets' && can(me, 'view_tickets') ? (
           <Tickets me={me} prefill={ticketPrefill} onPrefillConsumed={() => setTicketPrefill(null)} />
+        ) : view === 'servicehealth' ? (
+          <ServiceHealth me={me} />
         ) : view === 'report' ? (
           <Report />
         ) : view === 'rules' && can(me, 'manage_rules') ? (

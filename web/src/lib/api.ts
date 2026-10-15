@@ -2054,3 +2054,101 @@ export async function forgetAssistantMemory(id: number): Promise<void> {
   const res = await authFetch(`/api/assistant/memory/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`forget: HTTP ${res.status}`)
 }
+
+// ── Service & API health ─────────────────────────────────────────────────────
+// Probes the endpoints the business actually depends on. "Is the host up" and "is the service
+// working" are different questions, and an integration fails the second one while the first
+// stays green.
+export type ServiceCheck = {
+  id: string
+  name: string
+  service_group: string
+  kind: 'http' | 'tcp'
+  target: string
+  method: string
+  expect_status: number
+  expect_body: string
+  interval_secs: number
+  timeout_secs: number
+  latency_warn_ms: number
+  fail_threshold: number
+  enabled: boolean
+  // Live state, written by the prober. last_checked_at is null until the first probe runs.
+  last_checked_at: string | null
+  last_ok: boolean | null
+  last_status: number
+  last_latency_ms: number
+  last_error: string
+  consec_failures: number
+  alerting: boolean
+  updated_at: string
+  // True when credentials are stored. The values themselves are never sent to the browser.
+  has_headers: boolean
+}
+
+export type ServiceCheckPoint = {
+  time: string
+  ok: boolean
+  status: number
+  latency_ms: number
+  error: string
+}
+
+// Headers are write-only: send them to set them, omit them to keep what is stored.
+export type ServiceCheckInput = {
+  name: string
+  service_group: string
+  kind: 'http' | 'tcp'
+  target: string
+  method?: string
+  expect_status?: number
+  expect_body?: string
+  headers?: Record<string, string>
+  interval_secs?: number
+  timeout_secs?: number
+  latency_warn_ms?: number
+  fail_threshold?: number
+  enabled?: boolean
+}
+
+export async function fetchServiceChecks(): Promise<ServiceCheck[]> {
+  const res = await authFetch('/api/service-checks')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function createServiceCheck(input: ServiceCheckInput): Promise<ServiceCheck> {
+  const res = await authFetch('/api/service-checks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function updateServiceCheck(id: string, input: ServiceCheckInput): Promise<ServiceCheck> {
+  const res = await authFetch(`/api/service-checks/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteServiceCheck(id: string): Promise<void> {
+  const res = await authFetch(`/api/service-checks/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function clearServiceCheckHeaders(id: string): Promise<void> {
+  const res = await authFetch(`/api/service-checks/${id}/headers`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function fetchServiceCheckHistory(id: string, hours = 24): Promise<ServiceCheckPoint[]> {
+  const res = await authFetch(`/api/service-checks/${id}/history?hours=${hours}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
