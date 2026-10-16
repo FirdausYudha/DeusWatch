@@ -69,8 +69,21 @@ jobs:
         run: go build ./...
       - name: migrate (apply schema for integration tests)
         run: go run ./cmd/migrate
+      # TEMPORARY: the failing step's log needs admin rights to download, so the failures are
+      # copied into the job summary, which is public. Remove once the test is green.
       - name: test
-        run: go test -race ./...
+        run: |
+          set +e
+          out=$(go test -race ./... 2>&1); rc=$?
+          set -e
+          {
+            echo '## go test'
+            echo '```'
+            echo "$out" | grep -E '^(---|\s+---|FAIL|ok|\s+[a-z_]+\.go:)' | head -80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "$out"
+          exit $rc
 
   govulncheck:
     name: Vulnerability scan (govulncheck)
