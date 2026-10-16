@@ -61,7 +61,7 @@ func (s *Store) ISO27001Evidence(ctx context.Context, from, to time.Time) (Compl
 	for _, c := range compliance.Controls {
 		ev, ok := cache[c.Kind]
 		if !ok {
-			got, err := s.gatherEvidence(ctx, c.Kind, from, to)
+			got, err := s.gatherInSavepoint(ctx, len(cache), c.Kind, from, to)
 			if err != nil {
 				// A broken gatherer becomes ONE visible defect row, not a failed report. This is
 				// the same rule the package applies to empty evidence, and it was missing here:
@@ -82,6 +82,35 @@ func (s *Store) ISO27001Evidence(ctx context.Context, from, to time.Time) (Compl
 		rep.Controls = append(rep.Controls, ev)
 	}
 	return rep, nil
+}
+
+// gatherInSavepoint runs one gatherer so that its failure cannot poison the request.
+//
+// Degrading a failed gatherer to a single row was only half the fix, and the live report proved
+// it: a request runs inside one tenant-scoped transaction, so the first query to fail aborted that
+// transaction and every control gathered AFTER it came back with SQLSTATE 25P02, "current
+// transaction is aborted". One broken query still took down everything behind it, which is exactly
+// the failure the single-row rule was meant to prevent.
+//
+// A savepoint per gatherer makes the rollback local. Outside a transaction SAVEPOINT is an error,
+// and then there is nothing to poison, so the gatherer simply runs.
+//
+// The savepoint name is built from an integer rather than from the Kind. The Kinds are constants
+// in this repository and would be safe to interpolate, but an identifier concatenated into SQL is
+// a habit worth not having in a file that will grow more queries.
+func (s *Store) gatherInSavepoint(ctx context.Context, n int, k compliance.Kind, from, to time.Time) (ControlEvidence, error) {
+	q := s.q(ctx)
+	name := fmt.Sprintf("cmpl_%d", n)
+	if _, err := q.Exec(ctx, "SAVEPOINT "+name); err != nil {
+		return s.gatherEvidence(ctx, k, from, to) // not in a transaction: nothing to protect
+	}
+	ev, err := s.gatherEvidence(ctx, k, from, to)
+	if err != nil {
+		_, _ = q.Exec(ctx, "ROLLBACK TO SAVEPOINT "+name)
+		return ControlEvidence{}, err
+	}
+	_, _ = q.Exec(ctx, "RELEASE SAVEPOINT "+name)
+	return ev, nil
 }
 
 func (s *Store) gatherEvidence(ctx context.Context, k compliance.Kind, from, to time.Time) (ControlEvidence, error) {
@@ -393,14 +422,21 @@ func (s *Store) evidenceIncidents(ctx context.Context, from, to time.Time) (Cont
 }
 
 func (s *Store) evidenceResponse(ctx context.Context, from, to time.Time) (ControlEvidence, error) {
-	var executed, pending int64
+	// Dry-run executions are counted SEPARATELY, and this is the point of the query. A decision
+	// recorded with responder "dryrun(...)" never reached a firewall: nothing was blocked. A live
+	// deployment showed 1,549 "blocks carried out", every one of them dry-run, and reporting that
+	// as enforcement would have put a false claim in front of an auditor. It is the same failure
+	// shape as a missed reputation lookup reading as a clean verdict.
+	var real, dry, pending int64
 	err := s.q(ctx).QueryRow(ctx, `
-		SELECT count(*) FILTER (WHERE status = 'executed'),
+		SELECT count(*) FILTER (WHERE status = 'executed' AND COALESCE(responder,'') NOT LIKE 'dryrun%'),
+		       count(*) FILTER (WHERE status = 'executed' AND COALESCE(responder,'') LIKE 'dryrun%'),
 		       count(*) FILTER (WHERE status IN ('recommended','approved'))
-		  FROM response_actions WHERE created_at >= $1 AND created_at < $2`, from, to).Scan(&executed, &pending)
+		  FROM response_actions WHERE created_at >= $1 AND created_at < $2`, from, to).Scan(&real, &dry, &pending)
 	if err != nil {
 		return ControlEvidence{}, fmt.Errorf("store: evidence response: %w", err)
 	}
+	executed := real + dry
 	if executed == 0 && pending == 0 {
 		return gap("No response actions were recorded in this period.",
 			"Nothing needed blocking is one reading; response not being configured is the other. Check "+
@@ -414,10 +450,23 @@ func (s *Store) evidenceResponse(ctx context.Context, from, to time.Time) (Contr
 	if err != nil {
 		return ControlEvidence{}, err
 	}
-	return ControlEvidence{
-		Summary: fmt.Sprintf("%d block(s) carried out and %d awaiting approval.", executed, pending),
-		Samples: rows,
-	}, nil
+	if real == 0 && dry > 0 {
+		// A gap, not evidence. The decisions were made and recorded, and none of them reached a
+		// firewall, so presenting this as a control that operated would be wrong.
+		return ControlEvidence{
+			Gap: true,
+			Summary: fmt.Sprintf("%s block decision(s) were recorded but NONE were enforced: the response "+
+				"engine is in dry-run.", thousands(dry)),
+			Why: "Set RESPONSE_LIVE=1 and connect an enforcement backend. Until then nothing is being " +
+				"blocked, and this control has decisions to show but no enforcement.",
+			Samples: rows,
+		}, nil
+	}
+	summary := fmt.Sprintf("%s block(s) enforced and %d awaiting approval.", thousands(real), pending)
+	if dry > 0 {
+		summary += fmt.Sprintf(" A further %s were recorded in dry-run and reached no firewall.", thousands(dry))
+	}
+	return ControlEvidence{Summary: summary, Samples: rows}, nil
 }
 
 func (s *Store) evidenceThreatIntel(ctx context.Context, from, to time.Time) (ControlEvidence, error) {
