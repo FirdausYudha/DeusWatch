@@ -29,6 +29,7 @@ import (
 	"deuswatch/internal/agentinstall"
 	"deuswatch/internal/auth"
 	"deuswatch/internal/bus"
+	"deuswatch/internal/compliance"
 	"deuswatch/internal/decoders"
 	"deuswatch/internal/enroll"
 	"deuswatch/internal/ingest"
@@ -365,6 +366,9 @@ func main() {
 		mux.Handle("GET /api/inventory/export.csv", protect(auth.PermViewDashboard, assetExportHandler(st)))
 		// Who was signed in to a shared workstation, and when (gap 5).
 		mux.Handle("GET /api/sessions", protect(auth.PermViewDashboard, workSessionsHandler(st)))
+		// ISO 27001 control evidence (gap 10). manage_settings: it aggregates the account
+		// roster, the audit log and the response history into one document.
+		mux.Handle("GET /api/compliance/iso27001", protect(auth.PermManageSettings, complianceHandler(st)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
@@ -2240,6 +2244,63 @@ func inventorySummaryHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"agents": rows})
+	}
+}
+
+// complianceHandler (GET /api/compliance/iso27001?days=90&format=) produces the control evidence
+// report (gap 10).
+//
+// Behind manage_settings rather than view_dashboard. It aggregates the account roster, the audit
+// log and the response history into one document, and that combination is a reconnaissance summary
+// of the deployment even though every part of it is readable elsewhere by someone with the right
+// permission.
+func complianceHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		days := 90
+		if n, err := strconv.Atoi(r.URL.Query().Get("days")); err == nil && n > 0 && n <= 366 {
+			days = n
+		}
+		to := time.Now()
+		from := to.AddDate(0, 0, -days)
+
+		rep, err := st.ISO27001Evidence(r.Context(), from, to)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if r.URL.Query().Get("format") != "csv" {
+			writeJSON(w, http.StatusOK, rep)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="iso27001-evidence-%s.csv"`, to.Format("2006-01-02")))
+		cw := csv.NewWriter(w)
+		// The disclaimer rides in the file, not only on the screen that produced it. A CSV reaches
+		// an auditor detached from whatever page it was downloaded from, and a row of counts with
+		// no caveat attached is exactly how an evidence report gets read as a compliance claim.
+		_ = cw.Write([]string{"ISO/IEC 27001:2022 Annex A evidence", rep.From.Format("2006-01-02"), rep.To.Format("2006-01-02")})
+		_ = cw.Write([]string{compliance.Disclaimer})
+		_ = cw.Write([]string{})
+		_ = cw.Write([]string{"control", "title", "status", "what DeusWatch evidences", "finding", "samples"})
+		for _, c := range rep.Controls {
+			status := "evidence present"
+			if c.Gap {
+				status = "GAP"
+			}
+			finding := c.Summary
+			if c.Gap && c.Why != "" {
+				finding = c.Summary + " " + c.Why
+			}
+			_ = cw.Write([]string{c.ID, c.Title, status, c.Covers, finding, strings.Join(c.Samples, " | ")})
+		}
+		_ = cw.Write([]string{})
+		_ = cw.Write([]string{"NOT COVERED BY THIS REPORT"})
+		for _, n := range rep.NotCovered {
+			_ = cw.Write([]string{"", n})
+		}
+		cw.Flush()
 	}
 }
 

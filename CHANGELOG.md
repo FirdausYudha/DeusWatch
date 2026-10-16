@@ -7,6 +7,47 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.58.0
+
+### Added
+
+**ISO 27001 control evidence.** Gap 10. The hospital has accreditation, but none of it covers
+information security: *"Kalau dari security, belum. Karena security sisi IT ya, belum ada ISO."* An
+organisation starting that path spends most of its effort proving that controls **operate**, and
+the product already watching the estate is holding most of that proof in tables nobody exports.
+
+```
+GET /api/compliance/iso27001?days=90
+GET /api/compliance/iso27001?days=90&format=csv
+```
+
+Sixteen Annex A controls, each with the period's figures and a few concrete records so an auditor
+can follow one through to the raw table rather than taking a count on trust. Behind
+`manage_settings`: every part is readable elsewhere by someone with the right permission, but one
+document combining the account roster, the audit log and the response history deserves the higher
+bar. See [docs/iso27001.md](docs/iso27001.md).
+
+### What it refuses to say
+
+**It never says "compliant".** DeusWatch cannot know that. Certification covers policy, governance,
+risk assessment, training, physical security and supplier management, and it sees none of them. The
+disclaimer is a constant rather than UI text so a future export format cannot ship without it, it
+is written into the CSV itself rather than only onto the screen that produced it, and a test fails
+if any control description drifts into the language of compliance.
+
+**A control with no evidence is reported as a GAP, never omitted.** In a document like this a
+missing row reads as "not asked" rather than "the answer was empty", which is the one impression an
+evidence report must not leave.
+
+**The gap text names the ambiguity.** "No alerts were raised" has two readings, and the report says
+so: the estate was quiet, or detection is not reaching it. A quiet period and a broken sensor
+produce the same zero and only one is good news, so the report refuses to pick.
+
+**The report states its own boundary.** The export ends with the themes it does not cover, because
+an auditor reading sixteen of ninety-three controls needs to know the rest were excluded on purpose
+rather than never considered. Which control a piece of evidence supports is a judgement the
+auditor makes; the mapping here is written to be argued with.
+
 ## v2.57.0
 
 ### Added

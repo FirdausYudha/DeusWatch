@@ -24,7 +24,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 | 7 | **SNMP** monitoring perangkat jaringan | P3 | ✅ **Selesai** — menu Network ([snmp.md](snmp.md)) |
 | 8 | Lateral movement antar container **Kubernetes** | P3 | Deteksi ada, konteks container belum |
 | 9 | Multi-tenant untuk **vendor/MSP** (±20 RS satu konsol) | P3 | **Sudah ada** (RLS + workspace) — tinggal diposisikan |
-| 10 | Jalur **ISO 27001** (bukti audit) | P3 | Sebagian (audit log) |
+| 10 | Jalur **ISO 27001** (bukti audit) | P3 | ✅ **Selesai** (v2.58.0) - laporan bukti 16 kontrol Annex A ([iso27001.md](iso27001.md)) |
 
 ---
 
@@ -287,8 +287,22 @@ rumah sakit** — satu konsol untuk puluhan rumah sakit.
 
 > "Kalau dari security, belum. Karena security sisi IT ya, belum ada ISO."
 
-Peluang: DeusWatch dapat menjadi penyedia bukti audit (log akses, kontrol, laporan berkala)
-untuk organisasi yang hendak mengejar sertifikasi keamanan.
+**Kondisi saat ini.** ✅ **Selesai di v2.58.0.** `GET /api/compliance/iso27001` menghasilkan
+laporan bukti untuk 16 kontrol Annex A, lengkap dengan angka periode dan beberapa catatan konkret
+supaya auditor bisa menelusuri satu baris sampai ke tabel aslinya. Ekspor CSV tersedia.
+
+**Yang sengaja tidak dilakukannya: menyatakan patuh.** DeusWatch tidak bisa tahu itu. Sertifikasi
+mencakup kebijakan, tata kelola, penilaian risiko, pelatihan, keamanan fisik, dan manajemen
+pemasok, dan tidak satu pun terlihat dari sini. Disclaimer-nya konstanta, bukan teks UI, supaya
+format ekspor berikutnya tidak bisa terkirim tanpanya, dan ikut tertulis di dalam berkas CSV-nya
+sendiri, bukan cuma di layar yang menghasilkannya.
+
+**Kontrol tanpa bukti dilaporkan sebagai GAP, bukan dihilangkan.** Di dokumen seperti ini, baris
+yang hilang terbaca sebagai "tidak ditanyakan", bukan "jawabannya kosong". Teks gap-nya juga
+menyebut ambiguitasnya: "tidak ada alert" bisa berarti estate-nya tenang atau deteksinya tidak
+sampai, dan keduanya menghasilkan angka nol yang sama.
+
+Lihat [iso27001.md](iso27001.md).
 
 ---
 
