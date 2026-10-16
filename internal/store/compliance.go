@@ -61,11 +61,18 @@ func (s *Store) ISO27001Evidence(ctx context.Context, from, to time.Time) (Compl
 	for _, c := range compliance.Controls {
 		ev, ok := cache[c.Kind]
 		if !ok {
-			var err error
-			ev, err = s.gatherEvidence(ctx, c.Kind, from, to)
+			got, err := s.gatherEvidence(ctx, c.Kind, from, to)
 			if err != nil {
-				return rep, err
+				// A broken gatherer becomes ONE visible defect row, not a failed report. This is
+				// the same rule the package applies to empty evidence, and it was missing here:
+				// a wrong column name in one query returned a bare error and took fifteen working
+				// controls down with it, leaving the operator with nothing to read and no way to
+				// tell which control was at fault.
+				got = gap("This control could not be gathered.",
+					"A DeusWatch defect, not a finding about your deployment: "+err.Error()+
+						". Every other control in this report is unaffected.")
 			}
+			ev = got
 			cache[c.Kind] = ev
 		}
 		ev.ID, ev.Title, ev.Covers = c.ID, c.Title, c.Covers
@@ -311,9 +318,14 @@ func (s *Store) evidenceVulns(ctx context.Context) (ControlEvidence, error) {
 			"Either nothing was found or no scan has completed. Check the Agent Health page: an endpoint "+
 				"that has never been scanned reports no findings, which is not the same as having none."), nil
 	}
+	// Per-agent freshness comes from the findings themselves, NOT from scan_status: that table is
+	// keyed by scanner (trivy, osv) with one row each, so it answers "is the scanner healthy", not
+	// "when was this endpoint last looked at". Reading it per agent was both the wrong column and
+	// the wrong question, and it took the whole report down with it.
 	stale, err := s.samples(ctx, `
-		SELECT agent_name || ': last scanned ' || COALESCE(to_char(updated_at,'YYYY-MM-DD'),'never')
-		  FROM scan_status ORDER BY updated_at NULLS FIRST LIMIT 5`)
+		SELECT agent_name || ': findings last updated ' || to_char(max(detected_at),'YYYY-MM-DD')
+		  FROM agent_vulnerabilities
+		 GROUP BY agent_name ORDER BY max(detected_at) LIMIT 5`)
 	if err != nil {
 		return ControlEvidence{}, err
 	}
@@ -400,10 +412,7 @@ func (s *Store) evidenceResponse(ctx context.Context, from, to time.Time) (Contr
 func (s *Store) evidenceThreatIntel(ctx context.Context, from, to time.Time) (ControlEvidence, error) {
 	n, err := s.scalar(ctx, `SELECT count(*) FROM cti_indicators WHERE checked_at >= $1 AND checked_at < $2`, from, to)
 	if err != nil {
-		// The column name differs across deployments that upgraded at different times; a failure
-		// here is reported as a gap rather than failing the whole report.
-		return gap("Threat intelligence lookups could not be counted.",
-			"The CTI table did not answer the query. The report is still valid for every other control."), nil
+		return ControlEvidence{}, fmt.Errorf("store: evidence threat intel: %w", err)
 	}
 	if n == 0 {
 		return gap("No threat-intelligence lookups were performed in this period.",

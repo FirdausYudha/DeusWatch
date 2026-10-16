@@ -7,6 +7,25 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.58.1
+
+### Fixed
+
+**The ISO 27001 report returned one line of SQL error instead of a report.** The vulnerability
+control read `scan_status` for a per-agent scan date, but that table is keyed by **scanner**, one
+row per scanner, so the query was wrong about the column and about the question. Per-agent
+freshness now comes from the findings themselves. The mistake came from trusting a prose
+description of the table instead of its definition.
+
+**And one broken query took the whole report down with it.** Fifteen working controls were lost to
+one that failed, leaving an operator with `SQLSTATE 42703` and no way to tell which control was at
+fault. A gatherer that fails now becomes one visible defect row saying the fault is ours, which is
+the same rule the report already applied to empty evidence and should always have applied to
+errors.
+
+**Every gatherer is now executed by a test** against a real database rather than checked by
+reading. A column name is not something to verify by eye, and this is what reading it missed.
+
 ## v2.58.0
 
 ### Added
