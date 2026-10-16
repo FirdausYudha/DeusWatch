@@ -184,12 +184,18 @@ func (s *Store) evidenceRules(ctx context.Context, from, to time.Time) (ControlE
 	if err != nil {
 		return ControlEvidence{}, fmt.Errorf("store: evidence rules: %w", err)
 	}
+	// The label is built OUTSIDE the grouping. Putting count(*) inside the selected expression and
+	// then writing GROUP BY 1 groups by an expression containing an aggregate, which Postgres
+	// refuses (SQLSTATE 42803) at parse time, so it failed on every deployment rather than on
+	// unusual data.
 	top, err := s.samples(ctx, `
-		SELECT COALESCE(NULLIF(rule_name,''), rule_id) || ': ' || count(*)::text || ' alert(s)'
-		  FROM events
-		 WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL AND dw_label <> ''
-		   AND COALESCE(rule_id,'') <> ''
-		 GROUP BY 1 ORDER BY count(*) DESC LIMIT 5`, from, to)
+		SELECT label || ': ' || n::text || ' alert(s)' FROM (
+		  SELECT COALESCE(NULLIF(rule_name,''), rule_id) AS label, count(*) AS n
+		    FROM events
+		   WHERE time >= $1 AND time < $2 AND dw_label IS NOT NULL AND dw_label <> ''
+		     AND COALESCE(rule_id,'') <> ''
+		   GROUP BY 1 ORDER BY 2 DESC LIMIT 5
+		) t`, from, to)
 	if err != nil {
 		return ControlEvidence{}, err
 	}
@@ -323,9 +329,10 @@ func (s *Store) evidenceVulns(ctx context.Context) (ControlEvidence, error) {
 	// "when was this endpoint last looked at". Reading it per agent was both the wrong column and
 	// the wrong question, and it took the whole report down with it.
 	stale, err := s.samples(ctx, `
-		SELECT agent_name || ': findings last updated ' || to_char(max(detected_at),'YYYY-MM-DD')
-		  FROM agent_vulnerabilities
-		 GROUP BY agent_name ORDER BY max(detected_at) LIMIT 5`)
+		SELECT name || ': findings last updated ' || to_char(last_seen,'YYYY-MM-DD') FROM (
+		  SELECT agent_name AS name, max(detected_at) AS last_seen
+		    FROM agent_vulnerabilities GROUP BY 1 ORDER BY 2 LIMIT 5
+		) t`)
 	if err != nil {
 		return ControlEvidence{}, err
 	}
@@ -348,11 +355,15 @@ func (s *Store) evidenceFIM(ctx context.Context, from, to time.Time) (ControlEvi
 			"A quiet estate looks the same as file integrity monitoring that was never configured. "+
 				"Confirm that watched paths are set on the agents before reporting this as stability."), nil
 	}
+	// Same shape as the rule query above, and the same parse error if the aggregate is folded
+	// into the grouped expression.
 	top, err := s.samples(ctx, `
-		SELECT file_path || ': ' || count(*)::text || ' change(s)'
-		  FROM events
-		 WHERE time >= $1 AND time < $2 AND event_category = 'file' AND COALESCE(file_path,'') <> ''
-		 GROUP BY 1 ORDER BY count(*) DESC LIMIT 5`, from, to)
+		SELECT path || ': ' || n::text || ' change(s)' FROM (
+		  SELECT file_path AS path, count(*) AS n
+		    FROM events
+		   WHERE time >= $1 AND time < $2 AND event_category = 'file' AND COALESCE(file_path,'') <> ''
+		   GROUP BY 1 ORDER BY 2 DESC LIMIT 5
+		) t`, from, to)
 	if err != nil {
 		return ControlEvidence{}, err
 	}

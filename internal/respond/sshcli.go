@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -276,9 +277,14 @@ func runOverSSH(ctx context.Context, cfg SSHCLIConfig, script string) (string, e
 	}
 	defer sess.Close()
 
-	var out bytes.Buffer
-	sess.Stdout = &out
-	sess.Stderr = &out
+	// ssh.Session copies stdout and stderr in SEPARATE goroutines, so pointing both at one
+	// bytes.Buffer is a data race: the race detector caught it on the first CI run that executed
+	// these tests. A device interleaves its prompt and its error text across both streams, and we
+	// judge the result by what it printed, so they must land in one buffer. Hence the lock rather
+	// than two buffers.
+	out := &syncBuffer{}
+	sess.Stdout = out
+	sess.Stderr = out
 	stdin, err := sess.StdinPipe()
 	if err != nil {
 		return "", fmt.Errorf("stdin: %w", err)
@@ -315,6 +321,24 @@ func runOverSSH(ctx context.Context, cfg SSHCLIConfig, script string) (string, e
 		}
 		return out.String(), nil
 	}
+}
+
+// syncBuffer is a bytes.Buffer that two goroutines may write to at once.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 // scriptLines splits a template into the lines to send, dropping blanks and comments.
