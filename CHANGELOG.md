@@ -7,6 +7,124 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## Releases v2.50.0 to v2.53.0: what a hospital IT team asked for
+
+These four releases come from one source: a field discussion with the infrastructure team of a
+vendor running the IT for around 20 hospitals, written up as a prioritised gap list in
+[docs/insight-lapangan-rs.md](docs/insight-lapangan-rs.md). Four of its ten gaps are closed here.
+
+**Before deploying any of them, run the migrations.** Five are added, `000072` through `000076`,
+and nothing in these releases works without them.
+
+## v2.53.0
+
+### Added
+
+**SNMP monitoring of network devices.** Gap 7. Their SNMP data was split across three tools, The
+Dude for switches, WIS Cloud for access points, Grafana at head office, and the ask was one
+dashboard. Nothing is installed on the devices: they already speak SNMP.
+
+The design turns on one fact: SNMP standardises much less than people expect. Uptime, device
+identity and the interface table are identical on every vendor, so they are read automatically.
+**CPU load, temperature and power-supply state have no standard OID**, and those are exactly what
+the field team named, so they are operator-defined sensors: name, OID, unit, scale, thresholds.
+
+**Operator action.** You supply the OIDs for CPU, temperature and PSU. That is deliberate rather
+than missing: it is why this works on their Ruijie gear without shipping vendor OIDs nobody could
+verify, and why it keeps working after a contract change to different hardware. The team already
+pull these values through The Dude, so the OIDs are something they have rather than something they
+must research. Credentials go in under **Integrations**; v2c and v3 are supported, and an
+unrecognised v3 security level falls back to authPriv, never to cleartext.
+
+Interface history is kept 14 days against the sensors' 30: it is by far the largest table and worth
+less per row.
+
+## v2.52.0
+
+### Added
+
+**Alert-to-ticket, SLA scorecard, and a GLPI mirror.** Gap 4. Two problems the team described,
+which are the same problem from both ends: nobody fills in tickets ("user paling malas isi
+ticketing, jadi dia lebih ke chatting, jadi kita kadang dobel"), and the queue is how the team is
+judged ("nanti bisa jadi rapot"). A queue that depends on somebody remembering to fill it in
+under-reports the work, and that under-reporting lands on the people doing it.
+
+So alerts open their own tickets, tickets reach the chat where people actually answer, and the
+queue reports its own times.
+
+**Response and resolution are reported separately, never averaged together.** A team can be quick
+to pick things up and slow to finish, and one number hides exactly the problem a scorecard exists
+to show. Medians and p90s, never means: one ticket left over a long weekend drags a mean until it
+describes nothing.
+
+`acked_at` is stamped by taking a ticket, moving it off open, or writing the first note. Editing a
+title deliberately does not count, because a passing typo fix must not register as a response and
+flatter the scorecard.
+
+**The GLPI sync is one-way for content and read-only for status.** DeusWatch owns what a ticket
+says, GLPI owns how far along it is. Nothing writes a field GLPI considers its own, which is what
+makes conflict resolution unnecessary rather than merely postponed: there is no "which side wins"
+setting because the question never arises. This is a deliberate limit, not a stage toward two-way
+sync. Editing a ticket's text in DeusWatch after it is pushed does not update GLPI, and tickets
+created in GLPI are not imported.
+
+**Operator action.** Configure GLPI under **Integrations** (URL, app token, user token; the
+instance root or its `/apirest.php`, either works). Only **live** tickets are pushed: switching
+this on at a site with a long history would otherwise push every ticket it ever had into GLPI, and
+the first impression of the feature would be a cleanup job.
+
+## v2.51.0
+
+### Added
+
+**Service and API health monitoring.** Gap 1, and the longest-discussed complaint in the field.
+The blind spot is not a host going down. It is an endpoint that answers HTTP 200 with a failure
+inside the payload, or answers in nine seconds: *"Di dashboard kita ping-nya oke. Tapi di
+pendaftaran di loket, ini enggak bisa."* Host monitoring structurally cannot see that.
+
+So the **Service Health** page watches the endpoints a business function depends on, and groups
+the board by that function rather than by host, which makes the screen answer "what is broken for
+patients right now" instead of "which machines are alive". HTTP and TCP, with three rules per
+check: status code, expected body content, and a latency budget. An up or down transition sits
+behind a failure threshold so one blip pages nobody, and a 24 hour timeline answers "since when".
+
+Request credentials are sealed with the secrets cipher at the API boundary, so plaintext exists
+only inside the request that carried it; a save is refused rather than storing them readable, and
+an edit that omits them keeps what was there.
+
+**Hardware asset inventory.** Gap 2. Asset management is one of the two GLPI modules the team uses
+daily, and the engineer named the exact fields: computer name, brand, model, and above all the
+serial number. DeusWatch collected none of it, so the register was typed by hand next to a tool
+that already talks to every endpoint. The agent now also reports manufacturer, model, serial
+number, CPU cores, memory, and the primary IP and MAC.
+
+Firmware placeholders are dropped at the agent: "To Be Filled By O.E.M." looks like real data in a
+register, and every machine in a batch reports that identical string, so a register keyed on serial
+number would collapse them into one asset. An upsert only overwrites a field with a non-empty
+reading, because the DMI serial is root-only and an agent that lost privilege would otherwise blank
+a value nothing else in the deployment holds.
+
+**Operator action.** Two things. Define your checks under **Service Health**, since nothing is
+probed until you say what matters. And **upgrade the agents on your endpoints**: the hardware facts
+are collected agent-side, so an endpoint still running an older agent reports software only.
+
+## v2.50.0
+
+### Changed
+
+**The assistant answers with structure.** The default persona now returns a list when there are
+several items, and a headline plus notables for a summary, instead of a paragraph the reader has to
+mine. Small talk stays one line.
+
+**Report mirrors the dashboard's network widgets:** top destination port, top destination IP, top
+source country, traffic direction, and top risky IP.
+
+### Added
+
+[docs/llm-providers.md](docs/llm-providers.md) documents the `assistant` purpose and recommends a
+model per provider and per job (triage, report, assistant), which was previously something you
+found out by trying.
+
 ## v2.49.0
 
 ### Fixed
