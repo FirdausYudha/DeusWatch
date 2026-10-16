@@ -31,7 +31,17 @@ import (
 const (
 	// Everything except the persona: capability map, navigation map, schema guide, reference blocks
 	// and the scaffolding around them. This is the number to look at when adding a block.
-	maxFrameworkChars = 9500
+	//
+	// Raised from 9500 when shared-workstation sessions were added, and the reasoning is recorded
+	// because the usual answer to this test failing is to gate the new block, not to raise the
+	// number. The capability map cannot be gated: it exists precisely to answer "can DeusWatch do
+	// X" on the turns where X's own keyword gate did not fire, so withholding it reinstates the
+	// flat "DeusWatch can't do that" it was built to stop. The new line was first written at 290
+	// characters, twice the length of every other bullet, and was cut to house style before this
+	// number moved at all. What is left is real growth: three product areas arrived since 9500 was
+	// chosen. The constraint that actually binds is the maximal-persona test below, which still
+	// passes with roughly 30k characters to spare.
+	maxFrameworkChars = 9700
 	// Framework plus the biggest persona on offer. This is what a message really costs.
 	maxBasePromptChars   = 19000
 	maxGuidedPromptChars = 27000 // plus a setup or rule-authoring guide

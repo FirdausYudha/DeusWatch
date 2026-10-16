@@ -19,7 +19,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 | 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0 + v2.55.0) - kartu aset, label lokasi, dan ekspor CSV |
 | 3 | Dukungan **Ruijie** untuk auto-block | P2 | ✅ **Selesai** (v2.54.0) - responder SSH/CLI generik ([ssh-cli.md](ssh-cli.md)) |
 | 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
-| 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | Agent Windows parsial; AD/LDAP belum ada |
+| 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | 🟡 **Sebagian** (v2.56.0) - sesi per-workstation sudah bisa dijawab; korelasi SIMRS dan AD belum |
 | 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
 | 7 | **SNMP** monitoring perangkat jaringan | P3 | ✅ **Selesai** — menu Network ([snmp.md](snmp.md)) |
 | 8 | Lateral movement antar container **Kubernetes** | P3 | Deteksi ada, konteks container belum |
@@ -196,10 +196,24 @@ pertanyaannya "siapa yang membuka rekam medis dari PC bersama ini".
 Untuk mengelola armada PC, skala enterprise memakai **Active Directory** (instalasi serentak,
 manajemen user dan kebijakan).
 
-**Kondisi saat ini.** Agent Windows masih parsial. Tidak ada integrasi Active Directory/LDAP.
+**Kondisi saat ini.** 🟡 **Sebagian, v2.56.0.** Agent Windows ternyata lebih lengkap dari
+catatan awal ini: Event Log, isolasi jaringan, kill process, dan snapshot proses semuanya sudah
+ada. Yang benar-benar hilang adalah **akhir sesi**: logon tercatat, logoff tidak, sehingga setiap
+akun yang pernah masuk terlihat seolah masih di sana.
 
-**Yang perlu dibangun.** Selesaikan agent Windows lebih dulu, lalu korelasikan login Windows
-dengan sesi aplikasi SIMRS. Integrasi Active Directory menyusul.
+Event 4634 dan 4647 sekarang dipetakan, dan itu yang mengubah satu titik waktu menjadi sesi.
+`GET /api/sessions` menjawab siapa yang login di satu mesin pada satu saat, riwayat satu mesin,
+atau sebaliknya di mesin mana saja satu akun pernah masuk. Asisten bisa menjawabnya dengan kalimat
+biasa, yang memang cara pertanyaan ini biasanya diajukan.
+
+Sesi **diturunkan dari tabel events**, bukan disimpan di tabel sendiri. Tidak ada salinan kedua
+yang bisa melenceng, dan sesi yang dihitung ulang minggu depan dari event yang sama memberi jawaban
+yang sama. Itu sifat yang dibutuhkan jejak audit.
+
+**Yang perlu dibangun berikutnya.** Korelasi dengan sesi aplikasi SIMRS, supaya jejaknya sampai ke
+rekam medis yang dibuka, bukan berhenti di mesinnya. Itu sejauh satu decoder, bukan satu fitur:
+arahkan agent ke log SIMRS, tulis decoder yang mengambil username-nya, dan keduanya bertemu di nama
+akun. Integrasi Active Directory menyusul setelah itu.
 
 ---
 

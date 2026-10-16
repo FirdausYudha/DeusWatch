@@ -448,6 +448,16 @@ func normalizeWindows(msg string, e *Event) bool {
 		e.Event.Outcome = "success"
 		e.Event.Severity = SeverityInfo
 		return true
+	case 4634, 4647: // An account was logged off (4634 any, 4647 user-initiated)
+		// Without this a logon is a point, not a session, and "who was at this machine at 14:20"
+		// has no answer: every account that ever signed in looks like it is still there. A shared
+		// nurse station is used by a different person every shift, so the END of a session is what
+		// makes the question answerable at all.
+		e.Event.Category = "authentication"
+		e.Event.Action = "windows_logoff"
+		e.Event.Outcome = "success"
+		e.Event.Severity = SeverityInfo
+		return true
 	case 4740: // A user account was locked out (a strong brute-force indicator)
 		e.Event.Category = "iam"
 		e.Event.Action = "account_locked"

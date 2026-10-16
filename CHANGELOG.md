@@ -7,6 +7,48 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.56.0
+
+### Added
+
+**Who was at a shared workstation.** Gap 5, the first half. A nurse station is used by a different
+person every shift, and the engineer's framing is an access audit rather than an antivirus one:
+*"Dokter kalau sesuai security itu harusnya waktu login Windows memakai login-nya sendiri."* The
+question underneath is who opened a medical record from this machine.
+
+DeusWatch already recorded the logons. What it could not answer was "who was at PC-WARD3 at 14:20",
+because **a logon on its own is a point in time**: every account that ever signed in looks like it
+is still signed in. Windows logoff events (4634 and 4647) are now mapped, which is what turns a
+point into a session.
+
+`GET /api/sessions?agent=&at=` answers who was signed in at a moment, `?agent=&hours=` lists a
+machine's history, and `?user=` turns it around to show where an account has been. The assistant
+can answer the same questions in words, which is how this is usually asked: "siapa yang login di
+PC-WARD3 jam 2 siang".
+
+**Sessions are derived from the events table, not stored in one of their own.** No second copy to
+drift, no worker loop to fall behind, and a session recomputed next week from the same events gives
+the same answer, which is the property an audit needs.
+
+### Two limits, stated rather than hidden
+
+**Service and machine accounts are filtered by name**, not by Windows logon type. A boot produces a
+stream of SYSTEM, LOCAL SERVICE and NETWORK SERVICE logons and a domain machine signs in as its own
+name with a trailing `$`; all of them would bury the three humans who used the machine that day.
+The cost is that a type 3 network logon by a real account counts as a session. On a server that
+would be noise; on a nurse station it is uncommon, and it still means that account touched the
+machine.
+
+**A logoff with no matching logon in the window creates nothing.** Inventing a start time nobody
+observed is inventing evidence, and this is an audit trail.
+
+### Still to come in gap 5
+
+Correlating the Windows session with the SIMRS application session, so the trail runs from the
+person to the record they opened, needs the application's own log. That is a decoder away rather
+than a feature away: point an agent at the SIMRS log, write a decoder that extracts its username,
+and the two line up on the account. Active Directory integration remains unbuilt.
+
 ## v2.55.0
 
 ### Added

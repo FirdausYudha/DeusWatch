@@ -363,6 +363,8 @@ func main() {
 		// only needs the permission that already shows the same rows on screen.
 		mux.Handle("PUT /api/inventory/asset", protect(auth.PermManageSettings, assetDetailsHandler(st)))
 		mux.Handle("GET /api/inventory/export.csv", protect(auth.PermViewDashboard, assetExportHandler(st)))
+		// Who was signed in to a shared workstation, and when (gap 5).
+		mux.Handle("GET /api/sessions", protect(auth.PermViewDashboard, workSessionsHandler(st)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
@@ -2238,6 +2240,59 @@ func inventorySummaryHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"agents": rows})
+	}
+}
+
+// workSessionsHandler (GET /api/sessions?agent=&user=&hours=&at=) answers who was signed in to a
+// shared workstation, and when.
+//
+// Gap 5: a nurse station is used by a different person every shift, so "PC-WARD3 did X" is not an
+// audit trail until it becomes "dr.sari, on PC-WARD3, did X". Read-only and behind view_dashboard,
+// the same permission that already shows the underlying logon events.
+func workSessionsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		agentName := strings.TrimSpace(q.Get("agent"))
+		user := strings.TrimSpace(q.Get("user"))
+		if agentName == "" && user == "" {
+			http.Error(w, "agent or user required", http.StatusBadRequest)
+			return
+		}
+		hours := 24
+		if n, err := strconv.Atoi(q.Get("hours")); err == nil && n > 0 && n <= 24*90 {
+			hours = n
+		}
+		to := time.Now()
+		from := to.Add(-time.Duration(hours) * time.Hour)
+
+		// "at" asks the audit question directly: who was here when this happened.
+		if s := strings.TrimSpace(q.Get("at")); s != "" {
+			at, err := time.Parse(time.RFC3339, s)
+			if err != nil {
+				http.Error(w, "at must be RFC3339", http.StatusBadRequest)
+				return
+			}
+			rows, err := st.WhoWasOn(r.Context(), agentName, at, time.Duration(hours)*time.Hour)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"sessions": rows, "at": at, "lookback_hours": hours})
+			return
+		}
+
+		var rows []store.WorkSession
+		var err error
+		if agentName != "" {
+			rows, err = st.WorkSessions(r.Context(), agentName, from, to)
+		} else {
+			rows, err = st.UserMachines(r.Context(), user, from, to)
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sessions": rows, "hours": hours})
 	}
 }
 
