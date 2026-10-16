@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -275,6 +276,16 @@ func AgentScopeMatches(scope, agentCN string) bool {
 	return false
 }
 
+// fieldIsSecret reports whether the catalogue marks this field as holding a credential.
+func fieldIsSecret(ti TypeInfo, key string) bool {
+	for _, f := range ti.Fields {
+		if f.Key == key {
+			return f.Secret
+		}
+	}
+	return false
+}
+
 func typeInfo(t string) (TypeInfo, bool) {
 	for _, ti := range Catalog {
 		if ti.Type == t {
@@ -471,9 +482,25 @@ func (s *Store) Resolve(ctx context.Context, typ string) ([]Integration, error) 
 		if err != nil {
 			return nil, err
 		}
+		// A secret that will not decrypt is SAID OUT LOUD. Swallowing the error leaves the raw
+		// ciphertext in the config, so the connector is handed base64 where it expected a password
+		// and fails as though the credential were wrong. After a SECRETS_KEY rotation that is
+		// every integration at once, and the logs would show a dozen authentication failures with
+		// nothing pointing at the key.
+		//
+		// Non-secret fields are left alone: they were never encrypted, so Decrypt failing on them
+		// is the normal case and not worth a word.
+		ti, known := typeInfo(it.Type)
 		for k, v := range it.Config {
-			if dec, derr := s.cipher.Decrypt(v); derr == nil {
+			dec, derr := s.cipher.Decrypt(v)
+			if derr == nil {
 				it.Config[k] = dec
+				continue
+			}
+			if known && v != "" && fieldIsSecret(ti, k) {
+				log.Printf("integrations: %q (%s): cannot decrypt %q. If SECRETS_KEY was changed, "+
+					"re-enter this credential on the Integrations page; the stored value was sealed "+
+					"with the previous key and cannot be recovered.", it.Name, it.Type, k)
 			}
 		}
 		it.SecretsSet = nil

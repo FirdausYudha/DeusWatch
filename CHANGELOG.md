@@ -7,6 +7,29 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.59.0
+
+### Fixed
+
+**A credential that will not decrypt now says so.** `Resolve` swallowed the error and left the raw
+ciphertext in the config, so a connector was handed base64 where it expected a password and failed
+as though the credential were wrong. After a `SECRETS_KEY` rotation that is every integration at
+once, and the logs would show a dozen authentication failures with nothing pointing at the key.
+The message names the integration, the field, and what to do about it. Non-secret fields are left
+alone, since Decrypt failing on a value that was never encrypted is the ordinary case.
+
+### Added
+
+**[docs/go-live.md](docs/go-live.md): turning a watching deployment into an acting one.** Three
+settings separate a DeusWatch that observes from one that protects, and a deployment can run for
+months looking healthy with all three off because nothing on the dashboard says they are. Written
+from a real evidence run: 1,549 block decisions over 90 days with none enforced, zero retained file
+versions, and credentials sealed with the shipped development key.
+
+The order in it matters. Whitelisting comes before enforcement, because a deployment that has been
+recording decisions for months acts on that queue the moment it goes live, and the first address it
+cuts off should not be yours.
+
 ## v2.58.1
 
 ### Fixed
