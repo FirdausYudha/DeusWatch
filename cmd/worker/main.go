@@ -1132,9 +1132,21 @@ func resolveHashRep(ctx context.Context, intStore *integrations.Store) (vtKey, m
 	return
 }
 
-// resolveResponder builds the block responder from ALL enabled MikroTik integrations if
-// present (fan-out to every router), otherwise falls back to the RESPONDER env selection.
+// resolveResponder builds the block responder from ALL enabled MikroTik and SSH integrations if
+// present (fan-out to every device), otherwise falls back to the RESPONDER env selection.
+//
+// Both kinds together, not one winning over the other: a site with a MikroTik at the perimeter and
+// Ruijie switches inside wants the ban at both, and picking a single backend would silently leave
+// half the edge unblocked.
 func resolveResponder(ctx context.Context, intStore *integrations.Store) respond.Responder {
+	if r := sshCLIResponders(ctx, intStore); r != nil {
+		if mk, _, ok := mikrotikIntegrationConfigs(ctx, intStore); ok {
+			if mr := respond.MikrotikMultiFromConfigs(mk); mr != nil {
+				return respond.NewMultiResponder([]respond.Responder{mr, r})
+			}
+		}
+		return r
+	}
 	if cfgs, names, ok := mikrotikIntegrationConfigs(ctx, intStore); ok {
 		log.Printf("worker: responder from %d Integrations MikroTik router(s): %s", len(cfgs), strings.Join(names, ", "))
 		// Startup REST health-check per router: surfaces reachability/TLS/auth/list
@@ -1159,6 +1171,53 @@ func resolveResponder(ctx context.Context, intStore *integrations.Store) respond
 		return respond.MikrotikMultiFromConfigs(cfgs)
 	}
 	return respond.ResponderFromEnv()
+}
+
+// sshCLIResponders builds the SSH device fan-out, or nil when none are configured. Each device is
+// probed once at startup and the verdict logged, because "the ban never arrived" is otherwise
+// indistinguishable from "nothing was worth banning", and the command templates are the part most
+// likely to be wrong on the first try.
+func sshCLIResponders(ctx context.Context, intStore *integrations.Store) respond.Responder {
+	cfgs, names, ok := sshCLIIntegrationConfigs(ctx, intStore)
+	if !ok {
+		return nil
+	}
+	for i, c := range cfgs {
+		if err := respond.NewSSHCLIResponder(c).Verify(ctx); err != nil {
+			log.Printf("worker: SSH device %q check FAILED: %v", names[i], err)
+		} else {
+			log.Printf("worker: SSH device %q reachable", names[i])
+		}
+	}
+	log.Printf("worker: responder from %d Integrations SSH device(s): %s", len(cfgs), strings.Join(names, ", "))
+	if live, _ := strconv.ParseBool(os.Getenv("RESPONSE_LIVE")); !live {
+		log.Printf("worker: NOTE - SSH devices are configured but RESPONSE_LIVE!=1: bans will NOT be pushed (dry-run).")
+	}
+	return respond.SSHCLIMultiFromConfigs(cfgs)
+}
+
+// sshCLIIntegrationConfigs returns the network devices driven over SSH, configured through the
+// Integrations registry. Same shape as the MikroTik lookup so the blocking path and the health
+// probe read the configuration the same way and cannot disagree about which devices are in use.
+func sshCLIIntegrationConfigs(ctx context.Context, intStore *integrations.Store) (cfgs []respond.SSHCLIConfig, names []string, ok bool) {
+	if intStore == nil {
+		return nil, nil, false
+	}
+	rows, err := intStore.Resolve(ctx, "ssh_cli")
+	if err != nil || len(rows) == 0 {
+		return nil, nil, false
+	}
+	for _, row := range rows {
+		c := row.Config
+		insecure, _ := strconv.ParseBool(c["insecure_hostkey"])
+		cfgs = append(cfgs, respond.SSHCLIConfig{
+			Address: c["address"], User: c["username"], Pass: c["password"],
+			PrivateKey: c["private_key"], HostKey: c["host_key"], Insecure: insecure,
+			BlockCmd: c["block_cmd"], UnblockCmd: c["unblock_cmd"], VerifyCmd: c["verify_cmd"],
+		})
+		names = append(names, row.Name)
+	}
+	return cfgs, names, true
 }
 
 // mikrotikIntegrationConfigs returns the MikroTik routers configured through the Integrations
@@ -1192,6 +1251,21 @@ func mikrotikIntegrationConfigs(ctx context.Context, intStore *integrations.Stor
 // while RESPONSE_LIVE is off, so liveness is reported separately (see runResponderHealth). A nil
 // probe with an empty label means there is nothing to reach (RESPONDER=none/dryrun).
 func newBackendProbe(ctx context.Context, intStore *integrations.Store) (respond.Verifier, string) {
+	// Same precedence as resolveResponder, or the health line would describe a backend that is not
+	// the one carrying the bans.
+	if cfgs, _, ok := sshCLIIntegrationConfigs(ctx, intStore); ok {
+		members := make([]respond.Responder, 0, len(cfgs))
+		for _, c := range cfgs {
+			members = append(members, respond.NewSSHCLIResponder(c))
+		}
+		if mk, _, mok := mikrotikIntegrationConfigs(ctx, intStore); mok {
+			for _, c := range mk {
+				members = append(members, respond.NewMikrotikResponder(c.Address, c.User, c.Pass, c.List, c.Insecure))
+			}
+			return respond.NewMultiResponder(members), "ssh-cli+mikrotik"
+		}
+		return respond.NewMultiResponder(members), "ssh-cli"
+	}
 	if cfgs, _, ok := mikrotikIntegrationConfigs(ctx, intStore); ok {
 		members := make([]respond.Responder, 0, len(cfgs))
 		for _, c := range cfgs {

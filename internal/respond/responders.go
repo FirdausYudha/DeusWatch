@@ -409,6 +409,29 @@ func MikrotikMultiFromConfigs(cfgs []MikrotikConfig) Responder {
 	}
 }
 
+// SSHCLIMultiFromConfigs builds a responder that fans Block/Unblock out to every configured
+// network device over SSH. Wrapped in dry-run unless RESPONSE_LIVE=1. nil if empty.
+//
+// No Syncer, deliberately. Reconciling a device's full blocklist means reading its ACL back and
+// parsing it, which is different on every vendor and is exactly the per-vendor knowledge this
+// responder exists to avoid. Block and Unblock on demand work everywhere; a device that reboots
+// and loses its rules is a gap the operator should know about rather than one papered over by a
+// parser nobody can test against their hardware.
+func SSHCLIMultiFromConfigs(cfgs []SSHCLIConfig) Responder {
+	switch len(cfgs) {
+	case 0:
+		return nil
+	case 1:
+		return liveOrDry(NewSSHCLIResponder(cfgs[0]))
+	default:
+		rs := make([]Responder, 0, len(cfgs))
+		for _, c := range cfgs {
+			rs = append(rs, NewSSHCLIResponder(c))
+		}
+		return liveOrDry(NewMultiResponder(rs))
+	}
+}
+
 // MultiResponder fans every action out to several responders (e.g. many MikroTik routers).
 // It is also a Syncer when its members are - Sync reconciles them all.
 type MultiResponder struct{ members []Responder }

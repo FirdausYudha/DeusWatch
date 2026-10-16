@@ -17,7 +17,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 |---|---|---|---|
 | 1 | Monitoring kesehatan **API/layanan** per-endpoint ("hijau tapi mati") | **P1** | ✅ **Selesai** (v2.51.0) — menu Service Health |
 | 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0) — kartu aset di menu Inventory |
-| 3 | Dukungan **Ruijie** untuk auto-block | P2 | Belum ada (hanya nftables / MikroTik / CrowdSec) |
+| 3 | Dukungan **Ruijie** untuk auto-block | P2 | ✅ **Selesai** (v2.54.0) - responder SSH/CLI generik ([ssh-cli.md](ssh-cli.md)) |
 | 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
 | 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | Agent Windows parsial; AD/LDAP belum ada |
 | 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
@@ -121,9 +121,21 @@ Ini juga bersinggungan dengan keluhan umum mereka:
 > "Yang kesusahan kita itu antar-environment vendor. Misal switch kita biasanya pakai Ruijie,
 > terus nanti ada perubahan kontrak, ada Aruba. Nah itu sinkronisasi teknologinya."
 
-**Usulan.** Riset API/CLI Ruijie. Bila tidak ada REST yang memadai, bangun **responder generik
-berbasis SSH/CLI** (perintah per-vendor dapat dikonfigurasi) — satu pekerjaan yang sekaligus
-menjawab masalah multi-vendor, bukan hanya Ruijie.
+**Kondisi saat ini.** ✅ **Selesai di v2.54.0.** Integrations → **Network device over SSH (any
+vendor)**: perintah block dan unblock diisi operator, beberapa baris dijalankan dalam satu sesi
+sehingga config mode bekerja, verifikasi host key menyala secara bawaan, dan ban disebar ke semua
+perangkat yang terkonfigurasi berdampingan dengan MikroTik. Lihat [ssh-cli.md](ssh-cli.md).
+
+**Kenapa bukan driver Ruijie.** Justru karena kutipan di atas. Driver per vendor habis masa
+berlakunya bersama kontrak pengadaan, jadi perintahnya dijadikan konfigurasi, bukan kode. Tim sudah
+memegang perintah itu karena switch-nya memang dikonfigurasi lewat skrip hari ini, dan menebak
+sintaks perangkat yang tidak bisa diuji siapa pun di sini lebih buruk daripada menyediakan kolom
+kosong. Pilihan yang sama dengan sensor SNMP, dengan alasan yang sama.
+
+**Batas yang disengaja.** Tidak ada rekonsiliasi blocklist seperti MikroTik, karena membaca ACL
+balik dan mem-parsing-nya berbeda di tiap vendor dan justru pengetahuan yang ingin dihindari di
+sini. Perangkat yang reboot lalu kehilangan rule-nya adalah celah yang sebaiknya kamu ketahui,
+bukan ditutupi parser yang tidak bisa diuji terhadap perangkatmu.
 
 ---
 

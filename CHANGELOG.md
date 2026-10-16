@@ -7,6 +7,48 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.54.0
+
+### Added
+
+**Auto-block on any network device, over SSH.** Gap 3, and the reason it is worth doing first: the
+hospital runs full Ruijie at the edge, and the responders were nftables, MikroTik REST and
+CrowdSec, so auto-blocking, one of the capabilities the product leads with, could not touch a
+single one of their devices.
+
+**There is no Ruijie driver, deliberately.** Their engineer gave the reason without being asked:
+*"Switch kita biasanya pakai Ruijie, terus nanti ada perubahan kontrak, ada Aruba."* A driver per
+vendor expires with the procurement contract, so the block and unblock commands are a field the
+operator fills in. They already have them, since these switches are configured by script today,
+and a guess about hardware nobody here can test is worse than a blank. Same choice the SNMP sensors
+made, for the same reason, and it means a site that swaps vendors keeps working with no release.
+
+Several lines run in one session, so a device needing `configure terminal` before the rule and
+`end` after it gets them together. A site with both a MikroTik and SSH devices fans a ban out to
+all of them: neither takes precedence, because picking one would leave half the edge unblocked
+without saying so.
+
+**Operator action.** Configure under **Integrations → Network device over SSH**, and supply the
+host key fingerprint from `ssh-keyscan`. Verification is on unless you explicitly turn it off: an
+unverified SSH session to the device that enforces your blocks is a machine-in-the-middle away from
+someone who watches every address you ban and answers as the switch while blocking nothing. See
+[docs/ssh-cli.md](docs/ssh-cli.md).
+
+### Three limits worth knowing
+
+**No blocklist reconciliation.** MikroTik has a periodic sync that self-heals after a reboot; this
+has Block and Unblock only. Reading an ACL back and parsing it is different on every vendor and is
+exactly the knowledge this responder exists to avoid, so a device that reboots and loses its rules
+is a gap you should know about rather than one papered over by an untestable parser.
+
+**A device that answers `% Invalid input` is a failure**, even though CLI devices exit zero after
+saying it. The output is judged, not the exit status. Without that, a mistyped command reports a
+block that never happened.
+
+**`{{ip}}` is required in the command**, and what is substituted is the parsed address, never the
+text that arrived. A value like `1.2.3.4; reboot` is refused rather than escaped: this is the last
+gate before a command runs with privilege on a switch.
+
 ## Releases v2.50.0 to v2.53.0: what a hospital IT team asked for
 
 These four releases come from one source: a field discussion with the infrastructure team of a

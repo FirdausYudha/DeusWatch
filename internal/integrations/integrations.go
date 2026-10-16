@@ -54,6 +54,26 @@ var Catalog = []TypeInfo{
 		},
 	},
 	{
+		Type: "ssh_cli", Label: "Network device over SSH (any vendor)", Category: "firewall", Doc: "ssh-cli.md",
+		Desc: "Block source IPs by running YOUR commands on a switch, router or firewall over SSH. " +
+			"Works with any vendor, including Ruijie and Aruba, because the commands are configuration " +
+			"rather than a driver that expires with the hardware contract.",
+		Fields: []Field{
+			{Key: "address", Label: "Address", Help: "10.0.0.1 or 10.0.0.1:2222 (port defaults to 22)"},
+			{Key: "username", Label: "Username"},
+			{Key: "password", Label: "Password", Secret: true, Optional: true, Help: "Or use a private key below"},
+			{Key: "private_key", Label: "Private key (PEM)", Secret: true, Optional: true},
+			{Key: "host_key", Label: "Host key fingerprint", Optional: true,
+				Help: "SHA256:... from `ssh-keyscan -t rsa <address>`. Required unless you tick the insecure option below"},
+			{Key: "insecure_hostkey", Label: "Skip host key check", Optional: true, Options: []string{"false", "true"},
+				Help: "true only for a device on a trusted management VLAN; an unverified SSH session can be intercepted"},
+			{Key: "block_cmd", Label: "Block command", Help: "Must contain {{ip}}. Several lines run in one session, so config mode works"},
+			{Key: "unblock_cmd", Label: "Unblock command", Help: "Must contain {{ip}}"},
+			{Key: "verify_cmd", Label: "Verify command", Optional: true,
+				Help: "Read-only, run on a timer for the health check (e.g. show version). Must never change the device"},
+		},
+	},
+	{
 		Type: "crowdsec", Label: "CrowdSec LAPI (bouncer)", Category: "bouncer",
 		Desc: "Push block decisions to the CrowdSec Local API so any CrowdSec bouncer enforces them.",
 		Fields: []Field{
