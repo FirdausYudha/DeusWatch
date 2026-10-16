@@ -69,20 +69,22 @@ jobs:
         run: go build ./...
       - name: migrate (apply schema for integration tests)
         run: go run ./cmd/migrate
-      # TEMPORARY: the failing step's log needs admin rights to download, so the failures are
-      # copied into the job summary, which is public. Remove once the test is green.
+      # Failures are re-emitted as workflow ::error:: commands, which become check ANNOTATIONS.
+      # That is the only part of a failed run readable without admin rights to download the log,
+      # and a compile error lands there automatically while a test failure does not: the check
+      # otherwise says nothing but "exit code 1", which costs a round trip to diagnose every time.
       - name: test
         run: |
           set +e
           out=$(go test -race ./... 2>&1); rc=$?
           set -e
-          {
-            echo '## go test'
-            echo '```'
-            echo "$out" | grep -E '^(---|\s+---|FAIL|ok|\s+[a-z_]+\.go:)' | head -80
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
           echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "$out" | grep -E '^(--- FAIL|FAIL|[[:space:]]+[A-Za-z0-9_]+\.go:[0-9]+:)' \
+              | head -40 | while IFS= read -r line; do
+                  printf '::error::%s\n' "$(printf '%s' "$line" | tr -d '\r' | sed 's/%/%25/g')"
+                done
+          fi
           exit $rc
 
   govulncheck:
