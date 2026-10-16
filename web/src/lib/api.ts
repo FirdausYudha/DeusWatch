@@ -679,8 +679,32 @@ export type InventorySummary = {
   memory_mb: number
   primary_ip: string
   primary_mac: string
+  // Operator-owned, and the opposite of every field above: no agent can report where a machine
+  // physically is, so a person types it and the agent's next report does not overwrite it.
+  location: string
+  asset_tag: string
+  asset_notes: string
+  asset_updated_at?: string
+  asset_updated_by: string
 }
 export type Package = { name: string; version: string; arch?: string; source?: string }
+
+export type AssetEdit = { location: string; asset_tag: string; asset_notes: string }
+
+export async function saveAssetDetails(agent: string, e: AssetEdit): Promise<void> {
+  const res = await authFetch(`/api/inventory/asset?agent=${encodeURIComponent(agent)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(e),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+/** The register as CSV. Their system of record is GLPI, so this hands the list over rather than
+ *  asking anyone to retype what DeusWatch can already see. */
+export function assetExportURL(): string {
+  return '/api/inventory/export.csv'
+}
 
 export async function fetchInventory(): Promise<InventorySummary[]> {
   const res = await authFetch('/api/inventory')

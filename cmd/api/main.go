@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -358,6 +359,10 @@ func main() {
 		// and one agent's package list. Read-only, dashboard-level.
 		mux.Handle("GET /api/inventory", protect(auth.PermViewDashboard, inventorySummaryHandler(st)))
 		mux.Handle("GET /api/inventory/packages", protect(auth.PermViewDashboard, inventoryPackagesHandler(st)))
+		// The asset register's operator-owned half: writing it needs manage_settings, exporting it
+		// only needs the permission that already shows the same rows on screen.
+		mux.Handle("PUT /api/inventory/asset", protect(auth.PermManageSettings, assetDetailsHandler(st)))
+		mux.Handle("GET /api/inventory/export.csv", protect(auth.PermViewDashboard, assetExportHandler(st)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
@@ -2233,6 +2238,69 @@ func inventorySummaryHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"agents": rows})
+	}
+}
+
+// assetDetailsHandler (PUT /api/inventory/asset?agent=) records the operator-owned half of an
+// asset row: where the machine physically is, the organisation's own tag, and a note.
+//
+// Behind manage_settings rather than view_dashboard: this is the only writable part of the
+// register, and a wrong location sends somebody to the wrong ward.
+func assetDetailsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentName := strings.TrimSpace(r.URL.Query().Get("agent"))
+		if agentName == "" {
+			http.Error(w, "agent required", http.StatusBadRequest)
+			return
+		}
+		var e store.AssetEdit
+		if err := json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&e); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if err := st.SetAssetDetails(r.Context(), agentName, e, currentUsername(r)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// assetExportHandler (GET /api/inventory/export.csv) hands the whole register over as CSV.
+//
+// Export exists because this register is not the system of record. The team keeps assets in GLPI
+// under an ITIL frame, and a tool that can see every endpoint but cannot hand the list to the tool
+// they actually use is asking them to retype it. CSV rather than a GLPI asset push: their register
+// has fields DeusWatch knows nothing about (owner, cost centre, purchase date), so a merge belongs
+// to the person who understands both sides.
+func assetExportHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows, err := st.ListInventorySummaries(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="deuswatch-assets.csv"`)
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{
+			"agent", "hostname", "location", "asset_tag", "manufacturer", "model", "serial_number",
+			"cpu_cores", "memory_mb", "primary_ip", "primary_mac", "os", "os_version",
+			"last_seen", "asset_updated_by", "asset_updated_at", "notes",
+		})
+		for _, a := range rows {
+			assetAt := ""
+			if a.AssetUpdatedAt != nil {
+				assetAt = a.AssetUpdatedAt.UTC().Format(time.RFC3339)
+			}
+			_ = cw.Write([]string{
+				a.AgentName, a.Hostname, a.Location, a.AssetTag, a.Manufacturer, a.Model,
+				a.SerialNumber, strconv.Itoa(a.CPUCores), strconv.FormatInt(a.MemoryMB, 10),
+				a.PrimaryIP, a.PrimaryMAC, a.OSID, a.OSVersion,
+				a.UpdatedAt.UTC().Format(time.RFC3339), a.AssetUpdatedBy, assetAt, a.AssetNotes,
+			})
+		}
+		cw.Flush()
 	}
 }
 

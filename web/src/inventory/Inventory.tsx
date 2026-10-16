@@ -3,10 +3,13 @@ import {
   can,
   fetchInventory,
   fetchAgentPackages,
+  saveAssetDetails,
+  assetExportURL,
   fetchVulnerabilities,
   fetchAgentVulnerabilities,
   rematchVulnerabilities,
   type InventorySummary,
+  type AssetEdit,
   type Package,
   type VulnSummary,
   type VulnFinding,
@@ -71,6 +74,16 @@ export default function Inventory({ me }: { me: Me }) {
         actions={
           <>
             {rematchMsg && <span className="text-[12.5px] text-dim">{rematchMsg}</span>}
+            {/* A plain link, not a fetch: the browser's own download handles the file, the
+                Content-Disposition names it, and the session cookie authenticates it like any
+                other request. Their register lives in GLPI, so the job here is to hand the list
+                over rather than ask anyone to retype what DeusWatch already sees. */}
+            <a
+              href={assetExportURL()}
+              className="rounded-[8px] border border-border px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+            >
+              Export assets (CSV)
+            </a>
             {canRematch && (
               <button
                 onClick={doRematch}
@@ -120,7 +133,11 @@ export default function Inventory({ me }: { me: Me }) {
           </div>
           {selected && (
             <div className="min-w-0 space-y-4">
-              <AssetCard a={agents.find((x) => x.agent_name === selected)} />
+              <AssetCard
+                a={agents.find((x) => x.agent_name === selected)}
+                me={me}
+                onSaved={load}
+              />
               <DetailPanel agent={selected} summary={vulns[selected]} />
             </div>
           )}
@@ -137,7 +154,21 @@ export default function Inventory({ me }: { me: Me }) {
 // A field the agent could not read is shown as "—" rather than hidden, because an asset register
 // needs to make the gap visible: on Linux the DMI serial is root-only, and a blank cell is the
 // prompt to go and fix that, where a missing row just looks complete.
-function AssetCard({ a }: { a?: InventorySummary }) {
+function AssetCard({ a, me, onSaved }: { a?: InventorySummary; me: Me; onSaved: () => void }) {
+  // Hooks run before the early return, or their order changes with the selection.
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState<AssetEdit>({ location: '', asset_tag: '', asset_notes: '' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const canEdit = can(me, 'manage_settings')
+
+  useEffect(() => {
+    // A new selection abandons an unsaved edit rather than carrying it to another machine, which
+    // is how a location ends up on the wrong asset.
+    setEditing(false)
+    setErr('')
+  }, [a?.agent_name])
+
   if (!a) return null
   const dash = (s: string) => (s.trim() === '' ? '—' : s)
   const ram = a.memory_mb > 0 ? `${(a.memory_mb / 1024).toFixed(1)} GB` : '—'
@@ -149,20 +180,109 @@ function AssetCard({ a }: { a?: InventorySummary }) {
     ['Model', dash(a.model)],
     ['CPU / RAM', `${cpu} · ${ram}`],
     ['IP / MAC', `${dash(a.primary_ip)} · ${dash(a.primary_mac)}`],
+    ['Location', dash(a.location)],
+    ['Asset tag', dash(a.asset_tag)],
   ]
+
+  const startEdit = () => {
+    setDraft({ location: a.location, asset_tag: a.asset_tag, asset_notes: a.asset_notes })
+    setErr('')
+    setEditing(true)
+  }
+  const save = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      await saveAssetDetails(a.agent_name, draft)
+      setEditing(false)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="rounded-[12px] border border-border bg-surface px-4 py-3">
-      <h2 className="mb-3 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Asset</h2>
-      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-        {fields.map(([label, value]) => (
-          <div key={label} className="min-w-0">
-            <dt className="text-[12.5px] text-dim">{label}</dt>
-            <dd className="truncate text-[13.5px] text-fg" title={value}>
-              {value}
-            </dd>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-[12.5px] font-semibold uppercase tracking-wider text-dim">Asset</h2>
+        {canEdit && !editing && (
+          <button onClick={startEdit} className="text-[12.5px] font-medium text-accent hover:underline">
+            Edit location
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="flex flex-col gap-3">
+          {/* Only the three operator-owned fields are editable. The rest comes from the machine,
+              and letting someone type over a serial number would put a value in the register that
+              contradicts the device it names. */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[12.5px] text-dim">Location</span>
+              <input
+                value={draft.location}
+                onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                placeholder="e.g. Ward 3, nurse station 2"
+                className="rounded-[8px] border border-border bg-bg px-2 py-1.5 text-[13.5px] text-fg"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[12.5px] text-dim">Asset tag</span>
+              <input
+                value={draft.asset_tag}
+                onChange={(e) => setDraft({ ...draft, asset_tag: e.target.value })}
+                placeholder="your own inventory number"
+                className="rounded-[8px] border border-border bg-bg px-2 py-1.5 text-[13.5px] text-fg"
+              />
+            </label>
           </div>
-        ))}
-      </dl>
+          <label className="flex flex-col gap-1">
+            <span className="text-[12.5px] text-dim">Notes</span>
+            <input
+              value={draft.asset_notes}
+              onChange={(e) => setDraft({ ...draft, asset_notes: e.target.value })}
+              className="rounded-[8px] border border-border bg-bg px-2 py-1.5 text-[13.5px] text-fg"
+            />
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={save}
+              disabled={busy}
+              className="rounded-[8px] bg-accent px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-40"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={() => setEditing(false)} className="text-[12.5px] text-dim hover:underline">
+              Cancel
+            </button>
+          </div>
+          {err && <p className="text-[12.5px] text-critical">{err}</p>}
+        </div>
+      ) : (
+        <>
+          <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {fields.map(([label, value]) => (
+              <div key={label} className="min-w-0">
+                <dt className="text-[12.5px] text-dim">{label}</dt>
+                <dd className="truncate text-[13.5px] text-fg" title={value}>
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {a.asset_notes && <p className="mt-2 text-[12.5px] text-muted">{a.asset_notes}</p>}
+          {a.asset_updated_by && (
+            // Who last walked to the machine, because a location nobody has confirmed for a year
+            // is a different claim from one checked last week.
+            <p className="mt-2 text-[12px] text-dim">
+              Location set by {a.asset_updated_by}
+              {a.asset_updated_at ? ` · ${new Date(a.asset_updated_at).toLocaleDateString()}` : ''}
+            </p>
+          )}
+        </>
+      )}
     </div>
   )
 }

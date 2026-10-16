@@ -52,6 +52,15 @@ type InventorySummary struct {
 	MemoryMB     int64  `json:"memory_mb"`
 	PrimaryIP    string `json:"primary_ip"`
 	PrimaryMAC   string `json:"primary_mac"`
+
+	// Operator-owned (migration 000077), and the opposite of every field above: no agent can
+	// report where a machine physically is, so a person types it once and the agent's next report
+	// must not erase it. ReplaceInventory never names these columns, which is what protects them.
+	Location       string     `json:"location"`
+	AssetTag       string     `json:"asset_tag"`
+	AssetNotes     string     `json:"asset_notes"`
+	AssetUpdatedAt *time.Time `json:"asset_updated_at,omitempty"`
+	AssetUpdatedBy string     `json:"asset_updated_by"`
 }
 
 // ReplaceInventory stores an agent's full inventory, replacing any previous one atomically. An
@@ -334,7 +343,9 @@ func (s *Store) ListInventorySummaries(ctx context.Context) ([]InventorySummary,
 		       COALESCE(kernel,''), COALESCE(arch,''), COALESCE(pkg_manager,''), pkg_count, updated_at,
 		       COALESCE(hostname,''), COALESCE(manufacturer,''), COALESCE(model,''),
 		       COALESCE(serial_number,''), COALESCE(cpu_cores,0), COALESCE(memory_mb,0),
-		       COALESCE(primary_ip,''), COALESCE(primary_mac,'')
+		       COALESCE(primary_ip,''), COALESCE(primary_mac,''),
+		       COALESCE(location,''), COALESCE(asset_tag,''), COALESCE(asset_notes,''),
+		       asset_updated_at, COALESCE(asset_updated_by,'')
 		FROM agent_os_inventory ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list inventory: %w", err)
@@ -346,12 +357,47 @@ func (s *Store) ListInventorySummaries(ctx context.Context) ([]InventorySummary,
 		if err := rows.Scan(&s.AgentName, &s.OSID, &s.OSVersion, &s.OSCodename, &s.Kernel,
 			&s.Arch, &s.PkgManager, &s.PkgCount, &s.UpdatedAt,
 			&s.Hostname, &s.Manufacturer, &s.Model, &s.SerialNumber,
-			&s.CPUCores, &s.MemoryMB, &s.PrimaryIP, &s.PrimaryMAC); err != nil {
+			&s.CPUCores, &s.MemoryMB, &s.PrimaryIP, &s.PrimaryMAC,
+			&s.Location, &s.AssetTag, &s.AssetNotes, &s.AssetUpdatedAt, &s.AssetUpdatedBy); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// AssetEdit is the operator-owned part of an asset row. Every field is replaced as given, blanks
+// included, because clearing a location that is now wrong has to be possible.
+type AssetEdit struct {
+	Location string `json:"location"`
+	AssetTag string `json:"asset_tag"`
+	Notes    string `json:"asset_notes"`
+}
+
+// SetAssetDetails records where a machine is and what the organisation calls it.
+//
+// It UPDATEs and never inserts. A row exists once the agent has reported, and typing a location for
+// an agent that has never checked in would create a register entry for a machine DeusWatch has
+// never seen, which is the one thing an asset register must not contain: a row nobody can walk to.
+// The caller gets "not found" instead, which says the agent has not reported yet.
+func (s *Store) SetAssetDetails(ctx context.Context, agentName string, e AssetEdit, by string) error {
+	if strings.TrimSpace(agentName) == "" {
+		return fmt.Errorf("store: asset details need an agent name")
+	}
+	ct, err := s.q(ctx).Exec(ctx, `
+		UPDATE agent_os_inventory
+		   SET location=NULLIF($2,''), asset_tag=NULLIF($3,''), asset_notes=NULLIF($4,''),
+		       asset_updated_at=now(), asset_updated_by=$5
+		 WHERE agent_name=$1`,
+		agentName, strings.TrimSpace(e.Location), strings.TrimSpace(e.AssetTag),
+		strings.TrimSpace(e.Notes), by)
+	if err != nil {
+		return fmt.Errorf("store: set asset details: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return fmt.Errorf("store: no inventory for agent %q yet: it has not reported since being enrolled", agentName)
+	}
+	return nil
 }
 
 // GetAgentPackages returns one agent's installed packages (alphabetical), optionally filtered by a

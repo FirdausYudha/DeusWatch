@@ -16,7 +16,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 | # | Gap | Prioritas | Kondisi di DeusWatch |
 |---|---|---|---|
 | 1 | Monitoring kesehatan **API/layanan** per-endpoint ("hijau tapi mati") | **P1** | ✅ **Selesai** (v2.51.0) — menu Service Health |
-| 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0) — kartu aset di menu Inventory |
+| 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0 + v2.55.0) - kartu aset, label lokasi, dan ekspor CSV |
 | 3 | Dukungan **Ruijie** untuk auto-block | P2 | ✅ **Selesai** (v2.54.0) - responder SSH/CLI generik ([ssh-cli.md](ssh-cli.md)) |
 | 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
 | 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | Agent Windows parsial; AD/LDAP belum ada |
@@ -91,9 +91,14 @@ sering mereka pakai (aset dan insiden/ticketing).
 > kalau serial number, dari Windows itu bisa tariknya pakai Shell, PowerShell, WMIC. IP...
 > Merek komputer juga bisa. Jadi lokasinya nanti ketahuan."
 
-**Kondisi saat ini.** ✅ **Selesai di v2.51.0.** Agent mengumpulkan manufacturer, model, serial
-number, core CPU, memori, serta IP dan MAC primer; ditampilkan sebagai kartu aset di menu Inventory.
-Yang belum: label lokasi yang diisi operator, dan ekspor.
+**Kondisi saat ini.** ✅ **Selesai.** v2.51.0 membawa pengumpulan di agent: manufacturer, model,
+serial number, core CPU, memori, serta IP dan MAC primer. v2.55.0 melengkapi sisanya, yaitu bagian
+yang tidak bisa dilaporkan mesin mana pun: **label lokasi**, asset tag milik organisasi, catatan,
+dan **ekspor CSV**.
+
+Lokasi adalah kebalikan dari setiap kolom lain di tabel itu. Semuanya ditimpa laporan agent
+berikutnya; yang ini harus selamat darinya, karena diketik orang yang berjalan ke mesinnya. Upsert
+inventaris tidak pernah menyebut kolom-kolom itu, dan itulah yang melindunginya.
 
 **Yang perlu dibangun.** Kolektor aset di agent yang mengirim: hostname, merek/manufacturer,
 model, **serial number**, OS + versi, CPU/RAM, alamat IP/MAC, dan lokasi (label yang bisa diisi

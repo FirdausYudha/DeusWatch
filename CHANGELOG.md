@@ -7,6 +7,39 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.55.0
+
+### Added
+
+**The asset register gains the half no machine can report.** v2.51.0 collected what an endpoint
+knows about itself: manufacturer, model, serial number. The field engineer asked for one more thing
+in the same breath, and it is the one no API can answer: *"Merek komputer juga bisa. Jadi lokasinya
+nanti ketahuan."* Where the machine physically is. Which ward, which nurse station, which floor.
+
+So **Location**, an **asset tag** (the organisation's own number on the sticker, which is a
+different identifier from the manufacturer's serial and is what a stock-take reconciles against it)
+and a free note are typed in the Inventory page by whoever put the machine there. The card records
+who set it and when, because a location nobody has confirmed in a year is a different claim from
+one checked last week.
+
+**These fields are the opposite of every other column on that row.** Everything else is overwritten
+by the agent's next report; these must survive it. The inventory upsert never names them, which is
+what protects them, and migration 000077 says so where someone changing that query will read it.
+
+**Export as CSV**, from the Inventory header. Their register lives in GLPI under an ITIL frame, so
+the job here is to hand the list over rather than ask anyone to retype what DeusWatch already sees
+on every endpoint. CSV rather than a GLPI asset push on purpose: their register carries fields
+DeusWatch knows nothing about, such as owner, cost centre and purchase date, so merging the two
+belongs to the person who understands both sides.
+
+**Operator action.** Run the migrations: **000077** is added. Writing a location needs
+`manage_settings`, since a wrong one sends somebody to the wrong ward; exporting needs only the
+permission that already shows the same rows on screen.
+
+Setting a location for an agent that has never reported is refused rather than created. A register
+entry for a machine DeusWatch has never seen is the one row an asset register must not contain: one
+nobody can walk to.
+
 ## v2.54.0
 
 ### Added
