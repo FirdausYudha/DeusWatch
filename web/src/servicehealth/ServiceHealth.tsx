@@ -17,7 +17,7 @@ import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, S
 // Service & API Health.
 //
 // The gap this closes came from the hospital's own infrastructure team: ping is green, the server
-// is up, the dashboard is quiet — and the registration desk cannot register anyone because one
+// is up, the dashboard is quiet, and the registration desk cannot register anyone because one
 // integration endpoint answers HTTP 200 with a failure inside the payload, or takes nine seconds
 // to answer. Host monitoring never sees that. This page watches the ENDPOINTS a business function
 // depends on, which is why checks are grouped by business function rather than by host.
@@ -102,7 +102,7 @@ export default function ServiceHealth({ me }: { me: Me }) {
   return (
     <Page>
       <PageHeader
-        subtitle="Probes the endpoints your workflows depend on — not just whether the host answers a ping"
+        subtitle="Probes the endpoints your workflows depend on, not just whether the host answers a ping"
         actions={
           canManage && (
             <Button variant="primary" onClick={() => setEditing('new')}>
@@ -128,7 +128,7 @@ export default function ServiceHealth({ me }: { me: Me }) {
       {loaded && checks.length === 0 && !editing ? (
         <EmptyState
           title="No service checks yet"
-          hint="Add the endpoints a business function depends on — a registration API, a claims web service, the fingerprint reader's port — and DeusWatch will tell you when one stops working, even while the server stays up."
+          hint="Add the endpoints a business function depends on: a registration API, a claims web service, the fingerprint reader's port. DeusWatch tells you when one stops working, even while the server stays up."
           action={canManage ? <Button variant="primary" onClick={() => setEditing('new')}>Add the first check</Button> : undefined}
         />
       ) : (
@@ -253,7 +253,7 @@ function CheckRow({
 }
 
 // History is the 24-hour timeline: one bar per probe, red where it failed. It answers the question
-// an operator asks next — "is this broken, or has it been flapping all morning?"
+// an operator asks next: "is this broken, or has it been flapping all morning?"
 function History({ id }: { id: string }) {
   const [points, setPoints] = useState<ServiceCheckPoint[] | null>(null)
   const [error, setError] = useState('')
@@ -379,8 +379,8 @@ function CheckForm({
 
         <Field label="Kind">
           <Select value={f.kind} onChange={(e) => set('kind', e.target.value as 'http' | 'tcp')} className="w-full">
-            <option value="http">HTTP — a web service endpoint</option>
-            <option value="tcp">TCP — a database or plain socket</option>
+            <option value="http">HTTP (a web service endpoint)</option>
+            <option value="tcp">TCP (a database or plain socket)</option>
           </Select>
         </Field>
         <Field label="Target" hint={f.kind === 'http' ? 'Full URL, e.g. https://api.example/peserta' : 'host:port, e.g. 10.0.0.5:5432'}>

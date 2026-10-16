@@ -17,8 +17,8 @@ import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, S
 
 // Network devices over SNMP.
 //
-// The hospital's SNMP data lives in three tools — The Dude for the switches, WIS Cloud for the
-// access points, Grafana at head office — and the ask was one dashboard. The board is grouped by
+// The hospital's SNMP data lives in three tools: The Dude for the switches, WIS Cloud for the
+// access points, Grafana at head office. The ask was one dashboard. The board is grouped by
 // LOCATION rather than by device type, because the team manage around twenty hospitals and the
 // first question about a dead switch is which building to walk to.
 //
@@ -118,7 +118,7 @@ export default function Network({ me }: { me: Me }) {
   return (
     <Page>
       <PageHeader
-        subtitle="Switches, access points and routers over SNMP — one board instead of three tools"
+        subtitle="Switches, access points and routers over SNMP, one board instead of three tools"
         actions={
           canManage && (
             <Button variant="primary" onClick={() => setEditing('new')}>
@@ -144,7 +144,7 @@ export default function Network({ me }: { me: Me }) {
       {loaded && devices.length === 0 && !editing ? (
         <EmptyState
           title="No network devices yet"
-          hint="Add a switch, access point or router. Uptime and port state come from the standard SNMP tree; for CPU and temperature add the OIDs your vendor uses — the same ones your existing SNMP tool already polls."
+          hint="Add a switch, access point or router. Uptime and port state come from the standard SNMP tree; for CPU and temperature add the OIDs your vendor uses, the same ones your existing SNMP tool already polls."
           action={canManage ? <Button variant="primary" onClick={() => setEditing('new')}>Add the first device</Button> : undefined}
         />
       ) : (
@@ -414,7 +414,7 @@ function DeviceForm({
         <Field label="Location" hint="Groups the board. The first question about a dead switch is which building.">
           <Input value={f.location} onChange={(e) => set('location', e.target.value)} className="w-full" />
         </Field>
-        <Field label="Host" hint="Bare IP or hostname — no scheme, no port">
+        <Field label="Host" hint="Bare IP or hostname, no scheme and no port">
           <Input value={f.host} onChange={(e) => set('host', e.target.value)} className="w-full" />
         </Field>
         <Field label="Port">
@@ -423,8 +423,8 @@ function DeviceForm({
 
         <Field label="SNMP version">
           <Select value={f.version} onChange={(e) => set('version', e.target.value as '2c' | '3')} className="w-full">
-            <option value="2c">v2c — community string</option>
-            <option value="3">v3 — user, auth and privacy</option>
+            <option value="2c">v2c (community string)</option>
+            <option value="3">v3 (user, auth and privacy)</option>
           </Select>
         </Field>
 
@@ -448,9 +448,9 @@ function DeviceForm({
             </Field>
             <Field label="Security level">
               <Select value={f.v3_level} onChange={(e) => set('v3_level', e.target.value)} className="w-full">
-                <option value="authPriv">authPriv — signed and encrypted</option>
-                <option value="authNoPriv">authNoPriv — signed only</option>
-                <option value="noAuthNoPriv">noAuthNoPriv — neither</option>
+                <option value="authPriv">authPriv (signed and encrypted)</option>
+                <option value="authNoPriv">authNoPriv (signed only)</option>
+                <option value="noAuthNoPriv">noAuthNoPriv (neither)</option>
               </Select>
             </Field>
             <Field label="Auth protocol">
@@ -512,7 +512,7 @@ function DeviceForm({
 
       <h3 className="mb-1 mt-5 text-[12.5px] font-semibold uppercase tracking-wider text-dim">Sensors</h3>
       <p className="mb-3 text-[12px] text-dim">
-        SNMP has no standard OID for CPU, temperature or power supply — every vendor differs — so they go here.
+        SNMP has no standard OID for CPU, temperature or power supply, because every vendor puts them somewhere different, so they go here.
         Use the OIDs your existing SNMP tool already polls for these devices.
       </p>
 
@@ -560,7 +560,7 @@ function DeviceForm({
                 onChange={(e) => setSensor(i, { scale: Number(e.target.value) })}
                 className="w-20 rounded border border-border bg-surface-2 px-2 py-0.5 text-right text-fg outline-none focus:border-accent"
               />
-              — devices often report tenths, so 0.1 turns 345 into 34.5 °C
+              Devices often report tenths, so 0.1 turns 345 into 34.5 °C
             </label>
           </div>
         </div>
