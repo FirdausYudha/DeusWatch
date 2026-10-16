@@ -2281,6 +2281,19 @@ func workSessionsHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 
+		// "activity" is the audit question one step further on: not just who was here, but what
+		// happened while they were, which is where an application log read through a decoder
+		// (docs/simrs.md) lands.
+		if q.Get("activity") != "" {
+			rows, err := st.AttributeEvents(r.Context(), agentName, strings.TrimSpace(q.Get("dataset")), from, to, 200)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"activity": rows, "hours": hours})
+			return
+		}
+
 		var rows []store.WorkSession
 		var err error
 		if agentName != "" {

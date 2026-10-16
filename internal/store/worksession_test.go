@@ -136,3 +136,41 @@ func TestSessionPairingKeepsUsersApart(t *testing.T) {
 		t.Error("it.support signed off and must be closed")
 	}
 }
+
+// usersAt is what turns "PC-WARD3 opened a record" into "dr.sari, on PC-WARD3, opened a record".
+// A boundary wrong by one second attributes an action to the previous shift.
+func TestUsersAt(t *testing.T) {
+	base := time.Date(2026, 10, 16, 7, 0, 0, 0, time.UTC)
+	end := base.Add(6 * time.Hour)
+	sessions := []WorkSession{
+		{User: "dr.sari", Start: base, End: &end},
+		{User: "perawat01", Start: base.Add(6 * time.Hour)}, // still open
+	}
+
+	for _, c := range []struct {
+		name string
+		at   time.Time
+		want []string
+	}{
+		{"before anyone signed in", base.Add(-time.Minute), nil},
+		{"mid shift one", base.Add(time.Hour), []string{"dr.sari"}},
+		{"the instant of logon counts", base, []string{"dr.sari"}},
+		// The handover second belongs to both: one signed off as the other signed on, and naming
+		// only one of them would be a guess presented as a record.
+		{"the handover second", end, []string{"dr.sari", "perawat01"}},
+		{"mid shift two", end.Add(time.Hour), []string{"perawat01"}},
+		{"long after, still open", end.Add(100 * time.Hour), []string{"perawat01"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := usersAt(sessions, c.at)
+			if len(got) != len(c.want) {
+				t.Fatalf("got %v, want %v", got, c.want)
+			}
+			for i := range got {
+				if got[i] != c.want[i] {
+					t.Errorf("got %v, want %v", got, c.want)
+				}
+			}
+		})
+	}
+}

@@ -157,6 +157,91 @@ func (s *Store) WhoWasOn(ctx context.Context, agent string, at time.Time, lookba
 	return out, nil
 }
 
+// AttributedEvent is one thing that happened on a machine, with the person who was signed in to
+// that machine when it happened.
+type AttributedEvent struct {
+	Time     time.Time `json:"time"`
+	Category string    `json:"event_category"`
+	Action   string    `json:"event_action"`
+	Dataset  string    `json:"event_dataset"`
+	Original string    `json:"event_original"`
+	// EventUser is the account the event itself named, which for an application log is the person
+	// who did it. Often empty: a file change has no user unless who-data is on.
+	EventUser string `json:"event_user"`
+	// SessionUsers are the accounts signed in to the workstation at that moment. Plural because a
+	// Windows machine can have two at once, and naming one would be a guess.
+	SessionUsers []string `json:"session_users"`
+}
+
+// AttributeEvents answers the question gap 5 is really about: what happened on this shared machine,
+// and who was sitting at it.
+//
+// This is where the SIMRS half lands. DeusWatch cannot read a hospital information system directly,
+// and there is no single SIMRS to write a parser for: every site runs a different one. What it can
+// do is read that system's log through a custom decoder (docs/simrs.md), which turns a line into an
+// event carrying user.name. From there the account the application names and the account signed in
+// to the workstation are the same string, and the trail runs from the record back to the person.
+//
+// The two are reported SEPARATELY and never merged. EventUser is what the application claims;
+// SessionUsers is who the operating system says was at the keyboard. When they disagree that is the
+// finding, not an inconsistency to smooth over: an application account used while somebody else was
+// signed in to the machine is exactly the shared-password habit this audit exists to surface.
+func (s *Store) AttributeEvents(ctx context.Context, agent, dataset string, from, to time.Time, limit int) ([]AttributedEvent, error) {
+	if strings.TrimSpace(agent) == "" {
+		return nil, fmt.Errorf("store: attribution needs an agent")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 200
+	}
+	sessions, err := s.WorkSessions(ctx, agent, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.q(ctx).Query(ctx, `
+		SELECT time, COALESCE(event_category,''), COALESCE(event_action,''),
+		       COALESCE(event_dataset,''), COALESCE(event_original,''), COALESCE(user_name,'')
+		  FROM events
+		 WHERE agent_id = $1
+		   AND ($2 = '' OR event_dataset ILIKE $2 || '%')
+		   AND time >= $3 AND time < $4
+		   -- The logon traffic is what BUILDS the sessions; listing it back as activity would fill
+		   -- the answer with the scaffolding instead of what the person did.
+		   AND COALESCE(event_action,'') NOT IN ('windows_logon','windows_logoff','ssh_login')
+		 ORDER BY time DESC
+		 LIMIT $5`, agent, strings.TrimSpace(dataset), from, to, limit)
+	if err != nil {
+		return nil, fmt.Errorf("store: attribute events: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]AttributedEvent, 0, limit)
+	for rows.Next() {
+		var e AttributedEvent
+		if err := rows.Scan(&e.Time, &e.Category, &e.Action, &e.Dataset, &e.Original, &e.EventUser); err != nil {
+			return nil, err
+		}
+		e.SessionUsers = usersAt(sessions, e.Time)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// usersAt returns the accounts whose session covers t. Linear over the sessions, which number in
+// the handful per day on a workstation; an index would be more code than the scan it replaces.
+func usersAt(sessions []WorkSession, t time.Time) []string {
+	var out []string
+	for _, s := range sessions {
+		if s.Start.After(t) {
+			continue
+		}
+		if s.End == nil || !s.End.Before(t) {
+			out = append(out, s.User)
+		}
+	}
+	return out
+}
+
 // UserMachines lists where one account has signed in, newest first. The other direction of the
 // same question: an account that appears on six wards in one shift is worth a look, and a shared
 // workstation is exactly where that goes unnoticed.

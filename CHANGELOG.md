@@ -7,6 +7,50 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.57.0
+
+### Added
+
+**Medical-record access, attributed to a person.** The rest of gap 5. v2.56.0 answered who was at a
+shared workstation; this joins that to what the application did, so the trail runs from the record
+back to the person rather than stopping at the machine name.
+
+```
+GET /api/sessions?agent=PC-WARD3&activity=1&dataset=simrs&hours=24
+```
+
+Each row carries what the application said and who the operating system had signed in at that
+moment. The assistant answers the same in words.
+
+**There is no SIMRS decoder in the box, deliberately.** SIMRS is a category, not a product: Khanza,
+SIMRS GOS and a dozen vendor-built systems all write different logs, and some write none until
+logging is turned on. A decoder shipped here would be a guess about a format nobody on this project
+can test against, and one that silently fails to match is worse than none at all: the events still
+arrive, carry no user, and the audit trail looks complete while naming nobody.
+
+So you build it once against your own log, with the tester already in the product. The username is
+the only field that matters, because that is what meets the Windows session.
+[docs/simrs.md](docs/simrs.md) walks it end to end.
+
+### The two accounts are never merged
+
+`event_user` is who the **application** says did it. `session_users` is who the **operating system**
+says was at the keyboard. They sit side by side and the product never picks one.
+
+When they disagree, that disagreement **is the finding**. An application account used while
+somebody else was signed in to the machine is the shared-password habit this audit exists to
+surface, and a tool that quietly reconciled the two would delete the evidence of it.
+`session_users` is a list for the same reason: a Windows machine can have two people signed in at
+once, and the handover second belongs to both.
+
+### What it still cannot do
+
+It reads logs, so an action SIMRS does not log is one DeusWatch cannot see; if record views are not
+logged today, that is a change in SIMRS rather than here. It reports accounts rather than proving
+identity, so three nurses sharing one login appear as that login, which is the finding and the
+argument for per-person accounts. Active Directory remains unintegrated: accounts match by name,
+which works when SIMRS and Windows agree on usernames and does not when they do not.
+
 ## v2.56.0
 
 ### Added

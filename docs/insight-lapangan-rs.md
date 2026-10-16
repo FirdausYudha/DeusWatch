@@ -19,7 +19,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 | 2 | **Asset inventory** perangkat keras (ITIL) | **P1** | ✅ **Selesai** (v2.51.0 + v2.55.0) - kartu aset, label lokasi, dan ekspor CSV |
 | 3 | Dukungan **Ruijie** untuk auto-block | P2 | ✅ **Selesai** (v2.54.0) - responder SSH/CLI generik ([ssh-cli.md](ssh-cli.md)) |
 | 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
-| 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | 🟡 **Sebagian** (v2.56.0) - sesi per-workstation sudah bisa dijawab; korelasi SIMRS dan AD belum |
+| 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | 🟡 **Sebagian** (v2.56.0 + v2.57.0) - sesi dan atribusi aktivitas sudah ada ([simrs.md](simrs.md)); AD belum |
 | 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
 | 7 | **SNMP** monitoring perangkat jaringan | P3 | ✅ **Selesai** — menu Network ([snmp.md](snmp.md)) |
 | 8 | Lateral movement antar container **Kubernetes** | P3 | Deteksi ada, konteks container belum |
@@ -210,10 +210,23 @@ Sesi **diturunkan dari tabel events**, bukan disimpan di tabel sendiri. Tidak ad
 yang bisa melenceng, dan sesi yang dihitung ulang minggu depan dari event yang sama memberi jawaban
 yang sama. Itu sifat yang dibutuhkan jejak audit.
 
-**Yang perlu dibangun berikutnya.** Korelasi dengan sesi aplikasi SIMRS, supaya jejaknya sampai ke
-rekam medis yang dibuka, bukan berhenti di mesinnya. Itu sejauh satu decoder, bukan satu fitur:
-arahkan agent ke log SIMRS, tulis decoder yang mengambil username-nya, dan keduanya bertemu di nama
-akun. Integrasi Active Directory menyusul setelah itu.
+**Korelasi SIMRS, v2.57.0.** Sudah ada, dan memang sejauh satu decoder. `activity=1` pada
+`/api/sessions` menggabungkan apa yang dilakukan aplikasi dengan siapa yang sedang login di mesin
+itu saat kejadian. Langkahnya ada di [simrs.md](simrs.md).
+
+**Tidak ada decoder SIMRS bawaan, dan itu disengaja.** SIMRS itu kategori, bukan produk. Khanza,
+SIMRS GOS, dan belasan sistem buatan vendor menulis log yang berbeda-beda. Decoder yang dikirim
+dari sini adalah tebakan terhadap format yang tidak bisa diuji siapa pun di proyek ini, dan decoder
+yang gagal cocok secara diam-diam lebih buruk daripada tidak ada: event-nya tetap masuk, tidak
+membawa user, dan jejak auditnya terlihat lengkap sambil tidak menyebut siapa pun.
+
+**Dua akun dilaporkan terpisah, tidak pernah digabung.** `event_user` adalah siapa menurut
+aplikasi; `session_users` adalah siapa menurut sistem operasi. Saat keduanya berbeda, **perbedaan
+itulah temuannya**: akun aplikasi dipakai sementara orang lain yang login di mesin itu adalah
+kebiasaan berbagi kata sandi yang justru ingin ditemukan audit ini.
+
+**Active Directory masih belum.** Pencocokan akun lewat nama, yang bekerja kalau SIMRS dan Windows
+memakai username yang sama.
 
 ---
 
