@@ -369,6 +369,11 @@ func main() {
 		// ISO 27001 control evidence (gap 10). manage_settings: it aggregates the account
 		// roster, the audit log and the response history into one document.
 		mux.Handle("GET /api/compliance/iso27001", protect(auth.PermManageSettings, complianceHandler(st)))
+		// Environmental sensors (gap 6). The board is readable with view_dashboard and the handler
+		// itself gates writes on manage_settings, since the ingest key goes out only to a writer.
+		mux.Handle("/api/sensors", protect(auth.PermViewDashboard, envSensorsHandler(st)))
+		// The push intake authenticates with the sensor's own key, so it takes no session at all.
+		mux.HandleFunc("POST /api/sensors/ingest", sys(envIngestHandler(st)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
@@ -2244,6 +2249,97 @@ func inventorySummaryHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"agents": rows})
+	}
+}
+
+// envSensorsHandler (GET/POST/DELETE /api/sensors) manages environmental sensors (gap 6).
+//
+// The board is readable with view_dashboard; writing needs manage_settings. The ingest key is
+// returned ONLY to the writer: it is the credential a device presents, and a read-only board that
+// carried it would hand every viewer the ability to post readings.
+func envSensorsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, _ := auth.UserFrom(r.Context())
+		canWrite := u != nil && u.Can(auth.PermManageSettings)
+
+		switch r.Method {
+		case http.MethodGet:
+			rows, err := st.ListEnvSensors(r.Context(), canWrite)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"sensors": rows})
+		case http.MethodPost:
+			if !canWrite {
+				http.Error(w, "manage_settings required", http.StatusForbidden)
+				return
+			}
+			var e store.EnvSensor
+			if err := json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&e); err != nil {
+				http.Error(w, "invalid body", http.StatusBadRequest)
+				return
+			}
+			saved, err := st.SaveEnvSensor(r.Context(), e)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			writeJSON(w, http.StatusOK, saved)
+		case http.MethodDelete:
+			if !canWrite {
+				http.Error(w, "manage_settings required", http.StatusForbidden)
+				return
+			}
+			if err := st.DeleteEnvSensor(r.Context(), strings.TrimSpace(r.URL.Query().Get("id"))); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// envIngestHandler (POST /api/sensors/ingest) takes one pushed reading.
+//
+// Authenticated by the sensor's OWN key rather than by a session or a global token: whatever posts
+// this is a script on a ward PC or a vendor webhook, not a person, and a per-sensor key means a
+// compromised script can write readings for the one sensor it was given and nothing else.
+//
+// Body: {"key":"...","value":22.5} or {"key":"...","text":"door open"}. The key may also ride in
+// the Authorization header, because some vendor webhook forms have nowhere to put a body field.
+// Alerting is NOT done here. A transition is latched on the row and the worker announces it, which
+// keeps every notification path in one process instead of splitting them between two, and the
+// worker has to sweep these sensors anyway to catch the ones that have gone silent.
+func envIngestHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Key   string   `json:"key"`
+			Value *float64 `json:"value"`
+			Text  string   `json:"text"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&body); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		key := strings.TrimSpace(body.Key)
+		if key == "" {
+			key = strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		}
+		if body.Value == nil && strings.TrimSpace(body.Text) == "" {
+			http.Error(w, "a value or text is required", http.StatusBadRequest)
+			return
+		}
+
+		if _, err := st.RecordEnvReading(r.Context(), key, body.Value, strings.TrimSpace(body.Text)); err != nil {
+			// Deliberately vague and always the same status: a caller holding a wrong key must not
+			// be able to tell "no such sensor" from "that sensor is disabled" by the reply.
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

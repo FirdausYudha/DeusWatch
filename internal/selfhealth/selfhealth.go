@@ -258,3 +258,47 @@ func SNMPSensorEvent(now time.Time, device, host, location, sensor, breach strin
 		},
 	}
 }
+
+// EnvSensorEvent reports an environmental reading crossing its limit, coming back inside it, or a
+// sensor that has gone quiet (gap 6).
+//
+// Severity HIGH on a breach and on silence, INFO on recovery. Silence rates as high deliberately:
+// a pushed sensor that stops reporting leaves its last good reading on the board, so the screen
+// says everything is fine while nobody is measuring anything. In a room held between 18 and 23
+// degrees for accreditation, not knowing is the same risk as being out of range, and only one of
+// the two announces itself.
+func EnvSensorEvent(now time.Time, name, location string, breach string, recovered, stale bool) *ingest.Event {
+	where := location
+	if where == "" {
+		where = "unspecified location"
+	}
+	sev := ingest.SeverityHigh
+	action, outcome := "env_threshold", "failure"
+	msg := fmt.Sprintf("%s (%s): %s", name, where, breach)
+	switch {
+	case stale:
+		action = "env_sensor_silent"
+		msg = fmt.Sprintf("%s (%s): %s", name, where, breach)
+	case recovered:
+		sev = ingest.SeverityInfo
+		action, outcome = "env_recovered", "success"
+		msg = fmt.Sprintf("%s (%s) is back within its limits.", name, where)
+	}
+	return &ingest.Event{
+		Timestamp: now,
+		Event: ingest.EventFields{
+			Category: "environment",
+			Action:   action,
+			Outcome:  outcome,
+			Severity: sev,
+			Dataset:  "deuswatch.environment",
+			Original: msg,
+		},
+		Host: &ingest.Host{Name: where},
+		Rule: &ingest.Rule{ID: "deuswatch_env_sensor", Name: "Environmental Monitor"},
+		DeusWatch: ingest.DeusWatch{
+			Label:    "selfhealth",
+			Severity: ingest.SeverityMeta{Original: sev},
+		},
+	}
+}
