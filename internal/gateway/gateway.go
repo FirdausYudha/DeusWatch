@@ -398,6 +398,43 @@ func InventoryHandler(fn InventoryFunc, revoked RevokedFunc) http.HandlerFunc {
 	}
 }
 
+// BenchmarkHandler records one configuration-benchmark assessment (POST /v1/benchmark). The
+// agent name comes from the client CERTIFICATE, never the body, so an agent cannot report a
+// hardened score on behalf of another host.
+func BenchmarkHandler(fn InventoryFunc, revoked RevokedFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var certCN, certSerial string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			certCN = r.TLS.PeerCertificates[0].Subject.CommonName
+			certSerial = r.TLS.PeerCertificates[0].SerialNumber.String()
+		}
+		if revoked != nil && certCN != "" {
+			if rev, err := revoked(r.Context(), certCN, certSerial); err == nil && rev {
+				http.Error(w, "agent revoked", http.StatusGone)
+				return
+			}
+		}
+		// A CIS policy is several hundred checks, each with a title and a remediation paragraph;
+		// allow a bigger body than the log-batch cap for the same reason inventory does.
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 16<<20))
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusBadRequest)
+			return
+		}
+		if fn != nil && certCN != "" && len(body) > 0 {
+			if err := fn(r.Context(), certCN, body); err != nil {
+				http.Error(w, "record failed", http.StatusServiceUnavailable)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // AgentBinaryHandler serves the fresh agent binary the self-update flow points at. Lives
 // on the gateway (not the api) so agents don't need a second network path, they already
 // trust the gateway via mTLS. `binDir` is the directory the Dockerfile bakes the

@@ -387,6 +387,8 @@ func main() {
 		// Software Composition Analysis (Agent Health): per-agent language-dependency vulns from Trivy.
 		mux.Handle("GET /api/sca", protect(auth.PermViewDashboard, scaSummaryHandler(st)))
 		mux.Handle("GET /api/sca/agent", protect(auth.PermViewDashboard, scaAgentHandler(st)))
+		mux.Handle("GET /api/benchmarks", protect(auth.PermViewDashboard, benchmarkSummaryHandler(st)))
+		mux.Handle("GET /api/benchmarks/checks", protect(auth.PermViewDashboard, benchmarkChecksHandler(st)))
 
 		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
 		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))
@@ -3137,4 +3139,35 @@ func dialTCP(ctx context.Context, addr string) error {
 		return err
 	}
 	return conn.Close()
+}
+
+// benchmarkSummaryHandler (GET /api/benchmarks) returns one row per agent and policy.
+func benchmarkSummaryHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sums, err := st.BenchmarkSummaries(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"policies": sums})
+	}
+}
+
+// benchmarkChecksHandler (GET /api/benchmarks/checks?agent=&policy=&failed=1) returns the stored
+// controls. failed=1 narrows it to what needs work, which is what this page is opened for.
+func benchmarkChecksHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentName := strings.TrimSpace(r.URL.Query().Get("agent"))
+		policy := strings.TrimSpace(r.URL.Query().Get("policy"))
+		if agentName == "" || policy == "" {
+			http.Error(w, "agent and policy are required", http.StatusBadRequest)
+			return
+		}
+		checks, err := st.BenchmarkChecks(r.Context(), agentName, policy, r.URL.Query().Get("failed") == "1")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"checks": checks})
+	}
 }

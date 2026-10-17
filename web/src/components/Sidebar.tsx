@@ -3,7 +3,7 @@ import { logout, can, type Me } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'servicehealth' | 'network' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
+export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'servicehealth' | 'network' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'benchmarks' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
@@ -34,6 +34,7 @@ const NAV: NavGroup[] = [
     items: [
       { id: 'agents', label: 'Agents', view: 'agents', perm: 'view_dashboard' },
       { id: 'agenthealth', label: 'Agent Health', view: 'agenthealth', perm: 'view_dashboard' },
+      { id: 'benchmarks', label: 'Benchmarks', view: 'benchmarks', perm: 'view_dashboard' },
     ],
   },
   {
@@ -69,6 +70,7 @@ const ICONS: Record<string, string> = {
   servicehealth: 'M3 12h4l2 5 4-14 2 9h6',
   network: 'M5 3h14v5H5zM5 16h14v5H5zM12 8v8M8 16v-3h8v3',
   agenthealth: 'M12 3l8 3v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6zM7.5 12h2l1.5 3 2-6 1.5 3h2',
+  benchmarks: 'M9 11l3 3L22 4M21 12v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11',
   rules: 'M4 6h10M4 12h10M4 18h10M17 5l2 2 3-3M17 17l2 2 3-3',
   decoders: 'M3 4h18l-7 8v7l-4 2v-9z',
   playbooks: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM18 7h2v13H8',

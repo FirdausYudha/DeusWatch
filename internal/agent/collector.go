@@ -25,6 +25,8 @@ type Line struct {
 //   - "registry"    : registry integrity monitoring (Windows only); Path = key
 //     (several comma-separated), e.g. HKLM\Software\Microsoft\Windows\CurrentVersion\Run
 //   - "rootcheck"   : rootkit & local anomaly checks (Linux only); Path unused
+//   - "sca"         : configuration benchmarks, CIS (cross-OS); Path unused, policies are
+//     read from the endpoint's own policy directory, see sca_system.go
 //
 // The native collector is selected at COMPILE time via build tags (see collect_*_*.go),
 // so each OS has its own implementation, similar to the Wazuh agent architecture.
@@ -86,6 +88,8 @@ func runSource(ctx context.Context, s Source, fromStart bool, out chan<- Line) e
 		return collectRegistry(ctx, s, out) // per-OS impl (build tag); Windows only
 	case "rootcheck":
 		return collectRootcheck(ctx, s, out) // per-OS impl (build tag); Linux only
+	case "sca":
+		return collectSCA(ctx, s, out) // configuration benchmarks (CIS), cross-OS
 	default:
 		return fmt.Errorf("unsupported source type: %q", s.Type)
 	}

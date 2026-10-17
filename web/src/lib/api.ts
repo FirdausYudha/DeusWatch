@@ -618,6 +618,47 @@ export type AgentInfo = {
   update_requested_at?: string     // v2.12.0+: set when operator clicked Update
 }
 
+// ── Configuration benchmarks (CIS) ─────
+
+export type BenchmarkSummary = {
+  agent_name: string
+  policy_id: string
+  policy_name: string
+  passed: number
+  failed: number
+  not_applicable: number
+  score: number
+  assessed_at: string
+}
+
+export type BenchmarkCheck = {
+  policy_id: string
+  check_id: number
+  title: string
+  result: 'passed' | 'failed' | 'not_applicable'
+  reason: string
+  remediation: string
+  cis: string[] | null
+}
+
+export async function fetchBenchmarks(): Promise<BenchmarkSummary[]> {
+  const res = await authFetch('/api/benchmarks')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).policies ?? []
+}
+
+export async function fetchBenchmarkChecks(
+  agent: string,
+  policy: string,
+  failedOnly: boolean,
+): Promise<BenchmarkCheck[]> {
+  const q = new URLSearchParams({ agent, policy })
+  if (failedOnly) q.set('failed', '1')
+  const res = await authFetch(`/api/benchmarks/checks?${q}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).checks ?? []
+}
+
 // ── Agent groups: one collection policy shared by many agents ─────
 
 export type AgentGroup = {

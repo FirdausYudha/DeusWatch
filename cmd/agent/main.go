@@ -156,6 +156,19 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		}
 	}
 
+	// Configuration benchmarks: an assessment is a few hundred results that must replace the
+	// previous set atomically, so it goes to its own endpoint rather than down the log pipeline.
+	// Buffered by one: a second assessment can only mean the first is still uploading, and the
+	// newer one is the one worth keeping, so there is nothing to queue.
+	benchCh := make(chan agent.SCAAssessment, 1)
+	agent.SetBenchmarkSink(func(a agent.SCAAssessment) {
+		select {
+		case benchCh <- a:
+		default: // uploader is behind; the next daily pass reassesses from scratch anyway
+		}
+	})
+	go runBenchmarkUploader(ctx, shipper, benchCh)
+
 	// Sources: pushed config from the manager if present, otherwise per-OS defaults / LOG_FILE.
 	sources := resolveSources()
 	var configVersion int
@@ -949,4 +962,30 @@ func hostname() string {
 		return h
 	}
 	return "unknown"
+}
+
+// runBenchmarkUploader ships assessments as they are produced.
+//
+// A failed upload is logged and dropped rather than retried. The assessment is a snapshot of the
+// host's configuration, and the next pass produces a fresh one; retrying a stale answer risks
+// overwriting a newer assessment with an older one, which for a compliance score is the one
+// outcome worth avoiding.
+func runBenchmarkUploader(ctx context.Context, shipper *agent.Shipper, ch <-chan agent.SCAAssessment) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case a := <-ch:
+			if err := shipper.PostBenchmark(ctx, a); err != nil {
+				if errors.Is(err, agent.ErrRevoked) {
+					return
+				}
+				log.Printf("agent: benchmark %s not reported (%d passed / %d failed): %v",
+					a.PolicyID, a.Passed, a.Failed, err)
+				continue
+			}
+			log.Printf("agent: benchmark %s reported: %d passed, %d failed, %d skipped (score %d%%)",
+				a.PolicyID, a.Passed, a.Failed, a.NotApplicab, a.Score)
+		}
+	}
 }

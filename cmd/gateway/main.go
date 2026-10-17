@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -165,6 +166,7 @@ func main() {
 	var fileActionsFunc gateway.FileActionsFunc
 	var fileActionResultFunc gateway.FileActionResultFunc
 	var inventoryFunc gateway.InventoryFunc
+	var benchmarkFunc gateway.InventoryFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		// The gateway serves every agent regardless of tenant (mTLS CN auth, config, revocation,
 		// heartbeat, FIM snapshots, file-action results), so it connects with the RLS super-admin
@@ -308,6 +310,26 @@ func main() {
 				}
 				return st.ReplaceInventory(ctx, cn, inv)
 			}
+			// Configuration benchmarks (CIS). Same shape as inventory: unmarshal here so the
+			// gateway package stays free of the agent import, and take the agent name from the
+			// certificate rather than the body.
+			benchmarkFunc = func(ctx context.Context, cn string, body []byte) error {
+				var a agent.SCAAssessment
+				if err := json.Unmarshal(body, &a); err != nil {
+					return err
+				}
+				if a.PolicyID == "" {
+					return fmt.Errorf("gateway: benchmark report has no policy id")
+				}
+				results := make([]store.BenchmarkResult, 0, len(a.Results))
+				for _, r := range a.Results {
+					results = append(results, store.BenchmarkResult{
+						PolicyID: a.PolicyID, CheckID: r.CheckID, Title: r.Title,
+						Result: r.Result, Reason: r.Reason, Remediation: r.Remediation, CIS: r.CIS,
+					})
+				}
+				return st.ReplaceBenchmarkResults(ctx, cn, a.PolicyID, a.PolicyName, results)
+			}
 			// Agent-side auto-block: return a per-agent envelope. The manager's nftables_agent
 			// integration is the source of truth, agent_scope filters which CNs it applies to;
 			// table/set from the integration config override the agent's defaults. Pre-v2.11
@@ -409,6 +431,7 @@ func main() {
 	mux.HandleFunc("GET /v1/restore", gateway.RestoreHandler(restoreFunc))
 	mux.HandleFunc("POST /v1/snapshots", gateway.SnapshotHandler(snapshotFunc, revoked))
 	mux.HandleFunc("POST /v1/inventory", gateway.InventoryHandler(inventoryFunc, revoked))
+	mux.HandleFunc("POST /v1/benchmark", gateway.BenchmarkHandler(benchmarkFunc, revoked))
 	mux.HandleFunc("GET /v1/file-actions", gateway.FileActionsHandler(fileActionsFunc, revoked))
 	mux.HandleFunc("POST /v1/file-actions/result", gateway.FileActionResultHandler(fileActionResultFunc, revoked))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {

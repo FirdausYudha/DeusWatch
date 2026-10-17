@@ -122,6 +122,34 @@ func (s *Shipper) PostInventory(ctx context.Context, inv Inventory) error {
 	return nil
 }
 
+// PostBenchmark ships one policy's assessment. It is its own endpoint rather than a log line
+// because an assessment is a few hundred results that must replace the previous set atomically,
+// and feeding that through the log pipeline would turn one host's daily benchmark into a few
+// hundred events the operator has to reassemble into a score.
+func (s *Shipper) PostBenchmark(ctx context.Context, a SCAAssessment) error {
+	body, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/benchmark", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("agent: post benchmark: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusGone {
+		return ErrRevoked
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("agent: benchmark rejected (status %d)", resp.StatusCode)
+	}
+	return nil
+}
+
 // PostProcessSnapshot ships a batch of process snapshots to the manager for malware analysis.
 // Called periodically (e.g., every 5 minutes) by the agent.
 func (s *Shipper) PostProcessSnapshot(ctx context.Context, batch *ProcessSnapshotBatch) error {

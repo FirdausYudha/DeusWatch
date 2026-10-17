@@ -7,6 +7,36 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.65.0
+
+Requires migration **000082**.
+
+### Added
+
+- **Configuration benchmarks (CIS)**, a new **Benchmarks** page and a source type `sca`. Hardening
+  checks are evaluated on the endpoint and scored per host and per policy, with the policy's own
+  remediation text on each failing control.
+
+  It reads **Wazuh SCA policy files unchanged** rather than introducing a format of its own. The
+  value in a CIS benchmark is the several hundred checks per platform that somebody keeps current
+  as distributions change, and maintaining that content here is a promise this project cannot
+  keep. The same call produced the imported decoders, the generic SSH responder and
+  operator-supplied SNMP OIDs, and all three still work when the upstream moves.
+
+  **Policies are not pushed from the manager.** A policy's `c:` rules are shell commands run as
+  the agent's user, usually root, so a policy file is executable content; if the manager could
+  push one, a compromised manager would own every endpoint. Put them in `/etc/deuswatch/sca`
+  (`C:\ProgramData\DeusWatch\sca` on Windows) with your configuration management. Groups decide
+  that a host runs benchmarks; the host decides which.
+
+  **The score counts only the controls that could be evaluated.** A check this engine cannot
+  assess is reported as skipped with the reason, never as a failure: a failed CIS check sends an
+  operator to change a production host, and counting skipped checks would let a host improve its
+  score by becoming less assessable. A policy whose `requirements` do not match the host is
+  skipped whole, so a Debian benchmark on a RHEL box is not several hundred false failures.
+
+  See [docs/benchmarks.md](docs/benchmarks.md).
+
 ## v2.64.0
 
 ### Added

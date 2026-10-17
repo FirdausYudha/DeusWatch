@@ -23,6 +23,7 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   network: { title: 'Network', subtitle: 'Switches, access points and routers over SNMP' },
   servicehealth: { title: 'Service Health', subtitle: 'Are the endpoints your workflows depend on actually working?' },
   inventory: { title: 'Inventory', subtitle: 'Installed software across the fleet' },
+  benchmarks: { title: 'Benchmarks', subtitle: 'CIS hardening assessment, run on the endpoint' },
   agenthealth: { title: 'Agent Health', subtitle: 'Vulnerability assessment & software composition analysis' },
   fim: { title: 'File Integrity', subtitle: 'File changes, ransomware and malware' },
   snapshots: { title: 'Snapshots', subtitle: 'Versioned file timeline & recovery' },

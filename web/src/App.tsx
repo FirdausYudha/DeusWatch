@@ -5,6 +5,7 @@ import Topbar from './components/Topbar'
 import Dashboard from './dashboard/Dashboard'
 import Agents from './agents/Agents'
 import Inventory from './inventory/Inventory'
+import Benchmarks from './benchmarks/Benchmarks'
 import AgentHealth from './health/AgentHealth'
 import Snapshots from './snapshots/Snapshots'
 import FileIntegrity from './fim/FileIntegrity'
@@ -92,6 +93,8 @@ export default function App() {
           <AgentHealth me={me} />
         ) : view === 'inventory' ? (
           <Inventory me={me} />
+        ) : view === 'benchmarks' ? (
+          <Benchmarks me={me} />
         ) : view === 'fim' ? (
           <FileIntegrity range={range} onOpenSnapshots={openSnapshotsFor} />
         ) : view === 'snapshots' ? (
