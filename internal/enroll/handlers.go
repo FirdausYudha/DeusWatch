@@ -116,11 +116,9 @@ func (s *Store) SetConfigHandler() http.HandlerFunc {
 			http.Error(w, "sources must not be empty", http.StatusBadRequest)
 			return
 		}
-		for _, src := range req.Sources {
-			if src.Dataset == "" || src.Type == "" {
-				http.Error(w, "each source must have a dataset & type", http.StatusBadRequest)
-				return
-			}
+		if err := validateSources(req.Sources); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 		version, err := s.SetConfig(r.Context(), id, req.Sources)
 		if err != nil {

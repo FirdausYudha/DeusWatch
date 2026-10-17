@@ -7,6 +7,34 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.62.0
+
+Requires migration **000080**.
+
+### Added
+
+- **Agent groups.** A collection policy set once and followed by many agents, on the Agents page
+  behind the new **Groups** button. Editing a group reaches every member on its next poll, and the
+  save reports how many agents were affected.
+
+  Config push has always been per agent, which is fine at one site and does not survive growth:
+  500 endpoints that should watch the same paths were 500 identical edits.
+
+  An agent's own config **overrides** its group's rather than merging with it, because merging
+  means deciding what happens when both name the same path with different settings, and every
+  answer to that is a rule you would have to hold in your head to predict what an endpoint
+  collects. The Config column now labels whose policy an agent is running (`own` or
+  `from <group>`), and **Use group** on the row drops a per-agent override.
+
+  See [docs/agent-groups.md](docs/agent-groups.md).
+
+- **macOS agent**, Intel and Apple silicon, with its own launchd installer in the enroll wizard.
+  It collects logs, watches files, reports inventory, processes and SCA findings. Host isolation,
+  process kill, nftables auto-block and who-data attribution are **not** available there; those
+  calls fail with an explicit "not supported on this platform" rather than reporting success, so
+  nothing implies a containment that did not happen. The wizard and
+  [docs/macos-agent.md](docs/macos-agent.md) both say so.
+
 ## v2.61.0
 
 ### Changed

@@ -609,8 +609,75 @@ export type AgentInfo = {
   health_detail?: string
   config_version: number
   sources?: AgentSource[]
+  // own_config distinguishes "this agent has its own policy" from "it is showing its group's",
+  // which is the only way to explain why editing a group changed nothing for one endpoint.
+  own_config?: boolean
+  group_id?: string
+  group_name?: string
   agent_version?: string           // v2.12.0+: reported by agent on heartbeat
   update_requested_at?: string     // v2.12.0+: set when operator clicked Update
+}
+
+// ── Agent groups: one collection policy shared by many agents ─────
+
+export type AgentGroup = {
+  id: string
+  name: string
+  description: string
+  sources?: AgentSource[]
+  members: number
+}
+
+export async function fetchAgentGroups(): Promise<AgentGroup[]> {
+  const res = await authFetch('/api/agent-groups')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()) ?? []
+}
+
+export async function createAgentGroup(
+  name: string,
+  description: string,
+  sources: AgentSource[],
+): Promise<{ id: string }> {
+  const res = await authFetch('/api/agent-groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description, sources }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+// Returns how many members were bumped, which for a bulk edit is the only feedback there is.
+export async function setAgentGroupConfig(id: string, sources: AgentSource[]): Promise<{ members: number }> {
+  const res = await authFetch(`/api/agent-groups/${id}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sources }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function deleteAgentGroup(id: string): Promise<void> {
+  const res = await authFetch(`/api/agent-groups/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+// groupID '' clears the assignment.
+export async function setAgentGroupMembership(agentID: string, groupID: string): Promise<void> {
+  const res = await authFetch(`/api/agents/${agentID}/group`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ group_id: groupID }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+// Drops an agent's own config so its group's policy applies again.
+export async function clearAgentConfig(agentID: string): Promise<void> {
+  const res = await authFetch(`/api/agents/${agentID}/config`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
 // Fetches the manager's own build tag so the UI can show "agent 2.11.0 · manager 2.12.0"

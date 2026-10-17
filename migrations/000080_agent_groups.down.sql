@@ -1,0 +1,3 @@
+ALTER TABLE agents DROP COLUMN IF EXISTS config_rev;
+ALTER TABLE agents DROP COLUMN IF EXISTS group_id;
+DROP TABLE IF EXISTS agent_groups;

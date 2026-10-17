@@ -9,10 +9,17 @@ import {
   revokeAgent,
   deleteAgent,
   setAgentConfig,
+  clearAgentConfig,
+  fetchAgentGroups,
+  createAgentGroup,
+  setAgentGroupConfig,
+  deleteAgentGroup,
+  setAgentGroupMembership,
   agentOnline,
   can,
   type AgentInfo,
   type AgentSource,
+  type AgentGroup,
   type Tenant,
   type Me,
 } from '../lib/api'
@@ -72,6 +79,34 @@ export default function Agents({ me }: { me: Me }) {
   const [updating, setUpdating] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [groups, setGroups] = useState<AgentGroup[]>([])
+  const [groupsOpen, setGroupsOpen] = useState(false)
+
+  const loadGroups = () => fetchAgentGroups().then(setGroups).catch(() => {})
+
+  // Assign (or unassign) one agent. Reloads rather than patching locally, because the effective
+  // source list and version both change and guessing them here would show a screen that does not
+  // match what the endpoint is served.
+  const assignGroup = async (a: AgentInfo, groupID: string) => {
+    setError('')
+    try {
+      await setAgentGroupMembership(a.id, groupID)
+      load()
+      void loadGroups()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const revertToGroup = async (a: AgentInfo) => {
+    setError('')
+    try {
+      await clearAgentConfig(a.id)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   const load = () => {
     fetchAgents()
@@ -88,6 +123,7 @@ export default function Agents({ me }: { me: Me }) {
   }
   useEffect(() => {
     load()
+    void loadGroups()
     fetchManagerVersion().then(setManagerVersion).catch(() => {})
     const t = setInterval(load, 15_000)
     return () => clearInterval(t)
@@ -183,6 +219,7 @@ export default function Agents({ me }: { me: Me }) {
           <p className="mt-0.5 text-[13px] text-muted">Registered agents, heartbeat status &amp; centrally-pushed config</p>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             <DocLink file="new-log-source.md" label="Add a log source" />
+            <DocLink file="agent-groups.md" label="Agent groups" />
             <DocLink file="agent-troubleshooting.md" label="Troubleshooting" />
             <DocLink file="whodata.md" label="FIM who-data" />
             <DocLink file="modsecurity.md" label="ModSecurity / WAF" />
@@ -193,12 +230,21 @@ export default function Agents({ me }: { me: Me }) {
           </div>
         </div>
         {isAdmin && (
-          <button
-            onClick={() => setWizard(true)}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90"
-          >
-            + Add agent
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setGroupsOpen(true)}
+              className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] font-medium text-fg transition-colors hover:bg-surface-2"
+              title="One collection policy shared by many agents"
+            >
+              Groups{groups.length > 0 ? ` (${groups.length})` : ''}
+            </button>
+            <button
+              onClick={() => setWizard(true)}
+              className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90"
+            >
+              + Add agent
+            </button>
+          </div>
         )}
       </header>
 
@@ -271,6 +317,7 @@ export default function Agents({ me }: { me: Me }) {
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Heartbeat</th>
               <th className="px-4 py-2 font-medium">Version</th>
+              <th className="px-4 py-2 font-medium">Group</th>
               <th className="px-4 py-2 font-medium">Config</th>
               {isAdmin && <th className="px-4 py-2 font-medium">Actions</th>}
             </tr>
@@ -317,10 +364,40 @@ export default function Agents({ me }: { me: Me }) {
                   )}
                 </td>
                 <td className="px-4 py-2 text-muted">
+                  {isAdmin ? (
+                    <select
+                      value={a.group_id ?? ''}
+                      onChange={(e) => void assignGroup(a, e.target.value)}
+                      className="max-w-[10rem] rounded-[6px] border border-border bg-surface-2 px-2 py-1 text-[12.5px] outline-none focus:border-accent"
+                      title="Assigning a group does nothing while this agent has a config of its own"
+                    >
+                      <option value="">none</option>
+                      {groups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    a.group_name || '-'
+                  )}
+                </td>
+                <td className="px-4 py-2 text-muted">
                   v{a.config_version}
                   {a.sources && a.sources.length > 0 && (
                     <span className="ml-1 text-dim">({a.sources.length} source{a.sources.length > 1 ? 's' : ''})</span>
                   )}
+                  {/* Whose policy this is. An operator who edits a group and sees nothing change
+                      on one endpoint has no other way to find out why. */}
+                  {a.own_config ? (
+                    <span className="ml-1.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[11px] text-amber-300" title="This agent has a policy of its own; group edits do not reach it">
+                      own
+                    </span>
+                  ) : a.group_name ? (
+                    <span className="ml-1.5 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-dim" title={`Inherited from the group ${a.group_name}`}>
+                      from {a.group_name}
+                    </span>
+                  ) : null}
                 </td>
                 {isAdmin && (
                   <td className="px-4 py-2">
@@ -341,6 +418,15 @@ export default function Agents({ me }: { me: Me }) {
                       >
                         Monitoring
                       </button>
+                      {a.own_config && a.group_id && (
+                        <button
+                          onClick={() => void revertToGroup(a)}
+                          className="rounded-md border border-border px-2 py-1 text-[12.5px] text-muted hover:bg-surface-2"
+                          title={`Drop this agent's own policy so the group ${a.group_name} applies again`}
+                        >
+                          Use group
+                        </button>
+                      )}
                       <button
                         onClick={() => setSnapshotsFor(a)}
                         className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg hover:bg-surface-2"
@@ -376,10 +462,34 @@ export default function Agents({ me }: { me: Me }) {
       {wizard && <EnrollWizard onClose={() => setWizard(false)} />}
       {editing && (
         <ConfigEditor
-          agent={editing}
+          title={`Monitoring, ${editing.name}`}
+          blurb={
+            <>
+              Choose what this agent collects. For <code className="text-fg">fim</code> &amp;{' '}
+              <code className="text-fg">wineventlog</code> set a scan interval (seconds) to control intensity.
+              Saving bumps the version &amp; the agent re-applies on its next poll.
+              {editing.group_name && !editing.own_config && (
+                <>
+                  {' '}This agent currently follows the group <span className="text-fg">{editing.group_name}</span>.
+                  Saving here gives it a policy of its own, and group edits will stop reaching it.
+                </>
+              )}
+            </>
+          }
+          initial={editing.sources ?? []}
+          onSave={(clean) => setAgentConfig(editing.id, clean).then(() => undefined)}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
+            load()
+          }}
+        />
+      )}
+      {groupsOpen && (
+        <GroupsPanel
+          onClose={() => setGroupsOpen(false)}
+          onChanged={() => {
+            void loadGroups()
             load()
           }}
         />
@@ -639,20 +749,25 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ConfigEditor, central monitoring config: which sources each agent collects and,
-// for poll-based collectors, how often (intensity).
+// ConfigEditor, central monitoring config: which sources are collected and, for poll-based
+// collectors, how often (intensity). It edits a source list without caring whose it is, so one
+// agent and a whole group are the same screen rather than two editors that drift apart.
 function ConfigEditor({
-  agent,
+  title,
+  blurb,
+  initial,
+  onSave,
   onClose,
   onSaved,
 }: {
-  agent: AgentInfo
+  title: string
+  blurb: React.ReactNode
+  initial: AgentSource[]
+  onSave: (sources: AgentSource[]) => Promise<void>
   onClose: () => void
   onSaved: () => void
 }) {
-  const [sources, setSources] = useState<AgentSource[]>(
-    (agent.sources ?? []).map((s) => ({ ...s })),
-  )
+  const [sources, setSources] = useState<AgentSource[]>(initial.map((s) => ({ ...s })))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -682,7 +797,7 @@ function ConfigEditor({
         }
         return base
       })
-      await setAgentConfig(agent.id, clean)
+      await onSave(clean)
       onSaved()
     } catch (e) {
       setError((e as Error).message)
@@ -697,12 +812,8 @@ function ConfigEditor({
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">Monitoring, {agent.name}</h2>
-        <p className="mb-4 text-[12.5px] text-dim">
-          Choose what this agent collects. For <code className="text-fg">fim</code> &amp;{' '}
-          <code className="text-fg">wineventlog</code> set a scan interval (seconds) to control intensity.
-          Saving bumps the version &amp; the agent re-applies on its next poll.
-        </p>
+        <h2 className="mb-1 text-[16px] font-semibold text-fg">{title}</h2>
+        <p className="mb-4 text-[12.5px] text-dim">{blurb}</p>
 
         <div className="space-y-2">
           <div className="grid grid-cols-[1fr_8rem_1.6fr_6rem_2rem] gap-2 px-1 text-[12.5px] uppercase tracking-wider text-dim">
@@ -863,6 +974,163 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
         <div className="mt-5 flex justify-end">
           <Button onClick={onClose}>Close</Button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// GroupsPanel manages the named collection policies. Creating and deleting live here; editing a
+// group's sources reuses ConfigEditor, because a group and an agent are the same source list and
+// two editors for one shape is two editors to keep in step.
+function GroupsPanel({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const [groups, setGroups] = useState<AgentGroup[]>([])
+  const [error, setError] = useState('')
+  const [name, setName] = useState('')
+  const [desc, setDesc] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState<AgentGroup | null>(null)
+  const [note, setNote] = useState('')
+
+  const load = () =>
+    fetchAgentGroups()
+      .then(setGroups)
+      .catch((e) => setError((e as Error).message))
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const create = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await createAgentGroup(name.trim(), desc.trim(), [])
+      setName('')
+      setDesc('')
+      await load()
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async (g: AgentGroup) => {
+    if (
+      !confirm(
+        g.members > 0
+          ? `Delete "${g.name}"? Its ${g.members} agent${g.members > 1 ? 's' : ''} will fall back to their own policy, or to the agent defaults if they have none.`
+          : `Delete "${g.name}"?`,
+      )
+    )
+      return
+    setError('')
+    try {
+      await deleteAgentGroup(g.id)
+      await load()
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="mb-1 text-[16px] font-semibold text-fg">Agent groups</h2>
+        <p className="mb-4 text-[12.5px] text-dim">
+          One collection policy shared by many agents. Editing a group reaches every member on its next
+          poll. An agent that has a policy of its own ignores its group until you clear it.
+        </p>
+
+        {error && <p className="mb-3 text-[13.5px] text-rose-400">{error}</p>}
+        {note && <p className="mb-3 text-[13.5px] text-emerald-300">{note}</p>}
+
+        <div className="space-y-2">
+          {groups.length === 0 && (
+            <p className="rounded-[8px] border border-dashed border-border px-3 py-4 text-center text-[12.5px] text-dim">
+              No groups yet. Create one below, then assign agents to it from the Group column.
+            </p>
+          )}
+          {groups.map((g) => (
+            <div key={g.id} className="flex items-center gap-3 rounded-[8px] border border-border bg-surface-2 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] text-fg">{g.name}</div>
+                <div className="truncate text-[12.5px] text-dim">
+                  {g.members} agent{g.members === 1 ? '' : 's'}
+                  {' · '}
+                  {g.sources?.length ?? 0} source{(g.sources?.length ?? 0) === 1 ? '' : 's'}
+                  {g.description ? ` · ${g.description}` : ''}
+                </div>
+              </div>
+              <button
+                onClick={() => setEditing(g)}
+                className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg hover:bg-surface"
+              >
+                Sources
+              </button>
+              <button
+                onClick={() => void remove(g)}
+                className="rounded-md border border-rose-500/40 px-2 py-1 text-[12.5px] text-rose-300 hover:bg-rose-500/10"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="grid grid-cols-[1fr_1.4fr_auto] gap-2">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Group name, e.g. Servers"
+              className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
+            />
+            <input
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="What it is for (optional)"
+              className="rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] outline-none focus:border-accent"
+            />
+            <Button onClick={() => void create()} disabled={busy || !name.trim()}>
+              {busy ? 'Creating…' : 'Create'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
+            Close
+          </button>
+        </div>
+
+        {editing && (
+          <ConfigEditor
+            title={`Sources, ${editing.name}`}
+            blurb={
+              <>
+                What every agent in this group collects. Saving reaches all {editing.members} member
+                {editing.members === 1 ? '' : 's'} on their next poll, except any that have a policy of
+                their own.
+              </>
+            }
+            initial={editing.sources ?? []}
+            onSave={async (clean) => {
+              const { members } = await setAgentGroupConfig(editing.id, clean)
+              setNote(`Saved. ${members} agent${members === 1 ? '' : 's'} will re-apply on the next poll.`)
+            }}
+            onClose={() => setEditing(null)}
+            onSaved={() => {
+              setEditing(null)
+              void load()
+              onChanged()
+            }}
+          />
+        )}
       </div>
     </div>
   )

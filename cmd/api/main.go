@@ -272,6 +272,12 @@ func main() {
 			// existing revoke/config/update convention.
 			mux.Handle("POST /api/agents/{id}/delete", protect(auth.PermManageAgents, enrollStore.DeleteHandler()))
 			mux.Handle("PUT /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.SetConfigHandler()))
+			mux.Handle("DELETE /api/agents/{id}/config", protect(auth.PermManageAgents, enrollStore.ClearConfigHandler()))
+			mux.Handle("PUT /api/agents/{id}/group", protect(auth.PermManageAgents, enrollStore.SetAgentGroupHandler()))
+			mux.Handle("GET /api/agent-groups", protect(auth.PermManageAgents, enrollStore.GroupsHandler()))
+			mux.Handle("POST /api/agent-groups", protect(auth.PermManageAgents, enrollStore.GroupsHandler()))
+			mux.Handle("PUT /api/agent-groups/{id}/config", protect(auth.PermManageAgents, enrollStore.SetGroupConfigHandler()))
+			mux.Handle("DELETE /api/agent-groups/{id}", protect(auth.PermManageAgents, enrollStore.DeleteGroupHandler()))
 			// v2.12.0: queue an in-place self-update for the named agent; picked up on next
 			// heartbeat, agent atomically replaces its own binary + exits, systemd restarts it.
 			mux.Handle("POST /api/agents/{name}/update", protect(auth.PermManageAgents, enrollStore.RequestUpdateHandler()))

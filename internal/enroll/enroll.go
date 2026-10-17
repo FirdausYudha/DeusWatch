@@ -192,25 +192,34 @@ func (s *Store) Enroll(ctx context.Context, rawToken, name, os string) (*Bundle,
 
 // AgentInfo for the agent list.
 type AgentInfo struct {
-	ID                string         `json:"id"`
-	Name              string         `json:"name"`
-	OS                string         `json:"os"`
-	EnrolledAt        time.Time      `json:"enrolled_at"`
-	LastSeenAt        *time.Time     `json:"last_seen_at"`
-	Revoked           bool           `json:"revoked"`
-	Status            string         `json:"status"`                  // unknown|online|degraded|disconnected|stale (worker-maintained)
-	HealthDetail      string         `json:"health_detail,omitempty"` // agent's self-reported problem, e.g. "217 batches buffered"
-	ConfigVersion     int            `json:"config_version"`
-	Sources           []agent.Source `json:"sources,omitempty"`
-	AgentVersion      string         `json:"agent_version,omitempty"`       // v2.12.0+: what the agent last reported
-	UpdateRequestedAt *time.Time     `json:"update_requested_at,omitempty"` // v2.12.0+: operator asked for upgrade
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	OS            string         `json:"os"`
+	EnrolledAt    time.Time      `json:"enrolled_at"`
+	LastSeenAt    *time.Time     `json:"last_seen_at"`
+	Revoked       bool           `json:"revoked"`
+	Status        string         `json:"status"`                  // unknown|online|degraded|disconnected|stale (worker-maintained)
+	HealthDetail  string         `json:"health_detail,omitempty"` // agent's self-reported problem, e.g. "217 batches buffered"
+	ConfigVersion int            `json:"config_version"`
+	Sources       []agent.Source `json:"sources,omitempty"`
+	// OwnConfig distinguishes "this agent has its own policy" from "it is showing its group's".
+	// Without it the UI cannot tell an operator why editing the group changed nothing for one
+	// endpoint, which is the single most confusing thing about per-agent overrides.
+	OwnConfig         bool       `json:"own_config"`
+	GroupID           string     `json:"group_id,omitempty"`
+	GroupName         string     `json:"group_name,omitempty"`
+	AgentVersion      string     `json:"agent_version,omitempty"`       // v2.12.0+: what the agent last reported
+	UpdateRequestedAt *time.Time `json:"update_requested_at,omitempty"` // v2.12.0+: operator asked for upgrade
 }
 
 func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	rows, err := s.q(ctx).Query(ctx,
-		`SELECT id, name, COALESCE(os,''), enrolled_at, last_seen_at, revoked, status, health_detail, config,
-		         COALESCE(agent_version,''), update_requested_at
-		 FROM agents WHERE deleted_at IS NULL ORDER BY enrolled_at DESC`)
+		`SELECT a.id, a.name, COALESCE(a.os,''), a.enrolled_at, a.last_seen_at, a.revoked, a.status,
+		        a.health_detail, a.config, COALESCE(a.agent_version,''), a.update_requested_at,
+		        a.config_rev, COALESCE(a.group_id::text,''), COALESCE(g.name,''), g.config
+		 FROM agents a
+		 LEFT JOIN agent_groups g ON g.id = a.group_id
+		 WHERE a.deleted_at IS NULL ORDER BY a.enrolled_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("enroll: list agents: %w", err)
 	}
@@ -218,19 +227,32 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	out := make([]AgentInfo, 0, 16)
 	for rows.Next() {
 		var (
-			a   AgentInfo
-			raw *string
+			a        AgentInfo
+			raw      *string
+			groupRaw *string
+			rev      int
 		)
-		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &a.Status, &a.HealthDetail, &raw, &a.AgentVersion, &a.UpdateRequestedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &a.Status,
+			&a.HealthDetail, &raw, &a.AgentVersion, &a.UpdateRequestedAt,
+			&rev, &a.GroupID, &a.GroupName, &groupRaw); err != nil {
 			return nil, err
 		}
-		if raw != nil {
+		// Report the EFFECTIVE policy, the one the endpoint is actually collecting, with the same
+		// precedence the agent is served: its own config, else its group's. A list that showed the
+		// stored-but-overridden config would have an operator reading a screen that does not
+		// describe the machine.
+		a.OwnConfig = raw != nil
+		eff := raw
+		if eff == nil {
+			eff = groupRaw
+		}
+		if eff != nil {
 			var cfg agent.Config
-			if json.Unmarshal([]byte(*raw), &cfg) == nil {
-				a.ConfigVersion = cfg.Version
+			if json.Unmarshal([]byte(*eff), &cfg) == nil {
 				a.Sources = cfg.Sources
 			}
 		}
+		a.ConfigVersion = rev
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -462,44 +484,82 @@ func (s *Store) PendingAgentUpdate(ctx context.Context, name, managerVersion str
 	return true, nil
 }
 
-// SetConfig sets the desired sources for an agent (config push) and bumps the
-// version. Returns the new version.
+// SetConfig sets the desired sources for one agent (config push) and returns the new version.
+//
+// An agent-specific config OVERRIDES its group's rather than merging with it. Merging two source
+// lists means deciding what happens when both name the same path with different settings, and
+// every answer to that is a rule an operator has to hold in their head to predict what an
+// endpoint is collecting. One config wins, and the UI says which.
 func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source) (int, error) {
-	var raw *string
-	err := s.q(ctx).QueryRow(ctx, `SELECT config FROM agents WHERE id = $1`, id).Scan(&raw)
+	cfg, err := json.Marshal(agent.Config{Sources: sources})
+	if err != nil {
+		return 0, err
+	}
+	// config_rev, not a version read out of the stored JSON. The agent re-applies only when the
+	// version it is handed is strictly greater than the one it runs, so the number must never go
+	// backwards for a given agent, whichever config ends up winning.
+	var rev int
+	err = s.q(ctx).QueryRow(ctx,
+		`UPDATE agents SET config = $1, config_rev = config_rev + 1 WHERE id = $2 RETURNING config_rev`,
+		cfg, id).Scan(&rev)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("enroll: agent not found")
 	}
 	if err != nil {
-		return 0, fmt.Errorf("enroll: read config: %w", err)
-	}
-	var cur agent.Config
-	if raw != nil {
-		_ = json.Unmarshal([]byte(*raw), &cur)
-	}
-	cfg := agent.Config{Version: cur.Version + 1, Sources: sources}
-	b, err := json.Marshal(cfg)
-	if err != nil {
-		return 0, err
-	}
-	if _, err := s.q(ctx).Exec(ctx, `UPDATE agents SET config = $1 WHERE id = $2`, b, id); err != nil {
 		return 0, fmt.Errorf("enroll: store config: %w", err)
 	}
-	return cfg.Version, nil
+	return rev, nil
 }
 
-// GetConfigByName returns the config JSON for the agent with CN name (nil if not
-// yet set or the agent is revoked).
+// ClearConfig drops an agent's own config so it falls back to its group's (or, with no group, to
+// the agent's built-in defaults).
+func (s *Store) ClearConfig(ctx context.Context, id string) error {
+	tag, err := s.q(ctx).Exec(ctx,
+		`UPDATE agents SET config = NULL, config_rev = config_rev + 1 WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("enroll: clear config: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("enroll: agent not found")
+	}
+	return nil
+}
+
+// GetConfigByName returns the effective config JSON for the agent with CN name, or nil when it
+// has none and neither does its group.
+//
+// Resolution is: the agent's own config if it has one, otherwise its group's. The version stamped
+// into the returned JSON is always the agent's config_rev, never the version stored in whichever
+// config won, because the agent only re-applies on a strictly greater number: handing it the
+// group's own version would move the number DOWN when an agent is taken off a long-edited
+// personal config and put on a newer group, and the change would then never be applied, silently.
 func (s *Store) GetConfigByName(ctx context.Context, name string) ([]byte, error) {
-	var raw *string
-	err := s.q(ctx).QueryRow(ctx, `SELECT config FROM agents WHERE name = $1 AND NOT revoked`, name).Scan(&raw)
-	if errors.Is(err, pgx.ErrNoRows) || raw == nil {
+	var own, group *string
+	var rev int
+	err := s.q(ctx).QueryRow(ctx, `
+		SELECT a.config, g.config, a.config_rev
+		  FROM agents a
+		  LEFT JOIN agent_groups g ON g.id = a.group_id
+		 WHERE a.name = $1 AND NOT a.revoked`, name).Scan(&own, &group, &rev)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return []byte(*raw), nil
+	raw := own
+	if raw == nil {
+		raw = group
+	}
+	if raw == nil {
+		return nil, nil
+	}
+	var cfg agent.Config
+	if err := json.Unmarshal([]byte(*raw), &cfg); err != nil {
+		return nil, fmt.Errorf("enroll: stored config for %q is not readable: %w", name, err)
+	}
+	cfg.Version = rev
+	return json.Marshal(cfg)
 }
 
 func nilIfEmpty(s string) any {
