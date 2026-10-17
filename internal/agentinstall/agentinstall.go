@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-//go:embed install.sh install.ps1
+//go:embed install.sh install.ps1 install-macos.sh
 var scripts embed.FS
 
 // Handler serves the installer scripts and binaries. binDir holds the
@@ -58,12 +58,18 @@ func (h *Handler) InstallSh(w http.ResponseWriter, _ *http.Request) {
 	h.script(w, "install.sh", "text/x-shellscript; charset=utf-8")
 }
 
+// InstallMacOS serves the macOS installer (GET /api/agent/install-macos.sh). Separate from the
+// Linux one because macOS uses launchd, not systemd.
+func (h *Handler) InstallMacOS(w http.ResponseWriter, _ *http.Request) {
+	h.script(w, "install-macos.sh", "text/x-shellscript; charset=utf-8")
+}
+
 // InstallPs1 serves the Windows installer (GET /api/agent/install.ps1).
 func (h *Handler) InstallPs1(w http.ResponseWriter, _ *http.Request) {
 	h.script(w, "install.ps1", "text/plain; charset=utf-8")
 }
 
-var allowedOS = map[string]bool{"linux": true, "windows": true}
+var allowedOS = map[string]bool{"linux": true, "windows": true, "darwin": true}
 
 // Binary serves a cross-compiled agent binary (GET /api/agent/binary/{os}/{arch}).
 func (h *Handler) Binary(w http.ResponseWriter, r *http.Request) {

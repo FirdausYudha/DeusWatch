@@ -499,10 +499,11 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   const nm = name || '<name>'
   // One copy-paste command that downloads, enrolls, installs the service and connects.
   // API_PORT/GW_PORT are passed so the agent reaches the manager on its remapped ports.
+  const installScript = os === 'macos' ? 'install-macos.sh' : 'install.sh'
   const install =
     os === 'windows'
       ? `$env:MANAGER='${managerIP}'; $env:TOKEN='${tok}'; $env:NAME='${nm}'; $env:API_PORT='${apiPort}'; $env:GW_PORT='${gwPort}'; iwr http://${host}/api/agent/install.ps1 -UseBasicParsing | iex`
-      : `curl -fsSL http://${host}/api/agent/install.sh | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} API_PORT=${apiPort} GW_PORT=${gwPort} sh`
+      : `curl -fsSL http://${host}/api/agent/${installScript} | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} API_PORT=${apiPort} GW_PORT=${gwPort} sh`
   // Firewall command to run once on the manager host (Windows) so agents can reach it.
   const managerFw = `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort ${apiPort},${gwPort}`
 
@@ -547,6 +548,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             >
               <option value="linux">Linux</option>
               <option value="windows">Windows</option>
+              <option value="macos">macOS</option>
             </select>
           </label>
           <label className="block">
@@ -609,6 +611,12 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             <p className="mt-1 text-[12.5px] text-dim">
               Downloads the agent, opens its firewall, enrolls with the token, installs an auto-start service, and connects to the gateway.
             </p>
+            {os === 'macos' && (
+              <p className="mt-1 text-[12.5px] text-amber-400/80">
+                On macOS the agent collects logs and watches files, but host isolation, process kill and who-data
+                attribution are not available. Give it Full Disk Access to read protected paths.
+              </p>
+            )}
           </div>
         </div>
 
