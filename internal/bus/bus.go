@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -100,9 +101,27 @@ func (b *Bus) Publish(ctx context.Context, subject string, data []byte) error {
 // Handler processes a single message. Returning an error Naks the message (redeliver).
 type Handler func(subject string, data []byte) error
 
+// MsgHandler processes a message and takes ownership of acknowledging it: it must eventually
+// call done exactly once, with nil to Ack or an error to Nak. It may return before done is
+// called, which is the point: a handler that batches its database writes returns immediately and
+// acknowledges only once the batch has committed, so the consumer keeps pulling while the batch
+// fills instead of blocking on one round trip per message.
+//
+// The contract is what keeps batching safe. Acking on enqueue would tell JetStream the event is
+// handled while it is still only in memory, and a crash would lose it with no redelivery. A
+// handler that never calls done loses nothing either: the message stays unacked and JetStream
+// redelivers it after AckWait.
+type MsgHandler func(subject string, data []byte, done func(error))
+
 // Consume creates a durable consumer on the stream for filterSubject, then calls the
 // handler for each message. Returns a stop function to halt consumption.
 func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string, h Handler) (func(), error) {
+	return b.ConsumeMsg(ctx, stream, durable, filterSubject,
+		func(subject string, data []byte, done func(error)) { done(h(subject, data)) })
+}
+
+// ConsumeMsg is Consume for a handler that acknowledges on its own schedule.
+func (b *Bus) ConsumeMsg(ctx context.Context, stream, durable, filterSubject string, h MsgHandler) (func(), error) {
 	cons, err := b.js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
 		Durable:       durable,
 		FilterSubject: filterSubject,
@@ -115,6 +134,19 @@ func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string
 		return nil, fmt.Errorf("bus: consumer %s: %w", durable, err)
 	}
 	cc, err := cons.Consume(func(msg jetstream.Msg) {
+		// Exactly one of Ack/Nak/Term must reach the server. sync.Once makes that true even if a
+		// batching handler reports twice, which would otherwise ack a message belonging to the
+		// NEXT delivery and drop it silently.
+		var once sync.Once
+		done := func(err error) {
+			once.Do(func() {
+				if err != nil {
+					_ = msg.Nak()
+					return
+				}
+				_ = msg.Ack()
+			})
+		}
 		// A handler panic must never crash the process: the NATS callback runs in its own
 		// goroutine, so an unrecovered panic here would take down the whole worker (no detection,
 		// no heartbeat). Recover it, log loudly with a stack, and Term the offending message so a
@@ -122,14 +154,10 @@ func (b *Bus) Consume(ctx context.Context, stream, durable, filterSubject string
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("bus: PANIC handling message on %q: %v\n%s", msg.Subject(), r, debug.Stack())
-				_ = msg.Term()
+				once.Do(func() { _ = msg.Term() })
 			}
 		}()
-		if err := h(msg.Subject(), msg.Data()); err != nil {
-			_ = msg.Nak()
-			return
-		}
-		_ = msg.Ack()
+		h(msg.Subject(), msg.Data(), done)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bus: consume %s: %w", durable, err)

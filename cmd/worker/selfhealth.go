@@ -257,3 +257,11 @@ func durEnv(key string, def time.Duration) time.Duration {
 	}
 	return def
 }
+
+// intEnv reads a positive int from env with a default.
+func intEnv(key string, def int) int {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil && v > 0 {
+		return v
+	}
+	return def
+}

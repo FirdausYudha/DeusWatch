@@ -60,19 +60,44 @@ func warnFutureSkew(e *ingest.Event, now time.Time) {
 	log.Printf("worker: agent %q stamped an event %s in the future, clamping to server time; fix that host's clock/timezone (NTP)", agent, e.Timestamp.Sub(now).Round(time.Second))
 }
 
-// Handler returns a bus.Handler for the logs.normalized subject: enrich the event
-// (if an enricher is set), persist it, run the detectors, persist any fired alerts,
-// then call onAlert for each alert. Enricher & onAlert may be nil.
+// Handler returns a bus.Handler for the logs.normalized subject, storing each event on its own.
+// Equivalent to MsgHandler over a DirectQueue; kept because it is the simpler thing to call from
+// a test and the behaviour to fall back to when batching is switched off.
 func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onAlert AlertHook, suppress AlertSuppressor, annotate AlertAnnotator, detectors ...detect.Detector) bus.Handler {
-	return func(_ string, data []byte) error {
+	h := MsgHandler(ctx, sink, DirectQueue{Sink: sink}, enricher, onAlert, suppress, annotate, detectors...)
+	return func(subject string, data []byte) error {
+		var err error
+		h(subject, data, func(e error) { err = e })
+		return err
+	}
+}
+
+// MsgHandler returns a bus.MsgHandler for the logs.normalized subject: enrich the event (if an
+// enricher is set), run the detectors, persist any fired alerts, queue the event itself, then
+// call onAlert for each alert. Enricher & onAlert may be nil.
+//
+// Two things are deliberate about the order and the split between the two sinks.
+//
+// Detection runs BEFORE the event is stored. Detector.Inspect is in-memory only (the aggregation
+// rules that do query the database run on their own ticker, not here), so nothing in detection
+// needs the row to exist yet, and deciding first means the queue can own the acknowledgement.
+//
+// Alerts go to sink synchronously while ordinary events go through queue. Alerts are a tiny
+// fraction of the volume and they have downstream readers: onAlert fires response and
+// notification, which must not run before the alert row is committed. Ordinary events have no
+// such reader in this path, so they are the ones worth batching, and that is where effectively
+// all of the volume is.
+func MsgHandler(ctx context.Context, sink EventSink, queue EventQueue, enricher *enrich.Enricher, onAlert AlertHook, suppress AlertSuppressor, annotate AlertAnnotator, detectors ...detect.Detector) bus.MsgHandler {
+	return func(_ string, data []byte, done func(error)) {
 		var e ingest.Event
 		if err := json.Unmarshal(data, &e); err != nil {
 			log.Printf("worker: dropped corrupt message: %v", err)
-			return nil // poison message: do not redeliver
+			done(nil) // poison message: do not redeliver
+			return
 		}
 		// Event time comes from the AGENT's clock. Guard the two ways it can be unusable:
-		//   * zero  → fall back to server time.
-		//   * far in the FUTURE → an agent whose clock/timezone runs ahead (a classic VM/NTP
+		//   * zero  -> fall back to server time.
+		//   * far in the FUTURE -> an agent whose clock/timezone runs ahead (a classic VM/NTP
 		//     misconfig, e.g. The RTC holds local time but the OS assumes UTC) stamps events in the
 		//     future, where the dashboard's `time <= now()` upper bound HIDES them until the wall
 		//     clock catches up (hours later). Clamp to server time so they surface immediately, and
@@ -100,22 +125,11 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 		if annotate != nil && e.DeusWatch.Label != "" {
 			annotate(&e)
 		}
-		if err := sink.InsertEvent(ic, &e); err != nil {
-			return err // returned -> Nak -> redeliver
-		}
-		// A pre-labeled ingested event (e.g. a Suricata/IDS alert consumed as a log source) is
-		// already an alert - an external detector decided so. Drive response/notify on it
-		// directly, without a DeusWatch rule needing to re-fire. The trusted-session gate still
-		// applies (a no-op for non-file alerts).
-		if e.DeusWatch.Label != "" {
-			if suppress == nil || !suppress(ic, &e) {
-				log.Printf("worker: ALERT %s from %s (rule=%s)",
-					e.DeusWatch.Label, alertSourceIP(&e), ruleID(&e))
-				if onAlert != nil {
-					onAlert(ic, &e)
-				}
-			}
-		}
+
+		// fired collects the alerts to announce once everything has been stored, so a failure
+		// part way through cannot leave response and notification fired for an alert that is not
+		// in the database.
+		var fired []*ingest.Event
 		for _, det := range detectors {
 			alert := det.Inspect(&e)
 			if alert == nil {
@@ -128,7 +142,8 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 				// change with no legitimate session is not suppressed and keeps its normal severity.
 				markAuthorizedChange(alert)
 				if err := sink.InsertEvent(ic, alert); err != nil {
-					return err
+					done(err)
+					return
 				}
 				log.Printf("worker: authorized change on %s recorded (trusted session; not alerted)",
 					alertTarget(alert))
@@ -138,15 +153,45 @@ func Handler(ctx context.Context, sink EventSink, enricher *enrich.Enricher, onA
 				annotate(alert)
 			}
 			if err := sink.InsertEvent(ic, alert); err != nil {
-				return err
+				done(err)
+				return
 			}
+			fired = append(fired, alert)
+		}
+
+		// A pre-labeled ingested event (e.g. a Suricata/IDS alert consumed as a log source) is
+		// already an alert - an external detector decided so. Drive response/notify on it
+		// directly, without a DeusWatch rule needing to re-fire. The trusted-session gate still
+		// applies (a no-op for non-file alerts).
+		announceSelf := e.DeusWatch.Label != "" && (suppress == nil || !suppress(ic, &e))
+
+		// The event itself, and with it the acknowledgement of the bus message. A pre-labeled
+		// event IS an alert and onAlert runs on it below, so it takes the synchronous path for
+		// the same reason a fired alert does: response must not outrun the row it is about.
+		if e.DeusWatch.Label != "" {
+			if err := sink.InsertEvent(ic, &e); err != nil {
+				done(err)
+				return
+			}
+			done(nil)
+		} else {
+			queue.Add(ic, &e, done)
+		}
+
+		if announceSelf {
+			log.Printf("worker: ALERT %s from %s (rule=%s)",
+				e.DeusWatch.Label, alertSourceIP(&e), ruleID(&e))
+			if onAlert != nil {
+				onAlert(ic, &e)
+			}
+		}
+		for _, alert := range fired {
 			log.Printf("worker: ALERT %s from %s (rule=%s)",
 				alert.DeusWatch.Label, alertSourceIP(alert), ruleID(alert))
 			if onAlert != nil {
 				onAlert(ic, alert)
 			}
 		}
-		return nil
 	}
 }
 

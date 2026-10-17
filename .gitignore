@@ -77,3 +77,8 @@ decoders/wazuh-imported/
 /worker
 /api
 /gateway
+
+# ── Tugas Akhir (data perusahaan + draf TA). Repo ini PUBLIK, jangan pernah di-commit ke sini.
+# Pindahkan ke repo PRIVAT tersendiri untuk versioning.
+Tugas Akhir/
+

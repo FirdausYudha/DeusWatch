@@ -7,6 +7,30 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.61.0
+
+### Changed
+
+- **The detect worker stores events in batches.** Until now it sent one `INSERT` per event and
+  waited for it, and because the bus callback is serial that wait was the ceiling for the whole
+  pipeline: nothing could be decoded, enriched or matched while the worker sat on a round trip.
+  Ordinary events now go into a buffer and are stored with one multi-row `INSERT` per batch.
+
+  A batched event is acknowledged to JetStream only after its statement commits, so a worker
+  killed with a full buffer loses nothing, those messages were never acked and are redelivered. A
+  failed insert Naks the whole batch rather than dropping part of it.
+
+  Alerts are deliberately NOT batched. Response and notification read an alert back, so it is
+  committed before they run.
+
+  Two new optional settings, `EVENT_BATCH_ROWS` (default 200) and `EVENT_BATCH_LINGER` (default
+  200ms). Nothing to do on upgrade; `EVENT_BATCH_ROWS=1` restores the old per-event insert if you
+  need to rule the batch out while diagnosing something.
+
+  See [docs/throughput.md](docs/throughput.md), which also records what this did NOT fix: decode,
+  enrich and matching are still serial, and there is still no leader election, so there is still
+  exactly one worker.
+
 ## v2.60.0
 
 ### Added

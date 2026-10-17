@@ -262,63 +262,98 @@ func (s *Store) Close() { s.pool.Close() }
 // Pool returns the connection pool (used by the auth package so it shares the same pool).
 func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
-const insertEventSQL = `
-INSERT INTO events (
-	time, event_category, event_action, event_outcome, event_severity,
-	event_dataset, event_original,
-	source_ip, source_port, source_geo_country_iso,
-	host_name, host_os_type, agent_id, agent_version,
-	user_name, rule_id, rule_name,
-	threat_technique_id, threat_technique_name, threat_tactic_name,
-	threat_indicator_ip, threat_indicator_confidence, threat_feed_name, threat_indicator_last_seen,
-	dw_label, dw_severity_original, dw_severity_escalated_by,
-	dw_enrichment_status, dw_enrichment_abuse_confidence, dw_enrichment_otx_pulse_count,
-	source_geo_city,
-	file_path, file_hash_sha256, file_owner, file_mode,
-	dw_filehash_verdict, dw_filehash_detail,
-	destination_ip, destination_port, network_transport, network_protocol,
-	dw_remediation_action, dw_remediation_source, dw_remediation_status,
-	file_diff,
-	process_name, process_pid,
-	http_method, http_uri, http_status, http_host,
-	tenant_id,
-	source_asn_number, source_asn_org,
-	user_effective
-) VALUES (
-	$1, $2, $3, $4, $5,
-	$6, $7,
-	$8::inet, $9, $10,
-	$11, $12, $13, $14,
-	$15, $16, $17,
-	$18, $19, $20,
-	$21::inet, $22, $23, $24,
-	$25, $26, $27,
-	$28, $29, $30,
-	$31,
-	$32, $33, $34, $35,
-	$36, $37,
-	$38::inet, $39, $40, $41,
-	$42, $43, $44,
-	$45,
-	$46, $47,
-	$48, $49, $50, $51,
-	-- Tenant stamping precedence: $52 (explicit override, e.g. from the ingest webhook bound to a
-	-- specific workspace) → the producing agent's tenant (agent_id = $13 = cert CN / agent name) →
-	-- the Default tenant sentinel from migration 000049 (tenancy.DefaultTenantID). Belt-and-braces
-	-- so no event is ever dropped for lack of a tenant; the override lets operators route webhook
-	-- traffic to their own workspace even when no agent record exists.
-	COALESCE(
-		$52::uuid,
-		(SELECT a.tenant_id FROM agents a WHERE a.name = $13),
-		'00000000-0000-0000-0000-000000000001'::uuid
-	),
-	$53, $54,
-	$55
-)`
+// eventColumns is the events-view column list the single and batch inserts share, in the
+// order eventArgs returns its values. Keeping one list means a new column cannot be added to
+// one insert path and forgotten in the other.
+var eventColumns = []string{
+	"time", "event_category", "event_action", "event_outcome", "event_severity",
+	"event_dataset", "event_original",
+	"source_ip", "source_port", "source_geo_country_iso",
+	"host_name", "host_os_type", "agent_id", "agent_version",
+	"user_name", "rule_id", "rule_name",
+	"threat_technique_id", "threat_technique_name", "threat_tactic_name",
+	"threat_indicator_ip", "threat_indicator_confidence", "threat_feed_name", "threat_indicator_last_seen",
+	"dw_label", "dw_severity_original", "dw_severity_escalated_by",
+	"dw_enrichment_status", "dw_enrichment_abuse_confidence", "dw_enrichment_otx_pulse_count",
+	"source_geo_city",
+	"file_path", "file_hash_sha256", "file_owner", "file_mode",
+	"dw_filehash_verdict", "dw_filehash_detail",
+	"destination_ip", "destination_port", "network_transport", "network_protocol",
+	"dw_remediation_action", "dw_remediation_source", "dw_remediation_status",
+	"file_diff",
+	"process_name", "process_pid",
+	"http_method", "http_uri", "http_status", "http_host",
+	"tenant_id",
+	"source_asn_number", "source_asn_org",
+	"user_effective",
+}
 
-// InsertEvent writes one DCS event into the events hypertable. Unset fields are
-// left NULL/default.
-func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
+// Column positions (1-based within eventColumns) whose placeholder needs an explicit cast:
+// the driver sends Go strings as text and Postgres will not coerce text to inet implicitly.
+const (
+	colSourceIP    = 8
+	colThreatIP    = 21
+	colAgentID     = 13
+	colDestIP      = 38
+	colTenantID    = 52
+	eventColumnCnt = 55
+)
+
+// maxEventsPerInsert caps rows per statement. Postgres allows at most 65535 bind parameters per
+// statement and each row costs len(eventColumns), so this bound is a hard protocol limit, not a
+// tuning knob: 500 * 55 = 27500 leaves generous headroom.
+const maxEventsPerInsert = 500
+
+// eventRowSQL renders the VALUES tuple for one row whose parameters start at base+1.
+//
+// Two columns are not plain placeholders. The three inet columns carry a cast, and tenant_id
+// keeps the precedence rule from the original single-row statement: an explicit override from the
+// ingest webhook, then the producing agent's tenant looked up by agent_id, then the Default tenant
+// sentinel from migration 000049. Belt-and-braces so no event is ever dropped for lack of a
+// tenant, and the override lets operators route webhook traffic to their own workspace even when
+// no agent record exists.
+func eventRowSQL(b *strings.Builder, base int) {
+	b.WriteByte('(')
+	for i := 1; i <= eventColumnCnt; i++ {
+		if i > 1 {
+			b.WriteByte(',')
+		}
+		switch i {
+		case colSourceIP, colThreatIP, colDestIP:
+			fmt.Fprintf(b, "$%d::inet", base+i)
+		case colTenantID:
+			fmt.Fprintf(b,
+				"COALESCE($%d::uuid,(SELECT a.tenant_id FROM agents a WHERE a.name = $%d),'%s'::uuid)",
+				base+i, base+colAgentID, tenancy.DefaultTenantID)
+		default:
+			fmt.Fprintf(b, "$%d", base+i)
+		}
+	}
+	b.WriteByte(')')
+}
+
+// insertEventsSQL builds a multi-row INSERT for exactly rows rows. It targets the events VIEW
+// rather than the underlying hypertable so the security_barrier tenant filter still applies;
+// that is also why this cannot be a pgx.CopyFrom, COPY does not accept a view and cannot run the
+// per-row tenant subquery.
+func insertEventsSQL(rows int) string {
+	var b strings.Builder
+	b.Grow(256 + rows*eventColumnCnt*8)
+	b.WriteString("INSERT INTO events (")
+	b.WriteString(strings.Join(eventColumns, ","))
+	b.WriteString(") VALUES ")
+	for r := 0; r < rows; r++ {
+		if r > 0 {
+			b.WriteByte(',')
+		}
+		eventRowSQL(&b, r*eventColumnCnt)
+	}
+	return b.String()
+}
+
+// eventArgs flattens an event into the eventColumns bind parameters. Pure, so the single-row
+// and batch inserts cannot drift apart.
+func eventArgs(e *ingest.Event) []any {
 	var (
 		srcIP, srcPort, srcGeoCountry any = nil, nil, nil
 		srcGeoCity                    any = nil
@@ -428,7 +463,7 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 	dwEscalatedBy = strOrNil(e.DeusWatch.Severity.EscalatedBy)
 	tenantOverride := strOrNil(e.DeusWatch.TenantID)
 
-	_, err := s.q(ctx).Exec(ctx, insertEventSQL,
+	return []any{
 		e.Timestamp, strOrNil(e.Event.Category), strOrNil(e.Event.Action),
 		strOrNil(e.Event.Outcome), int16(e.Event.Severity),
 		strOrNil(e.Event.Dataset), strOrNil(e.Event.Original),
@@ -452,9 +487,43 @@ func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
 		tenantOverride,
 		srcASNNum, srcASNOrg,
 		userEffective,
-	)
-	if err != nil {
+	}
+}
+
+// InsertEvent writes one DCS event into the events hypertable. Unset fields are
+// left NULL/default.
+func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
+	if _, err := s.q(ctx).Exec(ctx, insertEventsSQL(1), eventArgs(e)...); err != nil {
 		return fmt.Errorf("store: insert event: %w", err)
+	}
+	return nil
+}
+
+// InsertEvents writes many events in as few statements as possible: one multi-row INSERT per
+// chunk of maxEventsPerInsert instead of one round trip per event. This is the hot path, the
+// detect worker's own insert, and the per-event round trip was the pipeline's throughput ceiling.
+//
+// It is NOT atomic across chunks. A failure part way through leaves earlier chunks committed and
+// is reported as an error, which the caller turns into a Nak; redelivery then re-inserts the
+// committed prefix. Duplicates are already possible on the redelivery path (an alert insert could
+// always fail after its source event had landed), so this adds no new class of problem, and the
+// alternative, one transaction spanning every chunk, holds a write transaction open across an
+// unbounded batch for no gain.
+func (s *Store) InsertEvents(ctx context.Context, evs []*ingest.Event) error {
+	if len(evs) == 0 {
+		return nil
+	}
+	q := s.q(ctx)
+	for len(evs) > 0 {
+		n := min(len(evs), maxEventsPerInsert)
+		args := make([]any, 0, n*eventColumnCnt)
+		for _, e := range evs[:n] {
+			args = append(args, eventArgs(e)...)
+		}
+		if _, err := q.Exec(ctx, insertEventsSQL(n), args...); err != nil {
+			return fmt.Errorf("store: insert %d events: %w", n, err)
+		}
+		evs = evs[n:]
 	}
 	return nil
 }

@@ -66,7 +66,17 @@ func TestHandlerSuppressesGatedAlert(t *testing.T) {
 			if hookCalled != tc.wantHook {
 				t.Fatalf("onAlert called=%v, want %v", hookCalled, tc.wantHook)
 			}
-			stored := sink.events[len(sink.events)-1] // the alert (last stored)
+			// The alert is identified by its label, not by position: detection now runs before the
+			// source event is stored, so the alert lands first.
+			var stored *ingest.Event
+			for _, ev := range sink.events {
+				if ev.Event.Category == "intrusion_detection" {
+					stored = ev
+				}
+			}
+			if stored == nil {
+				t.Fatalf("the alert was not stored at all")
+			}
 			if stored.DeusWatch.Label != tc.wantLabel {
 				t.Fatalf("stored label=%q, want %q", stored.DeusWatch.Label, tc.wantLabel)
 			}

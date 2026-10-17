@@ -286,11 +286,21 @@ func main() {
 	// FILE_CHANGE_TRUSTED_WINDOW (default 15m). Inert when the IP whitelist is empty.
 	fileGate := makeTrustedSessionGate(st, engine, trustedWindowFromEnv())
 
-	stop, err := b.Consume(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
-		worker.Handler(ctx, st, enricher, onAlert, fileGate, pbLive.Annotate, bruteForce, sigmaDet))
+	// Ordinary events are stored in batches: one multi-row INSERT per EVENT_BATCH_ROWS (or per
+	// EVENT_BATCH_LINGER when traffic is light) instead of a round trip per event, which is what
+	// the serial consumer callback used to spend its time waiting on. Alerts stay on the
+	// single-insert path, see worker.MsgHandler. Set EVENT_BATCH_ROWS=1 to turn batching off.
+	batcher := worker.NewBatcher(st, intEnv("EVENT_BATCH_ROWS", worker.DefaultBatchRows),
+		durEnv("EVENT_BATCH_LINGER", worker.DefaultBatchLinger))
+	stop, err := b.ConsumeMsg(ctx, bus.StreamLogs, "detect", bus.SubjectLogsNormalized,
+		worker.MsgHandler(ctx, st, batcher, enricher, onAlert, fileGate, pbLive.Annotate, bruteForce, sigmaDet))
 	if err != nil {
+		batcher.Close()
 		log.Fatalf("worker: consume: %v", err)
 	}
+	// Order matters: stop pulling first, then drain the batcher, so the final flush is not
+	// racing new arrivals (deferred calls run last-in-first-out).
+	defer batcher.Close()
 	defer stop()
 
 	// Raw daily archive: a second consumer appends every event's original line to
