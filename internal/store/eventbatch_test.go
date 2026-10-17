@@ -116,7 +116,7 @@ func TestInsertEventsRoundTrip(t *testing.T) {
 	// Columns past the first chunk's offsets must still land in the right place.
 	var ip, ruleID string
 	if err := st.pool.QueryRow(ctx,
-		`SELECT source_ip::text, rule_id FROM events WHERE event_dataset=$1 AND rule_id=$2`,
+		`SELECT host(source_ip), rule_id FROM events WHERE event_dataset=$1 AND rule_id=$2`,
 		dataset, fmt.Sprintf("r-%d", maxEventsPerInsert)).Scan(&ip, &ruleID); err != nil {
 		t.Fatalf("read back a row from the second chunk: %v", err)
 	}
