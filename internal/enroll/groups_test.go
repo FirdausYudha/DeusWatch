@@ -88,8 +88,12 @@ func TestGroupConfigResolution(t *testing.T) {
 	defer cancel()
 	s, _, id, name := groupTestStore(t, ctx)
 
-	if _, ok := served(t, s, ctx, name); ok {
-		t.Fatal("a fresh agent with no config and no group was served one")
+	// A freshly enrolled agent already carries the OS default sources: enrollment seeds them so
+	// a new host watches its logs out of the box and they are visible in the UI. That seed must
+	// NOT count as an operator override, or a group would never apply to anything.
+	seeded, ok := served(t, s, ctx, name)
+	if !ok || len(seeded.Sources) == 0 {
+		t.Fatal("a freshly enrolled agent was served no sources; the enrollment seed is missing")
 	}
 
 	gid, err := s.CreateGroup(ctx, "grouptest-servers", "web servers", []agent.Source{src("group.policy")})
@@ -101,7 +105,7 @@ func TestGroupConfigResolution(t *testing.T) {
 	}
 	cfg, ok := served(t, s, ctx, name)
 	if !ok || len(cfg.Sources) != 1 || cfg.Sources[0].Dataset != "group.policy" {
-		t.Fatalf("group config not served: %+v (found=%v)", cfg.Sources, ok)
+		t.Fatalf("the group did not beat the enrollment seed: %+v (found=%v)", cfg.Sources, ok)
 	}
 
 	// A per-agent config overrides; it does not merge.
@@ -230,8 +234,15 @@ func TestDeleteGroupReleasesMembers(t *testing.T) {
 	if err := s.DeleteGroup(ctx, gid); err != nil {
 		t.Fatalf("DeleteGroup: %v", err)
 	}
-	if _, ok := served(t, s, ctx, name); ok {
-		t.Fatal("the agent is still being served the config of a group that was deleted")
+	// Back to the enrollment seed, not to nothing: a released member keeps watching its logs.
+	back, ok := served(t, s, ctx, name)
+	if !ok {
+		t.Fatal("a released group member is served nothing at all; it has stopped watching its logs")
+	}
+	for _, sc := range back.Sources {
+		if sc.Dataset == "doomed" {
+			t.Fatal("the agent is still being served the config of a group that was deleted")
+		}
 	}
 	var rev int
 	if err := pool.QueryRow(ctx, `SELECT config_rev FROM agents WHERE id=$1`, id).Scan(&rev); err != nil {
@@ -275,7 +286,7 @@ func TestListAgentsReportsEffectivePolicy(t *testing.T) {
 
 	a := find()
 	if a.OwnConfig {
-		t.Error("an agent with no config of its own is reported as having one")
+		t.Error("the enrollment seed is being reported as an operator override")
 	}
 	if a.GroupName != "grouptest-listed" {
 		t.Errorf("group name = %q, want grouptest-listed", a.GroupName)
@@ -293,5 +304,44 @@ func TestListAgentsReportsEffectivePolicy(t *testing.T) {
 	}
 	if len(a.Sources) != 1 || a.Sources[0].Dataset != "from.agent" {
 		t.Errorf("listing shows %+v, want the per-agent policy", a.Sources)
+	}
+}
+
+// TestEffectiveConfigPrecedence is a pure test of the rule, so it runs even where the database
+// does not. The seed case is the one that matters: enrollment writes the OS default sources into
+// every agent, so reading "has a config" as "was customised" makes every agent look overridden
+// and a group apply to nobody. That is exactly the bug this column was added to fix.
+func TestEffectiveConfigPrecedence(t *testing.T) {
+	seed, override, group := "seed", "override", "group"
+	for _, tc := range []struct {
+		name     string
+		own      *string
+		isOver   bool
+		group    *string
+		want     *string
+		wantWhat string
+	}{
+		{"nothing at all", nil, false, nil, nil, "nothing"},
+		{"seed only", &seed, false, nil, &seed, "the seed"},
+		{"seed and a group", &seed, false, &group, &group, "the group, beating the seed"},
+		{"override and a group", &override, true, &group, &override, "the override"},
+		{"override, no group", &override, true, nil, &override, "the override"},
+		{"group only", nil, false, &group, &group, "the group"},
+		// An override flag with no config is not a state the store writes, but if it ever
+		// happened, falling through to the group beats serving nothing.
+		{"override flag with no config", nil, true, &group, &group, "the group"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := effectiveConfig(tc.own, tc.isOver, tc.group)
+			if got == nil || tc.want == nil {
+				if got != tc.want {
+					t.Fatalf("got %v, want %s", got, tc.wantWhat)
+				}
+				return
+			}
+			if *got != *tc.want {
+				t.Fatalf("served %q, want %s", *got, tc.wantWhat)
+			}
+		})
 	}
 }

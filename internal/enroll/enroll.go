@@ -216,7 +216,7 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 	rows, err := s.q(ctx).Query(ctx,
 		`SELECT a.id, a.name, COALESCE(a.os,''), a.enrolled_at, a.last_seen_at, a.revoked, a.status,
 		        a.health_detail, a.config, COALESCE(a.agent_version,''), a.update_requested_at,
-		        a.config_rev, COALESCE(a.group_id::text,''), COALESCE(g.name,''), g.config
+		        a.config_rev, a.config_is_override, COALESCE(a.group_id::text,''), COALESCE(g.name,''), g.config
 		 FROM agents a
 		 LEFT JOIN agent_groups g ON g.id = a.group_id
 		 WHERE a.deleted_at IS NULL ORDER BY a.enrolled_at DESC`)
@@ -234,19 +234,14 @@ func (s *Store) ListAgents(ctx context.Context) ([]AgentInfo, error) {
 		)
 		if err := rows.Scan(&a.ID, &a.Name, &a.OS, &a.EnrolledAt, &a.LastSeenAt, &a.Revoked, &a.Status,
 			&a.HealthDetail, &raw, &a.AgentVersion, &a.UpdateRequestedAt,
-			&rev, &a.GroupID, &a.GroupName, &groupRaw); err != nil {
+			&rev, &a.OwnConfig, &a.GroupID, &a.GroupName, &groupRaw); err != nil {
 			return nil, err
 		}
 		// Report the EFFECTIVE policy, the one the endpoint is actually collecting, with the same
 		// precedence the agent is served: its own config, else its group's. A list that showed the
 		// stored-but-overridden config would have an operator reading a screen that does not
 		// describe the machine.
-		a.OwnConfig = raw != nil
-		eff := raw
-		if eff == nil {
-			eff = groupRaw
-		}
-		if eff != nil {
+		if eff := effectiveConfig(raw, a.OwnConfig, groupRaw); eff != nil {
 			var cfg agent.Config
 			if json.Unmarshal([]byte(*eff), &cfg) == nil {
 				a.Sources = cfg.Sources
@@ -500,7 +495,8 @@ func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source
 	// backwards for a given agent, whichever config ends up winning.
 	var rev int
 	err = s.q(ctx).QueryRow(ctx,
-		`UPDATE agents SET config = $1, config_rev = config_rev + 1 WHERE id = $2 RETURNING config_rev`,
+		`UPDATE agents SET config = $1, config_is_override = true, config_rev = config_rev + 1
+		  WHERE id = $2 RETURNING config_rev`,
 		cfg, id).Scan(&rev)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("enroll: agent not found")
@@ -515,7 +511,8 @@ func (s *Store) SetConfig(ctx context.Context, id string, sources []agent.Source
 // the agent's built-in defaults).
 func (s *Store) ClearConfig(ctx context.Context, id string) error {
 	tag, err := s.q(ctx).Exec(ctx,
-		`UPDATE agents SET config = NULL, config_rev = config_rev + 1 WHERE id = $1`, id)
+		`UPDATE agents SET config = NULL, config_is_override = false, config_rev = config_rev + 1
+		  WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("enroll: clear config: %w", err)
 	}
@@ -535,22 +532,20 @@ func (s *Store) ClearConfig(ctx context.Context, id string) error {
 // personal config and put on a newer group, and the change would then never be applied, silently.
 func (s *Store) GetConfigByName(ctx context.Context, name string) ([]byte, error) {
 	var own, group *string
+	var override bool
 	var rev int
 	err := s.q(ctx).QueryRow(ctx, `
-		SELECT a.config, g.config, a.config_rev
+		SELECT a.config, a.config_is_override, g.config, a.config_rev
 		  FROM agents a
 		  LEFT JOIN agent_groups g ON g.id = a.group_id
-		 WHERE a.name = $1 AND NOT a.revoked`, name).Scan(&own, &group, &rev)
+		 WHERE a.name = $1 AND NOT a.revoked`, name).Scan(&own, &override, &group, &rev)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	raw := own
-	if raw == nil {
-		raw = group
-	}
+	raw := effectiveConfig(own, override, group)
 	if raw == nil {
 		return nil, nil
 	}

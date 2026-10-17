@@ -28,7 +28,7 @@ needs nothing from you does not say so; assume silence means nothing to do.
 
 ## v2.62.0
 
-Requires migration **000080**.
+Requires migrations **000080** and **000081**.
 
 ### Added
 
@@ -44,6 +44,11 @@ Requires migration **000080**.
   answer to that is a rule you would have to hold in your head to predict what an endpoint
   collects. The Config column now labels whose policy an agent is running (`own` or
   `from <group>`), and **Use group** on the row drops a per-agent override.
+
+  Precedence is: a policy you set on that agent, then its group, then the enrollment seed (the
+  OS default sources written when it enrolled). The seed ranks below the group on purpose. Every
+  agent carries one, so counting it as a policy you had set would make every agent look
+  customised and a group apply to nobody.
 
   See [docs/agent-groups.md](docs/agent-groups.md).
 

@@ -17,9 +17,26 @@ Editing a group's sources reaches every member on its next poll. The save tells 
 agents were affected, which for a bulk edit is the only feedback there is: a count of zero means
 the group has no members, or every member has a policy of its own.
 
-## Precedence, and why it is not a merge
+## Precedence
 
-An agent's own config **overrides** its group's. It does not merge with it.
+1. A **per-agent policy you set** (Monitoring on that agent row).
+2. Its **group**.
+3. The **enrollment seed**, the OS default sources written when the agent enrolled.
+
+The seed ranking below the group is the point of the order. Enrollment gives every agent the
+default sources for its platform, deliberately, so a new host watches its logs out of the box and
+those sources are visible rather than hidden inside the agent binary. If that counted as a policy
+you had set, every agent would look customised and a group would apply to nobody.
+
+So assigning a group to a freshly enrolled agent works, and it is only an edit you made on that
+specific agent that takes it out of the group's reach.
+
+An agent that is released from a group (the group was deleted, or you set it to none) falls back
+to the seed, not to nothing. It keeps watching its logs.
+
+## Why it is not a merge
+
+A per-agent policy **overrides** its group's. It does not merge with it.
 
 Merging two source lists means deciding what happens when both name the same path with different
 settings, and every answer to that is a rule an operator has to hold in their head to predict what

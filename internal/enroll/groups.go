@@ -171,3 +171,20 @@ func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
+
+// effectiveConfig picks the config an agent is actually served.
+//
+// Precedence: an operator's per-agent override, then the agent's group, then whatever the row
+// already carried. That last case is the enrollment seed, the OS default sources written so a new
+// host watches its logs out of the box, and it has to rank BELOW the group. Treating it as an
+// override is what broke this feature before it shipped: every agent carries a seed, so every
+// agent would look like it had been customised and a group would never apply to anything.
+func effectiveConfig(own *string, override bool, group *string) *string {
+	if override && own != nil {
+		return own
+	}
+	if group != nil {
+		return group
+	}
+	return own
+}
