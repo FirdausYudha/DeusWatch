@@ -92,8 +92,15 @@ const maxHashBytes = 64 << 20 // 64 MiB
 
 // FIMChange is a single file-integrity change (the JSON payload of dataset "fim").
 type FIMChange struct {
-	Path    string  `json:"path"`
-	Action  string  `json:"action"` // created | modified | deleted
+	Path   string `json:"path"`
+	Action string `json:"action"` // created | modified | deleted
+	// Kind separates a registry value from a file. Empty means file, which keeps every config and
+	// every stored event written before registry monitoring existed reading the same way. The
+	// registry collector reuses this whole struct deliberately: a registry value is a path and a
+	// hash, so the normalizer, the rules, the diff view and the timeline all already fit it. What
+	// it must NOT do is claim to be a file, because "file changed" on a Run key is an alert that
+	// sends somebody looking in the wrong place.
+	Kind    string  `json:"kind,omitempty"` // "" (file) | registry
 	SHA256  string  `json:"sha256,omitempty"`
 	Size    int64   `json:"size,omitempty"`
 	Mode    string  `json:"mode,omitempty"`

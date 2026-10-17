@@ -1,0 +1,45 @@
+title: Registry Autorun Key Changed (Registry Integrity Monitoring)
+id: 6a1d4e92-7c3b-4f58-9a07-2b5e8c31d7f4
+status: experimental
+description: >
+  A monitored registry value under an autorun, service or logon key was created or modified.
+  This is where Windows persistence actually lives: a payload written to a Run key, a Winlogon
+  helper, an Image File Execution Options debugger or a service ImagePath survives a reboot,
+  which a dropped file on its own does not. The value's new contents ride along on the event, so
+  the alert can name the command line rather than only the key.
+  Deletion is not alerted here: removing an autorun entry is what cleanup looks like, and the
+  separate "monitored registry value deleted" case is better served by the generic rule.
+references:
+  - https://attack.mitre.org/techniques/T1547/001/
+  - https://attack.mitre.org/techniques/T1546/012/
+  - https://attack.mitre.org/techniques/T1543/003/
+author: DeusWatch
+level: high
+logsource:
+  product: windows
+  category: registry
+detection:
+  selection:
+    event.category: registry
+  change:
+    event.action:
+      - registry_created
+      - registry_modified
+  autorun:
+    file.path|contains:
+      - '\CurrentVersion\Run'
+      - '\CurrentVersion\RunOnce'
+      - '\CurrentVersion\RunServices'
+      - '\CurrentVersion\Policies\Explorer\Run'
+      - '\Winlogon\Userinit'
+      - '\Winlogon\Shell'
+      - '\Winlogon\Notify'
+      - '\Image File Execution Options'
+      - '\CurrentControlSet\Services'
+      - '\CurrentVersion\Explorer\User Shell Folders'
+  condition: selection and change and autorun
+tags:
+  - attack.t1547.001
+  - attack.t1546.012
+  - attack.t1543.003
+  - attack.persistence

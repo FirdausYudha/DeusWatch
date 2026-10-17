@@ -27,8 +27,8 @@ import DocLink from '../components/DocLink'
 import { Button, Icon, Page, Pagination, usePaged } from '../components/ui'
 import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
-const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim']
-const POLL_TYPES = new Set(['fim', 'wineventlog']) // types where the interval applies
+const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry']
+const POLL_TYPES = new Set(['fim', 'wineventlog', 'registry']) // types where the interval applies
 
 // v() prints a semver with exactly one leading "v", buildVersion baked in from `git describe`
 // already carries a `v` prefix (v2.14.0-1-gabc), so blindly prepending in the template
@@ -220,6 +220,7 @@ export default function Agents({ me }: { me: Me }) {
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             <DocLink file="new-log-source.md" label="Add a log source" />
             <DocLink file="agent-groups.md" label="Agent groups" />
+            <DocLink file="registry-monitoring.md" label="Registry monitoring" />
             <DocLink file="agent-troubleshooting.md" label="Troubleshooting" />
             <DocLink file="whodata.md" label="FIM who-data" />
             <DocLink file="modsecurity.md" label="ModSecurity / WAF" />
@@ -850,7 +851,15 @@ function ConfigEditor({
               <input
                 value={s.path}
                 onChange={(e) => update(i, { path: e.target.value })}
-                placeholder={s.type === 'fim' ? '/etc/passwd,/etc/ssh' : s.type === 'wineventlog' ? 'Security' : '/var/log/auth.log'}
+                placeholder={
+                  s.type === 'fim'
+                    ? '/etc/passwd,/etc/ssh'
+                    : s.type === 'registry'
+                      ? 'HKLM\Software\Microsoft\Windows\CurrentVersion\Run'
+                      : s.type === 'wineventlog'
+                        ? 'Security'
+                        : '/var/log/auth.log'
+                }
                 className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[13.5px] outline-none focus:border-accent"
               />
               {POLL_TYPES.has(s.type) ? (

@@ -514,6 +514,7 @@ func normalizeFIM(msg string, e *Event) bool {
 		ActorStart string `json:"actor_start"`
 		User       string `json:"user"`
 		Syscall    string `json:"syscall"`
+		Kind       string `json:"kind"`
 		// auid and uid kept apart, their difference is the sudo/su signal.
 		LoginUser     string `json:"actor_login_user"`
 		EffectiveUser string `json:"actor_effective_user"`
@@ -534,8 +535,15 @@ func normalizeFIM(msg string, e *Event) bool {
 	default:
 		return false
 	}
-	e.Event.Category = "file"
-	e.Event.Action = "file_" + c.Action
+	// A registry value is not a file. It keeps the file.* fields, which is what the diff view and
+	// the timeline read, but it must not be categorised as a file change: "file modified" on a Run
+	// key is an alert that sends an operator looking in the wrong place.
+	kind := "file"
+	if c.Kind == "registry" {
+		kind = "registry"
+	}
+	e.Event.Category = kind
+	e.Event.Action = kind + "_" + c.Action
 	e.Event.Outcome = "success"
 	e.File = &File{Path: c.Path, HashSHA256: c.SHA256, Mode: c.Mode, Diff: c.Diff}
 	// Who-data (Linux/auditd): the process/user that changed the file. This is the

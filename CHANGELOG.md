@@ -7,6 +7,25 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.63.0
+
+### Added
+
+- **Registry integrity monitoring (Windows).** A new source type, `registry`, watching registry
+  keys the way FIM watches files. The registry is where Windows persistence actually lives, Run
+  keys, Winlogon, Image File Execution Options, service `ImagePath`, so a file-only integrity
+  monitor misses the half of an attack that survives a reboot.
+
+  Values are rendered rather than only hashed, so a modified Run key shows the new command line
+  in the diff instead of only reporting that something changed. Binary values are hashed.
+
+  A registry change reports as `event.category: registry` with the key in `file.path`. It reuses
+  the file fields, which is why the manager needed no changes, but it is NOT categorised as a
+  file: "file modified" on a Run key sends an operator looking in the wrong place.
+
+  New rule **Registry Autorun Key Changed**, `high`, covering the autorun, logon, IFEO and
+  service locations. See [docs/registry-monitoring.md](docs/registry-monitoring.md).
+
 ## v2.62.0
 
 Requires migration **000080**.

@@ -22,6 +22,8 @@ type Line struct {
 //   - "wineventlog" : Windows Event Log (Windows only); Path = channel name
 //   - "fim"         : File Integrity Monitoring (cross-OS); Path = file/directory
 //     (several comma-separated), see fim.go
+//   - "registry"    : registry integrity monitoring (Windows only); Path = key
+//     (several comma-separated), e.g. HKLM\Software\Microsoft\Windows\CurrentVersion\Run
 //
 // The native collector is selected at COMPILE time via build tags (see collect_*_*.go),
 // so each OS has its own implementation, similar to the Wazuh agent architecture.
@@ -79,6 +81,8 @@ func runSource(ctx context.Context, s Source, fromStart bool, out chan<- Line) e
 		return collectJournald(ctx, s, out) // per-OS impl (build tag)
 	case "wineventlog":
 		return collectWinEventLog(ctx, s, out) // per-OS impl (build tag)
+	case "registry":
+		return collectRegistry(ctx, s, out) // per-OS impl (build tag); Windows only
 	default:
 		return fmt.Errorf("unsupported source type: %q", s.Type)
 	}

@@ -89,10 +89,22 @@ func NewBatcher(sink BatchSink, maxRows int, linger time.Duration) *Batcher {
 // Add enqueues an event. It blocks while the buffer is full (backpressure) and returns as soon as
 // the event is queued; ack is called later, from the flush loop.
 func (b *Batcher) Add(ctx context.Context, e *ingest.Event, ack func(error)) {
+	// Check for a stopped loop FIRST, on its own. A plain three-way select would not: `in` is
+	// buffered, so a send into it is ready even after the loop has gone, and select picks
+	// uniformly among ready cases. Half the time the event would land in a channel nobody reads
+	// and ack would never be called.
+	select {
+	case <-b.stopped:
+		ack(context.Canceled) // Nak, so the message is redelivered rather than dropped
+		return
+	default:
+	}
 	select {
 	case b.in <- queued{ev: e, ack: ack}:
+		// A Close racing this send can still leave the event buffered and unacked. That is the
+		// safe side of the race: unacked means JetStream redelivers it, so it arrives late rather
+		// than not at all.
 	case <-b.stopped:
-		// The loop has gone: Nak so the message is redelivered rather than dropped.
 		ack(context.Canceled)
 	case <-ctx.Done():
 		ack(ctx.Err())
