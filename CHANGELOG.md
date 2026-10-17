@@ -7,79 +7,35 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
-## v2.65.0
+## v2.61.0
 
-Requires migration **000082**.
+Requires migrations **000080**, **000081** and **000082**.
 
-### Added
+Closes the capability gaps against Wazuh that were worth closing, plus the throughput ceiling in
+the detect worker. Nothing here needs a configuration change on upgrade; the new collectors are
+source types you opt into per agent or per group.
 
-- **Configuration benchmarks (CIS)**, a new **Benchmarks** page and a source type `sca`. Hardening
-  checks are evaluated on the endpoint and scored per host and per policy, with the policy's own
-  remediation text on each failing control.
+### Changed
 
-  It reads **Wazuh SCA policy files unchanged** rather than introducing a format of its own. The
-  value in a CIS benchmark is the several hundred checks per platform that somebody keeps current
-  as distributions change, and maintaining that content here is a promise this project cannot
-  keep. The same call produced the imported decoders, the generic SSH responder and
-  operator-supplied SNMP OIDs, and all three still work when the upstream moves.
+- **The detect worker stores events in batches.** Until now it sent one `INSERT` per event and
+  waited for it, and because the bus callback is serial that wait was the ceiling for the whole
+  pipeline: nothing could be decoded, enriched or matched while the worker sat on a round trip.
+  Ordinary events now go into a buffer and are stored with one multi-row `INSERT` per batch.
 
-  **Policies are not pushed from the manager.** A policy's `c:` rules are shell commands run as
-  the agent's user, usually root, so a policy file is executable content; if the manager could
-  push one, a compromised manager would own every endpoint. Put them in `/etc/deuswatch/sca`
-  (`C:\ProgramData\DeusWatch\sca` on Windows) with your configuration management. Groups decide
-  that a host runs benchmarks; the host decides which.
+  A batched event is acknowledged to JetStream only after its statement commits, so a worker
+  killed with a full buffer loses nothing, those messages were never acked and are redelivered. A
+  failed insert Naks the whole batch rather than dropping part of it.
 
-  **The score counts only the controls that could be evaluated.** A check this engine cannot
-  assess is reported as skipped with the reason, never as a failure: a failed CIS check sends an
-  operator to change a production host, and counting skipped checks would let a host improve its
-  score by becoming less assessable. A policy whose `requirements` do not match the host is
-  skipped whole, so a Debian benchmark on a RHEL box is not several hundred false failures.
+  Alerts are deliberately NOT batched. Response and notification read an alert back, so it is
+  committed before they run.
 
-  See [docs/benchmarks.md](docs/benchmarks.md).
+  Two new optional settings, `EVENT_BATCH_ROWS` (default 200) and `EVENT_BATCH_LINGER` (default
+  200ms). Nothing to do on upgrade; `EVENT_BATCH_ROWS=1` restores the old per-event insert if you
+  need to rule the batch out while diagnosing something.
 
-## v2.64.0
-
-### Added
-
-- **Rootkit checks (Linux).** A new source type, `rootcheck`, with three local-anomaly checks on a
-  slow timer: a PID the kernel confirms but `/proc` hides (critical), a setuid binary in a
-  writable directory like `/tmp` (high), and a regular file under `/dev` (high).
-
-  Three rather than thirty, on purpose. A rootkit scanner is only useful if people believe it, and
-  a long list of checks whose combined false-positive rate is high on a busy host ends with the
-  whole category muted. A hidden process is confirmed across two passes, because processes start
-  and exit between reading `/proc` and probing a PID constantly and a single pass sees phantom
-  disagreements all the time.
-
-  Findings arrive as `intrusion_detection` / `rootcheck_*` with MITRE T1014, labelled by the agent
-  rather than by a rule: there is nothing a rule could add to "the kernel says this PID exists and
-  `/proc` denies it", and an unlabelled event would sit behind the alerts-only view.
-
-  Hidden-port scanning and trojaned-binary string signatures were deliberately left out.
-  [docs/rootcheck.md](docs/rootcheck.md) says why.
-
-## v2.63.0
-
-### Added
-
-- **Registry integrity monitoring (Windows).** A new source type, `registry`, watching registry
-  keys the way FIM watches files. The registry is where Windows persistence actually lives, Run
-  keys, Winlogon, Image File Execution Options, service `ImagePath`, so a file-only integrity
-  monitor misses the half of an attack that survives a reboot.
-
-  Values are rendered rather than only hashed, so a modified Run key shows the new command line
-  in the diff instead of only reporting that something changed. Binary values are hashed.
-
-  A registry change reports as `event.category: registry` with the key in `file.path`. It reuses
-  the file fields, which is why the manager needed no changes, but it is NOT categorised as a
-  file: "file modified" on a Run key sends an operator looking in the wrong place.
-
-  New rule **Registry Autorun Key Changed**, `high`, covering the autorun, logon, IFEO and
-  service locations. See [docs/registry-monitoring.md](docs/registry-monitoring.md).
-
-## v2.62.0
-
-Requires migrations **000080** and **000081**.
+  See [docs/throughput.md](docs/throughput.md), which also records what this did NOT fix: decode,
+  enrich and matching are still serial, and there is still no leader election, so there is still
+  exactly one worker.
 
 ### Added
 
@@ -110,29 +66,64 @@ Requires migrations **000080** and **000081**.
   nothing implies a containment that did not happen. The wizard and
   [docs/macos-agent.md](docs/macos-agent.md) both say so.
 
-## v2.61.0
 
-### Changed
+- **Registry integrity monitoring (Windows).** A new source type, `registry`, watching registry
+  keys the way FIM watches files. The registry is where Windows persistence actually lives, Run
+  keys, Winlogon, Image File Execution Options, service `ImagePath`, so a file-only integrity
+  monitor misses the half of an attack that survives a reboot.
 
-- **The detect worker stores events in batches.** Until now it sent one `INSERT` per event and
-  waited for it, and because the bus callback is serial that wait was the ceiling for the whole
-  pipeline: nothing could be decoded, enriched or matched while the worker sat on a round trip.
-  Ordinary events now go into a buffer and are stored with one multi-row `INSERT` per batch.
+  Values are rendered rather than only hashed, so a modified Run key shows the new command line
+  in the diff instead of only reporting that something changed. Binary values are hashed.
 
-  A batched event is acknowledged to JetStream only after its statement commits, so a worker
-  killed with a full buffer loses nothing, those messages were never acked and are redelivered. A
-  failed insert Naks the whole batch rather than dropping part of it.
+  A registry change reports as `event.category: registry` with the key in `file.path`. It reuses
+  the file fields, which is why the manager needed no changes, but it is NOT categorised as a
+  file: "file modified" on a Run key sends an operator looking in the wrong place.
 
-  Alerts are deliberately NOT batched. Response and notification read an alert back, so it is
-  committed before they run.
+  New rule **Registry Autorun Key Changed**, `high`, covering the autorun, logon, IFEO and
+  service locations. See [docs/registry-monitoring.md](docs/registry-monitoring.md).
 
-  Two new optional settings, `EVENT_BATCH_ROWS` (default 200) and `EVENT_BATCH_LINGER` (default
-  200ms). Nothing to do on upgrade; `EVENT_BATCH_ROWS=1` restores the old per-event insert if you
-  need to rule the batch out while diagnosing something.
 
-  See [docs/throughput.md](docs/throughput.md), which also records what this did NOT fix: decode,
-  enrich and matching are still serial, and there is still no leader election, so there is still
-  exactly one worker.
+- **Rootkit checks (Linux).** A new source type, `rootcheck`, with three local-anomaly checks on a
+  slow timer: a PID the kernel confirms but `/proc` hides (critical), a setuid binary in a
+  writable directory like `/tmp` (high), and a regular file under `/dev` (high).
+
+  Three rather than thirty, on purpose. A rootkit scanner is only useful if people believe it, and
+  a long list of checks whose combined false-positive rate is high on a busy host ends with the
+  whole category muted. A hidden process is confirmed across two passes, because processes start
+  and exit between reading `/proc` and probing a PID constantly and a single pass sees phantom
+  disagreements all the time.
+
+  Findings arrive as `intrusion_detection` / `rootcheck_*` with MITRE T1014, labelled by the agent
+  rather than by a rule: there is nothing a rule could add to "the kernel says this PID exists and
+  `/proc` denies it", and an unlabelled event would sit behind the alerts-only view.
+
+  Hidden-port scanning and trojaned-binary string signatures were deliberately left out.
+  [docs/rootcheck.md](docs/rootcheck.md) says why.
+
+
+- **Configuration benchmarks (CIS)**, a new **Benchmarks** page and a source type `sca`. Hardening
+  checks are evaluated on the endpoint and scored per host and per policy, with the policy's own
+  remediation text on each failing control.
+
+  It reads **Wazuh SCA policy files unchanged** rather than introducing a format of its own. The
+  value in a CIS benchmark is the several hundred checks per platform that somebody keeps current
+  as distributions change, and maintaining that content here is a promise this project cannot
+  keep. The same call produced the imported decoders, the generic SSH responder and
+  operator-supplied SNMP OIDs, and all three still work when the upstream moves.
+
+  **Policies are not pushed from the manager.** A policy's `c:` rules are shell commands run as
+  the agent's user, usually root, so a policy file is executable content; if the manager could
+  push one, a compromised manager would own every endpoint. Put them in `/etc/deuswatch/sca`
+  (`C:\ProgramData\DeusWatch\sca` on Windows) with your configuration management. Groups decide
+  that a host runs benchmarks; the host decides which.
+
+  **The score counts only the controls that could be evaluated.** A check this engine cannot
+  assess is reported as skipped with the reason, never as a failure: a failed CIS check sends an
+  operator to change a production host, and counting skipped checks would let a host improve its
+  score by becoming less assessable. A policy whose `requirements` do not match the host is
+  skipped whole, so a Debian benchmark on a RHEL box is not several hundred false failures.
+
+  See [docs/benchmarks.md](docs/benchmarks.md).
 
 ## v2.60.0
 
