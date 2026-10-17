@@ -27,8 +27,8 @@ import DocLink from '../components/DocLink'
 import { Button, Icon, Page, Pagination, usePaged } from '../components/ui'
 import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
-const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry']
-const POLL_TYPES = new Set(['fim', 'wineventlog', 'registry']) // types where the interval applies
+const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry', 'rootcheck']
+const POLL_TYPES = new Set(['fim', 'wineventlog', 'registry', 'rootcheck']) // types where the interval applies
 
 // v() prints a semver with exactly one leading "v", buildVersion baked in from `git describe`
 // already carries a `v` prefix (v2.14.0-1-gabc), so blindly prepending in the template
@@ -221,6 +221,7 @@ export default function Agents({ me }: { me: Me }) {
             <DocLink file="new-log-source.md" label="Add a log source" />
             <DocLink file="agent-groups.md" label="Agent groups" />
             <DocLink file="registry-monitoring.md" label="Registry monitoring" />
+            <DocLink file="rootcheck.md" label="Rootkit checks" />
             <DocLink file="agent-troubleshooting.md" label="Troubleshooting" />
             <DocLink file="whodata.md" label="FIM who-data" />
             <DocLink file="modsecurity.md" label="ModSecurity / WAF" />
@@ -852,8 +853,10 @@ function ConfigEditor({
                 value={s.path}
                 onChange={(e) => update(i, { path: e.target.value })}
                 placeholder={
-                  s.type === 'fim'
-                    ? '/etc/passwd,/etc/ssh'
+                  s.type === 'rootcheck'
+                    ? 'not used'
+                    : s.type === 'fim'
+                      ? '/etc/passwd,/etc/ssh'
                     : s.type === 'registry'
                       ? 'HKLM\Software\Microsoft\Windows\CurrentVersion\Run'
                       : s.type === 'wineventlog'

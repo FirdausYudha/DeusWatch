@@ -147,6 +147,12 @@ func Normalize(raw RawLog) (*Event, bool) {
 	if kind == "fim" && normalizeFIM(raw.Message, e) {
 		return e, true
 	}
+	// Rootcheck findings are tried BEFORE the generic FIM JSON sniff below: a finding carries a
+	// "path" and would otherwise be read as a file change by a parser looking for one, losing the
+	// check that identifies it.
+	if normalizeRootcheck(raw.Message, e) {
+		return e, true
+	}
 	// A type=fim source may carry ANY dataset label ("web", "wordpress", ...) - operators
 	// name sources freely and the source *type* is not part of RawLog. Sniff the agent's
 	// FIM JSON payload ({path,action,...}) whatever the label, so FIM events are never
@@ -630,4 +636,60 @@ func endpoint(ip, port string) *Endpoint {
 		ep.Port = uint16(p)
 	}
 	return ep
+}
+
+// normalizeRootcheck maps an agent rootkit/anomaly finding onto a DCS event.
+//
+// A finding is not a file change and not a process event in the ordinary sense: it is the absence
+// of something that should be there, or the presence of something that should not. It gets
+// event.category "intrusion_detection" to say so, and a dw_label stamped here rather than left to
+// a rule, because the agent has already decided. There is nothing for a detection rule to add to
+// "the kernel says this PID exists and /proc denies it", and leaving it unlabelled would hide the
+// finding behind the alerts-only view that operators actually watch.
+func normalizeRootcheck(msg string, e *Event) bool {
+	var f struct {
+		Check   string `json:"check"`
+		Detail  string `json:"detail"`
+		Path    string `json:"path"`
+		PID     int    `json:"pid"`
+		Process string `json:"process"`
+	}
+	if err := json.Unmarshal([]byte(msg), &f); err != nil || f.Check == "" {
+		return false
+	}
+	// A closed set, so an unrelated JSON log carrying a "check" field is not swallowed.
+	switch f.Check {
+	case "hidden_process", "suid_in_writable_dir", "file_in_dev":
+	default:
+		return false
+	}
+
+	e.Event.Category = "intrusion_detection"
+	e.Event.Action = "rootcheck_" + f.Check
+	e.Event.Outcome = "success"
+	e.DeusWatch.Label = "rootkit_indicator"
+	if f.Path != "" {
+		e.File = &File{Path: f.Path}
+	}
+	if f.PID != 0 || f.Process != "" {
+		e.Process = &Process{Name: f.Process, PID: f.PID}
+	}
+	// Severity splits on how much the finding can mean something innocent. A hidden process has no
+	// benign explanation and is confirmed over two passes by the agent, so it is critical. A suid
+	// binary in /tmp or a file under /dev is a strong indicator that still has the occasional
+	// legitimate cause (a developer's test build, a vendor installer), so it is high and gets
+	// looked at rather than waking somebody.
+	if f.Check == "hidden_process" {
+		e.Event.Severity = SeverityCritical
+	} else {
+		e.Event.Severity = SeverityHigh
+	}
+	e.Threat = &Threat{
+		Technique:  Technique{ID: "T1014", Name: "Rootkit"},
+		TacticName: "defense-evasion",
+	}
+	if f.Detail != "" {
+		e.Event.Original = f.Detail
+	}
+	return true
 }

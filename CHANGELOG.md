@@ -7,6 +7,27 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.64.0
+
+### Added
+
+- **Rootkit checks (Linux).** A new source type, `rootcheck`, with three local-anomaly checks on a
+  slow timer: a PID the kernel confirms but `/proc` hides (critical), a setuid binary in a
+  writable directory like `/tmp` (high), and a regular file under `/dev` (high).
+
+  Three rather than thirty, on purpose. A rootkit scanner is only useful if people believe it, and
+  a long list of checks whose combined false-positive rate is high on a busy host ends with the
+  whole category muted. A hidden process is confirmed across two passes, because processes start
+  and exit between reading `/proc` and probing a PID constantly and a single pass sees phantom
+  disagreements all the time.
+
+  Findings arrive as `intrusion_detection` / `rootcheck_*` with MITRE T1014, labelled by the agent
+  rather than by a rule: there is nothing a rule could add to "the kernel says this PID exists and
+  `/proc` denies it", and an unlabelled event would sit behind the alerts-only view.
+
+  Hidden-port scanning and trojaned-binary string signatures were deliberately left out.
+  [docs/rootcheck.md](docs/rootcheck.md) says why.
+
 ## v2.63.0
 
 ### Added
