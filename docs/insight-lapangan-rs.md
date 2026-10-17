@@ -20,7 +20,7 @@ gap yang bisa dikerjakan pada DeusWatch.
 | 3 | Dukungan **Ruijie** untuk auto-block | P2 | ✅ **Selesai** (v2.54.0) - responder SSH/CLI generik ([ssh-cli.md](ssh-cli.md)) |
 | 4 | Ticketing: alert→tiket, Telegram, **scorecard SLA**, GLPI | P2 | ✅ **Selesai** — alert→tiket, notifikasi, scorecard SLA, dan mirror GLPI (satu arah + tarik status) |
 | 5 | **Windows agent** + identitas di workstation bersama (AD) | P2 | 🟡 **Sebagian** (v2.56.0 + v2.57.0) - sesi dan atribusi aktivitas sudah ada ([simrs.md](simrs.md)); AD belum |
-| 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | Belum ada |
+| 6 | Sensor **IoT & lingkungan** (suhu, kelembapan, finger, CCTV) | P3 | ✅ **Selesai** (v2.60.0) - pembacaan didorong, ambang batas, dan alert saat sensor diam ([environment.md](environment.md)) |
 | 7 | **SNMP** monitoring perangkat jaringan | P3 | ✅ **Selesai** — menu Network ([snmp.md](snmp.md)) |
 | 8 | Lateral movement antar container **Kubernetes** | P3 | Deteksi ada, konteks container belum |
 | 9 | Multi-tenant untuk **vendor/MSP** (±20 RS satu konsol) | P3 | **Sudah ada** (RLS + workspace) — tinggal diposisikan |

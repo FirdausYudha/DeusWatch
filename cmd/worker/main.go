@@ -388,6 +388,8 @@ func main() {
 	// SNMP: poll the switches, access points and routers. Their SNMP data lives in three separate
 	// tools today, and the ask was one dashboard. Inert until a device is configured.
 	safeGo(ctx, "snmp-poll", func() { runSNMPPoll(ctx, st, secretCipher, onAlert, pbLive.Annotate) })
+	// Environmental sensors: threshold crossings, and the sensors that have stopped reporting.
+	safeGo(ctx, "env-sensors", func() { runEnvSensors(ctx, st, onAlert, pbLive.Annotate) })
 	safeGo(ctx, "serve-health", func() { serveHealth(ctx, st, b) })
 	// Liveness the MANAGER can see. /healthz above only answers whoever calls it, and nothing
 	// did, this worker was once absent for 11+ hours with a clean-looking dashboard, because

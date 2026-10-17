@@ -192,6 +192,36 @@ func (s *Store) RecordEnvReading(ctx context.Context, ingestKey string, value *f
 	return out, nil
 }
 
+// PendingEnvTransitions returns the sensors whose breach state has changed since the worker last
+// announced it, marking them announced as it goes.
+//
+// The ingest endpoint writes `alerting` as each reading arrives and tells nobody; this is where a
+// change becomes an alert. Splitting it that way keeps every notification path in the worker, and
+// means a reading can be recorded while the notifier is down without losing the transition: the
+// row still disagrees with `notified`, so the next sweep picks it up.
+//
+// Marked announced in the SAME statement that selects them, so two sweeps overlapping cannot both
+// send the same alert.
+func (s *Store) PendingEnvTransitions(ctx context.Context) ([]EnvSensor, error) {
+	rows, err := s.q(ctx).Query(ctx, `
+		UPDATE env_sensors SET notified = alerting, updated_at = now()
+		 WHERE enabled AND alerting <> notified
+		 RETURNING `+envSensorCols)
+	if err != nil {
+		return nil, fmt.Errorf("store: pending env transitions: %w", err)
+	}
+	defer rows.Close()
+	out := make([]EnvSensor, 0, 4)
+	for rows.Next() {
+		e, err := scanEnvSensor(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 // StaleEnvSensors returns the sensors that have gone quiet and have not been reported as quiet yet,
 // latching them so the sweep raises one alert each rather than one per pass.
 func (s *Store) StaleEnvSensors(ctx context.Context) ([]EnvSensor, error) {

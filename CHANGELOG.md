@@ -7,6 +7,48 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## v2.60.0
+
+### Added
+
+**Environmental monitoring: temperature, humidity, door contacts, power.** Gap 6, now complete. The
+driver is accreditation rather than comfort: *"akreditasinya: CCTV, finger, suhu, APAR, alat
+kelembapan"*, and a server room held between 18 and 23 degrees is a number somebody has to show an
+assessor for the whole quarter. See [docs/environment.md](docs/environment.md).
+
+**There is no Bardi integration, and there will not be one.** The hospital uses Bardi, the next
+site uses something else, and a vendor integration written here is a guess about an API nobody on
+this project can test. Third time this call has been made in this codebase, after the generic SSH
+responder for Ruijie and the operator-supplied SNMP OIDs, and both of those still work after a
+hardware contract changes. Readings are pushed instead, by whatever already talks to the device.
+
+**Operator action.** Run the migrations: **000078** and **000079** are added.
+
+### Silence is an alert
+
+The threshold check is the easy half. A pushed sensor that stops reporting is its most dangerous
+state: its last reading sits on the board looking perfectly healthy, for days, while the room does
+whatever it likes, and nothing on that screen says the number is old. A breach announces itself and
+silence does not.
+
+So a sensor that goes quiet past its **Stale after** raises an alert at the same severity as a
+breach, and one that has never reported since it was configured is flagged too, which catches a key
+typed into a script wrongly on the day it was set up rather than during the incident it was meant
+to cover.
+
+### Three other things it refuses to assume
+
+**A reading that is not a number is a failed probe, not a passing one.** Broken sensors often report
+`NaN` rather than going quiet, and every comparison against `NaN` is false, so a naive threshold
+check decides silently that everything is fine.
+
+**One breach is one alert.** A probe sampling every 30 seconds in a room two degrees too warm would
+otherwise raise 2,880 alerts a day, and a channel everyone mutes is worse than no channel.
+
+**Ingest keys are per sensor**, so a compromised script on a ward PC can write readings for the one
+sensor it was given and nothing else. Every ingest failure answers 401 with the same words, so a
+caller holding a wrong key cannot learn whether the sensor exists.
+
 ## v2.59.0
 
 ### Fixed
