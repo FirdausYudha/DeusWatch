@@ -154,6 +154,7 @@ func main() {
 	// Revocation + config push + agent-block feed (optional): needs DB access.
 	var revoked gateway.RevokedFunc
 	var cfgFunc gateway.ConfigFunc
+	var scaPolicyFunc gateway.ConfigFunc
 	var seenFunc gateway.SeenFunc
 	var healthFunc gateway.HealthFunc
 	var healthVFunc gateway.HealthWithVersionFunc
@@ -181,6 +182,18 @@ func main() {
 			es := enroll.NewStore(st.Pool(), nil)
 			revoked = es.IsRevoked
 			cfgFunc = es.GetConfigByName
+			// Centrally managed benchmark policies, scoped to the tenant that owns the calling
+			// agent. Marshalled here so the gateway package keeps its no-store-import rule.
+			scaPolicyFunc = func(ctx context.Context, cn string) ([]byte, error) {
+				rows, err := st.EnabledSCAPoliciesForAgent(ctx, cn)
+				if err != nil {
+					return nil, err
+				}
+				if len(rows) == 0 {
+					return nil, nil // 204: the manager has none enabled, which is not an error
+				}
+				return json.Marshal(map[string]any{"policies": rows})
+			}
 			restoreFunc = st.PendingRestores
 			// The heartbeat writers are wrapped so enroll's "that CN isn't enrolled" sentinel
 			// reaches the handler as the gateway package's own. Internal/gateway talks to the
@@ -420,6 +433,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/logs", gateway.LogsHandler(b, revoked))
 	mux.HandleFunc("GET /v1/config", gateway.ConfigHandler(cfgFunc))
+	mux.HandleFunc("GET /v1/sca-policies", gateway.SCAPoliciesHandler(scaPolicyFunc))
 	mux.HandleFunc("POST /v1/heartbeat", gateway.HeartbeatHandlerFull(seenFunc, healthFunc, healthVFunc, revoked, updateFunc))
 	// v2.14.1: self-update binary served over mTLS, same trust boundary as every other agent-
 	// facing endpoint. Points at /agents (baked into the runtime-cgo image by the api build

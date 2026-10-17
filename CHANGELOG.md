@@ -7,6 +7,34 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## Unreleased
+
+Requires migration **000083**.
+
+### Added
+
+- **CIS benchmark policies are now managed centrally.** Upload a policy once on the Benchmarks
+  page under **Policies** and every agent with an `sca` source fetches it. Policies are validated
+  on upload, so a malformed benchmark is rejected by one person who can fix it rather than fetched
+  by five hundred agents that each log a parse error nobody reads.
+
+  v2.61.0 refused to do this, on the grounds that a policy's `c:` rules are shell commands run as
+  root. That reasoning did not survive checking what the agent already does: **the self-update
+  path downloads a binary from the manager and replaces the running executable with no signature
+  check**, pinning TLS to the manager's CA, which authenticates the manager and not the content.
+  A compromised manager already has root code execution on every agent by an easier route, so
+  central distribution adds no new trust boundary, and the file-per-host-forever cost was being
+  paid to guard a door while a wider one stood open.
+
+  The endpoint keeps the last word. A policy placed in the local directory **overrides** a served
+  one with the same id, `SCA_ALLOW_PUSHED=0` refuses served policies entirely, and served policies
+  are cached so a manager outage does not silently stop assessment.
+
+  **Signing both the binary and the policies is the real fix and is not built.** One public key
+  installed on the endpoint, once, after which the manager is a transport that cannot forge
+  content. Until then, treat manager access as equivalent to root on every endpoint, which it
+  already was. See [docs/benchmarks.md](docs/benchmarks.md).
+
 ## v2.61.0
 
 Requires migrations **000080**, **000081** and **000082**.

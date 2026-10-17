@@ -168,6 +168,9 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 		}
 	})
 	go runBenchmarkUploader(ctx, shipper, benchCh)
+	agent.SetSCAPolicyFetcher(func(c context.Context) ([]agent.PushedPolicy, error) {
+		return shipper.FetchSCAPolicies(c)
+	})
 
 	// Sources: pushed config from the manager if present, otherwise per-OS defaults / LOG_FILE.
 	sources := resolveSources()

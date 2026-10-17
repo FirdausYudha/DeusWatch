@@ -5,7 +5,7 @@ Hardening checks evaluated on the endpoint, scored per host and per policy.
 ## It reads Wazuh's policy format, on purpose
 
 DeusWatch does not ship a benchmark content format of its own. A source of type `sca` reads
-**Wazuh SCA policy files**, unchanged.
+**Wazuh SCA policy files**, unchanged, whether they were uploaded here or placed on the endpoint.
 
 The value in a CIS benchmark is not the engine, it is the several hundred checks per platform that
 somebody keeps current as distributions change. Inventing a format here would mean maintaining
@@ -19,17 +19,13 @@ SNMP sensors take operator-supplied OIDs. All of them still work when the upstre
 
 ## Setting it up
 
-**1. Put policy files on the endpoint.**
+**1. Upload a policy.** Benchmarks page -> **Policies** -> choose a `.yml`. It is parsed and
+validated on upload, so a malformed benchmark is rejected by one person who can fix it rather than
+fetched by five hundred agents that each log a parse error nobody reads.
 
-```
-/etc/deuswatch/sca/            # Linux and macOS
-C:\ProgramData\DeusWatch\sca\  # Windows
-```
-
-Override with `SCA_POLICY_DIR`. Any `.yml` or `.yaml` in that directory is loaded. Wazuh's own
-policies (`cis_debian10.yml`, `cis_rhel9_linux.yml`, `cis_win2019.yml` and so on) work as they
-are; they ship with a Wazuh agent under `/var/ossec/ruleset/sca/`, and the upstream repository
-holds the current set.
+Wazuh's own policies (`cis_debian10.yml`, `cis_rhel9_linux.yml`, `cis_win2019.yml` and so on) work
+as they are. They ship with a Wazuh agent under `/var/ossec/ruleset/sca/`, and the upstream
+repository holds the current set.
 
 **2. Add a source of type `sca`** to the agent or its group. `Path` is unused. `Interval` is the
 assessment period in seconds, default **86400**.
@@ -41,18 +37,55 @@ down. There is one assessment at startup, so a newly enrolled host reports witho
 
 **3. Read the score on the Benchmarks page.**
 
-## Policies are not pushed from the manager
+## Where a policy can come from
 
-This is the one deliberate inconvenience in the feature, and it is not an oversight.
+| Source | Wins |
+|---|---|
+| Placed on the endpoint, in the policy directory | **First** |
+| Served by the manager (uploaded under Policies) | Second |
 
-A policy's `c:` rules are shell commands, run as the agent's user, which is normally root. **A
-policy file is executable content.** If the manager could push one, a compromised manager would
-own every endpoint in the estate, and the whole reason each agent carries its own certificate is
-that the manager is not implicitly trusted with arbitrary code on the host.
+```
+/etc/deuswatch/sca/            # Linux and macOS
+C:\ProgramData\DeusWatch\sca\  # Windows
+```
 
-So policies are placed on an endpoint by whoever administers that endpoint: your configuration
-management, your image, your package. Agent groups decide *that* a host runs benchmarks; the host
-decides *which*.
+Override the directory with `SCA_POLICY_DIR`. Any `.yml` or `.yaml` in it is loaded, and it is
+re-read on every assessment, so adding or changing a file needs no agent restart.
+
+A local policy **overrides** a served one carrying the same `policy.id`. That is the endpoint
+administrator's remaining authority over what runs as root on their machine: central management is
+the default and the convenient path, and dropping a file in still wins without having to argue
+with whoever runs the console.
+
+`SCA_ALLOW_PUSHED=0` on an agent refuses served policies entirely, so a hardened host runs only
+what was placed on it.
+
+Served policies are **cached** on the endpoint, so a manager outage does not silently stop
+assessment. A compliance page that goes blank because the network blipped looks exactly like a
+compliance page for an estate nobody is assessing. The cache is replaced wholesale on each fetch,
+so a policy you disable or delete stops being assessed rather than living on in a cache.
+
+## A policy is executable content, and what that costs
+
+A policy's `c:` rules are shell commands run as the agent's user, usually root. So distributing
+policies from the manager means a compromised manager can run arbitrary code as root on every
+endpoint.
+
+That sounds like a reason not to do it, and it was the reason this feature originally refused to.
+It does not survive contact with what the agent already does: **the self-update path downloads a
+binary from the manager and replaces the running executable with no signature check.** It pins TLS
+to the manager's CA, which authenticates the manager, not the content. A compromised manager
+therefore already has root code execution on every agent, by an easier route.
+
+So central policy distribution adds no new trust boundary, and the cost of refusing it, a file per
+policy per host forever, was being paid to guard a door while a wider one stood open.
+
+**The actual fix is signing, for both.** The endpoint administrator installs one public key, once;
+the manager may then serve binaries and policies, and the agent refuses anything not signed by
+that key. A compromised manager becomes a transport that cannot forge content. That is not built,
+and it is the honest next step rather than something this page can hand-wave.
+
+Until it is, treat manager access as equivalent to root on every endpoint, which it already was.
 
 ## The score
 

@@ -665,3 +665,37 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 		_ = json.NewEncoder(w).Encode(map[string]int{"accepted": accepted})
 	}
 }
+
+// SCAPoliciesHandler serves the centrally managed benchmark policies for the agent's workspace,
+// identified by the mTLS certificate CN. 204 when the manager holds none enabled.
+//
+// The CN picks the workspace, never a parameter from the agent: an agent must not be able to ask
+// for another tenant's benchmarks, which in a multi-tenant deployment would leak one customer's
+// hardening posture to another's endpoint.
+func SCAPoliciesHandler(fn ConfigFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if fn == nil {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		var cn string
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			cn = r.TLS.PeerCertificates[0].Subject.CommonName
+		}
+		if cn == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		raw, err := fn(r.Context(), cn)
+		if err != nil {
+			http.Error(w, "failed to fetch policies", http.StatusInternalServerError)
+			return
+		}
+		if len(raw) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(raw)
+	}
+}

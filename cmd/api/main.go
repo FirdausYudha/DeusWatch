@@ -389,6 +389,10 @@ func main() {
 		mux.Handle("GET /api/sca/agent", protect(auth.PermViewDashboard, scaAgentHandler(st)))
 		mux.Handle("GET /api/benchmarks", protect(auth.PermViewDashboard, benchmarkSummaryHandler(st)))
 		mux.Handle("GET /api/benchmarks/checks", protect(auth.PermViewDashboard, benchmarkChecksHandler(st)))
+		mux.Handle("GET /api/sca-policies", protect(auth.PermViewDashboard, scaPoliciesHandler(st)))
+		mux.Handle("POST /api/sca-policies", protect(auth.PermManageSettings, scaPoliciesHandler(st)))
+		mux.Handle("PUT /api/sca-policies/{id}/enabled", protect(auth.PermManageSettings, scaPolicyEnableHandler(st)))
+		mux.Handle("DELETE /api/sca-policies/{id}", protect(auth.PermManageSettings, scaPolicyDeleteHandler(st)))
 
 		mux.Handle("GET /api/fim/snapshots/paths", protect(auth.PermViewDashboard, fimSnapshotPathsHandler(st)))
 		mux.Handle("GET /api/fim/snapshots", protect(auth.PermViewDashboard, fimSnapshotsHandler(st)))

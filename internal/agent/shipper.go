@@ -446,3 +446,50 @@ func (s *Shipper) FetchConfig(ctx context.Context) (*Config, error) {
 	}
 	return &cfg, nil
 }
+
+// PushedPolicy is one centrally managed benchmark policy as the manager serves it.
+type PushedPolicy struct {
+	PolicyID string `json:"policy_id"`
+	Name     string `json:"name"`
+	Rev      int64  `json:"rev"`
+	YAML     string `json:"yaml"`
+}
+
+// maxPushedPolicyBytes caps the whole policy response. Several full CIS benchmarks are a few
+// hundred KB each; this leaves room for a dozen while bounding what a manager can make an agent
+// hold in memory.
+const maxPushedPolicyBytes = 16 << 20
+
+// FetchSCAPolicies retrieves the benchmark policies the manager holds for this agent's workspace
+// (GET /v1/sca-policies). An empty slice means the manager has none enabled, which is different
+// from an error: the first means stop running pushed benchmarks, the second means keep the cache.
+func (s *Shipper) FetchSCAPolicies(ctx context.Context) ([]PushedPolicy, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url+"/v1/sca-policies", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusGone {
+		return nil, ErrRevoked
+	}
+	if resp.StatusCode == http.StatusNoContent {
+		return []PushedPolicy{}, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("agent: fetch sca policies (status %d)", resp.StatusCode)
+	}
+	var out struct {
+		Policies []PushedPolicy `json:"policies"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxPushedPolicyBytes)).Decode(&out); err != nil {
+		return nil, err
+	}
+	if out.Policies == nil {
+		out.Policies = []PushedPolicy{}
+	}
+	return out.Policies, nil
+}

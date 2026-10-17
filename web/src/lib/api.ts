@@ -641,6 +641,52 @@ export type BenchmarkCheck = {
   cis: string[] | null
 }
 
+export type SCAPolicyRow = {
+  id: string
+  policy_id: string
+  name: string
+  check_count: number
+  enabled: boolean
+  rev: number
+  uploaded_by: string
+  updated_at: string
+}
+
+export async function fetchSCAPolicies(): Promise<SCAPolicyRow[]> {
+  const res = await authFetch('/api/sca-policies')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).policies ?? []
+}
+
+export type SCAUploadResult = { policy_id: string; name: string; checks: number; rev: number }
+
+// The YAML is posted as the raw body. replace=true is a second, deliberate step: swapping the
+// benchmark the whole estate is measured against should not happen by accident.
+export async function uploadSCAPolicy(yaml: string, replace: boolean): Promise<SCAUploadResult> {
+  const res = await authFetch(`/api/sca-policies${replace ? '?replace=1' : ''}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-yaml' },
+    body: yaml,
+  })
+  if (res.status === 409) throw new Error('EXISTS')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function setSCAPolicyEnabled(id: string, enabled: boolean): Promise<void> {
+  const res = await authFetch(`/api/sca-policies/${id}/enabled`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function deleteSCAPolicy(id: string): Promise<void> {
+  const res = await authFetch(`/api/sca-policies/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
 export async function fetchBenchmarks(): Promise<BenchmarkSummary[]> {
   const res = await authFetch('/api/benchmarks')
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)

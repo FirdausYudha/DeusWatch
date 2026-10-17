@@ -192,26 +192,139 @@ var benchmarkSink func(SCAAssessment)
 // SetBenchmarkSink wires the uploader that ships assessments to the manager.
 func SetBenchmarkSink(fn func(SCAAssessment)) { benchmarkSink = fn }
 
+// policyFetcher pulls the centrally managed policies. nil means this agent runs local policies
+// only, which is also what SCA_ALLOW_PUSHED=0 produces.
+var policyFetcher func(context.Context) ([]PushedPolicy, error)
+
+// SetSCAPolicyFetcher wires the fetch for centrally managed policies.
+func SetSCAPolicyFetcher(fn func(context.Context) ([]PushedPolicy, error)) { policyFetcher = fn }
+
+// pushedAllowed reports whether this endpoint accepts benchmark policies from the manager.
+//
+// The opt-out exists because a policy's `c:` rules run through a shell as the agent's user. The
+// manager can already replace the agent binary itself, so refusing policies does not make a
+// compromised manager harmless, but an administrator hardening one specific machine should still
+// have a way to say that this host runs only what was placed on it.
+func pushedAllowed() bool { return os.Getenv("SCA_ALLOW_PUSHED") != "0" }
+
+// cacheDir is where fetched policies are kept so a manager outage does not silently stop
+// benchmark assessment. A compliance page that goes blank because the network blipped looks
+// exactly like a compliance page for an estate nobody is assessing.
+func cacheDir() string { return filepath.Join(policyDir(), "cache") }
+
+// fetchAndCachePolicies pulls the managed policies and writes them to the cache, returning what
+// to assess. On a fetch failure it falls back to the cache and says so.
+func fetchAndCachePolicies(ctx context.Context) []*SCAPolicy {
+	if policyFetcher == nil || !pushedAllowed() {
+		return nil
+	}
+	pushed, err := policyFetcher(ctx)
+	if err != nil {
+		cached := readCachedPolicies()
+		if len(cached) > 0 {
+			log.Printf("agent: sca: could not reach the manager for policies (%v); assessing the %d cached ones", err, len(cached))
+		}
+		return cached
+	}
+	writeCachedPolicies(pushed)
+	out := make([]*SCAPolicy, 0, len(pushed))
+	for _, pp := range pushed {
+		var p SCAPolicy
+		if uerr := yaml.Unmarshal([]byte(pp.YAML), &p); uerr != nil {
+			// The manager validates on upload, so this means the stored YAML was corrupted in
+			// transit or by hand. Name the policy rather than failing the whole assessment.
+			log.Printf("agent: sca: managed policy %s will not parse, skipping: %v", pp.PolicyID, uerr)
+			continue
+		}
+		pc := p
+		out = append(out, &pc)
+	}
+	return out
+}
+
+// writeCachedPolicies replaces the cache with what the manager just served. Written as a whole
+// directory replace rather than file by file, so a policy the manager has disabled or deleted
+// disappears from the cache too; otherwise an agent that lost its connection would keep assessing
+// against a benchmark the operator had already withdrawn.
+func writeCachedPolicies(pushed []PushedPolicy) {
+	dir := cacheDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		log.Printf("agent: sca: cannot write the policy cache at %s: %v", dir, err)
+		return
+	}
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".yml") {
+				_ = os.Remove(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	for _, pp := range pushed {
+		name := safePolicyFilename(pp.PolicyID)
+		if name == "" {
+			continue
+		}
+		// 0600: a policy is executable content, so it must not be readable or writable by a
+		// non-root user who could then change what root runs on the next assessment.
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(pp.YAML), 0o600); err != nil {
+			log.Printf("agent: sca: cannot cache policy %s: %v", pp.PolicyID, err)
+		}
+	}
+}
+
+func readCachedPolicies() []*SCAPolicy {
+	policies, err := loadPolicies(cacheDir())
+	if err != nil {
+		return nil
+	}
+	return policies
+}
+
+// safePolicyFilename turns a policy id into a filename, refusing anything that is not a plain
+// name. The id comes from the manager, so it is attacker-controlled if the manager is
+// compromised, and joining it into a path unchecked is a directory traversal that writes
+// root-owned files anywhere on the host.
+func safePolicyFilename(policyID string) string {
+	if policyID == "" || len(policyID) > 120 {
+		return ""
+	}
+	for _, r := range policyID {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '_', r == '-', r == '.':
+		default:
+			return ""
+		}
+	}
+	if strings.Contains(policyID, "..") {
+		return ""
+	}
+	return policyID + ".yml"
+}
+
 // collectSCA is the "sca" source collector: configuration-benchmark assessment.
 func collectSCA(ctx context.Context, s Source, out chan<- Line) error {
 	dir := policyDir()
-	if _, err := os.Stat(dir); err != nil {
-		// Not an error worth stopping the source for: an operator may drop policies in later, and
-		// a source that exited would then never pick them up. Say exactly what is missing.
-		log.Printf("agent: sca %q: no policies in %s yet (see docs/benchmarks.md); will keep checking",
+	if _, err := os.Stat(dir); err != nil && !pushedAllowed() {
+		// Only worth saying when there is nowhere else policies could come from. An operator may
+		// drop them in later, and a source that exited would never pick them up.
+		log.Printf("agent: sca %q: no policies in %s and pushed policies are disabled (see docs/benchmarks.md)",
 			s.Dataset, dir)
 	}
 
 	if benchmarkSink == nil {
 		return fmt.Errorf("sca source %q: no manager connection to report assessments to", s.Dataset)
 	}
+	if !pushedAllowed() {
+		log.Printf("agent: sca %q: SCA_ALLOW_PUSHED=0, this host runs only the policies placed on it", s.Dataset)
+	}
 
 	run := func() {
-		policies, err := loadPolicies(dir)
-		if err != nil {
+		local, err := loadPolicies(dir)
+		if err != nil && !os.IsNotExist(err) {
 			log.Printf("agent: sca %q: %v", s.Dataset, err)
-			return
 		}
+		policies := mergePolicies(local, fetchAndCachePolicies(ctx))
 		if len(policies) == 0 {
 			return
 		}
@@ -288,3 +401,29 @@ func summarise(p *SCAPolicy, results []SCAResult) SCAAssessment {
 }
 
 var _ System = hostSystem{}
+
+// mergePolicies combines the policies placed on this endpoint with the ones the manager serves.
+//
+// A LOCAL policy wins over a managed one carrying the same policy.id. That is the whole of the
+// endpoint administrator's remaining authority over what runs as root on their machine: central
+// management is the default and the convenient path, and dropping a file in /etc/deuswatch/sca
+// still overrides it without having to argue with whoever runs the console.
+func mergePolicies(local, managed []*SCAPolicy) []*SCAPolicy {
+	out := make([]*SCAPolicy, 0, len(local)+len(managed))
+	seen := make(map[string]bool, len(local))
+	for _, p := range local {
+		if p.Policy.ID == "" || seen[p.Policy.ID] {
+			continue
+		}
+		seen[p.Policy.ID] = true
+		out = append(out, p)
+	}
+	for _, p := range managed {
+		if p.Policy.ID == "" || seen[p.Policy.ID] {
+			continue
+		}
+		seen[p.Policy.ID] = true
+		out = append(out, p)
+	}
+	return out
+}

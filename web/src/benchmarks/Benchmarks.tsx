@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import {
   fetchBenchmarks,
   fetchBenchmarkChecks,
+  can,
   type BenchmarkSummary,
   type BenchmarkCheck,
   type Me,
 } from '../lib/api'
+import PolicyManager from './PolicyManager'
 import DocLink from '../components/DocLink'
 import { Page } from '../components/ui'
 
@@ -19,11 +21,12 @@ function scoreTone(score: number): string {
 }
 
 export default function Benchmarks({ me }: { me: Me }) {
-  void me
+  const canManage = can(me, 'manage_settings')
   const [rows, setRows] = useState<BenchmarkSummary[]>([])
   const [error, setError] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [open, setOpen] = useState<BenchmarkSummary | null>(null)
+  const [policies, setPolicies] = useState(false)
 
   useEffect(() => {
     fetchBenchmarks()
@@ -39,6 +42,13 @@ export default function Benchmarks({ me }: { me: Me }) {
           <DocLink file="benchmarks.md" label="Setting up policies" />
           <DocLink file="agent-groups.md" label="Agent groups" />
         </div>
+        <button
+          onClick={() => setPolicies(true)}
+          className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] font-medium text-fg transition-colors hover:bg-surface-2"
+          title="Upload a CIS policy once; every agent fetches it"
+        >
+          Policies
+        </button>
       </header>
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
@@ -47,10 +57,10 @@ export default function Benchmarks({ me }: { me: Me }) {
         <div className="rounded-[12px] border border-dashed border-border px-5 py-8 text-center">
           <p className="text-[13.5px] text-muted">No assessments yet.</p>
           <p className="mx-auto mt-2 max-w-xl text-[12.5px] text-dim">
-            Benchmarks need two things: a policy file on the endpoint, and a source of type{' '}
-            <code className="text-fg">sca</code> on the agent. Policies are placed on the endpoint by
-            whoever administers it and are never pushed from here, because a policy runs shell
-            commands as the agent&apos;s user. See the setup guide above.
+            Benchmarks need two things: a policy, and a source of type{' '}
+            <code className="text-fg">sca</code> on the agent. Upload a policy under{' '}
+            <span className="text-fg">Policies</span> and every agent fetches it; a policy placed
+            directly on an endpoint overrides the one served here. See the setup guide above.
           </p>
         </div>
       )}
@@ -113,6 +123,7 @@ export default function Benchmarks({ me }: { me: Me }) {
       )}
 
       {open && <ControlList row={open} onClose={() => setOpen(null)} />}
+      {policies && <PolicyManager canManage={canManage} onClose={() => setPolicies(false)} />}
     </Page>
   )
 }
