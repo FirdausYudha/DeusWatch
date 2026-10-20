@@ -7,7 +7,7 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
-## Unreleased
+## v2.62.0
 
 Requires migration **000083**.
 
