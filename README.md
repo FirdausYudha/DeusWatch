@@ -102,8 +102,8 @@ Full design details: see [DeusWatch.md](DeusWatch.md).
 ### Resource footprint
 
 Every service is a statically linked Go binary on a distroless base image - no JVM, no
-interpreter, no package manager. Measured with `docker stats` on the project's own
-development server, **all services idle**:
+interpreter, no package manager. Measured with `docker stats`, **all services idle**, on a
+**fresh install with no accumulated data**:
 
 | Service | Memory |
 |---|---|
@@ -116,13 +116,38 @@ development server, **all services idle**:
 | **Whole stack** | **267 MiB** · ~5% CPU |
 
 The three Go services that carry the entire detection path - gateway, worker and api -
-total **54 MiB between them**. The endpoint agent is a single static binary: **6.8 MB** on
-Linux, **7.1 MB** on Windows, with no runtime to install.
+total **54 MiB between them**. The endpoint agent is a single static binary with no runtime to
+install: **7.1 MB** on Linux (6.6 MB arm64), **7.5 MB** on Windows, **7.1 MB** on macOS
+(6.6 MB Apple silicon), measured on the v2.62.0 release.
 
-> These are **idle figures on a lab-scale deployment**, not a capacity benchmark. Sustained
-> high event rates raise the `worker` and `db` numbers; the compose file caps both at 1 GB
-> (`DEUSWATCH_WORKER_MEM`, `DEUSWATCH_DB_MEM`) so one runaway service cannot take the host
-> down. Measure your own deployment before sizing hardware for it.
+### After it has been running
+
+The table above is a fresh install. A database grows with the data in it, so here is the same
+measurement on a server that had been collecting for weeks - real agents, months of events,
+1,549 response decisions, FIM versions kept on manager storage:
+
+| Service | Fresh | After weeks of data |
+|---|---:|---:|
+| `db` | 181.8 MiB | **461.7 MiB** |
+| `nats` | 19.5 MiB | **40.3 MiB** |
+| `worker` | 26.1 MiB | 19.8 MiB |
+| `gateway` | 16.6 MiB | 17.3 MiB |
+| `web` | 12.5 MiB | 12.8 MiB |
+| `api` | 11.0 MiB | 10.3 MiB |
+| **Whole stack** | **267 MiB** | **562 MiB** |
+
+**The application did not grow.** api, gateway, worker and web together come to 60 MiB, slightly
+less than the 66 MiB they used when empty. Every bit of the increase is PostgreSQL and NATS
+holding data, which is what a datastore is supposed to do.
+
+That server also runs with `DB_MAX_CONNS=100` against a default of 30, applied to both `api` and
+`worker`, and each Postgres backend costs memory. If the `db` figure matters to your sizing, that
+is the first knob to look at before anything else.
+
+> These are **idle figures**, not a capacity benchmark. Sustained high event rates raise the
+> `worker` and `db` numbers; the compose file caps both at 1 GB (`DEUSWATCH_WORKER_MEM`,
+> `DEUSWATCH_DB_MEM`) so one runaway service cannot take the host down. Measure your own
+> deployment before sizing hardware for it.
 
 ## Integrations
 
