@@ -9,6 +9,25 @@ needs nothing from you does not say so; assume silence means nothing to do.
 
 ## Unreleased
 
+### Added
+
+- **Security headers on the web container.** There were none. A strict
+  `Content-Security-Policy` whose `script-src` allows neither `unsafe-inline` nor `unsafe-eval`,
+  plus `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy: no-referrer` and
+  `Permissions-Policy`.
+
+  The policy is strict because the built SPA has no inline script, so nothing legitimate needs
+  the escape hatches. `style-src` does allow `unsafe-inline`, because React writes style
+  attributes for dynamic values; that weakens styling injection only, not script execution.
+
+  `Referrer-Policy` is there for a specific reason: two endpoints accept their token in the query
+  string (the blocklist feed, which firewalls fetch and usually cannot set a header on, and the ML
+  API). Without it, following an external link from a page holding such a URL would hand that
+  token to the destination.
+
+  HSTS is deliberately not set. This server listens on plain HTTP with TLS terminated upstream, and
+  HSTS is sticky: setting it from the wrong place locks an operator out of their own deployment.
+
 ### Changed
 
 - **The update check works against a private release repository.** `UPDATE_REPO` points it at a
