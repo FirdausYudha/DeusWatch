@@ -25,6 +25,7 @@ import (
 	"deuswatch/internal/integrations"
 	"deuswatch/internal/mtls"
 	"deuswatch/internal/respond"
+	"deuswatch/internal/signing"
 	"deuswatch/internal/store"
 	"deuswatch/internal/yara"
 )
@@ -438,6 +439,7 @@ func main() {
 	// v2.14.1: self-update binary served over mTLS, same trust boundary as every other agent-
 	// facing endpoint. Points at /agents (baked into the runtime-cgo image by the api build
 	// stage in deploy/Dockerfile, same directory the api's /api/agent/binary route reads from).
+	signing.ReportArtifactSignatures("/agents")
 	mux.HandleFunc("GET /v1/agent-binary/{arch}", gateway.AgentBinaryHandler("/agents"))
 	mux.HandleFunc("GET /v1/blocklist", gateway.BlocklistConfigHandler(blockCfgFunc))
 	mux.HandleFunc("GET /v1/quarantine", gateway.QuarantineHandler(quarantineFunc))

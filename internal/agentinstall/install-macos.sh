@@ -39,6 +39,24 @@ curl -fsSL "$API/api/agent/binary/darwin/$ARCH" -o /usr/local/bin/deuswatch-agen
 chmod +x /usr/local/bin/deuswatch-agent.new
 mv -f /usr/local/bin/deuswatch-agent.new /usr/local/bin/deuswatch-agent
 
+# The operator's release public key, if they passed one. With it installed, this agent REFUSES a
+# self-update whose signature does not verify, which means a compromised manager can withhold
+# updates but cannot replace this binary and run code as root. Without it the agent updates as
+# before and says on every update that it is unverified.
+#
+# Deliberately not fetched from the manager. Taking the key from the manager would mean trusting
+# the manager to hand over the key that checks the manager, which is not a check. Pass it in:
+#   UPDATE_PUBKEY="$(cat update.pub)" ... sh
+# or get the one-liner from: dwsign -gen
+if [ -n "${UPDATE_PUBKEY:-}" ]; then
+  echo "$UPDATE_PUBKEY" > /etc/deuswatch/certs/update.pub
+  chmod 644 /etc/deuswatch/certs/update.pub
+  echo "DeusWatch: signed updates REQUIRED on this host (/etc/deuswatch/certs/update.pub)"
+else
+  echo "DeusWatch: self-update is NOT verified on this host. Pass UPDATE_PUBKEY to require signed"
+  echo "           releases; see docs/signing.md."
+fi
+
 # Enroll: exchange the one-time token for a unique client certificate.
 /usr/local/bin/deuswatch-agent -enroll -token "$TOKEN" -name "$NAME" -manager "$API" -out /etc/deuswatch/certs
 

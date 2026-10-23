@@ -650,6 +650,9 @@ export type SCAPolicyRow = {
   rev: number
   uploaded_by: string
   updated_at: string
+  // Whether a signature was stored with it. An endpoint holding a trusted release key runs only
+  // the signed ones, so this is what tells an operator why a policy produced no score there.
+  signed: boolean
 }
 
 export async function fetchSCAPolicies(): Promise<SCAPolicyRow[]> {
@@ -658,14 +661,30 @@ export async function fetchSCAPolicies(): Promise<SCAPolicyRow[]> {
   return (await res.json()).policies ?? []
 }
 
-export type SCAUploadResult = { policy_id: string; name: string; checks: number; rev: number }
+export type SCAUploadResult = {
+  policy_id: string
+  name: string
+  checks: number
+  rev: number
+  signed: boolean
+}
 
-// The YAML is posted as the raw body. replace=true is a second, deliberate step: swapping the
-// benchmark the whole estate is measured against should not happen by accident.
-export async function uploadSCAPolicy(yaml: string, replace: boolean): Promise<SCAUploadResult> {
+// The YAML is posted as the raw body and the detached signature, if any, rides in a header.
+//
+// replace=true is a second, deliberate step: swapping the benchmark the whole estate is measured
+// against should not happen by accident. The signature is stored verbatim and never checked here,
+// because the manager does not hold the key, which is exactly what stops a compromised manager
+// forging one.
+export async function uploadSCAPolicy(
+  yaml: string,
+  replace: boolean,
+  signature = '',
+): Promise<SCAUploadResult> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/x-yaml' }
+  if (signature.trim()) headers['X-Deuswatch-Signature'] = signature.trim()
   const res = await authFetch(`/api/sca-policies${replace ? '?replace=1' : ''}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-yaml' },
+    headers,
     body: yaml,
   })
   if (res.status === 409) throw new Error('EXISTS')

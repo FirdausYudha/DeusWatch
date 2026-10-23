@@ -179,7 +179,7 @@ func loadCACertPool() (*x509.CertPool, error) {
 // There is no third mode where a key is installed and a signature is merely preferred. "Verify if
 // convenient" is the same as not verifying, because the attacker chooses the circumstances.
 func verifyUpdate(path, signature, version string) error {
-	v, err := signing.LoadVerifier(os.Getenv("UPDATE_PUBKEY"), updatePubKeyFile())
+	v, err := signing.LoadVerifier(os.Getenv("UPDATE_PUBKEY"), signing.DefaultPubKeyFile())
 	if err != nil {
 		// A key that is configured but unreadable is NOT treated as "no key". Falling back to
 		// unverified on a typo would switch off this control on the day somebody set it up.
@@ -189,7 +189,7 @@ func verifyUpdate(path, signature, version string) error {
 		log.Printf("agent: WARNING self-update %s is NOT verified: no trusted release key on this host. "+
 			"Anyone who controls the manager can replace this binary and run code as root. "+
 			"Install the operator's public key (UPDATE_PUBKEY, or %s) to require signatures.",
-			version, updatePubKeyFile())
+			version, signing.DefaultPubKeyFile())
 		return nil
 	}
 	if signature == "" {
@@ -207,18 +207,4 @@ func verifyUpdate(path, signature, version string) error {
 	}
 	log.Printf("agent: self-update %s verified against the trusted release key (%s)", version, v.Source())
 	return nil
-}
-
-// updatePubKeyFile is where the installer leaves the operator's public key. It sits beside the
-// mTLS material because that directory is already root-owned and already the agent's root of
-// trust, so an endpoint that can protect one can protect the other.
-func updatePubKeyFile() string {
-	if p := strings.TrimSpace(os.Getenv("UPDATE_PUBKEY_FILE")); p != "" {
-		return p
-	}
-	dir := os.Getenv("CERT_DIR")
-	if dir == "" {
-		dir = "/etc/deuswatch/certs"
-	}
-	return filepath.Join(dir, "update.pub")
 }

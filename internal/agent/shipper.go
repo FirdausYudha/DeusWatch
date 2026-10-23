@@ -453,6 +453,10 @@ type PushedPolicy struct {
 	Name     string `json:"name"`
 	Rev      int64  `json:"rev"`
 	YAML     string `json:"yaml"`
+	// Signature is the operator's detached signature over YAML, base64. Empty means the policy
+	// was uploaded unsigned. The manager cannot verify it and does not try: it does not hold the
+	// key, which is what makes a compromised manager unable to forge one.
+	Signature string `json:"signature"`
 }
 
 // maxPushedPolicyBytes caps the whole policy response. Several full CIS benchmarks are a few

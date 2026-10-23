@@ -14,6 +14,10 @@ jobs:
   agents:
     name: Build & publish agent binaries
     runs-on: ubuntu-latest
+    # Job level, not step level: a step's own `env` is not in scope for that step's `if`, so the
+    # conditional would never have fired where it was first written.
+    env:
+      UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +28,42 @@ jobs:
 
       - name: Cross-compile agent binaries
         run: sh scripts/build-agent.sh
+
+      # Signing is OPTIONAL and the step is skipped when the secret is absent, so a fork or a
+      # first release still publishes. An agent holding a trusted key refuses an unsigned
+      # release, which is the point: a release published without this step cannot be installed by
+      # hosts that require signatures, and that is the correct failure rather than a surprise.
+      #
+      # TRADE-OFF, stated plainly: a key in a GitHub secret means GitHub, and anyone who can run
+      # a workflow in this repository, can sign a release. That is weaker than signing offline,
+      # and still far stronger than the nothing it replaces, because it removes the MANAGER from
+      # the set of things that can forge a release, and the manager is the component this exists
+      # to survive. If your threat model includes the CI account, leave the secret unset and sign
+      # by hand instead:
+      #   dwsign -key update.key -in dist/deuswatch-agent-linux-amd64
+      # then attach the .sig files to the release yourself.
+      - name: Sign agent binaries
+        if: env.UPDATE_SIGNING_KEY != ''
+        run: |
+          set -eu
+          umask 077
+          printf '%s' "$UPDATE_SIGNING_KEY" > /tmp/update.key
+          go build -o /tmp/dwsign ./cmd/dwsign
+          /tmp/dwsign -pubout -key /tmp/update.key > /tmp/update.pub
+          for f in dist/deuswatch-agent-*; do
+            case "$f" in *.sig) continue;; esac
+            /tmp/dwsign -key /tmp/update.key -in "$f"
+          done
+          # Verify what was just produced, against the public key DERIVED from the signing key.
+          # A release whose signatures are wrong is worse than one with none: every agent that
+          # requires signatures refuses to update, and the cause is a file nobody thinks to
+          # check. Failing here fails the release, which is what should happen.
+          for f in dist/deuswatch-agent-*; do
+            case "$f" in *.sig) continue;; esac
+            /tmp/dwsign -verify -pub /tmp/update.pub -in "$f"
+          done
+          shred -u /tmp/update.key 2>/dev/null || rm -f /tmp/update.key
+          rm -f /tmp/update.pub
 
       - name: Generate checksums
         run: cd dist && sha256sum * > SHA256SUMS.txt

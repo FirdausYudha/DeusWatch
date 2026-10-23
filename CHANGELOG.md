@@ -9,7 +9,31 @@ needs nothing from you does not say so; assume silence means nothing to do.
 
 ## Unreleased
 
+Requires migration **000084**.
+
 ### Added
+
+- **Signed releases and policies.** The largest finding from the security audit, closed. The agent
+  verifies a release against the operator's public key before replacing its own running
+  executable, and drops any pushed CIS policy that does not verify.
+
+  Both paths previously trusted only TLS to the manager's CA, which proves which host answered,
+  not what it sent. A compromised manager therefore already had root code execution on every
+  endpoint, by an easier route than anything else in the product. Now it can withhold updates,
+  which you notice and recover from, rather than run code, which you do not.
+
+  Set up with `dwsign -gen`, then pass `UPDATE_PUBKEY` to the installer (the Add-agent wizard has
+  a field that builds the command). **Nothing changes until you install a key**: an agent without
+  one updates exactly as before and says on every update that it is unverified. An agent WITH one
+  refuses unsigned or wrongly signed content outright, and a key that is present but malformed is
+  an error rather than a quiet fallback to unverified.
+
+  The manager's own binaries are compiled in the image and so are unsigned; the api and gateway
+  say so at startup rather than letting you discover it from every endpoint refusing to update.
+  Mount signed release artifacts over `/agents` to serve verified updates.
+
+  See [docs/signing.md](docs/signing.md), which also states what this does not cover: the
+  enrollment-time trust, and the key on the endpoint itself.
 
 - **Security headers on the web container.** There were none. A strict
   `Content-Security-Policy` whose `script-src` allows neither `unsafe-inline` nor `unsafe-eval`,

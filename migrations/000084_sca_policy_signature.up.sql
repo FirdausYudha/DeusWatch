@@ -1,0 +1,11 @@
+-- Migration 000084 - a signature alongside each stored benchmark policy.
+--
+-- A policy's `c:` rules are shell commands run as the agent's user, usually root, so a policy
+-- file is executable content and the manager serving it is the second path to root on every
+-- endpoint. The first, the agent binary itself, is now signed and verified before the swap; this
+-- closes the other one with the same key.
+--
+-- Nullable, not NOT NULL. A policy uploaded before this migration has no signature and must keep
+-- working for operators who have not set up signing, exactly as the agent binary does: an
+-- endpoint holding a trusted key refuses it, an endpoint without one runs it and says so.
+ALTER TABLE sca_policies ADD COLUMN IF NOT EXISTS signature text;

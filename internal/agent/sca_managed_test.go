@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"deuswatch/internal/signing"
 )
 
 func policy(id string) *SCAPolicy {
@@ -163,4 +165,116 @@ func cachedNames(t *testing.T) []string {
 		out = append(out, e.Name())
 	}
 	return out
+}
+
+// pushed builds a served policy, signed with priv when priv is non-nil.
+func pushedPolicy(t *testing.T, id string, privPEM []byte) PushedPolicy {
+	t.Helper()
+	body := "policy:\n  id: " + id + "\nchecks:\n  - id: 1\n    rules: ['f:/etc/passwd']\n"
+	pp := PushedPolicy{PolicyID: id, YAML: body}
+	if privPEM != nil {
+		priv, err := signing.ParsePrivateKey(privPEM)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pp.Signature = signing.Sign(priv, []byte(body))
+	}
+	return pp
+}
+
+// installTrustedKey writes a public key where verifiedPolicies will find it and returns the
+// matching private PEM.
+func installTrustedKey(t *testing.T) []byte {
+	t.Helper()
+	privPEM, pubPEM, err := signing.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	f := filepath.Join(dir, "update.pub")
+	if err := os.WriteFile(f, pubPEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UPDATE_PUBKEY", "")
+	t.Setenv("UPDATE_PUBKEY_FILE", f)
+	return privPEM
+}
+
+// TestVerifiedPoliciesDropsWhatItCannotVouchFor is the second half of the signing work. A policy
+// runs shell commands as the agent's user, so a served policy is the manager handing code to an
+// endpoint, and it gets the same treatment as the binary.
+func TestVerifiedPoliciesDropsWhatItCannotVouchFor(t *testing.T) {
+	privPEM := installTrustedKey(t)
+	otherPriv, _, err := signing.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	good := pushedPolicy(t, "cis_signed", privPEM)
+	unsigned := pushedPolicy(t, "cis_unsigned", nil)
+	foreign := pushedPolicy(t, "cis_foreign", otherPriv)
+	altered := pushedPolicy(t, "cis_altered", privPEM)
+	altered.YAML += "\n# an extra line the attacker added after signing\n"
+
+	got := verifiedPolicies([]PushedPolicy{good, unsigned, foreign, altered})
+	if len(got) != 1 {
+		var ids []string
+		for _, p := range got {
+			ids = append(ids, p.PolicyID)
+		}
+		t.Fatalf("kept %v, want only cis_signed", ids)
+	}
+	if got[0].PolicyID != "cis_signed" {
+		t.Fatalf("kept %q, want cis_signed", got[0].PolicyID)
+	}
+}
+
+// TestVerifiedPoliciesWithNoKeyRunsEverything covers the migration path, same as the binary:
+// refusing here would silently stop benchmarks on every endpoint already deployed.
+func TestVerifiedPoliciesWithNoKeyRunsEverything(t *testing.T) {
+	t.Setenv("UPDATE_PUBKEY", "")
+	t.Setenv("UPDATE_PUBKEY_FILE", filepath.Join(t.TempDir(), "absent.pub"))
+
+	in := []PushedPolicy{pushedPolicy(t, "a", nil), pushedPolicy(t, "b", nil)}
+	if got := verifiedPolicies(in); len(got) != 2 {
+		t.Fatalf("kept %d of 2 on a host with no key", len(got))
+	}
+}
+
+// TestVerifiedPoliciesDropsAllOnABrokenKey: the operator asked for verification and this host
+// cannot perform it, so nothing managed runs. Falling back to running everything would turn a
+// typo in the key into a silent loss of the control.
+func TestVerifiedPoliciesDropsAllOnABrokenKey(t *testing.T) {
+	broken := filepath.Join(t.TempDir(), "update.pub")
+	if err := os.WriteFile(broken, []byte("not a key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UPDATE_PUBKEY", "")
+	t.Setenv("UPDATE_PUBKEY_FILE", broken)
+
+	if got := verifiedPolicies([]PushedPolicy{pushedPolicy(t, "a", nil)}); len(got) != 0 {
+		t.Fatalf("kept %d policies with an unusable key", len(got))
+	}
+}
+
+// TestRejectedPolicyIsNotCached: filtering must happen BEFORE the cache is written, or a dropped
+// policy sits on disk and the offline fallback picks it up on the next pass, which would make the
+// verification a one-pass delay rather than a refusal.
+func TestRejectedPolicyIsNotCached(t *testing.T) {
+	privPEM := installTrustedKey(t)
+	dir := t.TempDir()
+	// installTrustedKey set UPDATE_PUBKEY_FILE in its own temp dir; the cache lives under the
+	// policy dir, which is separate.
+	t.Setenv("SCA_POLICY_DIR", dir)
+
+	kept := verifiedPolicies([]PushedPolicy{
+		pushedPolicy(t, "good", privPEM),
+		pushedPolicy(t, "bad", nil),
+	})
+	writeCachedPolicies(kept)
+
+	names := cachedNames(t)
+	if len(names) != 1 || names[0] != "good.yml" {
+		t.Fatalf("cache holds %v, want just good.yml", names)
+	}
 }

@@ -23,7 +23,10 @@ export default function PolicyManager({
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const [pending, setPending] = useState<string | null>(null)
+  // The YAML held back while we ask whether to replace an existing policy, with its signature, so
+  // confirming does not lose the one the operator chose.
+  const [pending, setPending] = useState<{ yaml: string; sig: string } | null>(null)
+  const [sig, setSig] = useState('')
 
   const load = () =>
     fetchSCAPolicies()
@@ -34,20 +37,24 @@ export default function PolicyManager({
     void load()
   }, [])
 
-  const upload = async (yaml: string, replace: boolean) => {
+  const upload = async (yaml: string, replace: boolean, signature: string) => {
     setBusy(true)
     setError('')
     setNote('')
     try {
-      const r = await uploadSCAPolicy(yaml, replace)
-      setNote(`${r.policy_id} stored, ${r.checks} checks. Agents pick it up on their next assessment.`)
+      const r = await uploadSCAPolicy(yaml, replace, signature)
+      setNote(
+        `${r.policy_id} stored, ${r.checks} checks, ${r.signed ? 'signed' : 'UNSIGNED'}. ` +
+          `Agents pick it up on their next assessment.`,
+      )
       setPending(null)
+      setSig('')
       await load()
     } catch (e) {
       if ((e as Error).message === 'EXISTS') {
         // Not a failure: ask first, because replacing it changes what the whole estate is
         // measured against.
-        setPending(yaml)
+        setPending({ yaml, sig: signature })
       } else {
         setError((e as Error).message)
       }
@@ -58,7 +65,14 @@ export default function PolicyManager({
 
   const onFile = async (f: File | undefined) => {
     if (!f) return
-    void upload(await f.text(), false)
+    void upload(await f.text(), false, sig)
+  }
+
+  // A .sig file is read into the signature box rather than uploaded on its own, so the operator
+  // can see what is about to be attached and the two never get paired up wrongly.
+  const onSigFile = async (f: File | undefined) => {
+    if (!f) return
+    setSig((await f.text()).trim())
   }
 
   const toggle = async (p: SCAPolicyRow) => {
@@ -107,7 +121,7 @@ export default function PolicyManager({
             </p>
             <div className="mt-2 flex gap-2">
               <button
-                onClick={() => void upload(pending, true)}
+                onClick={() => void upload(pending.yaml, true, pending.sig)}
                 disabled={busy}
                 className="rounded-md border border-amber-400/50 px-2 py-1 text-[12.5px] text-amber-200 hover:bg-amber-400/20 disabled:opacity-50"
               >
@@ -145,6 +159,23 @@ export default function PolicyManager({
               {!p.enabled && (
                 <span className="shrink-0 rounded bg-surface px-1.5 py-0.5 text-[11px] text-dim">off</span>
               )}
+              {/* An endpoint holding a trusted release key runs only the signed policies, so this
+                  is the answer to "why did that host report no score for this benchmark". */}
+              {p.signed ? (
+                <span
+                  className="shrink-0 rounded bg-emerald-400/15 px-1.5 py-0.5 text-[11px] text-emerald-300"
+                  title="Signed. Endpoints that require signed policies will run this one."
+                >
+                  signed
+                </span>
+              ) : (
+                <span
+                  className="shrink-0 rounded bg-amber-400/15 px-1.5 py-0.5 text-[11px] text-amber-300"
+                  title="Unsigned. Endpoints that hold a trusted release key will refuse to run this one."
+                >
+                  unsigned
+                </span>
+              )}
               {canManage && (
                 <>
                   <button
@@ -166,7 +197,26 @@ export default function PolicyManager({
         </div>
 
         {canManage && (
-          <div className="mt-4 border-t border-border pt-4">
+          <div className="mt-4 space-y-3 border-t border-border pt-4">
+            {/* The signature goes first, because it has to be in the box before the policy file
+                triggers the upload. Reversing these would silently store the policy unsigned. */}
+            <label className="block text-[12.5px] font-medium text-muted">
+              Signature <span className="text-dim">(optional, from: dwsign -key update.key -in policy.yml)</span>
+              <div className="mt-1 flex gap-2">
+                <input
+                  value={sig}
+                  onChange={(e) => setSig(e.target.value)}
+                  placeholder="base64, or load the .sig file"
+                  className="min-w-0 flex-1 rounded-[8px] border border-border bg-surface-2 px-3 py-2 font-mono text-[12.5px] outline-none focus:border-accent"
+                />
+                <input
+                  type="file"
+                  accept=".sig,.txt"
+                  onChange={(e) => void onSigFile(e.target.files?.[0])}
+                  className="w-40 shrink-0 rounded-[8px] border border-border bg-surface-2 px-2 py-2 text-[12.5px] text-fg file:mr-2 file:rounded file:border-0 file:bg-surface file:px-2 file:py-1 file:text-fg"
+                />
+              </div>
+            </label>
             <label className="block text-[12.5px] font-medium text-muted">
               Upload a policy (.yml)
               <input
@@ -177,9 +227,10 @@ export default function PolicyManager({
                 className="mt-1 block w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 text-[13.5px] text-fg file:mr-3 file:rounded file:border-0 file:bg-surface file:px-2 file:py-1 file:text-fg"
               />
             </label>
-            <p className="mt-1 text-[12.5px] text-dim">
+            <p className="text-[12.5px] text-dim">
               Rejected with a reason if it is not a valid SCA policy, so a broken file never reaches
-              an endpoint.
+              an endpoint. The signature is stored as given and checked only on the endpoint: this
+              manager does not hold the key, which is what stops it forging one.
             </p>
           </div>
         )}

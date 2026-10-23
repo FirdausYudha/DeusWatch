@@ -44,6 +44,7 @@ import (
 	"deuswatch/internal/respond"
 	"deuswatch/internal/rules"
 	"deuswatch/internal/secret"
+	"deuswatch/internal/signing"
 	"deuswatch/internal/store"
 	"deuswatch/internal/tickets"
 	"deuswatch/migrations"
@@ -121,7 +122,12 @@ func main() {
 
 	// Public one-line agent installer: scripts + cross-compiled binaries (no auth;
 	// the enrollment token is the credential). Binaries come from AGENT_BIN_DIR.
-	ai := agentinstall.New(getenv("AGENT_BIN_DIR", "/agents"), getenv("PUBLIC_API_PORT", "8080"), getenv("PUBLIC_GATEWAY_PORT", "8443"))
+	agentBinDir := getenv("AGENT_BIN_DIR", "/agents")
+	// Say at startup whether the binaries this manager serves can be accepted by a host that
+	// requires signed updates. Discovering that later, from each endpoint's own log after every
+	// agent refused to update, is the failure this line prevents.
+	signing.ReportArtifactSignatures(agentBinDir)
+	ai := agentinstall.New(agentBinDir, getenv("PUBLIC_API_PORT", "8080"), getenv("PUBLIC_GATEWAY_PORT", "8443"))
 	mux.HandleFunc("GET /api/agent/install.sh", ai.InstallSh)
 	mux.HandleFunc("GET /api/agent/install.ps1", ai.InstallPs1)
 	mux.HandleFunc("GET /api/agent/install-macos.sh", ai.InstallMacOS)

@@ -154,20 +154,21 @@ func TestVerifyUpdateRefusesOnABrokenKey(t *testing.T) {
 	}
 }
 
-// TestUpdatePubKeyFileLocation pins where an installer must put the key, since the agent and the
-// installer have to agree without either reading the other.
+// TestUpdatePubKeyFileLocation pins where an installer must put the key, since the installer and
+// the two readers of it (this self-updater and the benchmark collector) have to agree without
+// any of them reading the others.
 func TestUpdatePubKeyFileLocation(t *testing.T) {
 	t.Setenv("UPDATE_PUBKEY_FILE", "")
 	t.Setenv("CERT_DIR", "")
-	if got := updatePubKeyFile(); got != filepath.Join("/etc/deuswatch/certs", "update.pub") {
+	if got := signing.DefaultPubKeyFile(); got != filepath.Join("/etc/deuswatch/certs", "update.pub") {
 		t.Errorf("default = %q", got)
 	}
 	t.Setenv("CERT_DIR", "/opt/dw/certs")
-	if got := updatePubKeyFile(); got != filepath.Join("/opt/dw/certs", "update.pub") {
+	if got := signing.DefaultPubKeyFile(); got != filepath.Join("/opt/dw/certs", "update.pub") {
 		t.Errorf("with CERT_DIR = %q", got)
 	}
 	t.Setenv("UPDATE_PUBKEY_FILE", "/somewhere/else.pub")
-	if got := updatePubKeyFile(); got != "/somewhere/else.pub" {
+	if got := signing.DefaultPubKeyFile(); got != "/somewhere/else.pub" {
 		t.Errorf("explicit override = %q", got)
 	}
 }

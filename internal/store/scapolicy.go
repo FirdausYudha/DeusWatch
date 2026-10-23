@@ -23,6 +23,12 @@ type SCAPolicyRow struct {
 	UploadedBy string    `json:"uploaded_by"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	YAML       string    `json:"yaml,omitempty"`
+	// Signature is the operator's detached signature over YAML, base64. Empty means unsigned,
+	// which an endpoint holding a trusted key refuses and one without it runs with a warning.
+	Signature string `json:"signature,omitempty"`
+	// Signed is what the console shows, so an operator can see at a glance which policies an
+	// endpoint that requires signatures will actually run.
+	Signed bool `json:"signed"`
 }
 
 // ErrSCAPolicyExists is returned when the tenant already holds that benchmark.
@@ -31,7 +37,8 @@ var ErrSCAPolicyExists = errors.New("store: a policy with that id already exists
 // ListSCAPolicies returns the tenant's policies without their YAML.
 func (s *Store) ListSCAPolicies(ctx context.Context) ([]SCAPolicyRow, error) {
 	rows, err := s.q(ctx).Query(ctx, `
-		SELECT id::text, policy_id, name, check_count, enabled, rev, uploaded_by, updated_at
+		SELECT id::text, policy_id, name, check_count, enabled, rev, uploaded_by, updated_at,
+		       coalesce(signature, '') <> ''
 		  FROM sca_policies ORDER BY policy_id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list sca policies: %w", err)
@@ -41,7 +48,7 @@ func (s *Store) ListSCAPolicies(ctx context.Context) ([]SCAPolicyRow, error) {
 	for rows.Next() {
 		var p SCAPolicyRow
 		if err := rows.Scan(&p.ID, &p.PolicyID, &p.Name, &p.CheckCount, &p.Enabled,
-			&p.Rev, &p.UploadedBy, &p.UpdatedAt); err != nil {
+			&p.Rev, &p.UploadedBy, &p.UpdatedAt, &p.Signed); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -62,7 +69,7 @@ func (s *Store) ListSCAPolicies(ctx context.Context) ([]SCAPolicyRow, error) {
 // policies to a machine with no record.
 func (s *Store) EnabledSCAPoliciesForAgent(ctx context.Context, agentName string) ([]SCAPolicyRow, error) {
 	rows, err := s.q(ctx).Query(ctx, `
-		SELECT p.policy_id, p.name, p.rev, p.yaml
+		SELECT p.policy_id, p.name, p.rev, p.yaml, coalesce(p.signature, '')
 		  FROM sca_policies p
 		  JOIN agents a ON a.tenant_id = p.tenant_id
 		 WHERE p.enabled AND a.name = $1 AND NOT a.revoked
@@ -74,7 +81,7 @@ func (s *Store) EnabledSCAPoliciesForAgent(ctx context.Context, agentName string
 	out := []SCAPolicyRow{}
 	for rows.Next() {
 		var p SCAPolicyRow
-		if err := rows.Scan(&p.PolicyID, &p.Name, &p.Rev, &p.YAML); err != nil {
+		if err := rows.Scan(&p.PolicyID, &p.Name, &p.Rev, &p.YAML, &p.Signature); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -88,16 +95,16 @@ func (s *Store) EnabledSCAPoliciesForAgent(ctx context.Context, agentName string
 // replace=false refuses to overwrite, so an accidental second upload of a different benchmark
 // under a name already in use is an error the operator sees rather than a silent swap of what
 // the whole estate is being measured against.
-func (s *Store) UpsertSCAPolicy(ctx context.Context, policyID, name, yaml string, checks int, uploadedBy string, replace bool) (int64, error) {
+func (s *Store) UpsertSCAPolicy(ctx context.Context, policyID, name, yaml string, checks int, uploadedBy, signature string, replace bool) (int64, error) {
 	if policyID == "" || yaml == "" {
 		return 0, fmt.Errorf("store: a policy needs an id and a body")
 	}
 	if !replace {
 		var rev int64
 		err := s.q(ctx).QueryRow(ctx, `
-			INSERT INTO sca_policies (policy_id, name, yaml, check_count, uploaded_by)
-			VALUES ($1, $2, $3, $4, $5) RETURNING rev`,
-			policyID, name, yaml, checks, uploadedBy).Scan(&rev)
+			INSERT INTO sca_policies (policy_id, name, yaml, check_count, uploaded_by, signature)
+			VALUES ($1, $2, $3, $4, $5, nullif($6, '')) RETURNING rev`,
+			policyID, name, yaml, checks, uploadedBy, signature).Scan(&rev)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return 0, ErrSCAPolicyExists
@@ -109,14 +116,15 @@ func (s *Store) UpsertSCAPolicy(ctx context.Context, policyID, name, yaml string
 	}
 	var rev int64
 	err := s.q(ctx).QueryRow(ctx, `
-		INSERT INTO sca_policies (policy_id, name, yaml, check_count, uploaded_by)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO sca_policies (policy_id, name, yaml, check_count, uploaded_by, signature)
+		VALUES ($1, $2, $3, $4, $5, nullif($6, ''))
 		ON CONFLICT (tenant_id, policy_id) DO UPDATE
 		   SET name = EXCLUDED.name, yaml = EXCLUDED.yaml,
 		       check_count = EXCLUDED.check_count, uploaded_by = EXCLUDED.uploaded_by,
+		       signature = EXCLUDED.signature,
 		       rev = sca_policies.rev + 1, updated_at = now()
 		RETURNING rev`,
-		policyID, name, yaml, checks, uploadedBy).Scan(&rev)
+		policyID, name, yaml, checks, uploadedBy, signature).Scan(&rev)
 	if err != nil {
 		return 0, fmt.Errorf("store: upsert sca policy: %w", err)
 	}

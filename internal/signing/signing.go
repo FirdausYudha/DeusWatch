@@ -24,7 +24,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -61,6 +63,24 @@ func GenerateKey() (privPEM, pubPEM []byte, err error) {
 	privPEM = pem.EncodeToMemory(&pem.Block{Type: privateBlock, Bytes: priv})
 	pubPEM = pem.EncodeToMemory(&pem.Block{Type: publicBlock, Bytes: pub})
 	return privPEM, pubPEM, nil
+}
+
+// PublicFromPrivate derives the public key from a private one, as raw bytes and as PEM.
+//
+// An Ed25519 private key is the seed followed by its own public key, so this is extraction rather
+// than computation. It exists so a lost update.pub can be recovered from the key that signs, and
+// so a signing pipeline can verify its own output without being handed a second file to keep in
+// step with the first.
+func PublicFromPrivate(priv ed25519.PrivateKey) (ed25519.PublicKey, []byte, error) {
+	if len(priv) != ed25519.PrivateKeySize {
+		return nil, nil, fmt.Errorf("signing: private key is %d bytes, expected %d",
+			len(priv), ed25519.PrivateKeySize)
+	}
+	pub, ok := priv.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil, nil, errors.New("signing: private key does not yield an ed25519 public key")
+	}
+	return pub, pem.EncodeToMemory(&pem.Block{Type: publicBlock, Bytes: pub}), nil
 }
 
 // ParsePrivateKey reads a private key from PEM.
@@ -197,4 +217,67 @@ func LoadVerifier(inline, file string) (*Verifier, error) {
 		return nil, fmt.Errorf("signing: %s is present but unusable: %w", file, err)
 	}
 	return &Verifier{pub: pub, src: file}, nil
+}
+
+// DefaultPubKeyFile is where the installer leaves the operator's public key on an endpoint.
+//
+// It sits beside the mTLS material because that directory is already root-owned and already the
+// agent's root of trust, so a host that can protect one can protect the other.
+//
+// It lives HERE rather than in each caller because the self-updater and the benchmark collector
+// both need it, in different packages, and two copies that drift mean one path verifies while
+// the other quietly does not. That is the worst way for this to fail: half-enforced, with
+// nothing saying which half.
+func DefaultPubKeyFile() string {
+	if p := strings.TrimSpace(os.Getenv("UPDATE_PUBKEY_FILE")); p != "" {
+		return p
+	}
+	dir := os.Getenv("CERT_DIR")
+	if dir == "" {
+		dir = "/etc/deuswatch/certs"
+	}
+	return filepath.Join(dir, "update.pub")
+}
+
+// ReportArtifactSignatures logs whether the binaries a manager serves carry signatures, once at
+// startup.
+//
+// It exists because of a mismatch that would otherwise surface as a mystery. The container image
+// COMPILES the agent binaries it serves, so they arrive unsigned, and signing them at image build
+// time would mean shipping the private key into the build, which is the one thing this whole
+// mechanism forbids. An operator who installs the public key on their endpoints and then waits
+// for an update would see every agent refuse, with the reason only in each endpoint's own log.
+//
+// So the manager says it first, at the one moment somebody is watching: these are the binaries I
+// will serve, and this is whether a host that requires signatures can accept them.
+func ReportArtifactSignatures(binDir string) {
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return // no binary directory is a separate concern, already reported by whoever needs it
+	}
+	var signed, unsigned []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || strings.HasSuffix(name, ".sig") || !strings.HasPrefix(name, "deuswatch-agent-") {
+			continue
+		}
+		if _, serr := os.Stat(filepath.Join(binDir, name+".sig")); serr == nil {
+			signed = append(signed, name)
+		} else {
+			unsigned = append(unsigned, name)
+		}
+	}
+	if len(signed) == 0 && len(unsigned) == 0 {
+		return
+	}
+	if len(unsigned) == 0 {
+		log.Printf("signing: all %d agent binaries in %s carry signatures", len(signed), binDir)
+		return
+	}
+	log.Printf("signing: %d of %d agent binaries in %s have NO signature (%s). "+
+		"Agents that hold a trusted release key will REFUSE to self-update from this manager. "+
+		"These binaries are compiled into the image, and signing them here would require the "+
+		"private key in the build. To serve signed updates, mount the signed release artifacts "+
+		"and their .sig files over %s. See docs/signing.md.",
+		len(unsigned), len(signed)+len(unsigned), binDir, strings.Join(unsigned, ", "), binDir)
 }

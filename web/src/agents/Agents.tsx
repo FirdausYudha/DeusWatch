@@ -593,6 +593,10 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   // more than one tenant exists; otherwise the agent enrolls into Default.
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [tenantID, setTenantID] = useState('')
+  // The operator's release public key, pasted here and used ONLY to build the command below. It
+  // is never sent to or stored by the manager: a manager that held the key which checks the
+  // manager would not be checking anything.
+  const [pubKey, setPubKey] = useState('')
 
   // Learn the manager's host-published ports so the command points at the right ones even
   // when they're remapped in docker-compose (DEUSWATCH_API_PORT / DEUSWATCH_GATEWAY_PORT).
@@ -612,10 +616,14 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   // One copy-paste command that downloads, enrolls, installs the service and connects.
   // API_PORT/GW_PORT are passed so the agent reaches the manager on its remapped ports.
   const installScript = os === 'macos' ? 'install-macos.sh' : 'install.sh'
+  // Collapsed to one line so it survives being pasted into a shell. A PEM block has newlines;
+  // the agent accepts the bare base64 of the key as well, which is what dwsign -gen prints as
+  // its one-liner.
+  const pk = pubKey.trim().replace(/\s+/g, ' ')
   const install =
     os === 'windows'
-      ? `$env:MANAGER='${managerIP}'; $env:TOKEN='${tok}'; $env:NAME='${nm}'; $env:API_PORT='${apiPort}'; $env:GW_PORT='${gwPort}'; iwr http://${host}/api/agent/install.ps1 -UseBasicParsing | iex`
-      : `curl -fsSL http://${host}/api/agent/${installScript} | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} API_PORT=${apiPort} GW_PORT=${gwPort} sh`
+      ? `$env:MANAGER='${managerIP}'; $env:TOKEN='${tok}'; $env:NAME='${nm}'; $env:API_PORT='${apiPort}'; $env:GW_PORT='${gwPort}';${pk ? ` $env:UPDATE_PUBKEY='${pk}';` : ''} iwr http://${host}/api/agent/install.ps1 -UseBasicParsing | iex`
+      : `curl -fsSL http://${host}/api/agent/${installScript} | sudo MANAGER=${managerIP} TOKEN=${tok} NAME=${nm} API_PORT=${apiPort} GW_PORT=${gwPort}${pk ? ` UPDATE_PUBKEY='${pk}'` : ''} sh`
   // Firewall command to run once on the manager host (Windows) so agents can reach it.
   const managerFw = `New-NetFirewallRule -DisplayName "DeusWatch" -Direction Inbound -Action Allow -Protocol TCP -LocalPort ${apiPort},${gwPort}`
 
@@ -711,6 +719,22 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
             </div>
             <Copyable text={managerFw} />
           </div>
+        <label className="mt-3 block">
+          <span className="mb-1 block text-[12.5px] font-medium text-muted">
+            Release public key <span className="text-dim">(optional)</span>
+          </span>
+          <input
+            value={pubKey}
+            onChange={(e) => setPubKey(e.target.value)}
+            placeholder="base64 from: dwsign -gen"
+            className="w-full rounded-[8px] border border-border bg-surface-2 px-3 py-2 font-mono text-[12.5px] outline-none focus:border-accent"
+          />
+          <span className="mt-1 block text-[12.5px] text-dim">
+            With this installed the agent refuses a self-update whose signature does not verify, so
+            whoever controls this manager can withhold updates but cannot replace the agent binary and
+            run code as root. It is only pasted into the command below, never sent here or stored.
+          </span>
+        </label>
           <div>
             <div className="mb-1 text-[12.5px] font-medium text-muted">
               2 · On the endpoint, paste &amp; run{' '}

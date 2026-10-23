@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"deuswatch/internal/signing"
 )
 
 // scaInterval is the default period between assessments. Benchmarks measure configuration, which
@@ -226,6 +228,7 @@ func fetchAndCachePolicies(ctx context.Context) []*SCAPolicy {
 		}
 		return cached
 	}
+	pushed = verifiedPolicies(pushed)
 	writeCachedPolicies(pushed)
 	out := make([]*SCAPolicy, 0, len(pushed))
 	for _, pp := range pushed {
@@ -424,6 +427,55 @@ func mergePolicies(local, managed []*SCAPolicy) []*SCAPolicy {
 		}
 		seen[p.Policy.ID] = true
 		out = append(out, p)
+	}
+	return out
+}
+
+// verifiedPolicies drops every managed policy this endpoint cannot vouch for.
+//
+// A policy's `c:` rules are shell commands run as the agent's user, usually root, so a served
+// policy is the manager handing code to an endpoint. It gets the same treatment as the agent
+// binary, and for the same reason:
+//
+//   - A trusted key is installed: a policy must verify against it or it is DROPPED. Dropped, not
+//     failed: a benchmark that is not assessed leaves the previous score standing, whereas
+//     evaluating an unverified policy would run whatever the attacker wrote.
+//   - No trusted key: everything runs, with one warning naming the variable that would change
+//     that. Refusing would silently stop benchmarks on every endpoint already deployed.
+//
+// Filtering happens BEFORE the cache is written, so a rejected policy is not left on disk to be
+// picked up by the offline fallback on the next pass.
+func verifiedPolicies(pushed []PushedPolicy) []PushedPolicy {
+	v, err := signing.LoadVerifier(os.Getenv("UPDATE_PUBKEY"), signing.DefaultPubKeyFile())
+	if err != nil {
+		// Configured but unusable. Dropping everything is the safe reading: the operator asked
+		// for verification and this host cannot perform it.
+		log.Printf("agent: sca: the trusted release key is unusable, no managed policy will run: %v", err)
+		return nil
+	}
+	if !v.Enabled() {
+		if len(pushed) > 0 {
+			log.Printf("agent: sca: WARNING %d managed policies are running UNVERIFIED. A policy runs "+
+				"shell commands as this agent's user, so anyone who controls the manager can run code "+
+				"here. Install the operator's public key (UPDATE_PUBKEY, or %s) to require signatures.",
+				len(pushed), signing.DefaultPubKeyFile())
+		}
+		return pushed
+	}
+	out := make([]PushedPolicy, 0, len(pushed))
+	for _, pp := range pushed {
+		if pp.Signature == "" {
+			log.Printf("agent: sca: DROPPED managed policy %s: this host requires signed policies "+
+				"(key from %s) and it arrived unsigned", pp.PolicyID, v.Source())
+			continue
+		}
+		if verr := v.Verify([]byte(pp.YAML), pp.Signature); verr != nil {
+			log.Printf("agent: sca: DROPPED managed policy %s: it does not verify against the trusted "+
+				"key from %s. Either it was signed with a different key or it was altered: %v",
+				pp.PolicyID, v.Source(), verr)
+			continue
+		}
+		out = append(out, pp)
 	}
 	return out
 }

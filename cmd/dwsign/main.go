@@ -35,12 +35,15 @@ func main() {
 	in := flag.String("in", "", "file to sign or verify")
 	sigPath := flag.String("sig", "", "signature file (default: <in>.sig)")
 	force := flag.Bool("force", false, "overwrite existing keys on -gen")
+	pubout := flag.Bool("pubout", false, "print the public key derived from -key, PEM to stdout")
 	flag.Parse()
 
 	var err error
 	switch {
 	case *gen:
 		err = generate(*out, *force)
+	case *pubout:
+		err = printPublic(*keyPath)
 	case *verify:
 		err = doVerify(*pubPath, *in, *sigPath)
 	case *in != "":
@@ -101,6 +104,29 @@ func oneLine(pubPEM []byte) string {
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(pub)
+}
+
+// printPublic derives the public key from a private one. An Ed25519 private key carries its own
+// public half, so no stored file is needed. Two uses: recovering a lost update.pub, and letting a
+// signing pipeline verify what it just produced without being handed a second secret.
+func printPublic(keyPath string) error {
+	if keyPath == "" {
+		return fmt.Errorf("-key is required for -pubout")
+	}
+	keyPEM, err := os.ReadFile(keyPath) // #nosec G304 -- operator-supplied path
+	if err != nil {
+		return err
+	}
+	priv, err := signing.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return err
+	}
+	_, pubPEM, err := signing.PublicFromPrivate(priv)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stdout.Write(pubPEM)
+	return err
 }
 
 func sign(keyPath, in, sigPath string) error {

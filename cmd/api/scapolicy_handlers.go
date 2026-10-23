@@ -66,16 +66,24 @@ func scaPoliciesHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, "could not read the upload", http.StatusBadRequest)
 			return
 		}
+		// The operator's detached signature over the policy, if they supplied one. It arrives in
+		// a header for a raw-YAML upload and in the envelope for a JSON one, and is stored
+		// verbatim: the manager never verifies it and never could, because it does not hold the
+		// key. Only the endpoint can, which is the entire point.
+		signature := strings.TrimSpace(r.Header.Get("X-Deuswatch-Signature"))
+
 		// Accept either the raw YAML or a JSON envelope carrying it, so the file can be posted
 		// directly from a form and also from a script that already speaks JSON.
 		yamlBody := body
 		if strings.HasPrefix(strings.TrimSpace(string(body)), "{") {
 			var env struct {
-				YAML    string `json:"yaml"`
-				Replace bool   `json:"replace"`
+				YAML      string `json:"yaml"`
+				Signature string `json:"signature"`
+				Replace   bool   `json:"replace"`
 			}
 			if err := json.Unmarshal(body, &env); err == nil && env.YAML != "" {
 				yamlBody = []byte(env.YAML)
+				signature = env.Signature
 			}
 		}
 
@@ -93,7 +101,7 @@ func scaPoliciesHandler(st *store.Store) http.HandlerFunc {
 		}
 		replace := r.URL.Query().Get("replace") == "1"
 		rev, err := st.UpsertSCAPolicy(r.Context(), p.Policy.ID, p.Policy.Name,
-			string(yamlBody), len(p.Checks), uploadedBy, replace)
+			string(yamlBody), len(p.Checks), uploadedBy, signature, replace)
 		if errors.Is(err, store.ErrSCAPolicyExists) {
 			// 409 rather than a silent overwrite. Replacing the benchmark the whole estate is
 			// measured against is a decision, so it takes a second click.
@@ -110,6 +118,7 @@ func scaPoliciesHandler(st *store.Store) http.HandlerFunc {
 			"name":      p.Policy.Name,
 			"checks":    len(p.Checks),
 			"rev":       rev,
+			"signed":    signature != "",
 		})
 	}
 }
