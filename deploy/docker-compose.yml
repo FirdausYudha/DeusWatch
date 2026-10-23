@@ -120,6 +120,11 @@ services:
       AGENT_BIN_DIR: "/agents"
       # Encrypts integration secrets at rest. Generate: openssl rand -base64 32
       SECRETS_KEY: "${SECRETS_KEY:-}"
+      # Software update check. Only needed when the release repository is not the public
+      # default; a token is REQUIRED if it is private, because GitHub answers 404 for a
+      # private repository and the check cannot otherwise tell that from "no releases".
+      UPDATE_REPO: "${UPDATE_REPO:-}"
+      UPDATE_TOKEN: "${UPDATE_TOKEN:-}"
       # External (host-published) ports agents must reach. The container always listens on
       # 8080/8443 internally; these tell the agent-install wizard which host ports to use so
       # the generated one-liner is correct when you remap the ports below.

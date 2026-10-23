@@ -1456,6 +1456,24 @@ func appVersion() string {
 	return version
 }
 
+// updateRepo is where the update check looks for releases. UPDATE_REPO overrides the default, so
+// a private mirror or a fork is pointed at without a rebuild.
+func updateRepo() string {
+	if r := strings.TrimSpace(os.Getenv("UPDATE_REPO")); r != "" {
+		return r
+	}
+	return githubRepo
+}
+
+// updateToken is the GitHub token the update check authenticates with, needed only when the
+// release repository is PRIVATE. Empty means anonymous, which is correct for a public repo.
+func updateToken() string {
+	if t := strings.TrimSpace(os.Getenv("UPDATE_TOKEN")); t != "" {
+		return t
+	}
+	return strings.TrimSpace(os.Getenv("GITHUB_TOKEN"))
+}
+
 func updateCheckHandler() http.HandlerFunc {
 	type result struct {
 		Current         string `json:"current"`
@@ -1464,12 +1482,20 @@ func updateCheckHandler() http.HandlerFunc {
 		UpdateAvailable bool   `json:"update_available"`
 		RepoURL         string `json:"repo_url"`
 		UpdateCommand   string `json:"update_command"`
+		// Note carries the reason a check could not compare versions, so the UI explains itself
+		// instead of showing "up to date" for a repository it cannot see.
+		Note string `json:"note,omitempty"`
 	}
 	hc := &http.Client{Timeout: 8 * time.Second}
 	return func(w http.ResponseWriter, r *http.Request) {
+		repo := updateRepo()
+		token := updateToken()
 		req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet,
-			"https://api.github.com/repos/"+githubRepo+"/releases/latest", nil)
+			"https://api.github.com/repos/"+repo+"/releases/latest", nil)
 		req.Header.Set("Accept", "application/vnd.github+json")
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
 		cur := appVersion()
 		resp, err := hc.Do(req)
 		if err != nil {
@@ -1478,9 +1504,27 @@ func updateCheckHandler() http.HandlerFunc {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusNotFound {
-			// No published releases yet - report the running version, nothing to compare.
+			// 404 is ambiguous and the difference matters. For a public repository it means there
+			// are no published releases yet. For a PRIVATE one GitHub also answers 404 rather than
+			// admitting the repository exists, so without a token this is indistinguishable from
+			// "nothing released". Reporting "up to date" either way would tell an operator their
+			// deployment is current when the check never looked.
+			note := ""
+			if token == "" {
+				note = "No releases found. If the repository is private, set UPDATE_TOKEN to a " +
+					"token with read access; GitHub answers 404 for a private repository too."
+			}
 			writeJSON(w, http.StatusOK, result{Current: cur, UpdateAvailable: false,
-				RepoURL: "https://github.com/" + githubRepo, UpdateCommand: "./scripts/update.sh"})
+				RepoURL: "https://github.com/" + repo, UpdateCommand: "./scripts/update.sh",
+				Note: note})
+			return
+		}
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			// Named separately because the fix is specific and the generic message hid it: a
+			// rejected or expired token reads as a GitHub outage otherwise.
+			http.Error(w, fmt.Sprintf("GitHub rejected the update check (HTTP %d). "+
+				"UPDATE_TOKEN is missing, expired, or lacks read access to %s.", resp.StatusCode, repo),
+				http.StatusBadGateway)
 			return
 		}
 		if resp.StatusCode != http.StatusOK {
@@ -1502,7 +1546,7 @@ func updateCheckHandler() http.HandlerFunc {
 		writeJSON(w, http.StatusOK, result{
 			Current: cur, Latest: latest, LatestDate: gh.PublishedAt,
 			UpdateAvailable: available,
-			RepoURL:         "https://github.com/" + githubRepo + "/releases",
+			RepoURL:         "https://github.com/" + repo + "/releases",
 			UpdateCommand:   "./scripts/update.sh",
 		})
 	}

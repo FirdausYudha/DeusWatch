@@ -1959,6 +1959,9 @@ export type UpdateInfo = {
   update_available: boolean
   repo_url: string
   update_command: string
+  // Why a check could not compare versions, e.g. a private repository with no token. Present
+  // instead of a silent "up to date" for a repository the manager cannot see.
+  note?: string
 }
 export async function fetchUpdateCheck(): Promise<UpdateInfo> {
   const res = await authFetch('/api/update-check')

@@ -885,6 +885,12 @@ export default function Settings() {
             {upd.latest_date && <span className="text-dim"> ({new Date(upd.latest_date).toLocaleString('en-US')})</span>}.
             <div className="mt-1 text-muted">On the host run: <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">{upd.update_command}</code></div>
           </div>
+        ) : upd.note ? (
+          /* The check ran but could not compare: saying "up to date" here would report a
+             deployment as current when nothing was ever looked at. */
+          <p className="mt-3 text-[13.5px] text-amber-300">
+            Running <span className="font-mono">{upd.current}</span>. {upd.note}
+          </p>
         ) : (
           <p className="mt-3 text-[13.5px] text-emerald-400">
             {upd.current === 'dev'

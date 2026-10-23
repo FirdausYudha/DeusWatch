@@ -7,6 +7,20 @@ v2.42.0 are documented in their tag annotations and GitHub Releases rather than 
 Entries say what changed and, where it matters, what an operator has to do about it. A fix that
 needs nothing from you does not say so; assume silence means nothing to do.
 
+## Unreleased
+
+### Changed
+
+- **The update check works against a private release repository.** `UPDATE_REPO` points it at a
+  fork or a private mirror and `UPDATE_TOKEN` authenticates it; an existing `GITHUB_TOKEN` is used
+  when `UPDATE_TOKEN` is unset. Nothing to do if the repository is public.
+
+  It also no longer reports "up to date" for a repository it cannot see. GitHub answers **404 for
+  a private repository** rather than admitting it exists, which was indistinguishable from "no
+  releases published yet", so Settings would have shown a deployment as current while the check
+  had never compared anything. With no token configured that case now says so, and a rejected or
+  expired token is named as a token problem rather than reported as a GitHub outage.
+
 ## v2.62.0
 
 Requires migration **000083**.
