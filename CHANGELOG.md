@@ -30,6 +30,16 @@ needs nothing from you does not say so; assume silence means nothing to do.
 
 ### Changed
 
+- **`sys()` in the API's route table is now `selfAuthScoped()`.** The old name read like
+  "system", and so like a privilege check. It is not one: it performs no authentication at all, it
+  opens a transaction with **superadmin tenant scope** and calls the handler, which sees every
+  workspace's data. The six routes using it are safe only because each carries its own credential
+  (an enrollment token, `ML_API_TOKEN`, a subscriber key, a per-sensor ingest key).
+
+  A route added there without its own check would have been open to the internet across all
+  tenants, and neither the type system nor a review diff would have said so. No behaviour change;
+  the name and the comment now say what the wrapper does and list what authenticates each route.
+
 - **The update check works against a private release repository.** `UPDATE_REPO` points it at a
   fork or a private mirror and `UPDATE_TOKEN` authenticates it; an existing `GITHUB_TOKEN` is used
   when `UPDATE_TOKEN` is unset. Nothing to do if the repository is public.

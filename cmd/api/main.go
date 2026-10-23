@@ -232,7 +232,25 @@ func main() {
 		// subscription pull) in a super-admin scope so its store reads/writes bypass RLS. These feeds
 		// legitimately span all tenants today; per-credential tenant scoping is future work. Without
 		// this they would hit the unscoped fail-closed path and return zero rows once RLS is forced.
-		sys := func(h http.HandlerFunc) http.HandlerFunc {
+		// selfAuthScoped wraps a handler that AUTHENTICATES ITSELF and needs a system-scoped
+		// transaction to do its work.
+		//
+		// It is named this way because the old name, `sys`, read like "system" and so like a
+		// privilege check. It is not one. It performs NO authentication and NO authorization: it
+		// opens a transaction with SUPERADMIN tenant scope, meaning the handler inside sees every
+		// workspace's data, and then calls the handler. A route added here without its own
+		// credential check would be open to the internet, across all tenants, and nothing in the
+		// type system or the review diff would say so.
+		//
+		// Every current user carries its own credential, and that is the condition for being
+		// here:
+		//   /api/enroll            a single-use enrollment token in the body
+		//   /api/ml/*              ML_API_TOKEN, constant-time, 404 when unset
+		//   /api/subscribe/*       a subscriber token, see docs/subscription-api.md
+		//   /api/sensors/ingest    a per-sensor ingest key
+		//
+		// Do not add a route here until you can add its line to that list.
+		selfAuthScoped := func(h http.HandlerFunc) http.HandlerFunc {
 			return func(w http.ResponseWriter, r *http.Request) {
 				if serr := st.WithTenantScope(r.Context(), nil, true, func(sctx context.Context) error {
 					h(w, r.WithContext(sctx))
@@ -263,7 +281,7 @@ func main() {
 			// PUBLIC (the enrollment token is the credential). It writes agents + claims a token, both
 			// now RLS-forced, so it runs inside a super-admin scope, the enrolling agent's tenant comes
 			// from the token, and the row is stamped with it regardless of any caller scope.
-			mux.HandleFunc("/api/enroll", sys(enrollStore.EnrollHandler()))
+			mux.HandleFunc("/api/enroll", selfAuthScoped(enrollStore.EnrollHandler()))
 			mux.Handle("/api/agents/tokens", protect(auth.PermManageAgents, enrollStore.TokenHandler()))
 			mux.Handle("/api/agents", protect(auth.PermViewDashboard, enrollStore.AgentsHandler()))
 			mux.Handle("POST /api/agents/{id}/revoke", protect(auth.PermManageAgents, enrollStore.RevokeHandler()))
@@ -334,14 +352,14 @@ func main() {
 		// Forest) to pull per-IP features and write anomaly_score back. Token-based (like the
 		// ingest webhook) so a cron/Python job can call it without a UI session. Off (404) unless
 		// ML_API_TOKEN is set.
-		mux.HandleFunc("GET /api/ml/ip-features", sys(mlFeaturesHandler(st)))
-		mux.HandleFunc("POST /api/ml/anomaly", sys(mlAnomalyHandler(st)))
+		mux.HandleFunc("GET /api/ml/ip-features", selfAuthScoped(mlFeaturesHandler(st)))
+		mux.HandleFunc("POST /api/ml/anomaly", selfAuthScoped(mlAnomalyHandler(st)))
 
 		// Subscription API (the sellable rich-log product): external subscribers PULL enriched
 		// events / threat indicators with a per-subscriber API key (no UI session). Admins manage
 		// the keys under manage_integrations. See internal/store/subscriptions.go + docs.
-		mux.HandleFunc("GET /api/subscribe/events", sys(subscribeEventsHandler(st)))
-		mux.HandleFunc("GET /api/subscribe/indicators", sys(subscribeIndicatorsHandler(st)))
+		mux.HandleFunc("GET /api/subscribe/events", selfAuthScoped(subscribeEventsHandler(st)))
+		mux.HandleFunc("GET /api/subscribe/indicators", selfAuthScoped(subscribeIndicatorsHandler(st)))
 		mux.Handle("GET /api/subscriptions", protect(auth.PermManageIntegrations, subscriptionsListHandler(st)))
 		mux.Handle("POST /api/subscriptions", protect(auth.PermManageIntegrations, subscriptionCreateHandler(st)))
 		mux.Handle("POST /api/subscriptions/{id}/toggle", protect(auth.PermManageIntegrations, subscriptionToggleHandler(st)))
@@ -380,7 +398,7 @@ func main() {
 		// itself gates writes on manage_settings, since the ingest key goes out only to a writer.
 		mux.Handle("/api/sensors", protect(auth.PermViewDashboard, envSensorsHandler(st)))
 		// The push intake authenticates with the sensor's own key, so it takes no session at all.
-		mux.HandleFunc("POST /api/sensors/ingest", sys(envIngestHandler(st)))
+		mux.HandleFunc("POST /api/sensors/ingest", selfAuthScoped(envIngestHandler(st)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
