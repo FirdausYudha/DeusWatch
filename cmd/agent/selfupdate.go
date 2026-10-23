@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"deuswatch/internal/agent"
+	"deuswatch/internal/signing"
 )
 
 // performSelfUpdate downloads the binary the manager pointed at, atomically replaces the
@@ -92,12 +94,24 @@ func performSelfUpdate(ctx context.Context, shipper *agent.Shipper, directive *a
 			_ = os.Remove(tmpPath)
 		}
 	}()
-	if _, err := io.Copy(tmp, io.LimitReader(resp.Body, 200<<20)); err != nil {
+	// 64MB rather than 200. A statically linked Go agent is about 7MB, so this is eight times
+	// the headroom it needs, and the whole download has to be read back into memory below to be
+	// verified. A 200MB "agent binary" is already wrong, and allocating 200MB as root to find
+	// that out is the wrong way to discover it.
+	if _, err := io.Copy(tmp, io.LimitReader(resp.Body, 64<<20)); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("write tmp: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close tmp: %w", err)
+	}
+
+	// VERIFY BEFORE THE SWAP. Up to here nothing distinguishes the real manager from anyone who
+	// has taken it over: TLS pinning proves which host answered, not what it sent, and this
+	// function's next act is to replace the running executable of a root process. The signature
+	// is what moves that trust from the transport to the content.
+	if err := verifyUpdate(tmpPath, resp.Header.Get(signing.SignatureHeader), directive.Version); err != nil {
+		return err
 	}
 	// #nosec G302 -- this is the agent binary about to replace the running one. It has to be
 	// executable, and 0600 would brick the update.
@@ -148,4 +162,63 @@ func loadCACertPool() (*x509.CertPool, error) {
 		return nil, fmt.Errorf("no valid PEM in ca.pem")
 	}
 	return pool, nil
+}
+
+// verifyUpdate checks a downloaded binary against the endpoint's trusted release key.
+//
+// The two outcomes that matter:
+//
+//   - A trusted key IS installed. The binary must verify, full stop. An unsigned or wrongly
+//     signed download is refused and the running agent keeps running, which is the safe failure:
+//     an agent one version behind still collects, still alerts, still responds.
+//   - NO trusted key is installed. The update proceeds, because refusing would brick self-update
+//     for every agent already deployed the moment this shipped, and an estate that cannot be
+//     patched is its own security problem. It says so on every update, at WARNING volume, naming
+//     the variable that fixes it.
+//
+// There is no third mode where a key is installed and a signature is merely preferred. "Verify if
+// convenient" is the same as not verifying, because the attacker chooses the circumstances.
+func verifyUpdate(path, signature, version string) error {
+	v, err := signing.LoadVerifier(os.Getenv("UPDATE_PUBKEY"), updatePubKeyFile())
+	if err != nil {
+		// A key that is configured but unreadable is NOT treated as "no key". Falling back to
+		// unverified on a typo would switch off this control on the day somebody set it up.
+		return fmt.Errorf("self-update refused, the trusted release key is unusable: %w", err)
+	}
+	if !v.Enabled() {
+		log.Printf("agent: WARNING self-update %s is NOT verified: no trusted release key on this host. "+
+			"Anyone who controls the manager can replace this binary and run code as root. "+
+			"Install the operator's public key (UPDATE_PUBKEY, or %s) to require signatures.",
+			version, updatePubKeyFile())
+		return nil
+	}
+	if signature == "" {
+		return fmt.Errorf("self-update refused: this host requires signed releases (key from %s) "+
+			"but the manager served %s with no signature", v.Source(), version)
+	}
+	content, err := os.ReadFile(path) // #nosec G304 -- our own temp file, written just above
+	if err != nil {
+		return fmt.Errorf("self-update refused, cannot re-read the download to verify it: %w", err)
+	}
+	if err := v.Verify(content, signature); err != nil {
+		return fmt.Errorf("self-update REFUSED: %s did not verify against the trusted release key "+
+			"from %s. The running agent is untouched. Either the release was not signed with that "+
+			"key, or the download was altered: %w", version, v.Source(), err)
+	}
+	log.Printf("agent: self-update %s verified against the trusted release key (%s)", version, v.Source())
+	return nil
+}
+
+// updatePubKeyFile is where the installer leaves the operator's public key. It sits beside the
+// mTLS material because that directory is already root-owned and already the agent's root of
+// trust, so an endpoint that can protect one can protect the other.
+func updatePubKeyFile() string {
+	if p := strings.TrimSpace(os.Getenv("UPDATE_PUBKEY_FILE")); p != "" {
+		return p
+	}
+	dir := os.Getenv("CERT_DIR")
+	if dir == "" {
+		dir = "/etc/deuswatch/certs"
+	}
+	return filepath.Join(dir, "update.pub")
 }

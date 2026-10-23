@@ -11,11 +11,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"deuswatch/internal/bus"
 	"deuswatch/internal/ingest"
+	"deuswatch/internal/signing"
 )
 
 const maxBodyBytes = 8 << 20 // 8 MiB per batch
@@ -450,7 +452,7 @@ func AgentBinaryHandler(binDir string) http.HandlerFunc {
 			return
 		}
 		name := "deuswatch-agent-linux-" + safeArch
-		f, err := os.Open(filepath.Join(binDir, name))
+		f, err := os.Open(filepath.Join(binDir, name)) // #nosec G304 -- safeArch is one of two literals
 		if err != nil {
 			http.Error(w, "agent binary not found", http.StatusNotFound)
 			return
@@ -458,6 +460,18 @@ func AgentBinaryHandler(binDir string) http.HandlerFunc {
 		defer f.Close()
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", "attachment; filename="+name)
+		// The release signature travels WITH the bytes, in a header, because this is the first
+		// moment the architecture is known: the update directive is built during a heartbeat and
+		// carries a literal "{arch}" that the agent substitutes, so the manager cannot know which
+		// binary's signature to attach back then.
+		//
+		// It being a header rather than part of the signed payload is not a weakness. The
+		// signature covers the body, so a manager or a proxy that alters either one only causes
+		// the agent to refuse the update. Absent means unsigned, and the agent decides what to do
+		// about that according to whether it holds a trusted key.
+		if sig, serr := os.ReadFile(filepath.Join(binDir, name+".sig")); serr == nil {
+			w.Header().Set(signing.SignatureHeader, strings.TrimSpace(string(sig)))
+		}
 		http.ServeContent(w, r, name, time.Time{}, f)
 	}
 }
