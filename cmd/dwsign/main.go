@@ -149,6 +149,11 @@ func sign(keyPath, in, sigPath string) error {
 	if sigPath == "" {
 		sigPath = in + ".sig"
 	}
+	// #nosec G703 -- sigPath is a flag on a tool the operator runs by hand, on their own machine,
+	// to write a file they named. There is no untrusted input and no privilege boundary to cross:
+	// anyone who can pass -sig can already write that path directly. G703 is kept on repo-wide for
+	// the server code, where a path segment really can come from a request, which is why this is an
+	// inline exception and not another entry on the exclusion list.
 	if err := os.WriteFile(sigPath, []byte(sig+"\n"), 0o644); err != nil {
 		return err
 	}

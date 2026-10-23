@@ -37,10 +37,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          # Pinned to a patched release. govulncheck reports stdlib advisories against the toolchain
-          # that compiled the code, and '1.26' resolves to whatever setup-go has cached, which was
-          # 1.26.4 and carried seven net/http, net/textproto and crypto/tls advisories.
-          go-version: '1.26.9'
+          # Pinned to a patched release. govulncheck reports stdlib advisories against the
+          # toolchain that compiled the code, and '1.26' resolves to whatever setup-go has cached.
+          #
+          # This pin is a standing liability, not a fix: an advisory published against the pinned
+          # version turns CI red on a day nobody touched the code, which is exactly what it is for
+          # and exactly what it did. 1.26.9 went red on GO-2026-6809 (crypto/x509 trusting
+          # compromised intermediates), fixed in 1.26.10. Bump it, do not widen it.
+          go-version: '1.26.10'
           cache: true
       # First, because it needs no toolchain setup beyond Go itself and a formatting complaint
       # should not wait behind an apt-get and a compile. gofmt -l exits 0 even when it lists files,
@@ -94,10 +98,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          # Pinned to a patched release. govulncheck reports stdlib advisories against the toolchain
-          # that compiled the code, and '1.26' resolves to whatever setup-go has cached, which was
-          # 1.26.4 and carried seven net/http, net/textproto and crypto/tls advisories.
-          go-version: '1.26.9'
+          # Pinned to a patched release. govulncheck reports stdlib advisories against the
+          # toolchain that compiled the code, and '1.26' resolves to whatever setup-go has cached.
+          #
+          # This pin is a standing liability, not a fix: an advisory published against the pinned
+          # version turns CI red on a day nobody touched the code, which is exactly what it is for
+          # and exactly what it did. 1.26.9 went red on GO-2026-6809 (crypto/x509 trusting
+          # compromised intermediates), fixed in 1.26.10. Bump it, do not widen it.
+          go-version: '1.26.10'
           cache: true
       - name: install libyara (cgo dependency of internal/malware)
         run: sudo apt-get update && sudo apt-get install -y libyara-dev
@@ -114,10 +122,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          # Pinned to a patched release. govulncheck reports stdlib advisories against the toolchain
-          # that compiled the code, and '1.26' resolves to whatever setup-go has cached, which was
-          # 1.26.4 and carried seven net/http, net/textproto and crypto/tls advisories.
-          go-version: '1.26.9'
+          # Pinned to a patched release. govulncheck reports stdlib advisories against the
+          # toolchain that compiled the code, and '1.26' resolves to whatever setup-go has cached.
+          #
+          # This pin is a standing liability, not a fix: an advisory published against the pinned
+          # version turns CI red on a day nobody touched the code, which is exactly what it is for
+          # and exactly what it did. 1.26.9 went red on GO-2026-6809 (crypto/x509 trusting
+          # compromised intermediates), fixed in 1.26.10. Bump it, do not widen it.
+          go-version: '1.26.10'
           cache: true
       - name: install libyara (cgo dependency of internal/malware)
         run: sudo apt-get update && sudo apt-get install -y libyara-dev
@@ -140,7 +152,27 @@ jobs:
         # The few intended sites for G402, G302, G118 and G122 carry an inline
         # `#nosec <rule> -- reason` rather than a repo-wide switch.
         # tools/ is developer utilities that take a path on the command line and never ship.
-      - run: gosec -exclude-dir=web -exclude-dir=tools -exclude=G204,G304,G306,G301,G706,G115 ./...
+      #
+      # Three passes, one per GOOS, because gosec analyses only the platform it runs on. On a
+      # Linux runner every _windows.go and _darwin.go file was invisible to it, which for a
+      # product that ships Windows and macOS agents meant the agent code most likely to touch
+      # files, processes and the registry was never scanned at all. Switching this on found the
+      # Windows service log being created world-readable.
+      #
+      # CGO_ENABLED=0 for the cross passes: internal/malware needs libyara, and its nocgo stub is
+      # what the other platforms build against anyway.
+      - name: gosec (linux)
+        run: gosec -exclude-dir=web -exclude-dir=tools -exclude=G204,G304,G306,G301,G706,G115 ./...
+      - name: gosec (windows)
+        env:
+          GOOS: windows
+          CGO_ENABLED: '0'
+        run: gosec -exclude-dir=web -exclude-dir=tools -exclude=G204,G304,G306,G301,G706,G115 ./...
+      - name: gosec (darwin)
+        env:
+          GOOS: darwin
+          CGO_ENABLED: '0'
+        run: gosec -exclude-dir=web -exclude-dir=tools -exclude=G204,G304,G306,G301,G706,G115 ./...
 
   web:
     name: Web build & type-check

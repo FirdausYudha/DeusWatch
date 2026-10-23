@@ -52,7 +52,24 @@ Requires migration **000084**.
   HSTS is deliberately not set. This server listens on plain HTTP with TLS terminated upstream, and
   HSTS is sticky: setting it from the wrong place locks an operator out of their own deployment.
 
+### Fixed
+
+- **Go toolchain bumped to 1.26.10** for GO-2026-6809, "distrust compromised intermediate
+  certificates in crypto/x509". The advisory was published on 21 October and turned CI red on a
+  day nobody had touched the relevant code, which is what the unpinned vulnerability scanner is
+  there for. Reachable here through the API's own HTTP server, and it matters for a product that
+  validates certificates for mTLS.
+
+- **The Windows agent's service log is created 0600, not 0644.** It holds watched paths, detected
+  changes, the actor behind them and containment outcomes, which is reconnaissance for anyone with
+  a local account on that endpoint. On a shared nurse-station PC that is everybody.
+
 ### Changed
+
+- **gosec runs three times in CI, once per GOOS.** It analyses only the platform it runs on, so on
+  a Linux runner every `_windows.go` and `_darwin.go` file was invisible to it. For a product
+  shipping Windows and macOS agents, that left the agent code most likely to touch files,
+  processes and the registry unscanned. Switching it on is what found the log permission above.
 
 - **`sys()` in the API's route table is now `selfAuthScoped()`.** The old name read like
   "system", and so like a privilege check. It is not one: it performs no authentication at all, it

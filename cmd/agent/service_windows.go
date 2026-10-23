@@ -44,7 +44,11 @@ func setupServiceLogging() {
 	if fi, err := os.Stat(p); err == nil && fi.Size() > 5<<20 {
 		_ = os.Truncate(p, 0)
 	}
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	// 0600, not 0644. This file holds whatever the agent logs: watched paths, detected changes,
+	// the actor behind them, containment outcomes. That is reconnaissance for anyone with a local
+	// account on the endpoint, which on a shared nurse-station PC is everybody. The service runs
+	// as LocalSystem and nothing else needs to read it.
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}
