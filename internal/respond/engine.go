@@ -22,6 +22,9 @@ type ActionStore interface {
 	Get(ctx context.Context, id string) (*Action, error)
 	SetStatus(ctx context.Context, id string, status Status, decidedBy string) error
 	SetExecuted(ctx context.Context, id, responder string, execErr error) error
+	// UnbanIP lifts every active block for one IP and returns how many rows it changed.
+	// Per IP rather than per row because that is the granularity enforcement actually has.
+	UnbanIP(ctx context.Context, ip, decidedBy string) (int64, error)
 }
 
 // Engine turns alerts into block recommendations & executes them after approval.
@@ -244,22 +247,44 @@ func (e *Engine) Dismiss(ctx context.Context, id, by string) error {
 	return e.store.SetStatus(ctx, id, StatusDismissed, by)
 }
 
-// Unban lifts an active block: it calls the responder's Unblock then marks the action
-// unbanned. Only executed/approved block actions can be unbanned.
-func (e *Engine) Unban(ctx context.Context, id, by string) error {
+// Unban lifts an active block: it calls the responder's Unblock, then marks unbanned EVERY
+// active block row for that IP, and returns how many rows it lifted.
+//
+// All rows for the IP, not just the one named, because enforcement is per IP: ActiveBlocks, which
+// the agent firewall and the edge sync are built from, returns DISTINCT source_ip. Lifting one row
+// of several left the IP in the nftables set while the UI reported success, which is how an
+// operator loses SSH to their own server and cannot tell whether the fault is the product or the
+// network. With auto-approve on, several rows per IP is the normal case.
+//
+// The responder Unblock still runs once: it is per IP too, and calling it per row would ask a
+// router to delete the same address-list entry several times.
+func (e *Engine) Unban(ctx context.Context, id, by string) (int64, error) {
 	a, err := e.store.Get(ctx, id)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if a.Status != StatusExecuted && a.Status != StatusApproved {
-		return errStatus(a.Status)
+		return 0, errStatus(a.Status)
 	}
-	if e.responder != nil && a.ActionType == "block" {
+	if a.ActionType != "block" {
+		// Not a block, so there is no IP-wide state to lift. Keep the single-row behaviour.
+		return 1, e.store.SetStatus(ctx, id, StatusUnbanned, by)
+	}
+	if e.responder != nil {
 		if err := e.responder.Unblock(ctx, a.SourceIP); err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return e.store.SetStatus(ctx, id, StatusUnbanned, by)
+	n, err := e.store.UnbanIP(ctx, a.SourceIP, by)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		// The row we just checked was active, so zero means something else changed it underneath
+		// us. Report it rather than claiming an unban that did not happen.
+		return 0, fmt.Errorf("respond: no active block for %s was lifted; it may have been changed concurrently", a.SourceIP)
+	}
+	return n, nil
 }
 
 // execute runs the block via the responder & records the result.

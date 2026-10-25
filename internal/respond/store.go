@@ -253,6 +253,49 @@ func (s *Store) Get(ctx context.Context, id string) (*Action, error) {
 	return a, nil
 }
 
+// UnbanIP lifts EVERY active block for one IP and reports how many rows it changed.
+//
+// This exists because enforcement is per IP and lifting was per row. ActiveBlocks, which is what
+// the agent firewall and the edge sync are built from, returns DISTINCT source_ip over every
+// approved or executed block that has not expired. So an IP with several active block rows stayed
+// in the nftables set after an operator unbanned the one they were looking at: the row flipped to
+// unbanned, the UI showed success, and the host remained locked out with nothing on any screen
+// saying why. With auto-approve on, several rows per IP is the normal case, not an edge case.
+//
+// An unban that does not unban is the worst failure this subsystem has. It is how somebody loses
+// SSH to their own server and cannot tell whether the product or the network is at fault.
+func (s *Store) UnbanIP(ctx context.Context, ip, decidedBy string) (int64, error) {
+	ct, err := s.pool.Exec(ctx, `
+		UPDATE response_actions
+		   SET status = 'unbanned', decided_by = $2, decided_at = now()
+		 WHERE action = 'block'
+		   AND status IN ('approved','executed')
+		   AND source_ip = $1::inet`,
+		ip, strOrNil(decidedBy))
+	if err != nil {
+		return 0, fmt.Errorf("respond: unban %s: %w", ip, err)
+	}
+	return ct.RowsAffected(), nil
+}
+
+// CountActiveBlocksForIP reports how many active block rows an IP still has. Used to tell an
+// operator what a single-row action did not cover.
+func (s *Store) CountActiveBlocksForIP(ctx context.Context, ip string) (int64, error) {
+	var n int64
+	err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM response_actions
+		 WHERE action = 'block'
+		   AND status IN ('approved','executed')
+		   AND source_ip = $1::inet
+		   AND (ban_seconds = 0
+		        OR COALESCE(executed_at, decided_at, created_at) + make_interval(secs => ban_seconds) > now())`,
+		ip).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("respond: count active blocks for %s: %w", ip, err)
+	}
+	return n, nil
+}
+
 // SetStatus changes the status + records the decision (approve/dismiss).
 func (s *Store) SetStatus(ctx context.Context, id string, status Status, decidedBy string) error {
 	ct, err := s.pool.Exec(ctx,

@@ -3121,11 +3121,16 @@ func banIPHandler(e *respond.Engine, s *respond.Store) http.HandlerFunc {
 func unbanResponseHandler(e *respond.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if err := e.Unban(r.Context(), id, currentUsername(r)); err != nil {
+		n, err := e.Unban(r.Context(), id, currentUsername(r))
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "unbanned", "id": id})
+		// lifted is reported because one click can clear several rows: enforcement is per IP, so
+		// an unban lifts every active block for that address. Saying how many is the difference
+		// between "that worked" and understanding why the Response list just changed in four
+		// places.
+		writeJSON(w, http.StatusOK, map[string]any{"status": "unbanned", "id": id, "lifted": n})
 	}
 }
 

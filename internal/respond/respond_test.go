@@ -90,6 +90,25 @@ func (f *fakeStore) SetStatus(_ context.Context, id string, status Status, by st
 	}
 	return nil
 }
+
+// UnbanIP mirrors the real store: it lifts EVERY active block for the IP, so a test can prove
+// the engine clears all of them rather than only the row it was handed.
+func (f *fakeStore) UnbanIP(_ context.Context, ip, by string) (int64, error) {
+	var n int64
+	for _, a := range f.actions {
+		if a.ActionType != "block" || a.SourceIP != ip {
+			continue
+		}
+		if a.Status != StatusApproved && a.Status != StatusExecuted {
+			continue
+		}
+		a.Status = StatusUnbanned
+		f.statusLog = append(f.statusLog, string(StatusUnbanned)+":"+by)
+		n++
+	}
+	return n, nil
+}
+
 func (f *fakeStore) SetExecuted(_ context.Context, id, responder string, execErr error) error {
 	s := "executed"
 	if execErr != nil {
@@ -108,8 +127,12 @@ func (f *fakeStore) SetExecuted(_ context.Context, id, responder string, execErr
 
 type fakeResponder struct {
 	blocked []string
-	dur     time.Duration
-	err     error
+	// unblocked records each Unblock so a test can prove the responder is called ONCE per IP and
+	// not once per lifted row: a router asked to delete the same address-list entry three times
+	// logs two failures that look like a broken integration.
+	unblocked []string
+	dur       time.Duration
+	err       error
 }
 
 func (f *fakeResponder) Name() string { return "fake" }
@@ -118,7 +141,10 @@ func (f *fakeResponder) Block(_ context.Context, ip string, d time.Duration) err
 	f.dur = d
 	return f.err
 }
-func (f *fakeResponder) Unblock(_ context.Context, _ string) error { return nil }
+func (f *fakeResponder) Unblock(_ context.Context, ip string) error {
+	f.unblocked = append(f.unblocked, ip)
+	return nil
+}
 
 func alertEvent(ip string) *ingest.Event {
 	return &ingest.Event{
@@ -432,5 +458,95 @@ func TestMultiResponderVerify(t *testing.T) {
 	}
 	if err := NewMultiResponder([]Responder{ok, ok}).Verify(context.Background()); err != nil {
 		t.Fatalf("all-healthy members must verify clean: %v", err)
+	}
+}
+
+// TestUnbanLiftsEveryBlockForTheIP is the regression guard for the lockout bug.
+//
+// Enforcement is per IP: ActiveBlocks, which the agent firewall and the edge sync are built from,
+// returns DISTINCT source_ip over every approved or executed block. Unban used to lift one ROW.
+// So an IP with several active blocks stayed in the nftables set after the operator unbanned the
+// entry they could see: the row flipped to unbanned, the UI said success, and the host stayed
+// locked out with nothing saying why. With auto-approve on, several rows per IP is the normal
+// case, which is how somebody loses SSH to their own server.
+func TestUnbanLiftsEveryBlockForTheIP(t *testing.T) {
+	const ip = "203.0.113.50"
+	store := newFakeStore(0)
+	resp := &fakeResponder{}
+	e := NewEngine(store, resp, DefaultBanPolicy(), true)
+
+	// Three separate detections for the same IP, all auto-approved and executed, which is what a
+	// repeatedly-offending address produces.
+	var ids []string
+	for i := 0; i < 3; i++ {
+		store.open = false
+		a, err := e.Recommend(context.Background(), alertEvent(ip))
+		if err != nil || a == nil {
+			t.Fatalf("Recommend %d: a=%+v err=%v", i, a, err)
+		}
+		ids = append(ids, a.ID)
+	}
+	for _, id := range ids {
+		if got := store.actions[id].Status; got != StatusExecuted {
+			t.Fatalf("action %s is %q, want executed before the unban", id, got)
+		}
+	}
+
+	// Unban the one the operator happens to be looking at.
+	n, err := e.Unban(context.Background(), ids[0], "firdaus")
+	if err != nil {
+		t.Fatalf("Unban: %v", err)
+	}
+	if n != 3 {
+		t.Errorf("lifted %d blocks, want all 3; the caller is told what it cleared", n)
+	}
+
+	// Every row for that IP must be lifted, or the IP stays in ActiveBlocks and the host stays
+	// blocked no matter what the screen says.
+	for _, id := range ids {
+		if got := store.actions[id].Status; got != StatusUnbanned {
+			t.Errorf("action %s is still %q: the IP remains blocked after an unban", id, got)
+		}
+	}
+
+	// The responder is told once, not once per row: a router would otherwise be asked to delete
+	// the same address-list entry three times.
+	if len(resp.unblocked) != 1 || resp.unblocked[0] != ip {
+		t.Errorf("responder unblocks = %v, want exactly one for %s", resp.unblocked, ip)
+	}
+}
+
+// TestUnbanLeavesOtherIPsAlone: lifting per IP must not become lifting everything.
+func TestUnbanLeavesOtherIPsAlone(t *testing.T) {
+	store := newFakeStore(0)
+	e := NewEngine(store, &fakeResponder{}, DefaultBanPolicy(), true)
+
+	mine, err := e.Recommend(context.Background(), alertEvent("203.0.113.50"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.open = false
+	other, err := e.Recommend(context.Background(), alertEvent("198.51.100.9"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := e.Unban(context.Background(), mine.ID, "firdaus"); err != nil {
+		t.Fatalf("Unban: %v", err)
+	}
+	if got := store.actions[other.ID].Status; got != StatusExecuted {
+		t.Errorf("an unrelated IP was unbanned too: %s is %q", other.ID, got)
+	}
+}
+
+// TestUnbanRejectsAlreadyLifted keeps the guard that stopped an unban being reported for an
+// action that was never active.
+func TestUnbanRejectsAlreadyLifted(t *testing.T) {
+	store := newFakeStore(0)
+	e := NewEngine(store, &fakeResponder{}, DefaultBanPolicy(), false)
+
+	a, _ := e.Recommend(context.Background(), alertEvent("1.2.3.4"))
+	if _, err := e.Unban(context.Background(), a.ID, "alice"); err == nil {
+		t.Fatal("unbanning a merely recommended action must error")
 	}
 }

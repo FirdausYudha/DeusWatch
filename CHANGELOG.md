@@ -54,6 +54,16 @@ Requires migration **000084**.
 
 ### Fixed
 
+- **Unban now lifts every active block for the IP, not just the row you clicked.** Enforcement is
+  per IP: the agent firewall and the edge sync are built from a query that returns distinct source
+  addresses over every approved or executed block. Unban changed one row. So an address with
+  several active blocks, which is the normal case once auto-approve is on, stayed in the nftables
+  set after an operator unbanned the entry in front of them: the row flipped to `unbanned`, the UI
+  reported success, and the host stayed locked out with nothing on any screen explaining it.
+
+  That is how somebody loses SSH to their own server and cannot tell whether the fault is
+  DeusWatch or the network. The API response now also reports how many blocks were lifted.
+
 - **Go toolchain bumped to 1.26.10** for GO-2026-6809, "distrust compromised intermediate
   certificates in crypto/x509". The advisory was published on 21 October and turned CI red on a
   day nobody had touched the relevant code, which is what the unpinned vulnerability scanner is
