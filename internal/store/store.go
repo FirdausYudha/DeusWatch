@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -97,9 +98,60 @@ func (s *Store) PoolStats() string {
 		st.EmptyAcquireCount(), st.CanceledAcquireCount())
 }
 
-// Connect opens a pool to dsn and verifies connectivity.
+// poolConfig parses dsn and applies the pool settings every DeusWatch process needs.
+//
+// It exists because the two connect paths had drifted. ConnectSuperadmin set MaxConns, honoured
+// DB_MAX_CONNS and evicted silently-broken connections; Connect called pgxpool.New with NO config
+// at all, so the API, the one process serving every UI request, ran on pgx's default MaxConns of
+// max(4, NumCPU) and had none of the eviction. On a four-core host that is four connections, and
+// every protected request holds a transaction for its whole duration (WithTenantScope), so
+// clicking between a few menus exhausted the pool: the requests that waited past their deadline
+// returned 500, and the auth middleware, which needs a connection of its own to resolve the
+// session, failed and was reported as 401. Two error codes, one starved pool.
+//
+// One function now, so the next setting cannot be added to one path and forgotten in the other.
+func poolConfig(dsn string) (*pgxpool.Config, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("store: parse dsn: %w", err)
+	}
+	// Proactively evict silently-broken connections (long idle → NAT/keepalive cut, Postgres
+	// idle_in_transaction timeouts, docker network hiccups). Without this the gateway's heartbeat
+	// UPDATE would hang or fail against a dead-but-cached conn, and only a container restart
+	// recovered: exactly the "agent stays offline until docker compose restart" symptom operators
+	// reported. Also cap connection lifetime so bad state doesn't survive indefinitely.
+	cfg.HealthCheckPeriod = 30 * time.Second
+	cfg.MaxConnIdleTime = 5 * time.Minute
+	cfg.MaxConnLifetime = 30 * time.Minute
+	// pgx defaults MaxConns to max(4, NumCPU), far too small for either role. The worker runs ~20
+	// background goroutines plus a write-heavy consumer; the API holds one transaction per
+	// in-flight request. When the pool saturates, even a liveness heartbeat cannot get a
+	// connection and the process looks dead rather than busy.
+	//
+	// Raising this is NOT free: every process gets its own pool, and their sum competes for the
+	// database server's own max_connections, which is 100 by default and not configured by this
+	// project. api + gateway + worker all at 100 asks for 300 against 97 usable, and the first
+	// two to warm up starve the third. See deploy/.env.example.
+	cfg.MaxConns = 30
+	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
+		// ParseInt with bitSize 32, not Atoi: int is 64-bit here, so DB_MAX_CONNS=2147483648
+		// would wrap to a negative int32 and the pool would then refuse every connection, with a
+		// typo as the cause and nothing in the message saying so. ParseInt rejects it instead.
+		if n, err := strconv.ParseInt(v, 10, 32); err == nil && n > 0 {
+			cfg.MaxConns = int32(n)
+		}
+	}
+	return cfg, nil
+}
+
+// Connect opens a pool to dsn and verifies connectivity. Used by the API, which scopes every
+// request transaction rather than spanning tenants.
 func Connect(ctx context.Context, dsn string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+	cfg, err := poolConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("store: create pool: %w", err)
 	}
@@ -107,6 +159,7 @@ func Connect(ctx context.Context, dsn string) (*Store, error) {
 		pool.Close()
 		return nil, fmt.Errorf("store: ping: %w", err)
 	}
+	log.Printf("store: pool opened with max %d connections (DB_MAX_CONNS)", cfg.MaxConns)
 	return &Store{pool: pool}, nil
 }
 
@@ -117,34 +170,13 @@ func Connect(ctx context.Context, dsn string) (*Store, error) {
 // (e.g. worker scorers GROUP BY tenant_id) is still required to avoid cross-tenant blending.
 // The API process must NOT use this: it connects with Connect and scopes each request transaction.
 func ConnectSuperadmin(ctx context.Context, dsn string) (*Store, error) {
-	cfg, err := pgxpool.ParseConfig(dsn)
+	cfg, err := poolConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("store: parse dsn: %w", err)
+		return nil, err
 	}
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, `SET deuswatch.superadmin = '1'`)
 		return err
-	}
-	// Proactively evict silently-broken connections (long idle → NAT/keepalive cut, Postgres
-	// idle_in_transaction timeouts, docker network hiccups). Without this the gateway's heartbeat
-	// UPDATE would hang or fail against a dead-but-cached conn, and only a container restart
-	// recovered: exactly the "agent stays offline until docker compose restart" symptom operators
-	// reported. Also cap connection lifetime so bad state doesn't survive indefinitely.
-	cfg.HealthCheckPeriod = 30 * time.Second
-	cfg.MaxConnIdleTime = 5 * time.Minute
-	cfg.MaxConnLifetime = 30 * time.Minute
-	// pgx defaults MaxConns to max(4, NumCPU) - far too small for the worker, which runs ~20
-	// background goroutines plus a write-heavy consumer that, under an SSH brute-force flood, does
-	// several DB writes per alert. When the pool saturates, even the liveness heartbeat cannot get
-	// a connection and the worker looks dead. Give it real headroom (override with DB_MAX_CONNS).
-	cfg.MaxConns = 30
-	if v := os.Getenv("DB_MAX_CONNS"); v != "" {
-		// ParseInt with bitSize 32, not Atoi: int is 64-bit here, so DB_MAX_CONNS=2147483648
-		// would wrap to a negative int32 and the pool would then refuse every connection, with a
-		// typo as the cause and nothing in the message saying so. ParseInt rejects it instead.
-		if n, err := strconv.ParseInt(v, 10, 32); err == nil && n > 0 {
-			cfg.MaxConns = int32(n)
-		}
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

@@ -120,6 +120,13 @@ services:
       AGENT_BIN_DIR: "/agents"
       # Encrypts integration secrets at rest. Generate: openssl rand -base64 32
       SECRETS_KEY: "${SECRETS_KEY:-}"
+      # The API never received this before, so it ran on pgx's default pool of max(4, NumCPU)
+      # while every protected request holds a transaction for its whole duration. On a four-core
+      # host that is four connections, and clicking between a few menus starved it: requests that
+      # waited past their deadline returned 500 and the session lookup, which needs a connection
+      # of its own, failed and was reported as 401. Read the budget note in deploy/.env.example
+      # before raising it.
+      DB_MAX_CONNS: "${DB_MAX_CONNS:-30}"
       # Software update check. Only needed when the release repository is not the public
       # default; a token is REQUIRED if it is private, because GitHub answers 404 for a
       # private repository and the check cannot otherwise tell that from "no releases".

@@ -54,6 +54,31 @@ Requires migration **000084**.
 
 ### Fixed
 
+- **The API ran on a four-connection database pool.** Reported from the field: clicking between a
+  few menus, after being active only a short while, made many features return 500 and 401 at once.
+
+  `Connect`, which the API uses, called `pgxpool.New` with no configuration at all, so it got
+  pgx's default `max(4, NumCPU)` and none of the broken-connection eviction that the worker and
+  gateway path had. Compose never passed `DB_MAX_CONNS` to the API either, so tuning it had no
+  effect on the one process serving the UI. Meanwhile every protected request holds a transaction
+  for its whole duration, so a handful of parallel requests exhausted the pool.
+
+  Both roles now share one `poolConfig`, the API gets `DB_MAX_CONNS` in compose, and the pool size
+  is logged at startup.
+
+- **A database failure is no longer reported as "unauthorized".** The auth middleware mapped every
+  error from the session lookup to 401, including "the pool is starved". That is why the symptom
+  was unreadable: the UI looked like it had logged the operator out while the real cause appeared
+  nowhere. A genuine auth failure is still 401; anything else is 503 and keeps the session.
+
+  Two more failures on the same request path were silent: scope resolution discarded its error
+  behind a bare "scope resolution failed", and a scope transaction that could not even begin wrote
+  nothing at all, so the client got an empty 200 and the UI rendered a blank page.
+
+- **`DB_MAX_CONNS` now documents the arithmetic.** It applies per process, and three processes
+  compete for the database server's own limit, which is 100 by default with 3 reserved. At 30 that
+  is 90 and fits; at 100 it asks for 300 and the first two processes to warm up starve the third.
+
 - **Unban now lifts every active block for the IP, not just the row you clicked.** Enforcement is
   per IP: the agent firewall and the edge sync are built from a query that returns distinct source
   addresses over every approved or executed block. Unban changed one row. So an address with

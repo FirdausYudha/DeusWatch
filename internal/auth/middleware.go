@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -108,6 +109,21 @@ func (s *Store) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, err := s.SessionUser(r.Context(), bearerToken(r))
 		if err != nil {
+			// Only a genuine authentication failure is 401. SessionUser returns ErrAuth for a
+			// missing, unknown, expired or disabled session, and the underlying error for
+			// anything else, which in practice means the database could not answer.
+			//
+			// Reporting that as 401 was actively misleading. A starved connection pool made every
+			// data endpoint return 500 and every authenticated request return 401 at the same
+			// time, so the UI looked like it had logged the operator out while the real cause was
+			// nowhere on screen. 503 says "the server could not check", which is what happened,
+			// and it keeps the session rather than inviting a pointless re-login.
+			if !errors.Is(err, ErrAuth) {
+				log.Printf("auth: could not resolve the session, answering 503: %v", err)
+				http.Error(w, "the server could not verify your session; it is not reachable right now",
+					http.StatusServiceUnavailable)
+				return
+			}
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

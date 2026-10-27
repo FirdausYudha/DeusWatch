@@ -217,15 +217,35 @@ func main() {
 				}
 				tenantIDs, err := st.ResolveUserScope(r.Context(), u.ID, r.Header.Get("X-Workspace-ID"))
 				if err != nil {
-					http.Error(w, "scope resolution failed", http.StatusInternalServerError)
+					// The error was previously discarded, so a starved connection pool surfaced as
+					// a bare "scope resolution failed" with the cause nowhere. Log it and say 503:
+					// this is a database query, and when it cannot run the server is unavailable,
+					// not confused about the request.
+					log.Printf("api: scope resolution failed for user %s: %v", u.ID, err)
+					http.Error(w, "the database is not reachable right now", http.StatusServiceUnavailable)
 					return
 				}
+				// ran distinguishes the two ways this can fail, and they need opposite handling.
+				// WithTenantScope errors either because it could not BEGIN, in which case the
+				// handler never ran and nothing has been written, or because the COMMIT failed
+				// after the handler already wrote a full response. Answering in the second case
+				// would be a second WriteHeader on the same response: Go logs "superfluous" and
+				// the client gets a body with an error glued to the end of its payload.
+				ran := false
 				if serr := st.WithTenantScope(r.Context(), tenantIDs, u.Can(auth.PermManageTenants),
 					func(sctx context.Context) error {
+						ran = true
 						next.ServeHTTP(w, r.WithContext(sctx))
 						return nil
 					}); serr != nil {
-					log.Printf("api: request scope transaction failed: %v", serr)
+					log.Printf("api: request scope transaction failed (handler ran=%v): %v", ran, serr)
+					// Before this, a BEGIN failure wrote nothing at all, so net/http sent a bare
+					// 200 with an empty body and the UI rendered an inexplicably empty page.
+					// Under pool starvation that is the common failure, and it has to look like
+					// one to the client.
+					if !ran {
+						http.Error(w, "the database is not reachable right now", http.StatusServiceUnavailable)
+					}
 				}
 			})
 		}
