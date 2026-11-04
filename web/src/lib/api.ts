@@ -2559,3 +2559,47 @@ export async function fetchSNMPIfaces(id: string): Promise<SNMPIface[]> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return (await res.json()) ?? []
 }
+
+// ── Vendor access windows (RV-01, S5) ─────
+export type VendorAccount = {
+  id: string
+  account: string
+  days: number[]       // ISO weekday numbers, 1=Mon..7=Sun
+  start_time: string   // HH:MM
+  end_time: string     // HH:MM
+  timezone: string
+  enabled: boolean
+  note: string
+  updated_at: string
+}
+
+export type VendorAccountInput = {
+  account: string
+  days: number[]
+  start_time: string
+  end_time: string
+  timezone: string
+  note?: string
+  enabled?: boolean
+}
+
+export async function fetchVendorAccounts(): Promise<VendorAccount[]> {
+  const res = await authFetch('/api/vendor-accounts')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).accounts ?? []
+}
+
+// POST upserts by account name: creating and editing are the same call, which matches the store.
+export async function saveVendorAccount(input: VendorAccountInput): Promise<void> {
+  const res = await authFetch('/api/vendor-accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function deleteVendorAccount(id: string): Promise<void> {
+  const res = await authFetch(`/api/vendor-accounts/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}

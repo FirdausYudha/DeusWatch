@@ -21,6 +21,7 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Live security posture' },
   agents: { title: 'Agents', subtitle: 'Endpoints reporting in' },
   network: { title: 'Network', subtitle: 'Switches, access points and routers over SNMP' },
+  vendor: { title: 'Vendor Access', subtitle: 'Vendor accounts and the hours each may log in' },
   servicehealth: { title: 'Service Health', subtitle: 'Are the endpoints your workflows depend on actually working?' },
   inventory: { title: 'Inventory', subtitle: 'Installed software across the fleet' },
   benchmarks: { title: 'Benchmarks', subtitle: 'CIS hardening assessment, run on the endpoint' },

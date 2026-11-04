@@ -12,7 +12,11 @@
 *.out
 go.work
 go.work.sum
-vendor/
+# Go module vendoring, always at the repo root. Anchored with a leading slash so it does not also
+# swallow a source directory that happens to be named vendor, e.g. web/src/vendor (the Vendor
+# Access page). An unanchored `vendor/` silently kept that page out of the repo and broke the web
+# build, which only showed up at push time.
+/vendor/
 
 # ── Web (React + Vite) ────────────────────────────────────
 node_modules/
