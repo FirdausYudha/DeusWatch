@@ -11,6 +11,7 @@ package agent
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -200,4 +201,30 @@ func confirmHidden(first, second []int, alive func(int) bool) []int {
 	}
 	sort.Ints(out)
 	return out
+}
+
+// findingKey identifies a finding for latching, so one that persists across scans is reported
+// once rather than re-emitted every interval. Without this, a host with 300 standing findings
+// produces 300 alerts a minute, forever, and a channel that floods is a channel nobody reads.
+//
+// Keyed on what makes a finding distinct: the check, plus the path (suid/dev) or the PID
+// (hidden process). A finding that clears drops out of the latch, so if it genuinely reappears
+// later it is reported again, which is correct, a suid binary dropped a second time is news.
+func findingKey(f RootcheckFinding) string {
+	return f.Check + "\x00" + f.Path + "\x00" + strconv.Itoa(f.PID)
+}
+
+// latchNew returns the findings not present in seen, and replaces seen with the current set. The
+// first call (empty seen) returns everything once, which is correct: a standing suid in /tmp is a
+// real finding worth reporting the first time it is observed.
+func latchNew(seen map[string]bool, current []RootcheckFinding) (fresh []RootcheckFinding, next map[string]bool) {
+	next = make(map[string]bool, len(current))
+	for _, f := range current {
+		k := findingKey(f)
+		next[k] = true
+		if !seen[k] {
+			fresh = append(fresh, f)
+		}
+	}
+	return fresh, next
 }

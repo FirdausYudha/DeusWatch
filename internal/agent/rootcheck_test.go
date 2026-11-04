@@ -108,3 +108,59 @@ func TestSuspiciousDevFile(t *testing.T) {
 		}
 	}
 }
+
+// TestLatchNewSuppressesRepeats is the fix for the flood: a finding present in consecutive scans
+// is reported once, not every scan. Without it a host with standing findings produces hundreds of
+// alerts a minute forever.
+func TestLatchNewSuppressesRepeats(t *testing.T) {
+	a := RootcheckFinding{Check: CheckSUIDInTemp, Path: "/tmp/rootsh"}
+	b := RootcheckFinding{Check: CheckFileInDev, Path: "/dev/.hidden"}
+
+	// First scan: both are new, both reported.
+	fresh, seen := latchNew(nil, []RootcheckFinding{a, b})
+	if len(fresh) != 2 {
+		t.Fatalf("first scan emitted %d, want 2", len(fresh))
+	}
+
+	// Second scan, same findings still present: nothing new, so nothing emitted.
+	fresh, seen = latchNew(seen, []RootcheckFinding{a, b})
+	if len(fresh) != 0 {
+		t.Fatalf("a standing finding was re-emitted: %d", len(fresh))
+	}
+
+	// A genuinely new finding appears alongside the standing ones: only it is emitted.
+	c := RootcheckFinding{Check: CheckSUIDInTemp, Path: "/tmp/newsh"}
+	fresh, seen = latchNew(seen, []RootcheckFinding{a, b, c})
+	if len(fresh) != 1 || fresh[0].Path != "/tmp/newsh" {
+		t.Fatalf("expected only the new finding, got %+v", fresh)
+	}
+
+	// A finding that CLEARS drops from the latch, so if it returns later it is reported again,
+	// a suid binary dropped a second time is news.
+	fresh, seen = latchNew(seen, []RootcheckFinding{a}) // b and c gone
+	if len(fresh) != 0 {
+		t.Fatalf("clearing findings should emit nothing, got %d", len(fresh))
+	}
+	fresh, _ = latchNew(seen, []RootcheckFinding{a, c}) // c returns
+	if len(fresh) != 1 || fresh[0].Path != "/tmp/newsh" {
+		t.Fatalf("a finding that cleared and returned should be re-reported, got %+v", fresh)
+	}
+}
+
+// TestFindingKeyDistinguishes: two different findings must not collide into one latch entry, or a
+// real second finding would be silently suppressed.
+func TestFindingKeyDistinguishes(t *testing.T) {
+	keys := map[string]bool{}
+	for _, f := range []RootcheckFinding{
+		{Check: CheckSUIDInTemp, Path: "/tmp/a"},
+		{Check: CheckSUIDInTemp, Path: "/tmp/b"},
+		{Check: CheckFileInDev, Path: "/tmp/a"}, // same path, different check
+		{Check: CheckHiddenProcess, PID: 1337},
+		{Check: CheckHiddenProcess, PID: 1338},
+	} {
+		keys[findingKey(f)] = true
+	}
+	if len(keys) != 5 {
+		t.Fatalf("expected 5 distinct keys, got %d (a collision hides a real finding)", len(keys))
+	}
+}

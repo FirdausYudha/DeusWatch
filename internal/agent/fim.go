@@ -147,11 +147,36 @@ func (st fileState) looksEncrypted() bool {
 // and computes changes each time Scan is called.
 type FIMScanner struct {
 	roots    []string
+	excludes []string // paths CONTAINING any of these are skipped (volatile dirs, caches)
 	baseline map[string]fileState
 	primed   bool
 	snaps    *SnapshotStore // known-good copies for one-click restore (nil = disabled)
 	who      WhoDataSource  // who-data attribution (nil = disabled / non-Linux)
 	procs    ProcSource     // process introspection for actor start time (nil = unavailable)
+}
+
+// WithExcludes sets substrings whose matching paths are skipped during the walk. A directory
+// match prunes the whole subtree, so an excluded tree is never walked rather than walked and
+// filtered.
+func (s *FIMScanner) WithExcludes(ex []string) *FIMScanner {
+	// Drop empty entries: an empty string is a substring of every path and would exclude
+	// everything, which is a config mistake that must not silently disable FIM.
+	for _, e := range ex {
+		if strings.TrimSpace(e) != "" {
+			s.excludes = append(s.excludes, e)
+		}
+	}
+	return s
+}
+
+// excluded reports whether a path matches any exclude substring.
+func (s *FIMScanner) excluded(p string) bool {
+	for _, e := range s.excludes {
+		if strings.Contains(p, e) {
+			return true
+		}
+	}
+	return false
 }
 
 // NewFIMScanner creates a scanner for the given roots (files or directories).
@@ -312,6 +337,14 @@ func (s *FIMScanner) walk(root string, dst map[string]fileState) error {
 			log.Printf("agent: fim: skip %s: %v", p, err)
 			return nil
 		}
+		if s.excluded(p) {
+			// Prune a matching directory whole: SkipDir means its subtree is never walked, which
+			// is the point of excluding a churning data dir rather than walking and discarding it.
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if d.IsDir() || !d.Type().IsRegular() {
 			return nil
 		}
@@ -404,7 +437,7 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	if len(roots) == 0 {
 		return fmt.Errorf("fim source %q: empty Path", s.Dataset)
 	}
-	scanner := NewFIMScanner(roots...).WithSnapshots(fimSnapshots).WithWhoData(fimWhoData).WithProcs(NewProcSource())
+	scanner := NewFIMScanner(roots...).WithExcludes(s.Exclude).WithSnapshots(fimSnapshots).WithWhoData(fimWhoData).WithProcs(NewProcSource())
 	if _, err := scanner.Scan(); err != nil { // build the initial baseline
 		log.Printf("agent: fim %q: baseline scan: %v", s.Dataset, err)
 	}
@@ -477,7 +510,16 @@ func collectFIM(ctx context.Context, s Source, out chan<- Line) error {
 	scheduledSnapshot := func() {
 		for _, root := range roots {
 			_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-				if err != nil || d.IsDir() || !d.Type().IsRegular() {
+				if err != nil {
+					return nil
+				}
+				if scanner.excluded(p) {
+					if d.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+				if d.IsDir() || !d.Type().IsRegular() {
 					return nil
 				}
 				captureVersion(p, "scheduled")

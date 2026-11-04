@@ -38,6 +38,14 @@ type Source struct {
 	// (fim, wineventlog). 0 = the per-type default. Higher = lighter on the endpoint.
 	Interval int `json:"interval,omitempty"`
 
+	// Exclude (type "fim" only) drops any path that CONTAINS one of these substrings, so a
+	// watched tree can leave out the volatile parts that are not integrity-relevant: an app's
+	// own databases, caches and logs. Without it, watching a web root also watches, say, a Cacti
+	// install's rra/ RRD files, which the app rewrites on every poll cycle. That buries real
+	// changes and, worse, looks like a ransomware mass-rewrite to the burst rules. A directory
+	// whose path matches is pruned whole, so its subtree is never even walked.
+	Exclude []string `json:"exclude,omitempty"`
+
 	// ── FIM versioned-snapshot config (type "fim" only; ADR 0002) ─────────────
 	// SnapshotMode controls dated-version capture: "" / "baseline" (single first-seen
 	// snapshot, current behaviour), "on_change", "scheduled", or "both". Empty keeps the

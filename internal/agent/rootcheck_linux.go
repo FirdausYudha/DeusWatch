@@ -49,9 +49,23 @@ func collectRootcheck(ctx context.Context, s Source, out chan<- Line) error {
 		}
 	}
 
+	// seen latches findings across scans so a standing finding is reported once, not re-emitted
+	// every interval. A host with hundreds of pre-existing hits would otherwise produce hundreds
+	// of alerts a minute forever, drowning the real signal.
+	var seen map[string]bool
+	pass := func() {
+		var fresh []RootcheckFinding
+		fresh, seen = latchNew(seen, runRootcheck(ctx))
+		for _, f := range fresh {
+			if !emit(f) {
+				return
+			}
+		}
+	}
+
 	// Scan once at startup so a host that is already compromised does not stay quiet until the
 	// first interval elapses, which with the default would be an hour.
-	runRootcheck(ctx, emit)
+	pass()
 
 	tick := time.NewTicker(s.scanInterval(rootcheckInterval))
 	defer tick.Stop()
@@ -60,28 +74,20 @@ func collectRootcheck(ctx context.Context, s Source, out chan<- Line) error {
 		case <-ctx.Done():
 			return nil
 		case <-tick.C:
-			runRootcheck(ctx, emit)
+			pass()
 		}
 	}
 }
 
 // runRootcheck performs one pass of every check, stopping early if emit says the context is done.
-func runRootcheck(ctx context.Context, emit func(RootcheckFinding) bool) {
-	for _, f := range scanHiddenProcesses(ctx) {
-		if !emit(f) {
-			return
-		}
-	}
-	for _, f := range scanSUID() {
-		if !emit(f) {
-			return
-		}
-	}
-	for _, f := range scanDevFiles() {
-		if !emit(f) {
-			return
-		}
-	}
+// runRootcheck performs one pass of every check and returns all current findings. Latching and
+// emission are the caller's job, so the three scans here stay free of any cross-scan state.
+func runRootcheck(ctx context.Context) []RootcheckFinding {
+	var out []RootcheckFinding
+	out = append(out, scanHiddenProcesses(ctx)...)
+	out = append(out, scanSUID()...)
+	out = append(out, scanDevFiles()...)
+	return out
 }
 
 // pidAlive reports whether the kernel knows this PID.
