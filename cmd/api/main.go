@@ -425,6 +425,10 @@ func main() {
 		mux.Handle("/api/sensors", protect(auth.PermViewDashboard, envSensorsHandler(st)))
 		// The push intake authenticates with the sensor's own key, so it takes no session at all.
 		mux.HandleFunc("POST /api/sensors/ingest", selfAuthScoped(envIngestHandler(st)))
+		// Vendor access windows (RV-01, S5). List is view_dashboard; the handler gates writes on
+		// manage_settings, because a window is an access control.
+		mux.Handle("/api/vendor-accounts", protect(auth.PermViewDashboard, vendorAccountsHandler(st)))
+		mux.Handle("DELETE /api/vendor-accounts/{id}", protect(auth.PermManageSettings, vendorAccountDeleteHandler(st)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))
