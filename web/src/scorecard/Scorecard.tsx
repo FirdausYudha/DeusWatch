@@ -100,7 +100,14 @@ export default function Scorecard({ me }: { me: Me }) {
         }
       />
 
+      <div className="grid gap-4">
       {error && <ErrorText>{error}</ErrorText>}
+
+      {!loaded && !error && (
+        <Card title="Loading">
+          <div className="text-muted text-sm">Computing indicators…</div>
+        </Card>
+      )}
 
       {data && (
         <Card title="Overall predicate">
@@ -201,6 +208,7 @@ export default function Scorecard({ me }: { me: Me }) {
           </Card>
         </>
       )}
+      </div>
     </Page>
   )
 }
