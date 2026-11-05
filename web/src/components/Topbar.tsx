@@ -31,7 +31,7 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   response: { title: 'Response', subtitle: 'Recommendations awaiting your call' },
   tickets: { title: 'Tickets', subtitle: 'Investigations and their status' },
   report: { title: 'Report', subtitle: 'Scheduled and on-demand exports' },
-  scorecard: { title: 'Kartu Kinerja', subtitle: 'Indikator keamanan dan predikat per fungsi CSF' },
+  scorecard: { title: 'Security Scorecard', subtitle: 'Security indicators and predicates, grouped by NIST CSF function' },
   rules: { title: 'Rules', subtitle: 'Detection logic and coverage' },
   decoders: { title: 'Decoders', subtitle: 'Custom log parsing' },
   playbooks: { title: 'Playbooks', subtitle: 'Automated response actions' },

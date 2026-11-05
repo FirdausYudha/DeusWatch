@@ -28,7 +28,7 @@ const NAV: NavGroup[] = [
       { id: 'network', label: 'Network', view: 'network', perm: 'view_dashboard' },
       { id: 'vendor', label: 'Vendor Access', view: 'vendor', perm: 'view_dashboard' },
       { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
-      { id: 'scorecard', label: 'Kartu Kinerja', view: 'scorecard', perm: 'view_dashboard' },
+      { id: 'scorecard', label: 'Security Scorecard', view: 'scorecard', perm: 'view_dashboard' },
     ],
   },
   {

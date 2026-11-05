@@ -90,7 +90,7 @@ export default function Scorecard({ me }: { me: Me }) {
   return (
     <Page>
       <PageHeader
-        subtitle="Kartu Kinerja: delapan indikator keamanan untuk periode terpilih, dengan predikat per indikator dan keseluruhan, dikelompokkan menurut fungsi NIST CSF."
+        subtitle="Eight security indicators for the selected period, each with a predicate and an overall one, grouped by NIST CSF function."
         actions={
           <Select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value={7}>7 hari</option>
