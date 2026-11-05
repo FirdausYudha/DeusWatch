@@ -14,13 +14,20 @@ func TestDefaultSourcesFor(t *testing.T) {
 	if !hasSource(linux, "web", "/var/log/nginx/access.log") {
 		t.Fatalf("linux defaults must include the web access log; got %+v", linux)
 	}
-	if len(linux) != 4 {
-		t.Fatalf("expected 4 linux default sources (sshd/syslog/firewall/web), got %d", len(linux))
+	// CIS benchmarks run daily by default so the scorecard's benchmark indicator stays live.
+	if !hasSource(linux, "sca", "") {
+		t.Fatalf("linux defaults must include the sca source; got %+v", linux)
+	}
+	if len(linux) != 5 {
+		t.Fatalf("expected 5 linux default sources (sshd/syslog/firewall/web/sca), got %d", len(linux))
 	}
 
 	win := DefaultSourcesFor("windows")
 	if !hasSource(win, "windows-security", "Security") {
 		t.Fatalf("windows defaults must include the Security event log; got %+v", win)
+	}
+	if !hasSource(win, "sca", "") {
+		t.Fatalf("windows defaults must include the sca source; got %+v", win)
 	}
 
 	// An unknown OS must yield nil rather than a wrong guess, the agent then has no seeded config

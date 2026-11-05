@@ -47,6 +47,19 @@ type Report struct {
 	// RiskyIPs is the worker's composite-score leaderboard (label carries the band, count is the
 	// 0-100 score), the same "Top risky IPs" the dashboard shows.
 	RiskyIPs []Count `json:"risky_ips"`
+
+	// Scorecard is the M3 performance scorecard for the window: one line per indicator plus the
+	// overall predicate, so the periodic report carries the report card, not just raw counts.
+	Scorecard        []ScoreLine `json:"scorecard,omitempty"`
+	ScorecardOverall string      `json:"scorecard_overall,omitempty"`
+}
+
+// ScoreLine is one scorecard indicator rendered for the report: a value already formatted with its
+// unit (or "belum ada data") and the predicate band.
+type ScoreLine struct {
+	Label     string `json:"label"`
+	Value     string `json:"value"`
+	Predicate string `json:"predicate"`
 }
 
 // RenderMarkdown renders the report as compact Markdown.
@@ -76,7 +89,27 @@ func RenderMarkdown(r Report) string {
 	section(&b, "Top MITRE technique", r.TopTechniques)
 	section(&b, "Suspicious IPs (low-and-slow recon)", r.SuspiciousIPs)
 	section(&b, "LLM verdict", r.ByVerdict)
+	scorecardSection(&b, r)
 	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+// scorecardSection renders the M3 scorecard as a small table, or nothing when it was not computed.
+func scorecardSection(b *strings.Builder, r Report) {
+	if len(r.Scorecard) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "## Kartu Kinerja\n\n")
+	if r.ScorecardOverall != "" {
+		fmt.Fprintf(b, "- **Predikat keseluruhan:** %s\n\n", r.ScorecardOverall)
+	}
+	for _, s := range r.Scorecard {
+		pred := s.Predicate
+		if pred == "" {
+			pred = "belum ada data"
+		}
+		fmt.Fprintf(b, "- %s: %s (%s)\n", s.Label, s.Value, pred)
+	}
+	fmt.Fprintf(b, "\n")
 }
 
 // SummaryPrompt renders the report data as a compact prompt for an LLM to summarize.
@@ -102,7 +135,26 @@ func SummaryPrompt(r Report) string {
 	promptLine(&b, "Top MITRE techniques", r.TopTechniques)
 	promptLine(&b, "Suspicious IPs, low-and-slow recon, scanner-like behavior not flagged by CTI/WAF", r.SuspiciousIPs)
 	promptLine(&b, "Verdicts", r.ByVerdict)
+	if len(r.Scorecard) > 0 {
+		parts := make([]string, 0, len(r.Scorecard))
+		for _, s := range r.Scorecard {
+			pred := s.Predicate
+			if pred == "" {
+				pred = "belum ada data"
+			}
+			parts = append(parts, fmt.Sprintf("%s: %s (%s)", s.Label, s.Value, pred))
+		}
+		fmt.Fprintf(&b, "Kartu Kinerja (predikat keseluruhan %s) - %s.\n",
+			orNone(r.ScorecardOverall), strings.Join(parts, ", "))
+	}
 	return b.String()
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "belum ada data"
+	}
+	return s
 }
 
 func promptLine(b *strings.Builder, title string, rows []Count) {

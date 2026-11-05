@@ -28,11 +28,18 @@ func DefaultSourcesFor(goos string) []Source {
 			// Web access log for the web-defacement / judi-online / path-scan rules. nginx default;
 			// for apache add /var/log/apache2/access.log via config. Missing file = no events.
 			{Dataset: "web", Type: "file", Path: "/var/log/nginx/access.log"},
+			// CIS configuration benchmarks, run on the endpoint once a day (scaInterval). Seeding it
+			// by default is what keeps the scorecard's benchmark indicator LIVE: every agent assesses
+			// itself on a schedule instead of waiting for someone to enable it. No policy on the host
+			// = no findings, which surfaces as "belum ada data" rather than an error.
+			{Dataset: "sca", Type: "sca"},
 		}
 	case "windows":
 		return []Source{
 			{Dataset: "windows-security", Type: "wineventlog", Path: "Security"},
 			{Dataset: "windows-system", Type: "wineventlog", Path: "System"},
+			// CIS benchmarks on a daily schedule, same reason as Linux: a live benchmark indicator.
+			{Dataset: "sca", Type: "sca"},
 		}
 	default:
 		return nil

@@ -2603,3 +2603,59 @@ export async function deleteVendorAccount(id: string): Promise<void> {
   const res = await authFetch(`/api/vendor-accounts/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
+
+// ── Performance scorecard (Kartu Kinerja, M3) ────────────────────────────────
+export type ScorecardIndicator = {
+  key: string
+  csf_function: string
+  label: string
+  unit: string
+  value: number | null
+  predicate: string
+  note?: string
+}
+export type ScorecardExtra = { key: string; label: string; value: number }
+export type Scorecard = {
+  since_days: number
+  indicators: ScorecardIndicator[]
+  extras: ScorecardExtra[]
+  overall_predicate: string
+  overall_score: number | null
+  indicators_counted: number
+  indicators_total: number
+}
+export type ImportResult = { imported: number; rejected: string[] }
+
+export async function fetchScorecard(days = 30): Promise<Scorecard> {
+  const res = await authFetch(`/api/scorecard?days=${days}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function importScenarioRuns(csv: string): Promise<ImportResult> {
+  const res = await authFetch('/api/scorecard/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function addScorecardInput(key: string, value: number): Promise<void> {
+  const res = await authFetch('/api/scorecard/inputs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, value }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}
+
+export async function markAlertReview(eventId: string, falsePositive: boolean): Promise<void> {
+  const res = await authFetch('/api/alert-reviews', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_id: eventId, false_positive: falsePositive }),
+  })
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+}

@@ -429,6 +429,13 @@ func main() {
 		// manage_settings, because a window is an access control.
 		mux.Handle("/api/vendor-accounts", protect(auth.PermViewDashboard, vendorAccountsHandler(st)))
 		mux.Handle("DELETE /api/vendor-accounts/{id}", protect(auth.PermManageSettings, vendorAccountDeleteHandler(st)))
+		// Performance scorecard (Kartu Kinerja, M3). Read is view_dashboard; importing the test log
+		// and manual figures are manage_settings; flagging a false positive is ack_alert. Writes are
+		// audited inside the handlers.
+		mux.Handle("GET /api/scorecard", protect(auth.PermViewDashboard, scorecardHandler(st)))
+		mux.Handle("POST /api/scorecard/import", protect(auth.PermManageSettings, scorecardImportHandler(st, authStore)))
+		mux.Handle("POST /api/scorecard/inputs", protect(auth.PermManageSettings, scorecardInputHandler(st, authStore)))
+		mux.Handle("POST /api/alert-reviews", protect(auth.PermAckAlert, alertReviewHandler(st, authStore)))
 		mux.Handle("GET /api/vulnerabilities", protect(auth.PermViewDashboard, vulnSummaryHandler(st)))
 		mux.Handle("GET /api/vulnerabilities/agent", protect(auth.PermViewDashboard, vulnAgentHandler(st)))
 		mux.Handle("POST /api/vulnerabilities/rematch", protect(auth.PermManageSettings, vulnRematchHandler(st)))

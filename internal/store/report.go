@@ -277,6 +277,31 @@ func (s *Store) buildReportRange(ctx context.Context, since, until time.Time) (r
 			})
 		}
 	}
+
+	// M3 scorecard over the same window (in whole days, at least one), so the periodic report
+	// carries the report card. A failure here must not sink the whole report: log-worthy, but the
+	// counts above are still useful on their own, so the scorecard is simply left out.
+	days := int(until.Sub(since).Hours()/24 + 0.5)
+	if days < 1 {
+		days = 1
+	}
+	if card, cerr := s.Scorecard(ctx, days); cerr == nil && card != nil {
+		r.ScorecardOverall = card.Overall
+		for _, ind := range card.Indicators {
+			val := "belum ada data"
+			if ind.Value != nil {
+				v := float64(int(*ind.Value*10+0.5)) / 10
+				if ind.Unit != "" {
+					val = fmt.Sprintf("%g %s", v, ind.Unit)
+				} else {
+					val = fmt.Sprintf("%g", v)
+				}
+			}
+			r.Scorecard = append(r.Scorecard, report.ScoreLine{
+				Label: ind.Label, Value: val, Predicate: ind.Predicate,
+			})
+		}
+	}
 	return r, nil
 }
 

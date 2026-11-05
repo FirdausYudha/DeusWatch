@@ -1,0 +1,206 @@
+import { useEffect, useState } from 'react'
+import {
+  fetchScorecard,
+  importScenarioRuns,
+  addScorecardInput,
+  can,
+  type Scorecard as ScorecardData,
+  type ScorecardIndicator,
+  type Me,
+} from '../lib/api'
+import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Pill, Select } from '../components/ui'
+
+// CSF functions in the order the field table groups them.
+const CSF_ORDER = ['Identify', 'Protect', 'Detect', 'Respond', 'Govern']
+
+function predicateClass(pred: string): string {
+  if (pred === 'Efektif') return 'bg-success/15 text-success'
+  if (pred === 'Cukup') return 'bg-medium/15 text-medium'
+  if (pred === 'Perlu Perbaikan') return 'bg-critical/15 text-critical'
+  return 'bg-info/15 text-muted'
+}
+
+function PredicateBadge({ pred }: { pred: string }) {
+  if (!pred) return <span className="text-muted text-sm">belum ada data</span>
+  return <Pill className={predicateClass(pred)}>{pred}</Pill>
+}
+
+function formatValue(ind: ScorecardIndicator): string {
+  if (ind.value === null) return 'belum ada data'
+  const v = Math.round(ind.value * 10) / 10
+  return ind.unit ? `${v} ${ind.unit}` : `${v}`
+}
+
+export default function Scorecard({ me }: { me: Me }) {
+  const canManage = can(me, 'manage_settings')
+  const [data, setData] = useState<ScorecardData | null>(null)
+  const [days, setDays] = useState(30)
+  const [error, setError] = useState('')
+  const [loaded, setLoaded] = useState(false)
+
+  const [csv, setCsv] = useState('')
+  const [importMsg, setImportMsg] = useState('')
+  const [prepDays, setPrepDays] = useState('')
+  const [inputMsg, setInputMsg] = useState('')
+
+  const load = () =>
+    fetchScorecard(days)
+      .then(setData)
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoaded(true))
+
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days])
+
+  const doImport = async () => {
+    setImportMsg('')
+    setError('')
+    try {
+      const res = await importScenarioRuns(csv)
+      setImportMsg(
+        `${res.imported} baris diimpor` +
+          (res.rejected.length ? `, ${res.rejected.length} ditolak: ${res.rejected.join('; ')}` : ''),
+      )
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const savePrep = async () => {
+    setInputMsg('')
+    setError('')
+    const v = parseFloat(prepDays)
+    if (isNaN(v)) {
+      setError('isi waktu penyiapan laporan dengan angka (hari)')
+      return
+    }
+    try {
+      await addScorecardInput('report_prep_time', v)
+      setInputMsg('tersimpan')
+      setPrepDays('')
+      await load()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <Page>
+      <PageHeader
+        subtitle="Kartu Kinerja: delapan indikator keamanan untuk periode terpilih, dengan predikat per indikator dan keseluruhan, dikelompokkan menurut fungsi NIST CSF."
+        actions={
+          <Select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value={7}>7 hari</option>
+            <option value={30}>30 hari</option>
+            <option value={90}>90 hari</option>
+          </Select>
+        }
+      />
+
+      {error && <ErrorText>{error}</ErrorText>}
+
+      {data && (
+        <Card title="Predikat keseluruhan">
+          <div className="flex items-center gap-4">
+            <PredicateBadge pred={data.overall_predicate} />
+            <span className="text-muted text-sm">
+              {data.overall_score !== null
+                ? `skor rata-rata ${Math.round(data.overall_score * 100) / 100} dari ${data.indicators_counted} dari ${data.indicators_total} indikator`
+                : `belum ada indikator yang bisa dihitung (0 dari ${data.indicators_total})`}
+            </span>
+          </div>
+        </Card>
+      )}
+
+      {data &&
+        CSF_ORDER.filter((csf) => data.indicators.some((i) => i.csf_function === csf)).map((csf) => (
+          <Card key={csf} title={csf}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted text-left">
+                  <th className="py-1 font-medium">Indikator</th>
+                  <th className="py-1 font-medium">Nilai</th>
+                  <th className="py-1 font-medium">Predikat</th>
+                  <th className="py-1 font-medium">Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.indicators
+                  .filter((i) => i.csf_function === csf)
+                  .map((i) => (
+                    <tr key={i.key} className="border-t border-border/50">
+                      <td className="py-2 pr-3">{i.label}</td>
+                      <td className="py-2 pr-3 tabular-nums">{formatValue(i)}</td>
+                      <td className="py-2 pr-3">
+                        <PredicateBadge pred={i.predicate} />
+                      </td>
+                      <td className="py-2 text-muted">{i.note ?? ''}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Card>
+        ))}
+
+      {data && data.extras.length > 0 && (
+        <Card title="Tanpa predikat">
+          <div className="flex flex-wrap gap-6">
+            {data.extras.map((x) => (
+              <div key={x.key}>
+                <div className="text-2xl font-semibold tabular-nums">{x.value}</div>
+                <div className="text-muted text-sm">{x.label}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {loaded && !data && !error && <EmptyState title="Kartu kinerja belum bisa dimuat" />}
+
+      {canManage && (
+        <>
+          <Card title="Impor catatan skenario (catatan_skenario.csv)">
+            <p className="text-muted text-sm mb-2">
+              Tempel isi catatan_skenario.csv. Baris dikunci per (skenario, ulangan), jadi impor ulang
+              memperbarui di tempat. Baris rusak ditolak dengan nomor barisnya.
+            </p>
+            <textarea
+              className="w-full h-32 rounded border border-border bg-surface p-2 text-sm font-mono"
+              value={csv}
+              onChange={(e) => setCsv(e.target.value)}
+              placeholder="id_skenario,ulangan,waktu_eksekusi,waktu_alert,waktu_respons,aturan_atau_fitur,teknik,terdeteksi,catatan"
+            />
+            <div className="mt-2 flex items-center gap-3">
+              <Button onClick={doImport} disabled={!csv.trim()}>
+                Impor
+              </Button>
+              {importMsg && <span className="text-muted text-sm">{importMsg}</span>}
+            </div>
+          </Card>
+
+          <Card title="Isian manual: waktu penyiapan laporan">
+            <div className="flex items-end gap-3">
+              <div>
+                <label className="text-muted text-sm block mb-1">Waktu penyiapan laporan (hari)</label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={prepDays}
+                  onChange={(e) => setPrepDays(e.target.value)}
+                  placeholder="mis. 1"
+                />
+              </div>
+              <Button onClick={savePrep} disabled={!prepDays.trim()}>
+                Simpan
+              </Button>
+              {inputMsg && <span className="text-muted text-sm">{inputMsg}</span>}
+            </div>
+          </Card>
+        </>
+      )}
+    </Page>
+  )
+}

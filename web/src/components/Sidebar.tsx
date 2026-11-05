@@ -3,7 +3,7 @@ import { logout, can, type Me } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'servicehealth' | 'network' | 'vendor' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'benchmarks' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
+export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'scorecard' | 'servicehealth' | 'network' | 'vendor' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'benchmarks' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
@@ -28,6 +28,7 @@ const NAV: NavGroup[] = [
       { id: 'network', label: 'Network', view: 'network', perm: 'view_dashboard' },
       { id: 'vendor', label: 'Vendor Access', view: 'vendor', perm: 'view_dashboard' },
       { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
+      { id: 'scorecard', label: 'Kartu Kinerja', view: 'scorecard', perm: 'view_dashboard' },
     ],
   },
   {

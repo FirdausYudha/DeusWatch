@@ -14,6 +14,7 @@ import Report from './report/Report'
 import ServiceHealth from './servicehealth/ServiceHealth'
 import Network from './network/Network'
 import Vendor from './vendor/Vendor'
+import Scorecard from './scorecard/Scorecard'
 import Tickets from './tickets/Tickets'
 import Rules from './rules/Rules'
 import Decoders from './decoders/Decoders'
@@ -112,6 +113,8 @@ export default function App() {
           <Vendor me={me} />
         ) : view === 'report' ? (
           <Report />
+        ) : view === 'scorecard' ? (
+          <Scorecard me={me} />
         ) : view === 'rules' && can(me, 'manage_rules') ? (
           <Rules />
         ) : view === 'decoders' && can(me, 'manage_rules') ? (
