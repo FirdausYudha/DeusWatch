@@ -21,6 +21,8 @@ ports it uses**, **what language/tech it's built with**, and **how to change its
 | 14 | [Self-monitoring](14-self-monitoring.md) | Agent liveness, worker liveness + auto-recovery, disk watermark, the platform watching itself |
 | 15 | [Agent Health](15-agent-health.md) | Per-endpoint vulnerability assessment (OS packages) + SCA (application dependencies) |
 | 16 | [AI assistant](16-ai-assistant.md) | Chat panel over your own data, plus block/whitelist you confirm. Ships disabled |
+| 17 | [Security Scorecard](17-security-scorecard.md) | Eight security indicators with predicates, grouped by NIST CSF, wired to live data |
+| 18 | [Vendor Access](18-vendor-access.md) | Allowed login windows per vendor account; alert on any login outside the window (RV-01) |
 
 ---
 
