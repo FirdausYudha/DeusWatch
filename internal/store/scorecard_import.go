@@ -52,19 +52,39 @@ func ParseScenarioCSV(text string) ([]ScenarioRunRow, []string, error) {
 	if len(records) == 0 {
 		return nil, nil, fmt.Errorf("csv is empty")
 	}
-	// Map header name -> column index.
+	// Map header name -> column index, then resolve canonical fields through aliases so both the
+	// English (product) and Indonesian (capstone) column names load from the same code.
 	col := map[string]int{}
 	for i, h := range records[0] {
 		col[strings.TrimSpace(strings.ToLower(h))] = i
 	}
-	need := []string{"id_skenario", "ulangan", "terdeteksi"}
-	for _, n := range need {
-		if _, ok := col[n]; !ok {
-			return nil, nil, fmt.Errorf("csv is missing required column %q", n)
+	aliases := map[string][]string{
+		"scenario_id":     {"scenario_id", "id_skenario"},
+		"repetition":      {"repetition", "ulangan"},
+		"executed_at":     {"executed_at", "waktu_eksekusi"},
+		"alerted_at":      {"alerted_at", "waktu_alert"},
+		"responded_at":    {"responded_at", "waktu_respons"},
+		"rule_or_feature": {"rule_or_feature", "aturan_atau_fitur"},
+		"technique":       {"technique", "teknik"},
+		"detected":        {"detected", "terdeteksi"},
+		"note":            {"note", "catatan"},
+	}
+	idx := map[string]int{}
+	for canon, alist := range aliases {
+		for _, a := range alist {
+			if i, ok := col[a]; ok {
+				idx[canon] = i
+				break
+			}
+		}
+	}
+	for _, n := range []string{"scenario_id", "repetition", "detected"} {
+		if _, ok := idx[n]; !ok {
+			return nil, nil, fmt.Errorf("csv is missing required column %q (or its alias)", n)
 		}
 	}
 	get := func(rec []string, name string) string {
-		if i, ok := col[name]; ok && i < len(rec) {
+		if i, ok := idx[name]; ok && i < len(rec) {
 			return strings.TrimSpace(rec[i])
 		}
 		return ""
@@ -84,34 +104,34 @@ func ParseScenarioCSV(text string) ([]ScenarioRunRow, []string, error) {
 	var rejected []string
 	for li, rec := range records[1:] {
 		line := li + 2 // human line number (1-based, header is line 1)
-		sid := get(rec, "id_skenario")
+		sid := get(rec, "scenario_id")
 		if sid == "" {
 			continue // blank trailing line, not an error
 		}
-		rep, err := strconv.Atoi(get(rec, "ulangan"))
+		rep, err := strconv.Atoi(get(rec, "repetition"))
 		if err != nil {
-			rejected = append(rejected, fmt.Sprintf("baris %d: ulangan bukan angka (%q)", line, get(rec, "ulangan")))
+			rejected = append(rejected, fmt.Sprintf("line %d: repetition is not a number (%q)", line, get(rec, "repetition")))
 			continue
 		}
-		exec, e1 := parseTime(get(rec, "waktu_eksekusi"))
-		alert, e2 := parseTime(get(rec, "waktu_alert"))
-		resp, e3 := parseTime(get(rec, "waktu_respons"))
+		exec, e1 := parseTime(get(rec, "executed_at"))
+		alert, e2 := parseTime(get(rec, "alerted_at"))
+		resp, e3 := parseTime(get(rec, "responded_at"))
 		if e1 != nil || e2 != nil || e3 != nil {
-			rejected = append(rejected, fmt.Sprintf("baris %d: format waktu salah (pakai 'YYYY-MM-DD HH:MM:SS +0700')", line))
+			rejected = append(rejected, fmt.Sprintf("line %d: bad time format (use 'YYYY-MM-DD HH:MM:SS +0700')", line))
 			continue
 		}
-		det := strings.ToLower(get(rec, "terdeteksi"))
-		detected := det == "ya" || det == "true" || det == "1"
+		det := strings.ToLower(get(rec, "detected"))
+		detected := det == "yes" || det == "ya" || det == "true" || det == "1"
 		rows = append(rows, ScenarioRunRow{
 			ScenarioID:    sid,
 			Repetition:    rep,
 			ExecutedAt:    exec,
 			AlertedAt:     alert,
 			RespondedAt:   resp,
-			RuleOrFeature: get(rec, "aturan_atau_fitur"),
-			Technique:     get(rec, "teknik"),
+			RuleOrFeature: get(rec, "rule_or_feature"),
+			Technique:     get(rec, "technique"),
 			Detected:      detected,
-			Note:          get(rec, "catatan"),
+			Note:          get(rec, "note"),
 		})
 	}
 	return rows, rejected, nil

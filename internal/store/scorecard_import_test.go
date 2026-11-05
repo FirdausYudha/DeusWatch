@@ -51,6 +51,22 @@ func TestParseScenarioCSVWithoutTeknik(t *testing.T) {
 	}
 }
 
+// English headers (the product format) must load through the alias map.
+func TestParseScenarioCSVEnglishHeaders(t *testing.T) {
+	csv := "scenario_id,repetition,executed_at,alerted_at,responded_at,rule_or_feature,technique,detected,note\n" +
+		"S1,1,2026-11-05 03:22:47 +0700,2026-11-05 03:22:48 +0700,,SSH Brute Force,T1110,yes,ok\n"
+	rows, rejected, err := ParseScenarioCSV(csv)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(rows) != 1 || len(rejected) != 0 {
+		t.Fatalf("want 1 row / 0 rejected, got %d / %d", len(rows), len(rejected))
+	}
+	if rows[0].ScenarioID != "S1" || !rows[0].Detected || rows[0].Technique != "T1110" {
+		t.Fatalf("english-header row parsed wrong: %+v", rows[0])
+	}
+}
+
 func TestParseScenarioCSVMissingColumn(t *testing.T) {
 	// Missing the required id_skenario column is a whole-file error, not a per-row rejection.
 	csv := "ulangan,terdeteksi\n1,ya\n"

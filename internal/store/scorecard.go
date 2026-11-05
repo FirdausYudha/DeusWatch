@@ -19,9 +19,9 @@ import (
 
 // Predicate labels, kept as constants so the UI and the tests cannot drift from the store.
 const (
-	PredEffective = "Efektif"
-	PredSufficient = "Cukup"
-	PredNeedsWork  = "Perlu Perbaikan"
+	PredEffective  = "Effective"
+	PredSufficient = "Adequate"
+	PredNeedsWork  = "Needs Improvement"
 )
 
 // Indicator is one computed row of the scorecard.
@@ -207,7 +207,7 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 		if registered > 0 {
 			v := 100.0 * float64(active) / float64(registered)
 			vals["source_coverage"] = &v
-			notes["source_coverage"] = fmt.Sprintf("%d dari %d agen aktif", active, registered)
+			notes["source_coverage"] = fmt.Sprintf("%d of %d agents active", active, registered)
 		}
 	}
 
@@ -225,7 +225,7 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 		}
 		v := 100.0 * float64(allDetected) / 13.0
 		vals["detection_rate"] = &v
-		notes["detection_rate"] = fmt.Sprintf("%d dari 13 skenario terdeteksi di seluruh ulangan", allDetected)
+		notes["detection_rate"] = fmt.Sprintf("%d of 13 scenarios detected on every repetition", allDetected)
 	}
 
 	// mttd: median detection latency over REAL alerts in the window - how long after the activity
@@ -236,7 +236,7 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 		`SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ingested_at - time))/60.0)
 		   FROM events
 		  WHERE dw_label <> '' AND ingested_at IS NOT NULL AND ingested_at >= time AND time >= $1`, since)
-	notes["mttd"] = "dari alert nyata (waktu ingest dikurangi waktu kejadian)"
+	notes["mttd"] = "from live alerts (ingest time minus occurrence time)"
 
 	// mttr: median time to respond, from the REAL ticket queue - created (~alert time) to acked
 	// (someone started handling it). A recommendation still awaiting approval has no ticket ack, so
@@ -244,7 +244,7 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 	vals["mttr"] = scalarMinutes(ctx, q,
 		`SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (acked_at - created_at))/60.0)
 		   FROM tickets WHERE acked_at IS NOT NULL AND created_at >= $1`, since)
-	notes["mttr"] = "dari antrean tiket (waktu ditangani dikurangi waktu tiket dibuat)"
+	notes["mttr"] = "from the ticket queue (acknowledged time minus created time)"
 
 	// benchmark_score: CIS passed / evaluable (passed+failed) * 100, averaged per host.
 	{
@@ -270,7 +270,7 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 		if reviewed > 0 {
 			v := 100.0 * float64(fp) / float64(reviewed)
 			vals["false_positive_ratio"] = &v
-			notes["false_positive_ratio"] = fmt.Sprintf("%d dari %d alert ditinjau", fp, reviewed)
+			notes["false_positive_ratio"] = fmt.Sprintf("%d of %d alerts reviewed", fp, reviewed)
 		}
 	}
 
@@ -287,7 +287,7 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 		if total > 0 {
 			v := 100.0 * float64(within) / float64(total)
 			vals["bridging_detection"] = &v
-			notes["bridging_detection"] = fmt.Sprintf("%d dari %d ulangan S11 dalam 5 menit", within, total)
+			notes["bridging_detection"] = fmt.Sprintf("%d of %d S11 repetitions within 5 minutes", within, total)
 		}
 	}
 
@@ -324,7 +324,7 @@ func (s *Store) scorecardExtras(ctx context.Context, since time.Time, out *Score
 		return fmt.Errorf("store: scorecard ips blocked: %w", err)
 	}
 	out.Extras = append(out.Extras,
-		Extra{Key: "attack_frequency", Label: "Frekuensi serangan (alert)", Value: float64(attacks)},
-		Extra{Key: "ips_blocked", Label: "IP diblokir", Value: float64(ips)})
+		Extra{Key: "attack_frequency", Label: "Attack frequency (alerts)", Value: float64(attacks)},
+		Extra{Key: "ips_blocked", Label: "IPs blocked", Value: float64(ips)})
 	return nil
 }

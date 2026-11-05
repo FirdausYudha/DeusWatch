@@ -55,7 +55,7 @@ type Report struct {
 }
 
 // ScoreLine is one scorecard indicator rendered for the report: a value already formatted with its
-// unit (or "belum ada data") and the predicate band.
+// unit (or "no data yet") and the predicate band.
 type ScoreLine struct {
 	Label     string `json:"label"`
 	Value     string `json:"value"`
@@ -98,14 +98,14 @@ func scorecardSection(b *strings.Builder, r Report) {
 	if len(r.Scorecard) == 0 {
 		return
 	}
-	fmt.Fprintf(b, "## Kartu Kinerja\n\n")
+	fmt.Fprintf(b, "## Security Scorecard\n\n")
 	if r.ScorecardOverall != "" {
-		fmt.Fprintf(b, "- **Predikat keseluruhan:** %s\n\n", r.ScorecardOverall)
+		fmt.Fprintf(b, "- **Overall predicate:** %s\n\n", r.ScorecardOverall)
 	}
 	for _, s := range r.Scorecard {
 		pred := s.Predicate
 		if pred == "" {
-			pred = "belum ada data"
+			pred = "no data yet"
 		}
 		fmt.Fprintf(b, "- %s: %s (%s)\n", s.Label, s.Value, pred)
 	}
@@ -140,11 +140,11 @@ func SummaryPrompt(r Report) string {
 		for _, s := range r.Scorecard {
 			pred := s.Predicate
 			if pred == "" {
-				pred = "belum ada data"
+				pred = "no data yet"
 			}
 			parts = append(parts, fmt.Sprintf("%s: %s (%s)", s.Label, s.Value, pred))
 		}
-		fmt.Fprintf(&b, "Kartu Kinerja (predikat keseluruhan %s) - %s.\n",
+		fmt.Fprintf(&b, "Security Scorecard (overall predicate %s) - %s.\n",
 			orNone(r.ScorecardOverall), strings.Join(parts, ", "))
 	}
 	return b.String()
@@ -152,7 +152,7 @@ func SummaryPrompt(r Report) string {
 
 func orNone(s string) string {
 	if s == "" {
-		return "belum ada data"
+		return "no data yet"
 	}
 	return s
 }
