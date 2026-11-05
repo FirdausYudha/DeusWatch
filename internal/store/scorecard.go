@@ -14,6 +14,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -158,12 +159,11 @@ func (s *Store) Scorecard(ctx context.Context, days int) (*Scorecard, error) {
 		return nil, err
 	}
 
-	// Gather raw values (nil = no data) and per-indicator notes.
+	// Gather raw values (nil = no data) and per-indicator notes. Each indicator query is isolated,
+	// so one failing query leaves that indicator as no-data rather than failing the whole scorecard.
 	vals := map[string]*float64{}
 	notes := map[string]string{}
-	if err := s.scorecardValues(ctx, since, vals, notes); err != nil {
-		return nil, err
-	}
+	s.scorecardValues(ctx, since, vals, notes)
 
 	out := &Scorecard{SinceDays: days, Indicators: []Indicator{}, Extras: []Extra{}}
 	var scores []int
@@ -174,7 +174,7 @@ func (s *Store) Scorecard(ctx context.Context, days int) (*Scorecard, error) {
 			ind.Predicate = predicateFor(*v, t.HigherIsBetter, t.Effective, t.Sufficient)
 			scores = append(scores, predicateScore(ind.Predicate))
 		} else if ind.Note == "" {
-			ind.Note = "belum ada data"
+			ind.Note = "no data yet"
 		}
 		out.Indicators = append(out.Indicators, ind)
 	}
@@ -183,37 +183,37 @@ func (s *Store) Scorecard(ctx context.Context, days int) (*Scorecard, error) {
 	out.Overall, out.OverallScore = overallPredicate(scores)
 
 	// Extras, shown without a predicate.
-	if err := s.scorecardExtras(ctx, since, out); err != nil {
-		return nil, err
-	}
+	s.scorecardExtras(ctx, since, out)
 	return out, nil
 }
 
 // scorecardValues fills vals/notes for every indicator. A nil entry (or an absent key) means the
 // indicator has no data for this window.
-func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[string]*float64, notes map[string]string) error {
+func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[string]*float64, notes map[string]string) {
 	q := s.q(ctx)
+	try := s.indicatorRunner(ctx, q)
 
 	// source_coverage: active agents / registered agents * 100.
-	// shortcut: berbasis agen, ganti ke registri sumber saat P1-6 (tabel data_sources) dibangun.
-	{
+	// shortcut: agent-based; switch to a data-source registry when P1-6 (data_sources) is built.
+	try("source_coverage", func() error {
 		var active, registered int
 		if err := q.QueryRow(ctx, `
 			SELECT count(*) FILTER (WHERE status = 'online' AND NOT revoked),
 			       count(*) FILTER (WHERE NOT revoked)
 			  FROM agents`).Scan(&active, &registered); err != nil {
-			return fmt.Errorf("store: scorecard source_coverage: %w", err)
+			return err
 		}
 		if registered > 0 {
 			v := 100.0 * float64(active) / float64(registered)
 			vals["source_coverage"] = &v
 			notes["source_coverage"] = fmt.Sprintf("%d of %d agents active", active, registered)
 		}
-	}
+		return nil
+	})
 
 	// detection_rate: scenarios detected on ALL their repetitions / 13 * 100. A scenario with no
 	// recorded run counts as not detected, so the denominator is always the full 13.
-	{
+	try("detection_rate", func() error {
 		var allDetected int
 		if err := q.QueryRow(ctx, `
 			SELECT count(*) FROM (
@@ -221,33 +221,48 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 			    GROUP BY scenario_id
 			   HAVING count(*) > 0 AND bool_and(detected)
 			) x`).Scan(&allDetected); err != nil {
-			return fmt.Errorf("store: scorecard detection_rate: %w", err)
+			return err
 		}
 		v := 100.0 * float64(allDetected) / 13.0
 		vals["detection_rate"] = &v
 		notes["detection_rate"] = fmt.Sprintf("%d of 13 scenarios detected on every repetition", allDetected)
-	}
+		return nil
+	})
 
 	// mttd: median detection latency over REAL alerts in the window - how long after the activity
 	// (event.time) the alert was ingested (ingested_at, migration 000087). This is the live signal,
 	// not the imported controlled-test log. Rows before the column existed are NULL and excluded,
 	// and the ingested_at >= time guard drops agent-clock skew that would otherwise read negative.
-	vals["mttd"] = scalarMinutes(ctx, q,
-		`SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ingested_at - time))/60.0)
-		   FROM events
-		  WHERE dw_label <> '' AND ingested_at IS NOT NULL AND ingested_at >= time AND time >= $1`, since)
-	notes["mttd"] = "from live alerts (ingest time minus occurrence time)"
+	try("mttd", func() error {
+		var v *float64
+		if err := q.QueryRow(ctx, `
+			SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ingested_at - time))/60.0)
+			   FROM events
+			  WHERE dw_label <> '' AND ingested_at IS NOT NULL AND ingested_at >= time AND time >= $1`, since).Scan(&v); err != nil {
+			return err
+		}
+		vals["mttd"] = v
+		notes["mttd"] = "from live alerts (ingest time minus occurrence time)"
+		return nil
+	})
 
 	// mttr: median time to respond, from the REAL ticket queue - created (~alert time) to acked
 	// (someone started handling it). A recommendation still awaiting approval has no ticket ack, so
 	// it is not counted, which matches the field definition of MTTR.
-	vals["mttr"] = scalarMinutes(ctx, q,
-		`SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (acked_at - created_at))/60.0)
-		   FROM tickets WHERE acked_at IS NOT NULL AND created_at >= $1`, since)
-	notes["mttr"] = "from the ticket queue (acknowledged time minus created time)"
+	try("mttr", func() error {
+		var v *float64
+		if err := q.QueryRow(ctx, `
+			SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (acked_at - created_at))/60.0)
+			   FROM tickets WHERE acked_at IS NOT NULL AND created_at >= $1`, since).Scan(&v); err != nil {
+			return err
+		}
+		vals["mttr"] = v
+		notes["mttr"] = "from the ticket queue (acknowledged time minus created time)"
+		return nil
+	})
 
 	// benchmark_score: CIS passed / evaluable (passed+failed) * 100, averaged per host.
-	{
+	try("benchmark", func() error {
 		var v *float64
 		if err := q.QueryRow(ctx, `
 			SELECT avg(host_pct) FROM (
@@ -255,76 +270,106 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 			        / NULLIF(count(*) FILTER (WHERE result IN ('passed','failed')), 0) AS host_pct
 			     FROM agent_benchmarks GROUP BY agent_name
 			) h WHERE host_pct IS NOT NULL`).Scan(&v); err != nil {
-			return fmt.Errorf("store: scorecard benchmark: %w", err)
+			return err
 		}
 		vals["benchmark_score"] = v
-	}
+		return nil
+	})
 
 	// false_positive_ratio: alerts flagged false positive / reviewed alerts * 100.
-	{
+	try("false_positive", func() error {
 		var fp, reviewed int
 		if err := q.QueryRow(ctx, `
 			SELECT count(*) FILTER (WHERE false_positive), count(*) FROM alert_reviews`).Scan(&fp, &reviewed); err != nil {
-			return fmt.Errorf("store: scorecard false_positive: %w", err)
+			return err
 		}
 		if reviewed > 0 {
 			v := 100.0 * float64(fp) / float64(reviewed)
 			vals["false_positive_ratio"] = &v
 			notes["false_positive_ratio"] = fmt.Sprintf("%d of %d alerts reviewed", fp, reviewed)
 		}
-	}
+		return nil
+	})
 
 	// bridging_detection: S11 reps alerting within 5 min of the fault / total S11 reps * 100.
-	{
+	try("bridging", func() error {
 		var within, total int
 		if err := q.QueryRow(ctx, `
 			SELECT count(*) FILTER (WHERE detected AND alerted_at IS NOT NULL AND executed_at IS NOT NULL
 			                          AND alerted_at - executed_at <= interval '5 minutes'),
 			       count(*)
 			  FROM scenario_runs WHERE scenario_id = 'S11'`).Scan(&within, &total); err != nil {
-			return fmt.Errorf("store: scorecard bridging: %w", err)
+			return err
 		}
 		if total > 0 {
 			v := 100.0 * float64(within) / float64(total)
 			vals["bridging_detection"] = &v
 			notes["bridging_detection"] = fmt.Sprintf("%d of %d S11 repetitions within 5 minutes", within, total)
 		}
-	}
+		return nil
+	})
 
-	// report_prep_time: most recent manual figure, in days.
-	vals["report_prep_time"] = scalarMinutes(ctx, q,
-		`SELECT value FROM scorecard_inputs WHERE input_key = 'report_prep_time'
-		  ORDER BY recorded_at DESC LIMIT 1`)
-	return nil
+	// report_prep_time: most recent manual figure, in days. Wrapped in a subquery so it always
+	// returns one row (NULL when none), rather than ErrNoRows.
+	try("report_prep", func() error {
+		var v *float64
+		if err := q.QueryRow(ctx, `
+			SELECT (SELECT value FROM scorecard_inputs WHERE input_key = 'report_prep_time'
+			         ORDER BY recorded_at DESC LIMIT 1)`).Scan(&v); err != nil {
+			return err
+		}
+		vals["report_prep_time"] = v
+		return nil
+	})
 }
 
-// scalarMinutes runs a query returning a single nullable numeric and returns it, or nil when the
-// query yields no row or SQL NULL. Used for the median/last-value indicators.
-func scalarMinutes(ctx context.Context, q Queryer, sql string, args ...any) *float64 {
-	var v *float64
-	if err := q.QueryRow(ctx, sql, args...).Scan(&v); err != nil {
-		return nil
+// indicatorRunner returns a helper that runs each indicator query isolated by a SAVEPOINT, so a
+// single failing query (a missing column on an older schema, an optional table, a permission) rolls
+// back only itself and the scorecard transaction stays usable for the next indicator - one broken
+// indicator must not blank the whole card. Outside a transaction the SAVEPOINT errors harmlessly
+// and is skipped (a pooled query auto-commits, so a failure is already isolated). A failed
+// indicator is logged and simply left as no-data.
+func (s *Store) indicatorRunner(ctx context.Context, q Queryer) func(string, func() error) {
+	return func(name string, fn func() error) {
+		sp := false
+		if _, err := q.Exec(ctx, "SAVEPOINT scard_sp"); err == nil {
+			sp = true
+		}
+		if err := fn(); err != nil {
+			if sp {
+				_, _ = q.Exec(ctx, "ROLLBACK TO SAVEPOINT scard_sp")
+			}
+			log.Printf("store: scorecard %s: %v", name, err)
+			return
+		}
+		if sp {
+			_, _ = q.Exec(ctx, "RELEASE SAVEPOINT scard_sp")
+		}
 	}
-	return v
 }
 
 // scorecardExtras fills the no-predicate figures: how often attacks fired and how many IPs were
 // blocked in the window.
-func (s *Store) scorecardExtras(ctx context.Context, since time.Time, out *Scorecard) error {
+func (s *Store) scorecardExtras(ctx context.Context, since time.Time, out *Scorecard) {
 	q := s.q(ctx)
-	var attacks int
-	if err := q.QueryRow(ctx,
-		`SELECT count(*) FROM events WHERE dw_label <> '' AND time >= $1`, since).Scan(&attacks); err != nil {
-		return fmt.Errorf("store: scorecard attacks: %w", err)
-	}
-	var ips int
-	if err := q.QueryRow(ctx,
-		`SELECT count(DISTINCT ip) FROM containment_actions WHERE ip IS NOT NULL AND created_at >= $1`,
-		since).Scan(&ips); err != nil {
-		return fmt.Errorf("store: scorecard ips blocked: %w", err)
-	}
-	out.Extras = append(out.Extras,
-		Extra{Key: "attack_frequency", Label: "Attack frequency (alerts)", Value: float64(attacks)},
-		Extra{Key: "ips_blocked", Label: "IPs blocked", Value: float64(ips)})
-	return nil
+	try := s.indicatorRunner(ctx, q)
+	try("attack_frequency", func() error {
+		var attacks int
+		if err := q.QueryRow(ctx,
+			`SELECT count(*) FROM events WHERE dw_label <> '' AND time >= $1`, since).Scan(&attacks); err != nil {
+			return err
+		}
+		out.Extras = append(out.Extras, Extra{Key: "attack_frequency", Label: "Attack frequency (alerts)", Value: float64(attacks)})
+		return nil
+	})
+	try("ips_blocked", func() error {
+		var ips int
+		if err := q.QueryRow(ctx,
+			`SELECT count(DISTINCT ip) FROM containment_actions WHERE ip IS NOT NULL AND created_at >= $1`,
+			since).Scan(&ips); err != nil {
+			return err
+		}
+		out.Extras = append(out.Extras, Extra{Key: "ips_blocked", Label: "IPs blocked", Value: float64(ips)})
+		return nil
+	})
 }

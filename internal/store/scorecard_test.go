@@ -81,6 +81,37 @@ func TestPredicateScore(t *testing.T) {
 	}
 }
 
+// TestScorecardComputes checks the whole card computes against a real Postgres without failing,
+// exercising the per-indicator savepoint isolation. Integration, skipped if Postgres is down.
+func TestScorecardComputes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	st, err := ConnectSuperadmin(ctx, dsn())
+	if err != nil {
+		t.Skipf("Postgres unavailable, skipping: %v", err)
+	}
+	defer st.Close()
+
+	card, err := st.Scorecard(ctx, 30)
+	if err != nil {
+		t.Fatalf("Scorecard returned an error (should degrade per-indicator, not fail): %v", err)
+	}
+	if card.IndicatorsTotal != 8 {
+		t.Fatalf("expected 8 indicators, got %d", card.IndicatorsTotal)
+	}
+	// Every indicator with a value must carry one of the three valid predicates; a nil-value one
+	// must carry none.
+	valid := map[string]bool{PredEffective: true, PredSufficient: true, PredNeedsWork: true}
+	for _, ind := range card.Indicators {
+		if ind.Value != nil && !valid[ind.Predicate] {
+			t.Fatalf("indicator %q has a value but invalid predicate %q", ind.Key, ind.Predicate)
+		}
+		if ind.Value == nil && ind.Predicate != "" {
+			t.Fatalf("indicator %q has no value but a predicate %q", ind.Key, ind.Predicate)
+		}
+	}
+}
+
 // TestScorecardMedianAndImport exercises the SQL median (MTTD) and the CSV import against a real
 // Postgres. Integration, skipped if Postgres is down. Self-cleaning: it only touches rows whose
 // scenario id starts with the ZT test prefix.
