@@ -25,6 +25,21 @@ const (
 	PredNeedsWork  = "Needs Improvement"
 )
 
+// indicatorDisplay holds each indicator's display label and unit in CODE, not in the database.
+// The DB (scorecard_thresholds) is the authority on thresholds and CSF grouping; the display text
+// lives here so the UI language never depends on a seed/migration having run. Translating is a code
+// change, not a re-seed. Keyed by indicator_key; an unknown key falls back to the DB's own label.
+var indicatorDisplay = map[string]struct{ Label, Unit string }{
+	"source_coverage":      {"Active data-source coverage", "%"},
+	"detection_rate":       {"Scenario detection rate", "%"},
+	"mttd":                 {"MTTD (median time to detect)", "min"},
+	"mttr":                 {"MTTR (median time to respond)", "min"},
+	"benchmark_score":      {"CIS benchmark score", "%"},
+	"false_positive_ratio": {"False-positive ratio", "%"},
+	"bridging_detection":   {"Bridging-failure detection (S11)", "%"},
+	"report_prep_time":     {"Report preparation time", "days"},
+}
+
 // Indicator is one computed row of the scorecard.
 type Indicator struct {
 	Key       string   `json:"key"`
@@ -169,6 +184,9 @@ func (s *Store) Scorecard(ctx context.Context, days int) (*Scorecard, error) {
 	var scores []int
 	for _, t := range ths {
 		ind := Indicator{Key: t.Key, CSF: t.CSF, Label: t.Label, Unit: t.Unit, Note: notes[t.Key]}
+		if d, ok := indicatorDisplay[t.Key]; ok {
+			ind.Label, ind.Unit = d.Label, d.Unit // code-driven display, independent of the DB seed
+		}
 		if v := vals[t.Key]; v != nil {
 			ind.Value = v
 			ind.Predicate = predicateFor(*v, t.HigherIsBetter, t.Effective, t.Sufficient)

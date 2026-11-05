@@ -16,7 +16,9 @@ alert as a false positive needs `ack_alert`.
 ## The eight indicators
 
 Grouped by CSF function, each with a fixed threshold band (seeded in `scorecard_thresholds`,
-migration `000086`; labels in English via `000088`). Higher-is-better bands use `>=`;
+migration `000086`). Display labels and units live in code (`indicatorDisplay` in
+`internal/store/scorecard.go`), not in the DB, so the UI language never depends on a seed having
+run. Higher-is-better bands use `>=`;
 lower-is-better bands use `<=`, inclusive on the better side.
 
 | CSF | Indicator | Source (live) | Effective | Adequate |
