@@ -381,9 +381,13 @@ func (s *Store) scorecardExtras(ctx context.Context, since time.Time, out *Score
 		return nil
 	})
 	try("ips_blocked", func() error {
+		// Distinct IPs actually banned in the window - the executed progressive-ban actions from the
+		// Response page (response_actions), not host network-isolation (containment_actions).
 		var ips int
 		if err := q.QueryRow(ctx,
-			`SELECT count(DISTINCT ip) FROM containment_actions WHERE ip IS NOT NULL AND created_at >= $1`,
+			`SELECT count(DISTINCT source_ip) FROM response_actions
+			  WHERE status = 'executed' AND source_ip IS NOT NULL
+			    AND COALESCE(executed_at, created_at) >= $1`,
 			since).Scan(&ips); err != nil {
 			return err
 		}
