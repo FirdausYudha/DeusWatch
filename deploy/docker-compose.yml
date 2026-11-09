@@ -8,6 +8,16 @@ name: deuswatch
 services:
   db:
     image: timescale/timescaledb:2.17.2-pg16
+    # Postgres max_connections, set EXPLICITLY rather than left to the image's RAM-based auto-tune
+    # (which picks a low value, ~25, on a small host). The three services each open a pool of
+    # DB_MAX_CONNS (default 30): api + worker + gateway = ~90 connections, so a lower limit saturates
+    # the server ("sorry, too many clients already") and even a single psql is refused. This must
+    # exceed the sum of the pools plus a little headroom for psql/migrations/background workers.
+    # On a RAM-constrained host, lower DB_MAX_CONNS instead of raising this past what the RAM allows.
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=${DEUSWATCH_DB_MAX_CONNECTIONS:-120}"
     environment:
       POSTGRES_USER: deuswatch
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deuswatch_dev}
@@ -25,12 +35,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
-    # Memory cap so one runaway service cannot OOM the whole host
-    # (a limit, not a reservation - normal usage sits far below it).
+    # Memory cap so one runaway service cannot OOM the whole host (a limit, not a reservation -
+    # normal usage sits below it). Raised to 2g to back the higher max_connections above; a
+    # RAM-constrained host can lower this together with DEUSWATCH_DB_MAX_CONNECTIONS / DB_MAX_CONNS.
     deploy:
       resources:
         limits:
-          memory: ${DEUSWATCH_DB_MEM:-1g}
+          memory: ${DEUSWATCH_DB_MEM:-2g}
     restart: unless-stopped
 
   nats:
