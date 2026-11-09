@@ -27,7 +27,7 @@ import DocLink from '../components/DocLink'
 import { Button, Icon, Page, Pagination, usePaged } from '../components/ui'
 import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
-const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry', 'rootcheck']
+const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry', 'rootcheck', 'sca']
 const POLL_TYPES = new Set(['fim', 'wineventlog', 'registry', 'rootcheck']) // types where the interval applies
 
 // v() prints a semver with exactly one leading "v", buildVersion baked in from `git describe`
@@ -877,7 +877,7 @@ function ConfigEditor({
                 value={s.path}
                 onChange={(e) => update(i, { path: e.target.value })}
                 placeholder={
-                  s.type === 'rootcheck'
+                  s.type === 'rootcheck' || s.type === 'sca'
                     ? 'not used'
                     : s.type === 'fim'
                       ? '/etc/passwd,/etc/ssh'
@@ -899,7 +899,7 @@ function ConfigEditor({
                   className="rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-[13.5px] outline-none focus:border-accent"
                 />
               ) : (
-                <span className="grid place-items-center text-[12.5px] text-dim">live</span>
+                <span className="grid place-items-center text-[12.5px] text-dim">{s.type === 'sca' ? 'daily' : 'live'}</span>
               )}
               <button
                 onClick={() => removeRow(i)}
