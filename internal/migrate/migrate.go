@@ -8,11 +8,15 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -48,12 +52,46 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) (int, error) {
 		if err != nil {
 			return n, fmt.Errorf("migrate: read %s: %w", f, err)
 		}
-		if err := applyOne(ctx, pool, version, string(sqlText)); err != nil {
+		if err := applyWithRetry(ctx, pool, version, string(sqlText)); err != nil {
 			return n, fmt.Errorf("migrate: %s: %w", f, err)
 		}
 		n++
 	}
 	return n, nil
+}
+
+// applyWithRetry runs one migration, retrying on a transient serialization/deadlock error
+// (40P01 deadlock_detected / 40001 serialization_failure). On a busy server a migration that must
+// take a table-level lock - e.g. ALTER TABLE ADD COLUMN on the hot events hypertable - can deadlock
+// with concurrent ingestion. The deadlock is transient: a short backoff and retry almost always
+// succeeds, whereas a hard failure stops the runner and leaves every LATER migration unapplied too.
+func applyWithRetry(ctx context.Context, pool *pgxpool.Pool, version, sqlText string) error {
+	const maxAttempts = 6
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err = applyOne(ctx, pool, version, sqlText); err == nil || !isTransientLockErr(err) {
+			return err
+		}
+		backoff := time.Duration(attempt) * 250 * time.Millisecond
+		log.Printf("migrate: %s hit a transient DB lock (%v); retry %d/%d in %s",
+			version, err, attempt, maxAttempts, backoff)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return err
+}
+
+// isTransientLockErr reports whether a Postgres error is a deadlock or serialization failure, which
+// are safe to retry (the migration's transaction was rolled back, nothing was recorded).
+func isTransientLockErr(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "40P01" || pgErr.Code == "40001"
+	}
+	return false
 }
 
 func applyOne(ctx context.Context, pool *pgxpool.Pool, version, sqlText string) error {

@@ -2,10 +2,12 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"deuswatch/migrations"
@@ -74,5 +76,24 @@ func TestApplyIdempotent(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("second Apply applied %d migrations, want 0 (idempotent)", n)
+	}
+}
+
+func TestIsTransientLockErr(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"deadlock 40P01", &pgconn.PgError{Code: "40P01"}, true},
+		{"serialization 40001", &pgconn.PgError{Code: "40001"}, true},
+		{"undefined column 42703", &pgconn.PgError{Code: "42703"}, false},
+		{"plain error", errors.New("boom"), false},
+		{"nil", nil, false},
+	}
+	for _, c := range cases {
+		if got := isTransientLockErr(c.err); got != c.want {
+			t.Errorf("%s: isTransientLockErr = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
