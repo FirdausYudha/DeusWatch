@@ -46,6 +46,7 @@ function depState(raw?: string): DepState {
 // ── Events / Alerts / Stats ───────────────────────────────
 
 export type EventRow = {
+  id: string
   time: string
   event_category: string
   event_action: string

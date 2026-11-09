@@ -1,7 +1,7 @@
 import { useEffect, useState, Fragment, type ReactNode } from 'react'
 import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData,
-  fetchStorageStatus, requestFimRestore,
+  fetchStorageStatus, requestFimRestore, markAlertReview,
   fetchLayout, saveLayout, deleteLayout,
   SEVERITY, can, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type WidgetKind, type EventSearch, type DashRange,
@@ -804,6 +804,18 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
   const [limit, setLimit] = usePersistedState('events.limit', 20)
   const [updated, setUpdated] = useState<Date | null>(null)
   const [open, setOpen] = useState(false)
+  // Analyst verdict per alert id (true = false positive), feeding the Security Scorecard's
+  // false-positive ratio. Kept locally just to reflect the click; the server is the record.
+  const [reviews, setReviews] = useState<Record<string, boolean>>({})
+  const review = async (a: EventRow, falsePositive: boolean) => {
+    if (!a.id) return
+    setReviews((m) => ({ ...m, [a.id]: falsePositive }))
+    try {
+      await markAlertReview(a.id, falsePositive)
+    } catch {
+      setReviews((m) => { const n = { ...m }; delete n[a.id]; return n }) // revert on failure
+    }
+  }
 
   // Fetch on any filter change (debounced) + a periodic refresh.
   useEffect(() => {
@@ -981,7 +993,23 @@ function EventsPanel({ onCreateTicket, apiDown }: { onCreateTicket?: (t: NewTick
                     <td className="whitespace-nowrap px-4 py-2"><SeverityBadge sev={a.event_severity} /></td>
                     {onCreateTicket && (
                       <td className="px-4 py-2 text-right">
-                        <button onClick={(e) => { e.stopPropagation(); onCreateTicket(alertToTicket(a)) }} className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg transition-colors hover:bg-surface-2" title="Raise a Tier-2 ticket from this event">+ Ticket</button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {a.dw_label && a.id && (
+                            <span className="inline-flex overflow-hidden rounded-md border border-border" title="Mark this alert as a true or false positive (feeds the Security Scorecard)">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); void review(a, false) }}
+                                className={`px-1.5 py-1 text-[12px] transition-colors ${reviews[a.id] === false ? 'bg-success/20 text-success' : 'text-muted hover:bg-surface-2'}`}
+                                title="True positive (a real detection)"
+                              >Real</button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); void review(a, true) }}
+                                className={`border-l border-border px-1.5 py-1 text-[12px] transition-colors ${reviews[a.id] === true ? 'bg-critical/20 text-critical' : 'text-muted hover:bg-surface-2'}`}
+                                title="False positive"
+                              >FP</button>
+                            </span>
+                          )}
+                          <button onClick={(e) => { e.stopPropagation(); onCreateTicket(alertToTicket(a)) }} className="rounded-md border border-border px-2 py-1 text-[12.5px] text-fg transition-colors hover:bg-surface-2" title="Raise a Tier-2 ticket from this event">+ Ticket</button>
+                        </div>
                       </td>
                     )}
                   </tr>

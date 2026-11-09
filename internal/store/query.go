@@ -11,6 +11,7 @@ import (
 
 // EventRow is a flat representation of one event for the API/UI.
 type EventRow struct {
+	ID            string    `json:"id"` // events_data.id as text; used to tag an alert (false positive)
 	Time          time.Time `json:"time"`
 	Category      string    `json:"event_category"`
 	Action        string    `json:"event_action"`
@@ -114,7 +115,7 @@ const selectCols = `
 	COALESCE(file_diff,''),
 	COALESCE(process_name,''), COALESCE(process_pid,0),
 	COALESCE(http_method,''), COALESCE(http_uri,''), COALESCE(http_status,0), COALESCE(http_host,''),
-	COALESCE(user_effective,'')`
+	COALESCE(user_effective,''), COALESCE(id::text,'')`
 
 func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 	defer rows.Close()
@@ -134,7 +135,7 @@ func scanEventRows(rows pgx.Rows) ([]EventRow, error) {
 			&e.FileDiff,
 			&e.ProcessName, &e.ProcessPID,
 			&e.HTTPMethod, &e.HTTPURI, &e.HTTPStatus, &e.HTTPHost,
-			&e.UserEffective,
+			&e.UserEffective, &e.ID,
 		); err != nil {
 			return nil, err
 		}
