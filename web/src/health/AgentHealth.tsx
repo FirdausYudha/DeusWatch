@@ -2,14 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Me } from '../lib/api'
 import { fetchSCA, fetchAgentSCA, type SCASummary, type SCAFinding, type ScanStatus } from '../lib/api'
 import Inventory, { SeverityFilterBar, CvssScore, ScanStatusBanner } from '../inventory/Inventory'
+import Benchmarks from '../benchmarks/Benchmarks'
 import { Page, Card, EmptyState, ErrorText, Pagination, usePaged } from '../components/ui'
 import { DonutChart } from '../dashboard/widgets'
 
-// AgentHealth houses the two per-endpoint security views the operator asked to group together:
-// Vulnerability Assessment (OS-package CVEs, the existing Inventory view) and SCA (language
-// dependency vulnerabilities from Trivy). Each tab's component brings its own <Page>, so the tab
-// strip below sits in the same gutter and the content aligns rather than nesting two page shells.
-type Tab = 'va' | 'sca'
+// AgentHealth houses the per-endpoint security views the operator asked to group together:
+// Vulnerability Assessment (OS-package CVEs, the existing Inventory view), SCA (language
+// dependency vulnerabilities from Trivy), and CIS Benchmark (per-host hardening scores). Each tab's
+// component brings its own <Page>, so the tab strip below sits in the same gutter and the content
+// aligns rather than nesting two page shells.
+type Tab = 'va' | 'sca' | 'cis'
 
 export default function AgentHealth({ me }: { me: Me }) {
   const [tab, setTab] = useState<Tab>('va')
@@ -17,7 +19,7 @@ export default function AgentHealth({ me }: { me: Me }) {
     <div>
       <div className="mx-auto max-w-[1400px] px-6 pt-6">
         <div className="inline-flex rounded-[8px] border border-border p-0.5 text-sm">
-          {([['va', 'Vulnerability Assessment'], ['sca', 'SCA']] as [Tab, string][]).map(([id, label]) => (
+          {([['va', 'Vulnerability Assessment'], ['sca', 'SCA'], ['cis', 'CIS Benchmark']] as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -30,7 +32,7 @@ export default function AgentHealth({ me }: { me: Me }) {
           ))}
         </div>
       </div>
-      {tab === 'va' ? <Inventory me={me} /> : <SCAView />}
+      {tab === 'va' ? <Inventory me={me} /> : tab === 'sca' ? <SCAView /> : <Benchmarks me={me} />}
     </div>
   )
 }

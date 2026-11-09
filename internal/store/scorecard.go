@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -279,18 +280,43 @@ func (s *Store) scorecardValues(ctx context.Context, since time.Time, vals map[s
 		return nil
 	})
 
-	// benchmark_score: CIS passed / evaluable (passed+failed) * 100, averaged per host.
+	// benchmark_score: CIS passed / evaluable (passed+failed) * 100 per host, then averaged across
+	// hosts. The per-host scores also go into the note so the card names which agents it covers.
 	try("benchmark", func() error {
-		var v *float64
-		if err := q.QueryRow(ctx, `
-			SELECT avg(host_pct) FROM (
-			   SELECT 100.0 * count(*) FILTER (WHERE result = 'passed')
-			        / NULLIF(count(*) FILTER (WHERE result IN ('passed','failed')), 0) AS host_pct
-			     FROM agent_benchmarks GROUP BY agent_name
-			) h WHERE host_pct IS NOT NULL`).Scan(&v); err != nil {
+		rows, err := q.Query(ctx, `
+			SELECT agent_name,
+			       100.0 * count(*) FILTER (WHERE result = 'passed')
+			             / NULLIF(count(*) FILTER (WHERE result IN ('passed','failed')), 0) AS host_pct
+			  FROM agent_benchmarks GROUP BY agent_name ORDER BY agent_name`)
+		if err != nil {
 			return err
 		}
-		vals["benchmark_score"] = v
+		defer rows.Close()
+		var parts []string
+		var sum float64
+		var n int
+		for rows.Next() {
+			var name string
+			var pct *float64
+			if err := rows.Scan(&name, &pct); err != nil {
+				return err
+			}
+			if pct == nil {
+				continue // every check skipped on this host: nothing evaluable to score
+			}
+			sum += *pct
+			n++
+			parts = append(parts, fmt.Sprintf("%s %.0f%%", name, *pct))
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if n > 0 {
+			avg := sum / float64(n)
+			vals["benchmark_score"] = &avg
+			notes["benchmark_score"] = fmt.Sprintf("avg across %d host%s: %s",
+				n, plural(n), strings.Join(parts, ", "))
+		}
 		return nil
 	})
 
