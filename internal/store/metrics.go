@@ -114,7 +114,8 @@ type HostMetricLatest struct {
 	AgentName string   `json:"agent_name"`
 	CPU       *float64 `json:"cpu_pct"`
 	Mem       *float64 `json:"mem_pct"`
-	Disk      *float64 `json:"disk_pct"` // the fullest mount, so one small near-full disk still shows
+	Disk      *float64 `json:"disk_pct"`    // the fullest mount, so one small near-full disk still shows
+	Uptime    *float64 `json:"uptime_sec"`  // seconds since boot
 }
 
 // HostMetricsLatest returns the latest CPU / memory / disk reading per agent within the last 15
@@ -131,11 +132,11 @@ func (s *Store) HostMetricsLatest(ctx context.Context) ([]HostMetricLatest, erro
 		return l
 	}
 
-	// Latest cpu_pct and mem_pct per agent.
+	// Latest cpu_pct, mem_pct and uptime_sec per agent.
 	rows, err := s.q(ctx).Query(ctx, `
 		SELECT DISTINCT ON (agent_name, metric) agent_name, metric, value
 		  FROM host_metrics
-		 WHERE metric IN ('cpu_pct','mem_pct') AND time >= now() - interval '15 minutes'
+		 WHERE metric IN ('cpu_pct','mem_pct','uptime_sec') AND time >= now() - interval '15 minutes'
 		 ORDER BY agent_name, metric, time DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("store: latest host metrics: %w", err)
@@ -148,10 +149,13 @@ func (s *Store) HostMetricsLatest(ctx context.Context) ([]HostMetricLatest, erro
 			return nil, err
 		}
 		val := v
-		if metric == "cpu_pct" {
+		switch metric {
+		case "cpu_pct":
 			get(name).CPU = &val
-		} else {
+		case "mem_pct":
 			get(name).Mem = &val
+		case "uptime_sec":
+			get(name).Uptime = &val
 		}
 	}
 	if err := rows.Err(); err != nil {

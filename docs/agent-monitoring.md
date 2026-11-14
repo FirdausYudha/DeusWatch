@@ -12,12 +12,15 @@ It invents no new data: it joins, by agent, what the other views already gather.
 |---|---|---|
 | Status | agent heartbeat | online / stale / offline / never seen / revoked |
 | CPU, Memory, Disk | Performance (host metrics) | the agent's most recent reading; **Disk** is the fullest mounted filesystem. A dash means no sample in the last 15 minutes |
+| Uptime | Performance (host metrics) | time since the host booted (Linux); a dash means no recent sample |
+| FIM 24h | File Integrity | file-integrity alerts in the last 24 hours (a change that matched a detection rule, not every change) |
 | VA c/h | Vulnerability Assessment | OS-package vulnerabilities: critical / high |
 | SCA c/h | Software Composition Analysis | dependency vulnerabilities: critical / high |
 | CIS | Benchmarks | hardening score (average across the agent's policies) |
 
 The summary cards at the top count agents, how many are online, how many are offline or stale, how
-many carry a critical vulnerability (VA or SCA), and the fleet's average CIS score.
+many carry a critical vulnerability (VA or SCA), total FIM alerts in the last 24h, and the fleet's
+average CIS score.
 
 ## Reading it
 

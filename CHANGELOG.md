@@ -15,9 +15,9 @@ Requires migration **000089**.
 
 - **Agent Monitoring dashboard.** A new fleet overview, one row per endpoint, joining every
   per-agent signal the product already collects: liveness, live CPU/memory/disk, OS-package
-  vulnerabilities (VA), dependency vulnerabilities (SCA) and CIS hardening score, with summary cards
-  across the top. The default Dashboard covers the network; this covers the endpoints. Refreshes
-  every 30s. See `docs/agent-monitoring.md`.
+  vulnerabilities (VA), dependency vulnerabilities (SCA), CIS hardening score, FIM alerts in the last
+  24h and host uptime, with summary cards across the top. The default Dashboard covers the network;
+  this covers the endpoints. Refreshes every 30s. See `docs/agent-monitoring.md`.
 
 - **Host performance monitoring (Performance tab under Agent Health).** CPU, memory, disk and network
   over time for hosts that run the agent, charted in the DW design - the agentful counterpart to the

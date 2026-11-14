@@ -51,6 +51,15 @@ func (s *linuxSampler) Sample() []MetricSample {
 		}
 	}
 
+	// Uptime in seconds (since boot). First field of /proc/uptime.
+	if b, err := os.ReadFile("/proc/uptime"); err == nil {
+		if f := strings.Fields(string(b)); len(f) > 0 {
+			if v, err := strconv.ParseFloat(f[0], 64); err == nil {
+				out = append(out, MetricSample{Metric: "uptime_sec", Value: v})
+			}
+		}
+	}
+
 	// Memory. "Used" is total-available (MemAvailable already accounts for reclaimable cache), which
 	// is the number a person means by "how full is RAM", not total-free.
 	if b, err := os.ReadFile("/proc/meminfo"); err == nil {

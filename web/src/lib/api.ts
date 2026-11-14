@@ -745,13 +745,26 @@ export async function fetchMetricHosts(): Promise<string[]> {
   return (await res.json()).hosts ?? []
 }
 
-// HostMetricLatest is one agent's most recent CPU/mem/disk snapshot (null = no fresh sample).
-export type HostMetricLatest = { agent_name: string; cpu_pct: number | null; mem_pct: number | null; disk_pct: number | null }
+// HostMetricLatest is one agent's most recent CPU/mem/disk/uptime snapshot (null = no fresh sample).
+export type HostMetricLatest = {
+  agent_name: string
+  cpu_pct: number | null
+  mem_pct: number | null
+  disk_pct: number | null
+  uptime_sec: number | null
+}
 
 export async function fetchMetricsLatest(): Promise<HostMetricLatest[]> {
   const res = await authFetch('/api/metrics/latest')
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return (await res.json()).latest ?? []
+}
+
+// fetchFimAlertCounts returns per-agent FIM alert counts over the window (default 24h), keyed by name.
+export async function fetchFimAlertCounts(hours = 24): Promise<Record<string, number>> {
+  const res = await authFetch(`/api/fim/alert-counts?hours=${hours}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).counts ?? {}
 }
 
 export async function fetchHostMetrics(agent: string, range: TimeRange): Promise<MetricSeries[]> {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  fetchAgents, fetchMetricsLatest, fetchVulnerabilities, fetchSCA, fetchBenchmarks,
+  fetchAgents, fetchMetricsLatest, fetchVulnerabilities, fetchSCA, fetchBenchmarks, fetchFimAlertCounts,
   agentDisplayStatus,
   type AgentInfo, type DisplayStatus, type HostMetricLatest, type VulnSummary, type SCASummary, type BenchmarkSummary,
 } from '../lib/api'
@@ -33,6 +33,15 @@ function scoreTone(v: number): string {
   return 'text-critical'
 }
 
+// humanUptime turns seconds-since-boot into a compact "5d 3h".
+function humanUptime(sec: number | null | undefined): string {
+  if (sec === null || sec === undefined) return '—'
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
 // Meter is a compact value + bar for a 0-100 usage figure, or a dash when there is no fresh reading.
 function Meter({ v }: { v: number | null }) {
   if (v === null || v === undefined) return <span className="text-dim">—</span>
@@ -55,6 +64,7 @@ type Row = {
   va?: VulnSummary
   sca?: SCASummary
   cis: number | null
+  fim: number
 }
 
 export default function Fleet() {
@@ -66,8 +76,8 @@ export default function Fleet() {
     let live = true
     const load = async () => {
       try {
-        const [agents, perf, vuln, sca, bench] = await Promise.all([
-          fetchAgents(), fetchMetricsLatest(), fetchVulnerabilities(), fetchSCA(), fetchBenchmarks(),
+        const [agents, perf, vuln, sca, bench, fim] = await Promise.all([
+          fetchAgents(), fetchMetricsLatest(), fetchVulnerabilities(), fetchSCA(), fetchBenchmarks(), fetchFimAlertCounts(24),
         ])
         if (!live) return
         const perfBy = new Map(perf.map((p) => [p.agent_name, p]))
@@ -89,6 +99,7 @@ export default function Fleet() {
             va: vaBy.get(a.name),
             sca: scaBy.get(a.name),
             cis: scores && scores.length ? Math.round(scores.reduce((x, y) => x + y, 0) / scores.length) : null,
+            fim: fim[a.name] ?? 0,
           }
         })
         setRows(built)
@@ -110,7 +121,8 @@ export default function Fleet() {
     const critical = all.filter((r) => (r.va?.critical ?? 0) > 0 || (r.sca?.critical ?? 0) > 0).length
     const cisVals = all.map((r) => r.cis).filter((v): v is number => v !== null)
     const avgCis = cisVals.length ? Math.round(cisVals.reduce((a, b) => a + b, 0) / cisVals.length) : null
-    return { total: all.length, online, down, critical, avgCis }
+    const fim = all.reduce((n, r) => n + r.fim, 0)
+    return { total: all.length, online, down, critical, avgCis, fim }
   }, [rows])
 
   return (
@@ -121,11 +133,12 @@ export default function Fleet() {
         <DocLink file="agent-monitoring.md" label="About this dashboard" />
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Agents" value={summary.total} />
         <StatCard label="Online" value={summary.online} accentClass="text-ok" />
         <StatCard label="Offline / stale" value={summary.down} accentClass={summary.down ? 'text-critical' : 'text-fg'} />
         <StatCard label="With critical vulns" value={summary.critical} accentClass={summary.critical ? 'text-critical' : 'text-fg'} hint="VA or SCA critical" />
+        <StatCard label="FIM alerts 24h" value={summary.fim} accentClass={summary.fim ? 'text-high' : 'text-fg'} />
         <StatCard label="Avg CIS score" value={summary.avgCis === null ? '—' : `${summary.avgCis}%`} accentClass={summary.avgCis === null ? 'text-fg' : scoreTone(summary.avgCis)} />
       </div>
 
@@ -148,6 +161,8 @@ export default function Fleet() {
                   <th className="px-4 py-2 font-medium">CPU</th>
                   <th className="px-4 py-2 font-medium">Memory</th>
                   <th className="px-4 py-2 font-medium">Disk</th>
+                  <th className="px-4 py-2 font-medium">Uptime</th>
+                  <th className="px-4 py-2 font-medium" title="File-integrity alerts in the last 24h">FIM 24h</th>
                   <th className="px-4 py-2 font-medium" title="OS-package vulnerabilities (critical / high)">VA c/h</th>
                   <th className="px-4 py-2 font-medium" title="Dependency vulnerabilities (critical / high)">SCA c/h</th>
                   <th className="px-4 py-2 font-medium" title="CIS hardening score">CIS</th>
@@ -168,6 +183,10 @@ export default function Fleet() {
                       <td className="px-4 py-2"><Meter v={r.perf?.cpu_pct ?? null} /></td>
                       <td className="px-4 py-2"><Meter v={r.perf?.mem_pct ?? null} /></td>
                       <td className="px-4 py-2"><Meter v={r.perf?.disk_pct ?? null} /></td>
+                      <td className="px-4 py-2 tabular-nums text-muted">{humanUptime(r.perf?.uptime_sec)}</td>
+                      <td className="px-4 py-2 tabular-nums">
+                        {r.fim > 0 ? <span className="text-high">{r.fim}</span> : <span className="text-dim">0</span>}
+                      </td>
                       <td className="px-4 py-2"><VulnCell crit={r.va?.critical} high={r.va?.high} /></td>
                       <td className="px-4 py-2"><VulnCell crit={r.sca?.critical} high={r.sca?.high} /></td>
                       <td className="px-4 py-2">

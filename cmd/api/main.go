@@ -411,6 +411,7 @@ func main() {
 		// and one agent's package list. Read-only, dashboard-level.
 		mux.Handle("GET /api/metrics/hosts", protect(auth.PermViewDashboard, metricsHostsHandler(st)))
 		mux.Handle("GET /api/metrics/latest", protect(auth.PermViewDashboard, metricsLatestHandler(st)))
+		mux.Handle("GET /api/fim/alert-counts", protect(auth.PermViewDashboard, fimAlertCountsHandler(st)))
 		mux.Handle("GET /api/metrics", protect(auth.PermViewDashboard, metricsHandler(st)))
 		mux.Handle("GET /api/inventory", protect(auth.PermViewDashboard, inventorySummaryHandler(st)))
 		mux.Handle("GET /api/inventory/packages", protect(auth.PermViewDashboard, inventoryPackagesHandler(st)))
@@ -2344,6 +2345,23 @@ func metricsLatestHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"latest": latest})
+	}
+}
+
+// fimAlertCountsHandler (GET /api/fim/alert-counts?hours=24) returns per-agent FIM alert counts over
+// the window, for the fleet overview. Default and max 7 days.
+func fimAlertCountsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hours := 24
+		if n, err := strconv.Atoi(r.URL.Query().Get("hours")); err == nil && n >= 1 && n <= 24*7 {
+			hours = n
+		}
+		counts, err := st.FIMAlertCounts(r.Context(), time.Now().Add(-time.Duration(hours)*time.Hour))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"counts": counts})
 	}
 }
 

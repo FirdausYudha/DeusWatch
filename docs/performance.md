@@ -20,6 +20,7 @@ Every 30 seconds the agent reports:
 |---|---|
 | CPU busy % | fraction of time the CPU had work, across all cores |
 | Load average (1 min) | from `/proc/loadavg` |
+| Uptime | seconds since boot, from `/proc/uptime` (shown on the Agent Monitoring dashboard) |
 | Memory used % | total minus `MemAvailable`, so cache that can be reclaimed is not counted as used |
 | Disk usage % per filesystem | real filesystems only; pseudo-mounts (tmpfs, overlay, squashfs, ...) are skipped |
 | Network throughput per interface | bytes/sec in and out; loopback and virtual/container interfaces (veth, docker, br-, ...) are skipped so a Docker host is not buried under dozens of lines |

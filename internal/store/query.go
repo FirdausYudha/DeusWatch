@@ -321,6 +321,31 @@ type Stats struct {
 	BySeverity   []SeverityCount `json:"by_severity"`
 }
 
+// FIMAlertCounts returns, per agent, how many file-integrity alerts fired since `since`. A FIM alert
+// is a file-category event that matched a detection rule (dw_label set) - an ordinary change is not
+// one. Keyed by agent_id, which is the agent name the fleet view joins on.
+func (s *Store) FIMAlertCounts(ctx context.Context, since time.Time) (map[string]int, error) {
+	rows, err := s.q(ctx).Query(ctx, `
+		SELECT agent_id, count(*) FROM events
+		 WHERE dw_label IS NOT NULL AND event_category = 'file'
+		   AND time >= $1 AND agent_id <> ''
+		 GROUP BY agent_id`, since)
+	if err != nil {
+		return nil, fmt.Errorf("store: fim alert counts: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var agent string
+		var n int
+		if err := rows.Scan(&agent, &n); err != nil {
+			return nil, err
+		}
+		out[agent] = n
+	}
+	return out, rows.Err()
+}
+
 // Stats gathers the summary for the dashboard.
 func (s *Store) Stats(ctx context.Context) (Stats, error) {
 	var st Stats
