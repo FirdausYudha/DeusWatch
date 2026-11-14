@@ -435,6 +435,118 @@ func (s *Store) SNMPSensorHistory(ctx context.Context, sensorID string, since ti
 	return out, rows.Err()
 }
 
+// SNMPSeries is one named line (a sensor) over the window, downsampled into buckets.
+type SNMPSeries struct {
+	Key    string        `json:"key"`
+	Unit   string        `json:"unit"`
+	Points []MetricPoint `json:"points"`
+}
+
+// SNMPIfaceSeries is one interface's throughput over the window, in bytes/sec, derived from the raw
+// octet counters. In and Out are separate lines so a port chart shows both directions.
+type SNMPIfaceSeries struct {
+	IfIndex int           `json:"if_index"`
+	Name    string        `json:"name"`
+	In      []MetricPoint `json:"in"`
+	Out     []MetricPoint `json:"out"`
+}
+
+// SNMPDeviceSeries returns a device's performance history for charting: each sensor's value over the
+// window, and each interface's throughput (bytes/sec). Both are downsampled with time_bucket so a
+// week of minute-polls still draws as a few hundred points. Interface rates are computed from the
+// difference between consecutive raw counters (the way Cacti/RRD do it), since SNMP octet counters
+// are cumulative; a counter that goes backwards (device reboot or 32-bit wrap) yields no point for
+// that gap rather than a false spike.
+func (s *Store) SNMPDeviceSeries(ctx context.Context, deviceID string, since, until time.Time, bucket time.Duration) ([]SNMPSeries, []SNMPIfaceSeries, error) {
+	if bucket < time.Second {
+		bucket = time.Second
+	}
+	if until.IsZero() {
+		until = time.Now()
+	}
+	secs := bucket.Seconds()
+
+	// Sensors: value over time, grouped by sensor.
+	sensors := []SNMPSeries{}
+	srows, err := s.q(ctx).Query(ctx, `
+		SELECT se.name, se.unit, time_bucket(make_interval(secs => $3), r.time) AS tb, avg(r.value)
+		  FROM snmp_readings r JOIN snmp_sensors se ON se.id = r.sensor_id
+		 WHERE r.device_id = $1 AND r.time >= $2 AND r.time <= $4 AND r.value IS NOT NULL
+		 GROUP BY se.name, se.unit, tb
+		 ORDER BY se.name, tb`, deviceID, since, secs, until)
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: snmp sensor series: %w", err)
+	}
+	defer srows.Close()
+	for srows.Next() {
+		var name, unit string
+		var t time.Time
+		var v float64
+		if err := srows.Scan(&name, &unit, &t, &v); err != nil {
+			return nil, nil, err
+		}
+		if n := len(sensors); n == 0 || sensors[n-1].Key != name {
+			sensors = append(sensors, SNMPSeries{Key: name, Unit: unit})
+		}
+		last := &sensors[len(sensors)-1]
+		last.Points = append(last.Points, MetricPoint{T: t, V: v})
+	}
+	if err := srows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	// Interfaces: rate = delta(octets) / delta(seconds) between consecutive samples per port, then
+	// averaged into the same buckets.
+	ifaces := []SNMPIfaceSeries{}
+	irows, err := s.q(ctx).Query(ctx, `
+		WITH d AS (
+			SELECT if_index, name, time, in_octets, out_octets,
+			       lag(in_octets)  OVER w AS prev_in,
+			       lag(out_octets) OVER w AS prev_out,
+			       lag(time)       OVER w AS prev_t
+			  FROM snmp_iface_samples
+			 WHERE device_id = $1 AND time >= $2 AND time <= $4
+			WINDOW w AS (PARTITION BY if_index ORDER BY time)
+		), r AS (
+			SELECT if_index, name, time,
+			       CASE WHEN prev_t IS NOT NULL AND time > prev_t AND in_octets  >= prev_in
+			            THEN (in_octets  - prev_in)  / EXTRACT(EPOCH FROM (time - prev_t)) END AS in_bps,
+			       CASE WHEN prev_t IS NOT NULL AND time > prev_t AND out_octets >= prev_out
+			            THEN (out_octets - prev_out) / EXTRACT(EPOCH FROM (time - prev_t)) END AS out_bps
+			  FROM d
+		)
+		SELECT if_index, max(name), time_bucket(make_interval(secs => $3), time) AS tb,
+		       avg(in_bps), avg(out_bps)
+		  FROM r
+		 GROUP BY if_index, tb
+		HAVING avg(in_bps) IS NOT NULL OR avg(out_bps) IS NOT NULL
+		 ORDER BY if_index, tb`, deviceID, since, secs, until)
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: snmp interface series: %w", err)
+	}
+	defer irows.Close()
+	for irows.Next() {
+		var idx int
+		var name string
+		var t time.Time
+		var in, out *float64
+		if err := irows.Scan(&idx, &name, &t, &in, &out); err != nil {
+			return nil, nil, err
+		}
+		if n := len(ifaces); n == 0 || ifaces[n-1].IfIndex != idx {
+			ifaces = append(ifaces, SNMPIfaceSeries{IfIndex: idx, Name: name})
+		}
+		last := &ifaces[len(ifaces)-1]
+		if in != nil {
+			last.In = append(last.In, MetricPoint{T: t, V: *in})
+		}
+		if out != nil {
+			last.Out = append(last.Out, MetricPoint{T: t, V: *out})
+		}
+	}
+	return sensors, ifaces, irows.Err()
+}
+
 // SNMPLatestIfaces returns the most recent sample of each interface on a device.
 func (s *Store) SNMPLatestIfaces(ctx context.Context, deviceID string) ([]SNMPIface, error) {
 	rows, err := s.q(ctx).Query(ctx, `

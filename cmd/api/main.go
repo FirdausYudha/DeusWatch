@@ -611,6 +611,7 @@ func main() {
 		// right; changing what is polled (and with which credentials) is a settings right.
 		mux.Handle("GET /api/snmp/devices", protect(auth.PermViewDashboard, snmpDevicesListHandler(st)))
 		mux.Handle("GET /api/snmp/devices/{id}/interfaces", protect(auth.PermViewDashboard, snmpDeviceIfacesHandler(st)))
+		mux.Handle("GET /api/snmp/devices/{id}/series", protect(auth.PermViewDashboard, snmpDeviceSeriesHandler(st)))
 		mux.Handle("GET /api/snmp/sensors/{id}/history", protect(auth.PermViewDashboard, snmpSensorHistoryHandler(st)))
 		mux.Handle("POST /api/snmp/devices", protect(auth.PermManageSettings, snmpDeviceCreateHandler(st, secretCipher)))
 		mux.Handle("PUT /api/snmp/devices/{id}", protect(auth.PermManageSettings, snmpDeviceUpdateHandler(st, secretCipher)))
@@ -2344,8 +2345,32 @@ func metricsHostsHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
-// metricsHandler (GET /api/metrics?agent=&hours=) returns one host's CPU / memory / disk / network
-// series over the window, downsampled so the window always draws as a few hundred points.
+// parseSeriesRange reads a charting window from the request: either minutes= (a preset, default 6h)
+// or from=&to= (RFC3339, a custom range). It returns the window bounds and a bucket sized so the
+// window draws as ~300 points, floored at a second so a one-minute view keeps raw resolution.
+func parseSeriesRange(r *http.Request) (since, until time.Time, bucket time.Duration) {
+	q := r.URL.Query()
+	now := time.Now()
+	from, ferr := time.Parse(time.RFC3339, q.Get("from"))
+	to, terr := time.Parse(time.RFC3339, q.Get("to"))
+	if ferr == nil && terr == nil && to.After(from) {
+		since, until = from, to
+	} else {
+		mins := 360
+		if m, err := strconv.Atoi(q.Get("minutes")); err == nil && m >= 1 && m <= 60*24*30 {
+			mins = m
+		}
+		since, until = now.Add(-time.Duration(mins)*time.Minute), now
+	}
+	bucket = until.Sub(since) / 300
+	if bucket < time.Second {
+		bucket = time.Second
+	}
+	return since, until, bucket
+}
+
+// metricsHandler (GET /api/metrics?agent=&minutes= | &from=&to=) returns one host's CPU / memory /
+// disk / network series over the window, downsampled so the window always draws as a few hundred points.
 func metricsHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		agentName := strings.TrimSpace(r.URL.Query().Get("agent"))
@@ -2353,17 +2378,8 @@ func metricsHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, "agent required", http.StatusBadRequest)
 			return
 		}
-		hours := 6
-		if h, err := strconv.Atoi(r.URL.Query().Get("hours")); err == nil && h >= 1 && h <= 720 {
-			hours = h
-		}
-		window := time.Duration(hours) * time.Hour
-		// ~300 points across the window, floored at a minute (the store floors it too).
-		bucket := window / 300
-		if bucket < time.Minute {
-			bucket = time.Minute
-		}
-		series, err := st.HostMetricSeries(r.Context(), agentName, time.Now().Add(-window), bucket)
+		since, until, bucket := parseSeriesRange(r)
+		series, err := st.HostMetricSeries(r.Context(), agentName, since, until, bucket)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -237,6 +237,20 @@ func snmpSensorHistoryHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
+// snmpDeviceSeriesHandler: GET /api/snmp/devices/{id}/series?minutes= | &from=&to= — downsampled
+// sensor and interface-throughput history for charting (Cacti-style performance graphs).
+func snmpDeviceSeriesHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		since, until, bucket := parseSeriesRange(r)
+		sensors, ifaces, err := st.SNMPDeviceSeries(r.Context(), r.PathValue("id"), since, until, bucket)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sensors": sensors, "interfaces": ifaces})
+	}
+}
+
 // snmpDeviceIfacesHandler: GET /api/snmp/devices/{id}/interfaces
 func snmpDeviceIfacesHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

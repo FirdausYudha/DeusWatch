@@ -5,15 +5,21 @@ import {
   deleteSNMPDevice,
   fetchSNMPDevices,
   fetchSNMPIfaces,
+  fetchSNMPSeries,
   updateSNMPDevice,
   type Me,
   type SNMPDevice,
   type SNMPDeviceInput,
   type SNMPIface,
+  type SNMPIfaceSeries,
   type SNMPSensor,
   type SNMPSensorInput,
+  type SNMPSeries,
+  type TimeRange,
 } from '../lib/api'
 import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, StatCard } from '../components/ui'
+import TimeChart, { humanBps } from '../components/TimeChart'
+import TimeRangePicker from '../components/TimeRangePicker'
 
 // Network devices over SNMP.
 //
@@ -271,6 +277,92 @@ function DeviceRow({
       {open && !d.poll_ifaces && (
         <div className="mt-3 text-[12.5px] text-dim">
           Port monitoring is off for this device. Turn on “Poll interfaces” to see per-port state.
+        </div>
+      )}
+      {open && <DevicePerformance device={d} />}
+    </div>
+  )
+}
+
+// DevicePerformance is the Cacti-style graph panel for one device: each sensor's value over time and
+// one selected interface's throughput. The polling and history already exist (snmp_readings,
+// snmp_iface_samples); this just charts them.
+function DevicePerformance({ device }: { device: SNMPDevice }) {
+  const [range, setRange] = useState<TimeRange>({ minutes: 360 })
+  const [data, setData] = useState<{ sensors: SNMPSeries[]; interfaces: SNMPIfaceSeries[] } | null>(null)
+  const [error, setError] = useState('')
+  const [iface, setIface] = useState<number | null>(null)
+
+  useEffect(() => {
+    let live = true
+    setData(null)
+    fetchSNMPSeries(device.id, range)
+      .then((d) => { if (live) { setData(d); setError('') } })
+      .catch((e) => live && setError((e as Error).message))
+    return () => { live = false }
+  }, [device.id, range])
+
+  // Default to the busiest interface (highest peak in/out) unless the user picked one.
+  const selected = useMemo(() => {
+    if (!data) return null
+    if (iface !== null && data.interfaces.some((i) => i.if_index === iface)) return iface
+    let best: number | null = null
+    let bestPeak = -1
+    for (const i of data.interfaces) {
+      let peak = 0
+      for (const p of i.in) if (p.v > peak) peak = p.v
+      for (const p of i.out) if (p.v > peak) peak = p.v
+      if (peak > bestPeak) { bestPeak = peak; best = i.if_index }
+    }
+    return best
+  }, [data, iface])
+  const selIface = data?.interfaces.find((i) => i.if_index === selected) ?? null
+
+  return (
+    <div className="mt-3 rounded-[8px] border border-border bg-surface-2 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[12px] font-semibold uppercase tracking-wider text-dim">Performance</span>
+        <TimeRangePicker value={range} onChange={setRange} />
+      </div>
+      {error && <div className="mb-2 text-[12.5px] text-critical">{error}</div>}
+      {!data ? (
+        <div className="text-[12.5px] text-dim">Loading charts…</div>
+      ) : data.sensors.length === 0 && data.interfaces.length === 0 ? (
+        <div className="text-[12.5px] text-dim">
+          No history in this window yet. Sensors chart once the device has been polled a few times;
+          interface graphs need “Poll interfaces” on.
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {data.sensors.map((s) => (
+            <div key={s.key}>
+              <div className="mb-1 text-[12.5px] text-muted">{s.key}{s.unit ? ` (${s.unit})` : ''}</div>
+              <TimeChart series={[{ key: s.key, points: s.points }]} unit={s.unit} area height={180} />
+            </div>
+          ))}
+          {data.interfaces.length > 0 && (
+            <div className="lg:col-span-2">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-[12.5px] text-muted">Interface throughput</span>
+                <select
+                  value={selected ?? ''}
+                  onChange={(e) => setIface(Number(e.target.value))}
+                  className="rounded-[6px] border border-border bg-surface px-2 py-0.5 text-[12.5px] text-fg"
+                >
+                  {data.interfaces.map((i) => (
+                    <option key={i.if_index} value={i.if_index}>{i.name || `if${i.if_index}`}</option>
+                  ))}
+                </select>
+              </div>
+              {selIface && (
+                <TimeChart
+                  series={[{ key: 'in', points: selIface.in }, { key: 'out', points: selIface.out }]}
+                  fmt={humanBps}
+                  height={200}
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -729,17 +729,42 @@ export async function fetchBenchmarkChecks(
 export type MetricPoint = { t: string; v: number }
 export type MetricSeries = { metric: string; label: string; points: MetricPoint[] }
 
+// TimeRange is a charting window: a preset (minutes back from now) or a custom [from, to] (ISO).
+export type TimeRange = { minutes: number } | { from: string; to: string }
+
+// rangeParams turns a TimeRange into the query the series endpoints read.
+export function rangeParams(r: TimeRange): URLSearchParams {
+  return 'minutes' in r
+    ? new URLSearchParams({ minutes: String(r.minutes) })
+    : new URLSearchParams({ from: r.from, to: r.to })
+}
+
 export async function fetchMetricHosts(): Promise<string[]> {
   const res = await authFetch('/api/metrics/hosts')
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return (await res.json()).hosts ?? []
 }
 
-export async function fetchHostMetrics(agent: string, hours: number): Promise<MetricSeries[]> {
-  const q = new URLSearchParams({ agent, hours: String(hours) })
+export async function fetchHostMetrics(agent: string, range: TimeRange): Promise<MetricSeries[]> {
+  const q = rangeParams(range)
+  q.set('agent', agent)
   const res = await authFetch(`/api/metrics?${q}`)
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
   return (await res.json()).series ?? []
+}
+
+// SNMP device performance series (sensors + interface throughput), for the Network board charts.
+export type SNMPSeries = { key: string; unit: string; points: MetricPoint[] }
+export type SNMPIfaceSeries = { if_index: number; name: string; in: MetricPoint[]; out: MetricPoint[] }
+
+export async function fetchSNMPSeries(
+  id: string,
+  range: TimeRange,
+): Promise<{ sensors: SNMPSeries[]; interfaces: SNMPIfaceSeries[] }> {
+  const res = await authFetch(`/api/snmp/devices/${id}/series?${rangeParams(range)}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  const j = await res.json()
+  return { sensors: j.sensors ?? [], interfaces: j.interfaces ?? [] }
 }
 
 // ── Agent groups: one collection policy shared by many agents ─────

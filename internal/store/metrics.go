@@ -66,22 +66,25 @@ func (s *Store) InsertHostMetrics(ctx context.Context, agentName string, at time
 	return nil
 }
 
-// HostMetricSeries returns every (metric, label) line for one agent since `since`, averaged into
-// buckets of `bucket` width. A sub-minute bucket is widened to a minute: finer than that returns
-// more points than any chart uses and defeats the point of downsampling on read.
-func (s *Store) HostMetricSeries(ctx context.Context, agentName string, since time.Time, bucket time.Duration) ([]MetricSeries, error) {
+// HostMetricSeries returns every (metric, label) line for one agent in [since, until], averaged into
+// buckets of `bucket` width. A zero `until` means now. The bucket is floored at a second, so a
+// one-minute window keeps whatever resolution the agent actually sampled at.
+func (s *Store) HostMetricSeries(ctx context.Context, agentName string, since, until time.Time, bucket time.Duration) ([]MetricSeries, error) {
 	if agentName == "" {
 		return nil, fmt.Errorf("store: metric series needs an agent name")
 	}
-	if bucket < time.Minute {
-		bucket = time.Minute
+	if bucket < time.Second {
+		bucket = time.Second
+	}
+	if until.IsZero() {
+		until = time.Now()
 	}
 	rows, err := s.q(ctx).Query(ctx, `
-		SELECT metric, label, time_bucket(make_interval(secs => $3), time) AS tb, avg(value)
+		SELECT metric, label, time_bucket(make_interval(secs => $4), time) AS tb, avg(value)
 		  FROM host_metrics
-		 WHERE agent_name = $1 AND time >= $2
+		 WHERE agent_name = $1 AND time >= $2 AND time <= $3
 		 GROUP BY metric, label, tb
-		 ORDER BY metric, label, tb`, agentName, since, bucket.Seconds())
+		 ORDER BY metric, label, tb`, agentName, since, until, bucket.Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("store: host metric series: %w", err)
 	}
