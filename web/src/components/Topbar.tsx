@@ -32,6 +32,7 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   tickets: { title: 'Tickets', subtitle: 'Investigations and their status' },
   report: { title: 'Report', subtitle: 'Scheduled and on-demand exports' },
   scorecard: { title: 'Security Scorecard', subtitle: 'Security indicators and predicates, grouped by NIST CSF function' },
+  performance: { title: 'Performance', subtitle: 'CPU, memory, disk and network over time, reported by the agent' },
   rules: { title: 'Rules', subtitle: 'Detection logic and coverage' },
   decoders: { title: 'Decoders', subtitle: 'Custom log parsing' },
   playbooks: { title: 'Playbooks', subtitle: 'Automated response actions' },

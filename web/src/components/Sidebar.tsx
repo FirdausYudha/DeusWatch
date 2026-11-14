@@ -3,7 +3,7 @@ import { logout, can, type Me } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
 import SupportModal from './SupportModal'
 
-export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'scorecard' | 'servicehealth' | 'network' | 'vendor' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'benchmarks' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
+export type View = 'dashboard' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'scorecard' | 'performance' | 'servicehealth' | 'network' | 'vendor' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'benchmarks' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
 
 type NavItem = { id: string; label: string; view?: View; perm?: string }
 
@@ -26,6 +26,7 @@ const NAV: NavGroup[] = [
       { id: 'snapshots', label: 'Snapshots', view: 'snapshots', perm: 'view_dashboard' },
       { id: 'servicehealth', label: 'Service Health', view: 'servicehealth', perm: 'view_dashboard' },
       { id: 'network', label: 'Network', view: 'network', perm: 'view_dashboard' },
+      { id: 'performance', label: 'Performance', view: 'performance', perm: 'view_dashboard' },
       { id: 'vendor', label: 'Vendor Access', view: 'vendor', perm: 'view_dashboard' },
       { id: 'report', label: 'Report', view: 'report', perm: 'view_dashboard' },
       { id: 'scorecard', label: 'Security Scorecard', view: 'scorecard', perm: 'view_dashboard' },
@@ -74,6 +75,7 @@ const ICONS: Record<string, string> = {
   vendor: 'M12 2l8 4v6c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6zM12 8v4l3 2',
   agenthealth: 'M12 3l8 3v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6zM7.5 12h2l1.5 3 2-6 1.5 3h2',
   benchmarks: 'M9 11l3 3L22 4M21 12v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h11',
+  performance: 'M3 12h4l3 8 4-16 3 8h4',
   rules: 'M4 6h10M4 12h10M4 18h10M17 5l2 2 3-3M17 17l2 2 3-3',
   decoders: 'M3 4h18l-7 8v7l-4 2v-9z',
   playbooks: 'M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3zM18 7h2v13H8',

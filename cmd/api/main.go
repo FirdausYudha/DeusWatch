@@ -409,6 +409,8 @@ func main() {
 		// Versioned FIM snapshots (ADR 0002): browse the dated version timeline of watched files.
 		// Software inventory (Vulnerability Assessment, phase 1): the fleet's OS/package summary,
 		// and one agent's package list. Read-only, dashboard-level.
+		mux.Handle("GET /api/metrics/hosts", protect(auth.PermViewDashboard, metricsHostsHandler(st)))
+		mux.Handle("GET /api/metrics", protect(auth.PermViewDashboard, metricsHandler(st)))
 		mux.Handle("GET /api/inventory", protect(auth.PermViewDashboard, inventorySummaryHandler(st)))
 		mux.Handle("GET /api/inventory/packages", protect(auth.PermViewDashboard, inventoryPackagesHandler(st)))
 		// The asset register's operator-owned half: writing it needs manage_settings, exporting it
@@ -2327,6 +2329,46 @@ func scaAgentHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"findings": findings})
+	}
+}
+
+// metricsHostsHandler (GET /api/metrics/hosts) lists agents that have reported performance metrics.
+func metricsHostsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hosts, err := st.HostsWithMetrics(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"hosts": hosts})
+	}
+}
+
+// metricsHandler (GET /api/metrics?agent=&hours=) returns one host's CPU / memory / disk / network
+// series over the window, downsampled so the window always draws as a few hundred points.
+func metricsHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		agentName := strings.TrimSpace(r.URL.Query().Get("agent"))
+		if agentName == "" {
+			http.Error(w, "agent required", http.StatusBadRequest)
+			return
+		}
+		hours := 6
+		if h, err := strconv.Atoi(r.URL.Query().Get("hours")); err == nil && h >= 1 && h <= 720 {
+			hours = h
+		}
+		window := time.Duration(hours) * time.Hour
+		// ~300 points across the window, floored at a minute (the store floors it too).
+		bucket := window / 300
+		if bucket < time.Minute {
+			bucket = time.Minute
+		}
+		series, err := st.HostMetricSeries(r.Context(), agentName, time.Now().Add(-window), bucket)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"series": series})
 	}
 }
 

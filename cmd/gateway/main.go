@@ -169,6 +169,7 @@ func main() {
 	var fileActionResultFunc gateway.FileActionResultFunc
 	var inventoryFunc gateway.InventoryFunc
 	var benchmarkFunc gateway.InventoryFunc
+	var metricsFunc gateway.InventoryFunc
 	if dsn := os.Getenv("STORE_DSN"); dsn != "" {
 		// The gateway serves every agent regardless of tenant (mTLS CN auth, config, revocation,
 		// heartbeat, FIM snapshots, file-action results), so it connects with the RLS super-admin
@@ -344,6 +345,22 @@ func main() {
 				}
 				return st.ReplaceBenchmarkResults(ctx, cn, a.PolicyID, a.PolicyName, results)
 			}
+			// Host performance metrics. Same shape: unmarshal here so the gateway package stays free
+			// of the agent import, and take the agent name from the certificate, not the body.
+			metricsFunc = func(ctx context.Context, cn string, body []byte) error {
+				var rep agent.MetricsReport
+				if err := json.Unmarshal(body, &rep); err != nil {
+					return err
+				}
+				if rep.At.IsZero() {
+					rep.At = time.Now().UTC()
+				}
+				samples := make([]store.HostMetricSample, 0, len(rep.Samples))
+				for _, m := range rep.Samples {
+					samples = append(samples, store.HostMetricSample{Metric: m.Metric, Label: m.Label, Value: m.Value})
+				}
+				return st.InsertHostMetrics(ctx, cn, rep.At, samples)
+			}
 			// Agent-side auto-block: return a per-agent envelope. The manager's nftables_agent
 			// integration is the source of truth, agent_scope filters which CNs it applies to;
 			// table/set from the integration config override the agent's defaults. Pre-v2.11
@@ -448,6 +465,8 @@ func main() {
 	mux.HandleFunc("POST /v1/snapshots", gateway.SnapshotHandler(snapshotFunc, revoked))
 	mux.HandleFunc("POST /v1/inventory", gateway.InventoryHandler(inventoryFunc, revoked))
 	mux.HandleFunc("POST /v1/benchmark", gateway.BenchmarkHandler(benchmarkFunc, revoked))
+	// Host performance metrics. Reuses the generic mTLS body handler (identity = cert CN, revoked -> 410).
+	mux.HandleFunc("POST /v1/metrics", gateway.InventoryHandler(metricsFunc, revoked))
 	mux.HandleFunc("GET /v1/file-actions", gateway.FileActionsHandler(fileActionsFunc, revoked))
 	mux.HandleFunc("POST /v1/file-actions/result", gateway.FileActionResultHandler(fileActionResultFunc, revoked))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {

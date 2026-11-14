@@ -215,6 +215,11 @@ func runAgent(ctx context.Context, onConfigChange func()) {
 	if os.Getenv("INVENTORY") != "0" {
 		go runInventory(ctx, shipper)
 	}
+	// Host performance metrics (CPU / memory / disk / network). On by default on Linux (the sampler
+	// is a no-op on other OSes for now); METRICS=0 disables it.
+	if os.Getenv("METRICS") != "0" {
+		go runMetrics(ctx, shipper)
+	}
 	// Host network containment (opt-in via AGENT_CONTAINMENT=1): poll the manager's isolation
 	// directive and firewall the host off from the LAN (except the manager) when told to.
 	if containmentEnabled(os.Getenv("AGENT_CONTAINMENT")) {
@@ -361,6 +366,34 @@ func runInventory(ctx context.Context, shipper *agent.Shipper) {
 			return
 		case <-t.C:
 			report()
+		}
+	}
+}
+
+// runMetrics samples the host's CPU / memory / disk / network every METRICS_INTERVAL (default 30s,
+// Go duration) and ships each tick. The rate metrics need a previous sample, so the first tick ships
+// only the instantaneous gauges; rates appear from the second tick on. A ship failure is logged and
+// retried next tick, it never blocks the agent, and an empty sample (no-op OS) is not shipped.
+func runMetrics(ctx context.Context, shipper *agent.Shipper) {
+	interval := 30 * time.Second
+	if d, err := time.ParseDuration(os.Getenv("METRICS_INTERVAL")); err == nil && d >= time.Second {
+		interval = d
+	}
+	sampler := agent.NewMetricsSampler()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			samples := sampler.Sample()
+			if len(samples) == 0 {
+				continue
+			}
+			if err := shipper.PostMetrics(ctx, agent.MetricsReport{At: time.Now().UTC(), Samples: samples}); err != nil {
+				log.Printf("agent: metrics report failed: %v", err)
+			}
 		}
 	}
 }

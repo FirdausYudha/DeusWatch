@@ -725,6 +725,23 @@ export async function fetchBenchmarkChecks(
   return (await res.json()).checks ?? []
 }
 
+// ── Host performance metrics (Cacti-style, agent-reported) ─────
+export type MetricPoint = { t: string; v: number }
+export type MetricSeries = { metric: string; label: string; points: MetricPoint[] }
+
+export async function fetchMetricHosts(): Promise<string[]> {
+  const res = await authFetch('/api/metrics/hosts')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).hosts ?? []
+}
+
+export async function fetchHostMetrics(agent: string, hours: number): Promise<MetricSeries[]> {
+  const q = new URLSearchParams({ agent, hours: String(hours) })
+  const res = await authFetch(`/api/metrics?${q}`)
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).series ?? []
+}
+
 // ── Agent groups: one collection policy shared by many agents ─────
 
 export type AgentGroup = {
