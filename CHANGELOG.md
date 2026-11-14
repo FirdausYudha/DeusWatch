@@ -13,9 +13,15 @@ Requires migration **000089**.
 
 ### Added
 
-- **Host performance monitoring (Performance board).** CPU, memory, disk and network over time for
-  hosts that run the agent, charted in the DW design - the agentful counterpart to the SNMP Network
-  board, so an endpoint is monitored without opening SNMP on it. The Linux agent samples `/proc` and
+- **Agent Monitoring dashboard.** A new fleet overview, one row per endpoint, joining every
+  per-agent signal the product already collects: liveness, live CPU/memory/disk, OS-package
+  vulnerabilities (VA), dependency vulnerabilities (SCA) and CIS hardening score, with summary cards
+  across the top. The default Dashboard covers the network; this covers the endpoints. Refreshes
+  every 30s. See `docs/agent-monitoring.md`.
+
+- **Host performance monitoring (Performance tab under Agent Health).** CPU, memory, disk and network
+  over time for hosts that run the agent, charted in the DW design - the agentful counterpart to the
+  SNMP Network board, so an endpoint is monitored without opening SNMP on it. The Linux agent samples `/proc` and
   `statfs` every 30s and ships gauges over the existing mTLS channel; Windows and macOS report
   nothing yet. On by default; `METRICS=0` disables it and `METRICS_INTERVAL` tunes the rate. Samples
   are kept 30 days and downsampled on read. See `docs/performance.md`.

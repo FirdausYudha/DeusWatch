@@ -19,6 +19,7 @@ import type { DashRangeState } from '../lib/range'
 // rather than in each page means the sidebar label and the header can never drift apart.
 export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Live security posture' },
+  fleet: { title: 'Agent Monitoring', subtitle: 'Every endpoint at a glance: liveness, load, vulnerabilities and hardening' },
   agents: { title: 'Agents', subtitle: 'Endpoints reporting in' },
   network: { title: 'Network', subtitle: 'Switches, access points and routers over SNMP' },
   vendor: { title: 'Vendor Access', subtitle: 'Vendor accounts and the hours each may log in' },
@@ -32,7 +33,6 @@ export const PAGE_META: Record<View, { title: string; subtitle: string }> = {
   tickets: { title: 'Tickets', subtitle: 'Investigations and their status' },
   report: { title: 'Report', subtitle: 'Scheduled and on-demand exports' },
   scorecard: { title: 'Security Scorecard', subtitle: 'Security indicators and predicates, grouped by NIST CSF function' },
-  performance: { title: 'Performance', subtitle: 'CPU, memory, disk and network over time, reported by the agent' },
   rules: { title: 'Rules', subtitle: 'Detection logic and coverage' },
   decoders: { title: 'Decoders', subtitle: 'Custom log parsing' },
   playbooks: { title: 'Playbooks', subtitle: 'Automated response actions' },

@@ -1,8 +1,10 @@
 # Host performance monitoring
 
-The **Performance** board charts CPU, memory, disk and network over time for hosts that run the
-DeusWatch agent. It is the agentful counterpart to the SNMP **Network** board: where Network polls
-switches and routers that cannot run an agent, Performance uses the agent you already have.
+The **Performance** view (a tab under **Agent Health**) charts CPU, memory, disk and network over
+time for hosts that run the DeusWatch agent. It is the agentful counterpart to the SNMP **Network**
+board: where Network polls switches and routers that cannot run an agent, Performance uses the agent
+you already have. For a one-row-per-agent summary across the whole fleet, see the **Agent
+Monitoring** dashboard (`docs/agent-monitoring.md`).
 
 Nothing new listens on the host and no SNMP is enabled. The agent samples its own `/proc` and
 `statfs` and ships the numbers over the same mTLS channel it already uses for everything else, so a

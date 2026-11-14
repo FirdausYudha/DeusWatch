@@ -108,6 +108,88 @@ func (s *Store) HostMetricSeries(ctx context.Context, agentName string, since, u
 	return out, rows.Err()
 }
 
+// HostMetricLatest is one agent's most recent CPU / memory / disk snapshot, for the fleet overview.
+// A nil field means no fresh sample (the agent never reported, or last reported too long ago).
+type HostMetricLatest struct {
+	AgentName string   `json:"agent_name"`
+	CPU       *float64 `json:"cpu_pct"`
+	Mem       *float64 `json:"mem_pct"`
+	Disk      *float64 `json:"disk_pct"` // the fullest mount, so one small near-full disk still shows
+}
+
+// HostMetricsLatest returns the latest CPU / memory / disk reading per agent within the last 15
+// minutes. Older than that is treated as no data: a three-day-old CPU figure on an offline host
+// would read as current and mislead, and the fleet's status column already tells the offline story.
+func (s *Store) HostMetricsLatest(ctx context.Context) ([]HostMetricLatest, error) {
+	byAgent := map[string]*HostMetricLatest{}
+	get := func(name string) *HostMetricLatest {
+		if l, ok := byAgent[name]; ok {
+			return l
+		}
+		l := &HostMetricLatest{AgentName: name}
+		byAgent[name] = l
+		return l
+	}
+
+	// Latest cpu_pct and mem_pct per agent.
+	rows, err := s.q(ctx).Query(ctx, `
+		SELECT DISTINCT ON (agent_name, metric) agent_name, metric, value
+		  FROM host_metrics
+		 WHERE metric IN ('cpu_pct','mem_pct') AND time >= now() - interval '15 minutes'
+		 ORDER BY agent_name, metric, time DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("store: latest host metrics: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name, metric string
+		var v float64
+		if err := rows.Scan(&name, &metric, &v); err != nil {
+			return nil, err
+		}
+		val := v
+		if metric == "cpu_pct" {
+			get(name).CPU = &val
+		} else {
+			get(name).Mem = &val
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Fullest mount per agent: the latest disk_used_pct for each mount, then the max of those.
+	drows, err := s.q(ctx).Query(ctx, `
+		SELECT agent_name, max(value) FROM (
+		   SELECT DISTINCT ON (agent_name, label) agent_name, value
+		     FROM host_metrics
+		    WHERE metric = 'disk_used_pct' AND time >= now() - interval '15 minutes'
+		    ORDER BY agent_name, label, time DESC
+		) d GROUP BY agent_name`)
+	if err != nil {
+		return nil, fmt.Errorf("store: latest host disk: %w", err)
+	}
+	defer drows.Close()
+	for drows.Next() {
+		var name string
+		var v float64
+		if err := drows.Scan(&name, &v); err != nil {
+			return nil, err
+		}
+		val := v
+		get(name).Disk = &val
+	}
+	if err := drows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]HostMetricLatest, 0, len(byAgent))
+	for _, l := range byAgent {
+		out = append(out, *l)
+	}
+	return out, nil
+}
+
 // HostsWithMetrics lists the agents that have reported metrics recently, for the page's host picker.
 func (s *Store) HostsWithMetrics(ctx context.Context) ([]string, error) {
 	rows, err := s.q(ctx).Query(ctx, `

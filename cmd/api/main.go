@@ -410,6 +410,7 @@ func main() {
 		// Software inventory (Vulnerability Assessment, phase 1): the fleet's OS/package summary,
 		// and one agent's package list. Read-only, dashboard-level.
 		mux.Handle("GET /api/metrics/hosts", protect(auth.PermViewDashboard, metricsHostsHandler(st)))
+		mux.Handle("GET /api/metrics/latest", protect(auth.PermViewDashboard, metricsLatestHandler(st)))
 		mux.Handle("GET /api/metrics", protect(auth.PermViewDashboard, metricsHandler(st)))
 		mux.Handle("GET /api/inventory", protect(auth.PermViewDashboard, inventorySummaryHandler(st)))
 		mux.Handle("GET /api/inventory/packages", protect(auth.PermViewDashboard, inventoryPackagesHandler(st)))
@@ -2330,6 +2331,19 @@ func scaAgentHandler(st *store.Store) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"findings": findings})
+	}
+}
+
+// metricsLatestHandler (GET /api/metrics/latest) returns each agent's most recent CPU/mem/disk
+// snapshot, for the fleet overview dashboard.
+func metricsLatestHandler(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		latest, err := st.HostMetricsLatest(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"latest": latest})
 	}
 }
 

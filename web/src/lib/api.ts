@@ -745,6 +745,15 @@ export async function fetchMetricHosts(): Promise<string[]> {
   return (await res.json()).hosts ?? []
 }
 
+// HostMetricLatest is one agent's most recent CPU/mem/disk snapshot (null = no fresh sample).
+export type HostMetricLatest = { agent_name: string; cpu_pct: number | null; mem_pct: number | null; disk_pct: number | null }
+
+export async function fetchMetricsLatest(): Promise<HostMetricLatest[]> {
+  const res = await authFetch('/api/metrics/latest')
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+  return (await res.json()).latest ?? []
+}
+
 export async function fetchHostMetrics(agent: string, range: TimeRange): Promise<MetricSeries[]> {
   const q = rangeParams(range)
   q.set('agent', agent)
