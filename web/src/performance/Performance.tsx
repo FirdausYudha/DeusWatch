@@ -3,6 +3,7 @@ import { fetchMetricHosts, fetchHostMetrics, type MetricSeries, type TimeRange }
 import { Page, Card, EmptyState, ErrorText } from '../components/ui'
 import TimeChart, { humanBps, type ChartSeries } from '../components/TimeChart'
 import TimeRangePicker from '../components/TimeRangePicker'
+import DocLink from '../components/DocLink'
 
 // Performance: the Cacti-style board for hosts that run the DeusWatch agent. CPU / memory / disk /
 // network over time, charted in the DW design. Data is agent-reported (POST /v1/metrics), not SNMP:
@@ -59,6 +60,7 @@ export default function Performance() {
         >
           {(hosts ?? []).map((h) => <option key={h} value={h}>{h}</option>)}
         </select>
+        <DocLink file="performance.md" label="About this board" />
         <div className="ml-auto">
           <TimeRangePicker value={range} onChange={setRange} />
         </div>

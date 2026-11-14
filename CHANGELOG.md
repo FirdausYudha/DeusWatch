@@ -9,9 +9,25 @@ needs nothing from you does not say so; assume silence means nothing to do.
 
 ## Unreleased
 
-Requires migration **000084**.
+Requires migration **000089**.
 
 ### Added
+
+- **Host performance monitoring (Performance board).** CPU, memory, disk and network over time for
+  hosts that run the agent, charted in the DW design - the agentful counterpart to the SNMP Network
+  board, so an endpoint is monitored without opening SNMP on it. The Linux agent samples `/proc` and
+  `statfs` every 30s and ships gauges over the existing mTLS channel; Windows and macOS report
+  nothing yet. On by default; `METRICS=0` disables it and `METRICS_INTERVAL` tunes the rate. Samples
+  are kept 30 days and downsampled on read. See `docs/performance.md`.
+
+- **Time-series graphs for SNMP devices.** The Network board now charts each device's sensors and
+  per-interface throughput (bytes/sec, computed from the raw octet counters) over time, Cacti-style.
+  The polling and history already existed; this surfaces them. See the Performance graphs section of
+  `docs/snmp.md`.
+
+- **Fine-grained chart ranges.** Both boards share a time-range picker that goes down to one minute
+  (`1m / 10m / 30m / 1h / 6h / 24h / 7d`) plus a custom from/to. Resolution is bounded by the poll
+  or sample interval, so short ranges are for near-real-time glances, not smooth lines.
 
 - **Signed releases and policies.** The largest finding from the security audit, closed. The agent
   verifies a release against the operator's public key before replacing its own running

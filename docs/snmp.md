@@ -111,6 +111,37 @@ all apply.
 
 ---
 
+## Performance graphs
+
+Expand a device on the **Network** board to see its history charted over time, the way Cacti or
+Grafana would. Nothing new is collected for this: it charts the sensor history (30 days) and
+interface samples (14 days) the poller already stores.
+
+- **One chart per sensor** - each sensor's value (CPU %, temperature, free memory, ...) over the
+  window. Only **numeric** sensors are charted. A sensor that returns text, or whose OID this device
+  does not have, is not drawn, and the panel says so; its chip shows the actual value or `—`.
+- **Interface throughput** - pick a port; it plots in and out in bytes per second. The rate is
+  computed from the difference between consecutive octet counters (SNMP counters are cumulative and
+  wrap), so a device reboot or a 32-bit counter wrap shows as a gap, not a false spike. Needs
+  *Poll interfaces* on for the device.
+
+### Time range
+
+`1m` - `10m` - `30m` - `1h` - `6h` - `24h` - `7d` - **Custom** (pick a from/to). Resolution is
+bounded by the poll interval: a device polled every 60s shows about one point a minute, so a
+one-minute view is a handful of points, not a smooth line. Lower *Poll every* (minimum 10s) for finer
+graphs, mindful of the interface-row cost noted above.
+
+### Why are the sensor charts empty but the interface graph works?
+
+Interface graphs come from the standard SNMP tree, which every device exposes; sensor graphs need
+sensors **you defined**. A device with *Poll interfaces* on but no sensors has nothing to chart in
+the sensor half. Add CPU/temperature sensors (section 3 above), or check an existing sensor's chip:
+if it shows `—` or text, its OID is wrong for this model or returns a non-number, and only numeric
+sensors are charted.
+
+---
+
 ## Troubleshooting
 
 Check the worker log: `docker compose logs -f worker | grep -i snmp`

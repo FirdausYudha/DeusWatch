@@ -334,6 +334,13 @@ function DevicePerformance({ device }: { device: SNMPDevice }) {
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
+          {data.sensors.length === 0 && (
+            <div className="rounded-[8px] border border-dashed border-border px-3 py-3 text-[12.5px] text-dim lg:col-span-2">
+              {device.sensors.length === 0
+                ? 'No sensors defined on this device, so there is nothing to chart here. Interface graphs below come from the standard SNMP tree; CPU, temperature, memory and the like have no standard OID, so add them as sensors (name + OID) under Edit to graph them.'
+                : 'Sensors are defined but returned no numeric value in this window. Check the sensor chip above: a sensor that reads text, or whose OID this device does not have, is not charted (only numeric sensors are).'}
+            </div>
+          )}
           {data.sensors.map((s) => (
             <div key={s.key}>
               <div className="mb-1 text-[12.5px] text-muted">{s.key}{s.unit ? ` (${s.unit})` : ''}</div>
