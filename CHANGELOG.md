@@ -13,6 +13,11 @@ Requires migration **000089**.
 
 ### Added
 
+- **Events-over-time, split by severity.** The dashboard's "Events over time" chart now draws a
+  line per severity (Critical / High / Medium / Low) over the overall total, and its legend doubles
+  as a filter: click a severity to hide or show its line. Lets you watch criticals climb while the
+  total stays flat. No config; needs the `web` service rebuilt.
+
 - **Agent Monitoring dashboard.** A new fleet overview, one row per endpoint, joining every
   per-agent signal the product already collects: liveness, live CPU/memory/disk, OS-package
   vulnerabilities (VA), dependency vulnerabilities (SCA), CIS hardening score, FIM alerts in the last
@@ -75,6 +80,21 @@ Requires migration **000089**.
   HSTS is sticky: setting it from the wrong place locks an operator out of their own deployment.
 
 ### Fixed
+
+- **Windows agent stayed stopped after a config push.** When the manager pushed a new monitoring
+  config, the Windows agent exited to restart under the new config but did not come back: the
+  service sat stopped until someone ran `Start-Service` by hand. The install configured the SCM's
+  restart-on-failure recovery actions, but Windows runs those only on a crash by default; a clean
+  exit with a non-zero code (which is how the agent asks to be restarted) was ignored. The service
+  now sets the non-crash failure-actions flag, so the config-change and self-update restarts fire.
+  Agents installed before this fix heal themselves on their next start, no reinstall needed.
+
+- **Self-uninstall on revoke could leave the Windows service and files behind.** The detached
+  cleaner waited a fixed three seconds before deleting the install directory; when the service took
+  longer than that to stop, `deuswatch-agent.exe` was still locked and the removal failed. It now
+  waits for the service to actually stop and retries the directory removal until the lock clears,
+  and a revoke exits code 0 so the new recovery flag does not relaunch the agent into a race with
+  the cleaner.
 
 - **The API ran on a four-connection database pool.** Reported from the field: clicking between a
   few menus, after being active only a short while, made many features return 500 and 401 at once.

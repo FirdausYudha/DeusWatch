@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip, Legend,
   AreaChart as RAreaChart, Area, PieChart, Pie, Cell,
-  LineChart as RLineChart, Line,
+  LineChart as RLineChart, Line, ComposedChart as RComposedChart,
 } from 'recharts'
 import type { SeriesPoint, TimelinePoint, RiskyIP, SuspiciousIP, SlowScanner, AgentInfo, DisplayStatus, CommFlow, CommFlowDirection, SrcDstFlow } from '../lib/api'
 import { fetchAgents, agentDisplayStatus } from '../lib/api'
@@ -106,17 +106,34 @@ export function DonutChart({ data, color, colors }: { data: SeriesPoint[]; color
   )
 }
 
-// LineChart: attacks over time. Real X (time) and Y (count) axes + hover tooltip with the exact
-// value at each point - the redesign brief's headline chart requirement.
+// Severity lines overlaid on the events-over-time chart. "All" keeps the headline area; each
+// severity is a line so an operator can see, say, criticals climb while the total stays flat.
+const TIMELINE_SERIES: { key: 'count' | 'critical' | 'high' | 'medium' | 'low'; name: string; color: string }[] = [
+  { key: 'count', name: 'All', color: '#6366f1' },
+  { key: 'critical', name: 'Critical', color: '#f43f5e' },
+  { key: 'high', name: 'High', color: '#fb923c' },
+  { key: 'medium', name: 'Medium', color: '#f59e0b' },
+  { key: 'low', name: 'Low', color: '#38bdf8' },
+]
+
+// LineChart: events over time, one line per severity plus the overall total. Real X (time) and Y
+// (count) axes + hover tooltip with the exact value at each point. The legend doubles as the
+// filter: click a severity to hide/show its line.
 export function LineChart({ points, color }: { points: TimelinePoint[]; color: string }) {
+  const [hidden, setHidden] = useState<Record<string, boolean>>({})
   if (!points?.length) return <Empty />
   const gid = React.useId().replace(/:/g, '')
+  const toggle = (key?: string | number) => {
+    if (key == null) return
+    const k = String(key)
+    setHidden((h) => ({ ...h, [k]: !h[k] }))
+  }
   return (
-    <ResponsiveContainer width="100%" height={140}>
-      <RAreaChart data={points} margin={{ left: 4, right: 24, top: 6, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={180}>
+      <RComposedChart data={points} margin={{ left: 4, right: 24, top: 6, bottom: 0 }}>
         <defs>
           <linearGradient id={`fill-${gid}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+            <stop offset="0%" stopColor={color} stopOpacity={0.25} />
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
@@ -124,8 +141,22 @@ export function LineChart({ points, color }: { points: TimelinePoint[]; color: s
         <XAxis dataKey="time" tickFormatter={fmtTick} minTickGap={40} tick={AXIS_TICK} stroke={AXIS_LINE} />
         <YAxis allowDecimals={false} width={44} tick={AXIS_TICK} stroke={AXIS_LINE} />
         <Tooltip {...TIP} labelFormatter={(l) => fmtTime(String(l))} />
-        <Area dataKey="count" name="attacks" stroke={color} strokeWidth={2} fill={`url(#fill-${gid})`} />
-      </RAreaChart>
+        <Legend
+          onClick={(o) => toggle((o as { dataKey?: string | number }).dataKey)}
+          formatter={(value, entry) => {
+            const k = (entry as { dataKey?: string | number })?.dataKey
+            const off = k != null && hidden[String(k)]
+            return <span style={{ color: off ? 'var(--color-dim)' : 'var(--color-fg)', textDecoration: off ? 'line-through' : 'none' }}>{value}</span>
+          }}
+          wrapperStyle={{ fontSize: 12, cursor: 'pointer' }}
+        />
+        {/* "All" as the filled area for an at-a-glance volume anchor; severities as lines on top. */}
+        <Area dataKey="count" name="All" stroke={color} strokeWidth={2} fill={`url(#fill-${gid})`} hide={hidden.count} />
+        {TIMELINE_SERIES.slice(1).map((s) => (
+          <Line key={s.key} type="monotone" dataKey={s.key} name={s.name}
+            stroke={s.color} strokeWidth={1.8} dot={false} hide={hidden[s.key]} />
+        ))}
+      </RComposedChart>
     </ResponsiveContainer>
   )
 }

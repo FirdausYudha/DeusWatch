@@ -18,10 +18,16 @@ type Count struct {
 	Count int64  `json:"count"`
 }
 
-// TimePoint is one bucket of the event timeline.
+// TimePoint is one bucket of the event timeline. Count is every event in the bucket; the
+// four severity fields break that total down so the chart can draw a line per severity
+// (Info-level events are in Count but in none of the bands, which is intended).
 type TimePoint struct {
-	Time  time.Time `json:"time"`
-	Count int64     `json:"count"`
+	Time     time.Time `json:"time"`
+	Count    int64     `json:"count"`
+	Critical int64     `json:"critical"`
+	High     int64     `json:"high"`
+	Medium   int64     `json:"medium"`
+	Low      int64     `json:"low"`
 }
 
 // DashboardData is the bundle of series the customizable dashboard renders from.
@@ -508,10 +514,15 @@ func (s *Store) dashTimeline(ctx context.Context, since, until time.Time, bucket
 		bucket = b
 	}
 	rows, err := s.q(ctx).Query(ctx,
-		`SELECT g AS bucket, COALESCE(e.cnt, 0)
+		`SELECT g AS bucket, COALESCE(e.cnt, 0),
+		        COALESCE(e.crit, 0), COALESCE(e.high, 0), COALESCE(e.med, 0), COALESCE(e.low, 0)
 		 FROM generate_series(time_bucket($3::interval, $1), time_bucket($3::interval, $2), $3::interval) AS g
 		 LEFT JOIN (
-		     SELECT time_bucket($3::interval, time) AS b, count(*) AS cnt
+		     SELECT time_bucket($3::interval, time) AS b, count(*) AS cnt,
+		            count(*) FILTER (WHERE event_severity = 4) AS crit,
+		            count(*) FILTER (WHERE event_severity = 3) AS high,
+		            count(*) FILTER (WHERE event_severity = 2) AS med,
+		            count(*) FILTER (WHERE event_severity = 1) AS low
 		     FROM events WHERE time >= $1 AND time <= $2 GROUP BY b
 		 ) e ON e.b = g
 		 ORDER BY g`, since, until, bucket)
@@ -522,7 +533,7 @@ func (s *Store) dashTimeline(ctx context.Context, since, until time.Time, bucket
 	out := make([]TimePoint, 0, 48)
 	for rows.Next() {
 		var p TimePoint
-		if err := rows.Scan(&p.Time, &p.Count); err != nil {
+		if err := rows.Scan(&p.Time, &p.Count, &p.Critical, &p.High, &p.Medium, &p.Low); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

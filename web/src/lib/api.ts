@@ -1547,7 +1547,9 @@ export async function releaseContainment(id: string): Promise<void> {
 // ── Customizable dashboard (data + per-user widget layout) ─
 
 export type SeriesPoint = { label: string; count: number }
-export type TimelinePoint = { time: string; count: number }
+// TimelinePoint: one bucket of the events-over-time chart. count is every event; the four
+// severity fields break it down so the chart can draw a line per severity.
+export type TimelinePoint = { time: string; count: number; critical: number; high: number; medium: number; low: number }
 
 // RiskyIP is one row of the composite-score leaderboard (higher score = more dangerous).
 export type RiskyIP = {

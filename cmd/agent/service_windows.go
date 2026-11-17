@@ -101,7 +101,10 @@ loop:
 	status <- svc.Status{State: svc.StopPending}
 	cancel()
 	<-done
-	if configChanged {
+	// A revoke schedules a self-uninstaller and then cancels ctx just like a config change
+	// does. Exit 0 there so the SCM does NOT restart us into a race with the cleaner that is
+	// about to sc-stop and sc-delete this very service.
+	if configChanged && !uninstalling.Load() {
 		return false, 1 // exit error -> SCM recovery restarts to apply the config
 	}
 	return false, 0
@@ -109,8 +112,29 @@ loop:
 
 // runService runs the agent under the SCM.
 func runService() {
+	ensureRecoveryFlag() // heal agents installed before the non-crash flag existed
 	if err := svc.Run(serviceName, &agentService{}); err != nil {
 		os.Exit(1)
+	}
+}
+
+// ensureRecoveryFlag turns on the non-crash failure-actions flag on an already-installed
+// service, so agents deployed before this fix start honouring the restart-on-config-change
+// recovery action without a reinstall. Best-effort and idempotent: the service runs as
+// LocalSystem and can rewrite its own config; any error is logged, never fatal.
+func ensureRecoveryFlag() {
+	m, err := mgr.Connect()
+	if err != nil {
+		return
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(serviceName)
+	if err != nil {
+		return
+	}
+	defer s.Close()
+	if err := s.SetRecoveryActionsOnNonCrashFailures(true); err != nil {
+		log.Printf("agent: could not set non-crash recovery flag: %v", err)
 	}
 }
 
@@ -167,6 +191,14 @@ func installService() error {
 		{Type: mgr.ServiceRestart, Delay: 30 * time.Second},
 	}, uint32((time.Hour).Seconds())); err != nil {
 		return fmt.Errorf("set recovery: %w", err)
+	}
+	// By default the SCM runs the recovery actions above only when the service CRASHES. The
+	// agent exits cleanly with code 1 to ask for a restart after a pushed config change (and
+	// after a self-update), which counts as a non-crash failure, so without this flag the
+	// service just stopped and sat there until someone ran Start-Service by hand. This makes
+	// a non-zero clean exit trigger the restart too.
+	if err := s.SetRecoveryActionsOnNonCrashFailures(true); err != nil {
+		return fmt.Errorf("set non-crash recovery flag: %w", err)
 	}
 	fmt.Printf("Service %q installed (automatic at boot, SYSTEM).\n", serviceName)
 	fmt.Println("Set GATEWAY_URL & CERT_DIR as machine environment variables, then: deuswatch-agent.exe -service start")
