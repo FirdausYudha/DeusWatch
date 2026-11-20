@@ -1,7 +1,7 @@
 // Shared UI primitives for the DeusWatch redesign. Every page composes these instead of
 // re-inventing card/badge/button chrome, so the look stays consistent and a token change
 // (index.css) propagates everywhere. Semantics come first: a colour always means the same thing.
-import { useEffect, useState, type ReactNode } from 'react'
+import { forwardRef, useEffect, useState, type ReactNode } from 'react'
 
 // ── Page shell ──────────────────────────────────────────────────────────────
 // One max width + gutter for every screen, so left/right spacing is identical page to page
@@ -236,21 +236,20 @@ const BTN: Record<BtnVariant, string> = {
   danger: 'border border-critical/40 text-critical hover:bg-critical/10',
 }
 
-export function Button({
-  variant = 'secondary',
-  className = '',
-  children,
-  ...rest
-}: { variant?: BtnVariant } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export const Button = forwardRef<
+  HTMLButtonElement,
+  { variant?: BtnVariant } & React.ButtonHTMLAttributes<HTMLButtonElement>
+>(function Button({ variant = 'secondary', className = '', children, ...rest }, ref) {
   return (
     <button
+      ref={ref}
       {...rest}
       className={`rounded-[8px] px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-45 ${BTN[variant]} ${className}`}
     >
       {children}
     </button>
   )
-}
+})
 
 // ── Inputs ────────────────────────────────────────────────────────────────────
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {

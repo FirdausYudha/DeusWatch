@@ -13,6 +13,13 @@ Requires migration **000089**.
 
 ### Added
 
+- **In-app toasts and confirm dialogs.** Destructive actions (revoke, delete, unban, terminate,
+  roll back) now ask through a themed confirmation dialog that names the consequence, instead of the
+  browser's native popup, and failures surface as a toast rather than a blank or a native alert. One
+  shared `useToast()` / `useConfirm()` replaces every `window.confirm()`/`alert()` across the app, so
+  the "are you sure?" and "that failed" voice is finally consistent and readable in dark mode. Pure
+  frontend; rebuild `web`.
+
 - **Events-over-time, split by severity.** The dashboard's "Events over time" chart now draws a
   line per severity (Critical / High / Medium / Low) over the overall total, and its legend doubles
   as a filter: click a severity to hide or show its line. Lets you watch criticals climb while the

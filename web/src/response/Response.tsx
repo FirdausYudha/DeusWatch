@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Icon, Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import {
   fetchResponses,
   fetchOffenders,
@@ -72,6 +73,7 @@ function banLabel(seconds: number): string {
 type View = 'ip' | 'events'
 
 export default function Response({ me }: { me: Me }) {
+  const confirm = useConfirm()
   const canApprove = me.role === 'analyst' || me.role === 'admin'
   const [view, setView] = useState<View>('ip')
   const [actions, setActions] = useState<ResponseAction[]>([])
@@ -111,7 +113,7 @@ export default function Response({ me }: { me: Me }) {
 
   // act approves/dismisses a single recommended action (by id), then refreshes.
   const act = async (id: string, ip: string, banSecs: number, kind: 'approve' | 'dismiss') => {
-    if (kind === 'approve' && !confirm(`Approve block of ${ip} (${banLabel(banSecs)})?`)) return
+    if (kind === 'approve' && !(await confirm({ title: `Approve block of ${ip}?`, body: `Duration: ${banLabel(banSecs)}.`, confirmLabel: 'Approve' }))) return
     setBusy(id)
     setError('')
     try {
@@ -127,7 +129,7 @@ export default function Response({ me }: { me: Me }) {
 
   // dismissAll bulk-dismisses every pending recommendation for one IP (with confirm).
   const dismissAll = async (ip: string, count: number) => {
-    if (!confirm(`Dismiss all ${count} pending recommendation${count === 1 ? '' : 's'} for ${ip}?`)) return
+    if (!(await confirm({ title: `Dismiss all ${count} pending recommendation${count === 1 ? '' : 's'} for ${ip}?`, confirmLabel: 'Dismiss all' }))) return
     setBusy(ip)
     setError('')
     try {
@@ -161,7 +163,7 @@ export default function Response({ me }: { me: Me }) {
 
   // unban lifts a single executed/approved block, then refreshes.
   const unban = async (id: string, ip: string) => {
-    if (!confirm(`Unban ${ip}? This lifts the block on the enforcer.`)) return
+    if (!(await confirm({ title: `Unban ${ip}?`, body: 'This lifts the block on the enforcer.', confirmLabel: 'Unban' }))) return
     setBusy(id)
     setError('')
     try {
@@ -188,7 +190,7 @@ export default function Response({ me }: { me: Me }) {
   const bulk = async (kind: 'approve' | 'dismiss' | 'unban') => {
     const ids = [...selected]
     if (ids.length === 0) return
-    if (!confirm(`${kind} ${ids.length} selected action${ids.length === 1 ? '' : 's'}?`)) return
+    if (!(await confirm({ title: `${kind} ${ids.length} selected action${ids.length === 1 ? '' : 's'}?`, confirmLabel: kind }))) return
     setBusy('bulk')
     setError('')
     try {
@@ -1170,6 +1172,7 @@ function killOutcomeTone(result: string): string {
 // been recycled onto something innocent) and that it is not protected - and it may refuse. This
 // panel therefore reports what actually happened, never what was intended.
 function KillSwitchPanel({ canApprove }: { canApprove: boolean }) {
+  const confirm = useConfirm()
   const [items, setItems] = useState<KillRequest[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(0)
@@ -1187,8 +1190,8 @@ function KillSwitchPanel({ canApprove }: { canApprove: boolean }) {
 
   const act = async (k: KillRequest, approve: boolean) => {
     const what = `${k.proc_name || 'process'} (pid ${k.pid}) on ${k.agent_name}`
-    if (approve && !confirm(`Terminate ${what}?\n\nThis kills the process immediately. The agent will refuse if the PID no longer matches the detected process, or if it is a protected system process.`)) return
-    if (!approve && !confirm(`Dismiss the kill recommendation for ${what}?`)) return
+    if (approve && !(await confirm({ title: `Terminate ${what}?`, body: 'This kills the process immediately. The agent will refuse if the PID no longer matches the detected process, or if it is a protected system process.', danger: true, confirmLabel: 'Terminate' }))) return
+    if (!approve && !(await confirm({ title: `Dismiss the kill recommendation for ${what}?`, confirmLabel: 'Dismiss' }))) return
     setBusy(k.id)
     setError('')
     try {
@@ -1289,6 +1292,7 @@ function KillSwitchPanel({ canApprove }: { canApprove: boolean }) {
 }
 
 function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
+  const confirm = useConfirm()
   const [items, setItems] = useState<Containment[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
@@ -1306,7 +1310,7 @@ function ContainmentPanel({ canApprove }: { canApprove: boolean }) {
 
   const act = async (id: string, host: string, kind: 'approve' | 'dismiss' | 'release') => {
     const verb = kind === 'approve' ? 'Isolate' : kind === 'release' ? 'Release' : 'Dismiss'
-    if (!confirm(`${verb} ${host}?`)) return
+    if (!(await confirm({ title: `${verb} ${host}?`, danger: kind === 'approve', confirmLabel: verb }))) return
     setBusy(id)
     setError('')
     try {

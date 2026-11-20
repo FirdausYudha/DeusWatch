@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useConfirm } from '../components/feedback'
 import {
   fetchSCAPolicies,
   uploadSCAPolicy,
@@ -19,6 +20,7 @@ export default function PolicyManager({
   onClose: () => void
   canManage: boolean
 }) {
+  const confirm = useConfirm()
   const [rows, setRows] = useState<SCAPolicyRow[]>([])
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
@@ -86,8 +88,7 @@ export default function PolicyManager({
   }
 
   const remove = async (p: SCAPolicyRow) => {
-    const msg = `Delete "${p.policy_id}"? Its stored results go with it, so the score disappears from this page.`
-    if (!confirm(msg)) return
+    if (!(await confirm({ title: `Delete "${p.policy_id}"?`, body: 'Its stored results go with it, so the score disappears from this page.', danger: true }))) return
     setError('')
     try {
       await deleteSCAPolicy(p.id)

@@ -11,6 +11,7 @@ import { StatWidget, BarList, DonutChart, LineChart, TableWidget, AttackMap, Ris
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
 import { PageHeader, Icon, Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import { usePersistedState } from '../lib/usePersistedState'
 import { localInput, type DashRangeState } from '../lib/range'
 
@@ -135,11 +136,12 @@ function ThreatIntel({ a }: { a: EventRow }) {
 // RestoreButton requests that the reporting agent revert a modified/defaced file to its
 // known-good snapshot. Manual, one-click - never fires automatically.
 function RestoreButton({ agent, path }: { agent: string; path: string }) {
+  const confirm = useConfirm()
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'err'>('idle')
   const [msg, setMsg] = useState('')
   const onClick = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!confirm(`Restore ${path} on ${agent} to its known-good snapshot? This overwrites the current file on the endpoint.`)) return
+    if (!(await confirm({ title: `Restore ${path}?`, body: `This overwrites the current file on ${agent} with its known-good snapshot.`, confirmLabel: 'Restore' }))) return
     setState('busy'); setMsg('')
     try { await requestFimRestore(agent, path); setState('done') }
     catch (err) { setState('err'); setMsg((err as Error).message) }

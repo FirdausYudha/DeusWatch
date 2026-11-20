@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon, Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import {
   fetchRules, createRule, updateRule, deleteRule,
   fetchRulePacks, toggleRulePack, installRulePack, uninstallRulePack,
@@ -47,6 +48,7 @@ const categoryLabel = (c: string): string =>
   CATEGORY_LABEL[c] ?? (c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Uncategorized')
 
 export default function Rules() {
+  const confirm = useConfirm()
   const [rules, setRules] = useState<Rule[]>([])
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<Rule | null>(null)
@@ -74,7 +76,7 @@ export default function Rules() {
     }
   }
   const remove = async (r: Rule) => {
-    if (!confirm(`Delete rule "${r.name}"?`)) return
+    if (!(await confirm({ title: `Delete rule "${r.name}"?`, danger: true }))) return
     setError('')
     try {
       await deleteRule(r.id)
@@ -299,6 +301,7 @@ export default function Rules() {
 // RulePacks is the marketplace: enable/disable whole detection domains (installed packs =
 // rule categories) in one click, and browse real-world third-party rulesets to bring in.
 function RulePacks({ onChanged }: { onChanged: () => void }) {
+  const confirm = useConfirm()
   const [packs, setPacks] = useState<RulePack[]>([])
   // Collapsed by default to keep the page minimal; the choice is remembered once you open it.
   const [open, setOpen] = usePersistedState('rules.packsOpen', false)
@@ -327,8 +330,8 @@ function RulePacks({ onChanged }: { onChanged: () => void }) {
   }
   const toggle = (p: RulePack, enable: boolean) => run(p.id, () => toggleRulePack(p.id, enable))
   const install = (p: RulePack) => run(p.id, () => installRulePack(p.id))
-  const uninstall = (p: RulePack) => {
-    if (!confirm(`Uninstall "${p.name}"? Its ${p.rule_count} rule(s) will be removed. You can re-install it any time.`)) return
+  const uninstall = async (p: RulePack) => {
+    if (!(await confirm({ title: `Uninstall "${p.name}"?`, body: `Its ${p.rule_count} rule(s) will be removed. You can re-install it any time.`, danger: true, confirmLabel: 'Uninstall' }))) return
     run(p.id, () => uninstallRulePack(p.id))
   }
 

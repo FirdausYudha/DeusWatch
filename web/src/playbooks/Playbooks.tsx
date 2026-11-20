@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import {
   fetchPlaybooks, createPlaybook, updatePlaybook, deletePlaybook,
   type PlaybookInfo, type PlaybookSpec,
@@ -44,6 +45,7 @@ function Form({ value, onChange }: { value: PlaybookSpec; onChange: (v: Playbook
 }
 
 export default function Playbooks() {
+  const confirm = useConfirm()
   const [items, setItems] = useState<PlaybookInfo[]>([])
   const [error, setError] = useState('')
   const [add, setAdd] = useState<PlaybookSpec>(EMPTY)
@@ -75,7 +77,7 @@ export default function Playbooks() {
     finally { setBusy(false) }
   }
   const remove = async (p: PlaybookInfo) => {
-    if (!confirm(`Delete playbook "${p.name}"? Alerts with label "${p.label}" will no longer carry a recommendation.`)) return
+    if (!(await confirm({ title: `Delete playbook "${p.name}"?`, body: `Alerts with label "${p.label}" will no longer carry a recommendation.`, danger: true }))) return
     try { await deletePlaybook(p.id); await load() }
     catch (err) { setError((err as Error).message) }
   }

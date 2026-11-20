@@ -18,6 +18,7 @@ import {
   type TimeRange,
 } from '../lib/api'
 import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, StatCard } from '../components/ui'
+import { useConfirm, useToast } from '../components/feedback'
 import TimeChart, { humanBps } from '../components/TimeChart'
 import TimeRangePicker from '../components/TimeRangePicker'
 
@@ -211,6 +212,8 @@ function DeviceRow({
   onEdit: () => void
   onChanged: () => void
 }) {
+  const confirm = useConfirm()
+  const toast = useToast()
   const status = statusOf(d)
   const s = STATUS_STYLE[status]
   return (
@@ -249,12 +252,12 @@ function DeviceRow({
             <Button
               variant="danger"
               onClick={async () => {
-                if (!confirm(`Delete "${d.name}"? Its sensors and polled history go with it.`)) return
+                if (!(await confirm({ title: `Delete "${d.name}"?`, body: 'Its sensors and polled history go with it.', danger: true }))) return
                 try {
                   await deleteSNMPDevice(d.id)
                   onChanged()
                 } catch (e) {
-                  alert((e as Error).message)
+                  toast.error((e as Error).message)
                 }
               }}
             >

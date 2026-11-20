@@ -6,6 +6,7 @@ import { fetchMe, setup2FA, enable2FA, disable2FA, changePassword, exportConfig,
   type Subscription, type TicketAutomation } from '../lib/api'
 import DocLink from '../components/DocLink'
 import { Icon, Page, Select } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 
 const SEVERITY_LABELS = ['Info', 'Low', 'Medium', 'High', 'Critical']
 
@@ -382,6 +383,7 @@ function TicketAutomationPanel() {
 // SubscriptionsPanel manages API keys for the sellable rich-log subscription product. Admin-only
 // (manage_integrations); hidden for everyone else. A new key's plaintext is shown ONCE.
 function SubscriptionsPanel() {
+  const confirm = useConfirm()
   const [me, setMe] = useState<Me | null>(null)
   const [subs, setSubs] = useState<Subscription[]>([])
   const [name, setName] = useState('')
@@ -422,7 +424,7 @@ function SubscriptionsPanel() {
     try { await toggleSubscription(s.id, !s.enabled); load() } catch (e) { setErr((e as Error).message) }
   }
   const remove = async (s: Subscription) => {
-    if (!confirm(`Revoke subscription "${s.name}"? Its API key stops working immediately.`)) return
+    if (!(await confirm({ title: `Revoke subscription "${s.name}"?`, body: 'Its API key stops working immediately.', danger: true, confirmLabel: 'Revoke' }))) return
     setErr('')
     try { await deleteSubscription(s.id); load() } catch (e) { setErr((e as Error).message) }
   }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchTenants, createTenant, deleteTenant, type Tenant } from '../lib/api'
 import DocLink from '../components/DocLink'
 import { Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 
 // Tenants admin (manage_tenants). A tenant is the data-isolation boundary: agents and all their
 // telemetry belong to exactly one tenant, and Postgres RLS keeps them separate. Creating a tenant
@@ -12,6 +13,7 @@ export default function Tenants() {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const load = () => fetchTenants().then(setTenants).catch((e) => setErr(String(e.message ?? e)))
   useEffect(() => {
@@ -19,7 +21,7 @@ export default function Tenants() {
   }, [])
 
   const remove = async (t: Tenant) => {
-    if (!confirm(`Delete tenant “${t.name}”? Its telemetry becomes unreachable. This cannot be undone.`)) return
+    if (!(await confirm({ title: `Delete tenant “${t.name}”?`, body: 'Its telemetry becomes unreachable. This cannot be undone.', danger: true }))) return
     setErr(null)
     try {
       await deleteTenant(t.id)

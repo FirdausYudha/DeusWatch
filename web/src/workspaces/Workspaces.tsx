@@ -15,6 +15,7 @@ import {
   type UserInfo,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
+import { useConfirm } from '../components/feedback'
 
 // Workspaces admin (manage_workspaces). A workspace is a team: it grants access to one+ tenants
 // (many-to-many) and holds user memberships. A user's effective tenant scope is the union across the
@@ -24,6 +25,7 @@ export default function Workspaces() {
   const [selected, setSelected] = useState<Workspace | null>(null)
   const [name, setName] = useState('')
   const [err, setErr] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   const load = () => fetchAllWorkspaces().then(setWorkspaces).catch((e) => setErr(String(e.message ?? e)))
   useEffect(() => {
@@ -31,7 +33,7 @@ export default function Workspaces() {
   }, [])
 
   const remove = async (w: Workspace) => {
-    if (!confirm(`Delete workspace “${w.name}”? Members and tenant grants are removed. This cannot be undone.`)) return
+    if (!(await confirm({ title: `Delete workspace “${w.name}”?`, body: 'Members and tenant grants are removed. This cannot be undone.', danger: true }))) return
     setErr(null)
     try {
       await deleteWorkspace(w.id)

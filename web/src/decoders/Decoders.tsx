@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import {
   fetchDecoders, createDecoder, updateDecoder, deleteDecoder,
   fetchDecoderSamples, testDecoder,
@@ -43,6 +44,7 @@ function Form({ value, onChange }: { value: DecoderSpec; onChange: (v: DecoderSp
 }
 
 export default function Decoders() {
+  const confirm = useConfirm()
   const [items, setItems] = useState<Decoder[]>([])
   const [error, setError] = useState('')
   const [add, setAdd] = useState<DecoderSpec>(EMPTY)
@@ -93,7 +95,7 @@ export default function Decoders() {
     finally { setBusy(false) }
   }
   const remove = async (d: Decoder) => {
-    if (!confirm(`Delete decoder "${d.name}"?`)) return
+    if (!(await confirm({ title: `Delete decoder "${d.name}"?`, danger: true }))) return
     try { await deleteDecoder(d.id); await load() }
     catch (err) { setError((err as Error).message) }
   }

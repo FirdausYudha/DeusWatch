@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import {
   fetchIntegrationTypes,
   fetchIntegrations,
@@ -93,6 +94,7 @@ function FieldInput({
 // token that is generated, copied, regenerated, or disabled here. The page already requires
 // manage_integrations, and the endpoints are protected the same way.
 function IngestWebhookPanel() {
+  const confirm = useConfirm()
   const [token, setToken] = useState('')
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -128,7 +130,7 @@ function IngestWebhookPanel() {
     finally { setBusy(false) }
   }
   const disable = async () => {
-    if (!confirm('Disable the ingest webhook? External systems pushing logs will get 404 until you re-enable it.')) return
+    if (!(await confirm({ title: 'Disable the ingest webhook?', body: 'External systems pushing logs will get 404 until you re-enable it.', danger: true, confirmLabel: 'Disable' }))) return
     setBusy(true); setErr('')
     try { const c = await disableIngestWebhook(); setToken(c.token); setEnabled(c.enabled) }
     catch (e) { setErr((e as Error).message) }
@@ -207,6 +209,7 @@ function IngestWebhookPanel() {
 }
 
 export default function Integrations() {
+  const confirm = useConfirm()
   const [types, setTypes] = useState<IntegrationType[]>([])
   const [items, setItems] = useState<Integration[]>([])
   const [error, setError] = useState('')
@@ -299,7 +302,7 @@ export default function Integrations() {
   }
 
   const remove = async (it: Integration) => {
-    if (!confirm(`Delete integration "${it.name}"?`)) return
+    if (!(await confirm({ title: `Delete integration "${it.name}"?`, danger: true }))) return
     try {
       await deleteIntegration(it.id)
       load()

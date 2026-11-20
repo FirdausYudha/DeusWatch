@@ -14,6 +14,7 @@ import {
   type Me,
 } from '../lib/api'
 import { Button, Input, Pill, EmptyState, ErrorText, NoticeBanner } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 
 const fmtBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`
@@ -25,6 +26,7 @@ const fmtBytes = (n: number) =>
  * implementation of these (destructive) actions.
  */
 export default function SnapshotBrowser({ agentName, me, initialPath }: { agentName: string; me: Me; initialPath?: string }) {
+  const confirm = useConfirm()
   const [paths, setPaths] = useState<FIMSnapshotPath[]>([])
   // initialPath lets File Integrity hand off the exact file an operator was just reading about,
   // instead of dropping them on this agent's first watched path to hunt for it again.
@@ -75,9 +77,12 @@ export default function SnapshotBrowser({ agentName, me, initialPath }: { agentN
     if (!selected) return
     if (
       kind === 'quarantine' &&
-      !confirm(
-        `Quarantine ${selected} on ${agentName}?\n\nThe current file is MOVED into the agent's quarantine dir (read-only) for blue-team analysis. Restore a good version afterwards if needed.`,
-      )
+      !(await confirm({
+        title: `Quarantine ${selected} on ${agentName}?`,
+        body: "The current file is MOVED into the agent's quarantine dir (read-only) for blue-team analysis. Restore a good version afterwards if needed.",
+        danger: true,
+        confirmLabel: 'Quarantine',
+      }))
     )
       return
     setBusy(kind); setError(''); setMsg('')
@@ -99,9 +104,11 @@ export default function SnapshotBrowser({ agentName, me, initialPath }: { agentN
 
   const restore = async (v: FIMSnapshot) => {
     if (
-      !confirm(
-        `Restore ${selected} to the version from ${new Date(v.captured_at).toLocaleString()}?\n\nThe current file is snapshotted first (nothing is lost), then overwritten with this version.`,
-      )
+      !(await confirm({
+        title: `Restore ${selected} to the version from ${new Date(v.captured_at).toLocaleString()}?`,
+        body: 'The current file is snapshotted first (nothing is lost), then overwritten with this version.',
+        confirmLabel: 'Restore',
+      }))
     )
       return
     setBusy('restore-' + v.id); setError(''); setMsg('')
@@ -124,9 +131,12 @@ export default function SnapshotBrowser({ agentName, me, initialPath }: { agentN
       return
     }
     if (
-      !confirm(
-        `Roll back ALL of ${agentName}'s watched files to their versions as of ${asOf.toLocaleString()}?\n\nRansomware recovery: each file's current content is snapshotted first, then overwritten with its as-of version. Files whose content lives only on a lost agent cannot be restored; manager-stored versions can.`,
-      )
+      !(await confirm({
+        title: `Roll back ALL of ${agentName}'s watched files to their versions as of ${asOf.toLocaleString()}?`,
+        body: "Ransomware recovery: each file's current content is snapshotted first, then overwritten with its as-of version. Files whose content lives only on a lost agent cannot be restored; manager-stored versions can.",
+        danger: true,
+        confirmLabel: 'Roll back',
+      }))
     )
       return
     setBusy('bulk'); setError(''); setMsg('')

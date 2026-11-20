@@ -9,6 +9,7 @@ import {
   type Me,
 } from '../lib/api'
 import { Button, EmptyState, ErrorText, Input, Page, PageHeader } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 
 const DAYS = [
   { n: 1, label: 'Mon' },
@@ -28,6 +29,7 @@ function daysLabel(days: number[]): string {
 }
 
 export default function Vendor({ me }: { me: Me }) {
+  const confirm = useConfirm()
   const canManage = can(me, 'manage_settings')
   const [rows, setRows] = useState<VendorAccount[]>([])
   const [error, setError] = useState('')
@@ -105,7 +107,7 @@ export default function Vendor({ me }: { me: Me }) {
                         </button>
                         <button
                           onClick={async () => {
-                            if (!confirm(`Delete vendor account "${v.account}"? Logins by it will no longer be checked against a window.`)) return
+                            if (!(await confirm({ title: `Delete vendor account "${v.account}"?`, body: 'Logins by it will no longer be checked against a window.', danger: true }))) return
                             setError('')
                             try {
                               await deleteVendorAccount(v.id)

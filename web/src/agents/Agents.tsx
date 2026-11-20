@@ -25,6 +25,7 @@ import {
 } from '../lib/api'
 import DocLink from '../components/DocLink'
 import { Button, Icon, Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry', 'rootcheck', 'sca']
@@ -68,6 +69,7 @@ function StatusBadge({ a }: { a: AgentInfo }) {
 }
 
 export default function Agents({ me }: { me: Me }) {
+  const confirm = useConfirm()
   const isAdmin = can(me, 'manage_agents')
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [error, setError] = useState('')
@@ -146,7 +148,7 @@ export default function Agents({ me }: { me: Me }) {
   const doUpdateAll = async () => {
     const outdated = agents.filter((a) => !a.revoked && a.agent_version && managerVersion && a.agent_version !== managerVersion)
     if (outdated.length === 0) return
-    if (!confirm(`Queue self-update for ${outdated.length} agent(s)? Each picks up the directive on its next heartbeat (~30 s).`)) return
+    if (!(await confirm({ title: `Queue self-update for ${outdated.length} agent(s)?`, body: 'Each picks up the directive on its next heartbeat (~30 s).', confirmLabel: 'Queue update' }))) return
     for (const a of outdated) {
       await doUpdate(a)
     }
@@ -154,7 +156,7 @@ export default function Agents({ me }: { me: Me }) {
   const outdatedCount = agents.filter((a) => !a.revoked && a.agent_version && managerVersion && a.agent_version !== managerVersion).length
 
   const doRevoke = async (a: AgentInfo) => {
-    if (!confirm(`Revoke agent "${a.name}"? Its connection will be rejected by the gateway.`)) return
+    if (!(await confirm({ title: `Revoke agent "${a.name}"?`, body: 'Its connection will be rejected by the gateway.', danger: true, confirmLabel: 'Revoke' }))) return
     setError('')
     try {
       await revokeAgent(a.id)
@@ -179,13 +181,16 @@ export default function Agents({ me }: { me: Me }) {
     if (chosen.length === 0) return
     const live = chosen.filter((a) => !a.revoked)
     const revoked = chosen.filter((a) => a.revoked)
-    const lines = [
-      `Delete ${chosen.length} agent(s)?`,
+    const bullets = [
       live.length > 0 &&
-        `- ${live.length} active: will be revoked and told to UNINSTALL themselves on next check-in, then removed.`,
-      revoked.length > 0 && `- ${revoked.length} already revoked: removed from the list only.`,
-    ].filter(Boolean)
-    if (!confirm(lines.join('\n'))) return
+        `${live.length} active: will be revoked and told to UNINSTALL themselves on next check-in, then removed.`,
+      revoked.length > 0 && `${revoked.length} already revoked: removed from the list only.`,
+    ].filter(Boolean) as string[]
+    if (!(await confirm({
+      title: `Delete ${chosen.length} agent(s)?`,
+      body: <ul className="list-disc space-y-1 pl-4">{bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>,
+      danger: true,
+    }))) return
     setDeleting(true)
     setError('')
     try {
@@ -793,6 +798,7 @@ function ConfigEditor({
   onClose: () => void
   onSaved: () => void
 }) {
+  const confirm = useConfirm()
   const [sources, setSources] = useState<AgentSource[]>(initial.map((s) => ({ ...s })))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -925,15 +931,17 @@ function ConfigEditor({
                   <span className="text-dim">Store</span>
                   <select
                     value={s.snapshot_storage || 'agent'}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const v = e.target.value
                       if (
                         v === 'manager' &&
-                        !confirm(
-                          'Store snapshot CONTENT on the manager?\n\n' +
+                        !(await confirm({
+                          title: 'Store snapshot CONTENT on the manager?',
+                          body:
                             'The full file content of each version will be uploaded to and kept on the DeusWatch server (survives host loss, viewable/restorable centrally). ' +
                             'Choose "on agent" to keep content on the host and upload only metadata.',
-                        )
+                          confirmLabel: 'Store on manager',
+                        }))
                       ) {
                         return // keep the current choice
                       }
@@ -1019,6 +1027,7 @@ function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onCl
 // group's sources reuses ConfigEditor, because a group and an agent are the same source list and
 // two editors for one shape is two editors to keep in step.
 function GroupsPanel({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const confirm = useConfirm()
   const [groups, setGroups] = useState<AgentGroup[]>([])
   const [error, setError] = useState('')
   const [name, setName] = useState('')
@@ -1053,11 +1062,13 @@ function GroupsPanel({ onClose, onChanged }: { onClose: () => void; onChanged: (
 
   const remove = async (g: AgentGroup) => {
     if (
-      !confirm(
-        g.members > 0
-          ? `Delete "${g.name}"? Its ${g.members} agent${g.members > 1 ? 's' : ''} will fall back to their own policy, or to the agent defaults if they have none.`
-          : `Delete "${g.name}"?`,
-      )
+      !(await confirm({
+        title: `Delete "${g.name}"?`,
+        body: g.members > 0
+          ? `Its ${g.members} agent${g.members > 1 ? 's' : ''} will fall back to their own policy, or to the agent defaults if they have none.`
+          : undefined,
+        danger: true,
+      }))
     )
       return
     setError('')

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm } from '../components/feedback'
 import {
   fetchUsers,
   createUser,
@@ -64,6 +65,7 @@ function Checklist({
 }
 
 export default function Users({ me }: { me: Me }) {
+  const confirm = useConfirm()
   const [users, setUsers] = useState<UserInfo[]>([])
   const [catalog, setCatalog] = useState<PermissionInfo[]>([])
   const [roleDefaults, setRoleDefaults] = useState<Record<string, string[]>>({})
@@ -162,7 +164,7 @@ export default function Users({ me }: { me: Me }) {
     })
   }
   const remove = async (u: UserInfo) => {
-    if (!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return
+    if (!(await confirm({ title: `Delete user "${u.username}"?`, body: 'This cannot be undone.', danger: true }))) return
     setError('')
     try {
       await deleteUser(u.id)

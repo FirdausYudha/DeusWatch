@@ -13,6 +13,7 @@ import {
   type ServiceCheckPoint,
 } from '../lib/api'
 import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, StatCard } from '../components/ui'
+import { useConfirm, useToast } from '../components/feedback'
 
 // Service & API Health.
 //
@@ -188,6 +189,8 @@ function CheckRow({
   onEdit: () => void
   onChanged: () => void
 }) {
+  const confirm = useConfirm()
+  const toast = useToast()
   const status = statusOf(c)
   return (
     <div className="px-4 py-3">
@@ -221,12 +224,12 @@ function CheckRow({
             <Button
               variant="danger"
               onClick={async () => {
-                if (!confirm(`Delete the check "${c.name}"? Its probe history goes with it.`)) return
+                if (!(await confirm({ title: `Delete the check "${c.name}"?`, body: 'Its probe history goes with it.', danger: true }))) return
                 try {
                   await deleteServiceCheck(c.id)
                   onChanged()
                 } catch (e) {
-                  alert((e as Error).message)
+                  toast.error((e as Error).message)
                 }
               }}
             >
@@ -322,6 +325,7 @@ function CheckForm({
   onCancel: () => void
   onSaved: () => void
 }) {
+  const confirm = useConfirm()
   const [f, setF] = useState<ServiceCheckInput>(
     check
       ? {
@@ -465,7 +469,7 @@ function CheckForm({
           <Button
             variant="danger"
             onClick={async () => {
-              if (!confirm('Remove the stored credentials from this check?')) return
+              if (!(await confirm({ title: 'Remove the stored credentials from this check?', danger: true, confirmLabel: 'Remove' }))) return
               try {
                 await clearServiceCheckHeaders(check.id)
                 onSaved()
