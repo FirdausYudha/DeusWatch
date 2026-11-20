@@ -4,7 +4,7 @@ import {
   agentDisplayStatus,
   type AgentInfo, type DisplayStatus, type HostMetricLatest, type VulnSummary, type SCASummary, type BenchmarkSummary,
 } from '../lib/api'
-import { Page, Card, StatCard, EmptyState, ErrorText } from '../components/ui'
+import { Page, Card, StatCard, EmptyState, ErrorText, Button, SortHeader, useSort, exportCSV } from '../components/ui'
 import DocLink from '../components/DocLink'
 
 // Fleet is the agent-monitoring dashboard: one row per endpoint pulling together every per-agent
@@ -67,10 +67,27 @@ type Row = {
   fim: number
 }
 
+type SortKey = 'agent' | 'status' | 'cpu' | 'mem' | 'disk' | 'uptime' | 'fim' | 'va' | 'sca' | 'cis'
+
+// How each sortable column reads a value off a row. Nulls sort last (handled in useSort).
+const ACCESSORS: Record<SortKey, (r: Row) => string | number | null | undefined> = {
+  agent: (r) => r.agent.name.toLowerCase(),
+  status: (r) => r.status,
+  cpu: (r) => r.perf?.cpu_pct,
+  mem: (r) => r.perf?.mem_pct,
+  disk: (r) => r.perf?.disk_pct,
+  uptime: (r) => r.perf?.uptime_sec,
+  fim: (r) => r.fim,
+  va: (r) => r.va?.critical,
+  sca: (r) => r.sca?.critical,
+  cis: (r) => r.cis,
+}
+
 export default function Fleet() {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [error, setError] = useState('')
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null)
+  const sort = useSort<SortKey>('agent')
 
   useEffect(() => {
     let live = true
@@ -125,6 +142,26 @@ export default function Fleet() {
     return { total: all.length, online, down, critical, avgCis, fim }
   }, [rows])
 
+  const view = rows ? sort.sortRows(rows, ACCESSORS) : []
+
+  // Export the rows exactly as sorted on screen, so the file matches what the operator is looking at.
+  const doExport = () =>
+    exportCSV(
+      'agent-monitoring',
+      ['Agent', 'OS', 'Status', 'CPU %', 'Memory %', 'Disk %', 'Uptime (s)', 'FIM 24h', 'VA critical', 'VA high', 'SCA critical', 'SCA high', 'CIS %'],
+      view.map((r) => [
+        r.agent.name, r.agent.os, r.status,
+        r.perf?.cpu_pct != null ? Math.round(r.perf.cpu_pct) : '',
+        r.perf?.mem_pct != null ? Math.round(r.perf.mem_pct) : '',
+        r.perf?.disk_pct != null ? Math.round(r.perf.disk_pct) : '',
+        r.perf?.uptime_sec ?? '',
+        r.fim,
+        r.va?.critical ?? '', r.va?.high ?? '',
+        r.sca?.critical ?? '', r.sca?.high ?? '',
+        r.cis ?? '',
+      ]),
+    )
+
   return (
     <Page>
       {error && <ErrorText>{error}</ErrorText>}
@@ -146,6 +183,11 @@ export default function Fleet() {
         title="Agents"
         kicker={refreshedAt ? `updated ${refreshedAt.toLocaleTimeString()}` : undefined}
         bodyClass="p-0"
+        actions={
+          rows && rows.length > 0 ? (
+            <Button variant="secondary" onClick={doExport} title="Download the table as CSV">Export CSV</Button>
+          ) : undefined
+        }
       >
         {rows === null ? (
           <p className="px-4 py-8 text-center text-[13px] text-dim">Loading…</p>
@@ -156,20 +198,24 @@ export default function Fleet() {
             <table className="w-full text-left text-[13.5px]">
               <thead className="bg-surface text-[12px] uppercase tracking-wider text-dim">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Agent</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">CPU</th>
-                  <th className="px-4 py-2 font-medium">Memory</th>
-                  <th className="px-4 py-2 font-medium">Disk</th>
-                  <th className="px-4 py-2 font-medium">Uptime</th>
-                  <th className="px-4 py-2 font-medium" title="File-integrity alerts in the last 24h">FIM 24h</th>
-                  <th className="px-4 py-2 font-medium" title="OS-package vulnerabilities (critical / high)">VA c/h</th>
-                  <th className="px-4 py-2 font-medium" title="Dependency vulnerabilities (critical / high)">SCA c/h</th>
-                  <th className="px-4 py-2 font-medium" title="CIS hardening score">CIS</th>
+                  {([
+                    ['agent', 'Agent'], ['status', 'Status'], ['cpu', 'CPU'], ['mem', 'Memory'],
+                    ['disk', 'Disk'], ['uptime', 'Uptime'], ['fim', 'FIM 24h'], ['va', 'VA c/h'],
+                    ['sca', 'SCA c/h'], ['cis', 'CIS'],
+                  ] as [SortKey, string][]).map(([k, label]) => (
+                    <SortHeader
+                      key={k}
+                      label={label}
+                      active={sort.key === k}
+                      dir={sort.dir}
+                      onClick={() => sort.onSort(k)}
+                      className="px-4 py-2 text-left"
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {view.map((r) => {
                   const s = STATUS_STYLE[r.status]
                   return (
                     <tr key={r.agent.id} className="border-t border-border">

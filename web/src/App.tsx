@@ -27,6 +27,7 @@ import Tenants from './tenants/Tenants'
 import Settings from './settings/Settings'
 import Login from './components/Login'
 import ServiceHealthBanner from './components/ServiceHealthBanner'
+import KeyboardShortcuts from './components/shortcuts'
 import { fetchMe, getToken, can, type Me, type NewTicketInput } from './lib/api'
 import { useDashRange } from './lib/range'
 
@@ -135,12 +136,14 @@ export default function App() {
         ) : view === 'settings' ? (
           <Settings />
         ) : (
-          <Dashboard range={range} me={me} onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
+          <Dashboard range={range} me={me} onNavigate={setView} onCreateTicket={can(me, 'manage_tickets') ? createTicketFrom : undefined} />
           )}
         </main>
       </div>
       {/* Reachable from every view, and renders nothing at all unless the deployment enabled it. */}
       <Assistant me={me} onEditPersona={() => setView('settings')} />
+      {/* Global keyboard shortcuts (press "?" for the list). Renders only the help overlay, when open. */}
+      <KeyboardShortcuts me={me} onNavigate={setView} />
     </div>
   )
 }

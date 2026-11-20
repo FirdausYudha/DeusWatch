@@ -13,6 +13,19 @@ Requires migration **000089**.
 
 ### Added
 
+- **Sortable, exportable tables.** Shared `useSort` / `SortHeader` / `exportCSV` helpers: click a
+  column to sort, and download the rows (as sorted on screen) to CSV. Wired into Agent Monitoring and
+  Users so far; the helpers are ready to roll onto the other data tables.
+
+- **First-run onboarding.** A fresh install with no agents enrolled now shows a "start here" card on
+  the Dashboard that jumps to agent enrollment, instead of a wall of empty panels.
+
+- **Keyboard shortcuts.** Press `?` for the cheat sheet; `g` then a letter jumps between pages
+  (`g d` Dashboard, `g a` Agents, `g m` Agent Monitoring, and so on). Ignored while typing in a field.
+
+- **One time-range control.** The dashboard picker and the performance/network picker now render
+  through a single shared segmented track, so they look and behave identically instead of drifting.
+
 - **In-app toasts and confirm dialogs.** Destructive actions (revoke, delete, unban, terminate,
   roll back) now ask through a themed confirmation dialog that names the consequence, instead of the
   browser's native popup, and failures surface as a toast rather than a blank or a native alert. One

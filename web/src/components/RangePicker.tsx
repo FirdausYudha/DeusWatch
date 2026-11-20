@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { RANGE_PRESETS, localInput, type DashRangeState } from '../lib/range'
+import Segmented, { segPillClass, type SegOption } from './Segmented'
 
 // RangePicker is the prototype's segmented time-range control: one track (surface-2, 8px radius,
 // 3px padding) holding the presets, with the active one lifted onto the accent.
@@ -34,41 +35,31 @@ export default function RangePicker({ range }: { range: DashRangeState }) {
     setOpenCustom(true)
   }
 
-  const item = (active: boolean) =>
-    `rounded-[6px] px-2.5 py-1 text-[12.5px] font-medium transition-colors ${
-      active ? 'bg-accent text-white shadow-sm' : 'text-muted hover:text-fg'
-    }`
-
   // A custom range that hasn't been completed yet fetches nothing, so say so rather than leaving
   // the dashboard looking empty for no visible reason.
   const incomplete = range.preset === 'custom' && !range.resolved
 
+  const options: SegOption[] = RANGE_PRESETS.map((r) => ({ key: String(r.hours), label: r.label }))
+  const activeKey = range.preset === 'custom' ? 'custom' : String(range.preset)
+
   return (
     <div ref={wrap} className="relative flex items-center gap-2">
-      <div className="flex items-center gap-0.5 rounded-[8px] border border-border bg-surface-2 p-[3px]">
-        {RANGE_PRESETS.map((r) => (
+      <Segmented
+        options={options}
+        activeKey={activeKey}
+        onSelect={(key) => { range.setPreset(Number(key)); setOpenCustom(false) }}
+        trailing={
           <button
-            key={r.label}
-            onClick={() => {
-              range.setPreset(r.hours)
-              setOpenCustom(false)
-            }}
-            className={item(range.preset === r.hours)}
-            aria-pressed={range.preset === r.hours}
+            onClick={openCustom ? () => setOpenCustom(false) : startCustom}
+            className={segPillClass(range.preset === 'custom')}
+            aria-pressed={range.preset === 'custom'}
+            aria-expanded={openCustom}
+            title={range.preset === 'custom' ? range.label : 'Pick a custom range'}
           >
-            {r.label}
+            Custom
           </button>
-        ))}
-        <button
-          onClick={openCustom ? () => setOpenCustom(false) : startCustom}
-          className={item(range.preset === 'custom')}
-          aria-pressed={range.preset === 'custom'}
-          aria-expanded={openCustom}
-          title={range.preset === 'custom' ? range.label : 'Pick a custom range'}
-        >
-          Custom
-        </button>
-      </div>
+        }
+      />
 
       {incomplete && !openCustom && (
         <span className="hidden text-[12.5px] text-amber-300 sm:inline">range incomplete</span>

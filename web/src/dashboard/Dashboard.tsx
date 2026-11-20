@@ -1,7 +1,7 @@
 import { useEffect, useState, Fragment, type ReactNode } from 'react'
 import {
   fetchHealth, searchEvents, exportEventsToWebhook, fetchDashboardData,
-  fetchStorageStatus, requestFimRestore, markAlertReview,
+  fetchStorageStatus, requestFimRestore, markAlertReview, fetchAgents,
   fetchLayout, saveLayout, deleteLayout,
   SEVERITY, can, type DepState, type Health, type EventRow, type NewTicketInput,
   type DashboardData, type WidgetKind, type EventSearch, type DashRange,
@@ -10,7 +10,8 @@ import {
 import { StatWidget, BarList, DonutChart, LineChart, TableWidget, AttackMap, RiskyIPsWidget, SuspiciousIPsWidget, SlowScannerWidget, AgentsWidget, TenantLinesWidget, CommunicationGraphWidget, SrcDstGraphWidget } from './widgets'
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
-import { PageHeader, Icon, Page, Pagination, usePaged } from '../components/ui'
+import type { View } from '../components/Sidebar'
+import { PageHeader, Icon, Page, Pagination, usePaged, Button } from '../components/ui'
 import { useConfirm } from '../components/feedback'
 import { usePersistedState } from '../lib/usePersistedState'
 import { localInput, type DashRangeState } from '../lib/range'
@@ -322,13 +323,19 @@ function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: Dashboa
 export default function Dashboard({
   range,
   me,
+  onNavigate,
   onCreateTicket,
 }: {
   range: DashRangeState
   me: Me
+  onNavigate?: (v: View) => void
   onCreateTicket?: (t: NewTicketInput) => void
 }) {
   const [health, setHealth] = useState<Health | null>(null)
+  // Onboarding: null = not checked yet, 0 = a fresh install with nothing reporting in. A brand-new
+  // deployment lands on an empty dashboard with no hint of what to do first; this surfaces the one
+  // next step (enroll an agent). Checked once, not polled.
+  const [agentCount, setAgentCount] = useState<number | null>(null)
   const [storage, setStorage] = useState<StorageStatus | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [updated, setUpdated] = useState<Date | null>(null)
@@ -488,6 +495,13 @@ export default function Dashboard({
     return () => { active = false; clearInterval(id) }
   }, [range.preset, range.from, range.to, timelineBucket])
 
+  // One-shot agent-count check for the onboarding card (not part of the polled dashboard data).
+  useEffect(() => {
+    let active = true
+    fetchAgents().then((a) => { if (active) setAgentCount(a.length) }).catch(() => {})
+    return () => { active = false }
+  }, [])
+
   const services: { name: string; sub: string; state: DotState; detail: string }[] = [
     { name: 'API Server', sub: 'Go · :8080', state: health ? (health.api === 'alive' ? 'good' : 'bad') : 'unknown', detail: health?.api ?? 'checking…' },
     { name: 'PostgreSQL + TimescaleDB', sub: 'log storage', state: health ? depDot(health.postgres) : 'unknown', detail: health?.postgres ?? 'checking…' },
@@ -551,6 +565,25 @@ export default function Dashboard({
         }
       />
 
+      {/* First-run onboarding: a fresh install has no agents, so the whole dashboard is empty and
+          nothing tells a new operator what to do. Point them at the one next step. Hidden the moment
+          any agent exists, and never shown before the count resolves (so it does not flash). */}
+      {agentCount === 0 && (
+        <div className="mb-6 flex flex-col items-start gap-3 rounded-[12px] border border-accent/30 bg-accent-soft/40 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-[15px] font-bold text-fg">Welcome to DeusWatch. Start by enrolling an agent.</h2>
+            <p className="mt-1 text-[13px] text-muted">
+              No endpoints are reporting in yet, so these panels stay empty. Enroll your first agent and its
+              logs, vulnerabilities and file-integrity events start flowing here within a minute.
+            </p>
+          </div>
+          {onNavigate && can(me, 'view_dashboard') && (
+            <Button variant="primary" className="shrink-0" onClick={() => onNavigate('agents')}>
+              Enroll an agent
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Customizable widget grid. Three columns on wide screens, two at medium, one on mobile.
           `grid-auto-flow: dense` backfills 1-col panels behind a 2-col panel at the narrower

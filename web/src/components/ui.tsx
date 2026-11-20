@@ -46,6 +46,76 @@ export function Pagination({ page, pages, total, perPage, onPage }: {
   )
 }
 
+// ── Sorting ───────────────────────────────────────────────────────────────────
+// useSort + SortHeader give every table the same click-to-sort behaviour from one place, so a
+// table that wants sorting stops hand-rolling it (the old tables each did, differently, or not at
+// all). Sorting is client-side on an already-fetched list, same contract as usePaged.
+export type SortDir = 'asc' | 'desc'
+
+export function useSort<K extends string>(initialKey: K, initialDir: SortDir = 'asc') {
+  const [key, setKey] = useState<K>(initialKey)
+  const [dir, setDir] = useState<SortDir>(initialDir)
+  // Clicking the active column flips direction; a new column starts ascending.
+  const onSort = (k: K) => {
+    if (k === key) setDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setKey(k); setDir('asc') }
+  }
+  // sortRows returns a sorted COPY using the accessor for the current key. Nulls always sort last,
+  // regardless of direction, so "no reading" never crowds the top.
+  function sortRows<T>(rows: T[], accessors: Partial<Record<K, (r: T) => string | number | null | undefined>>): T[] {
+    const get = accessors[key]
+    if (!get) return rows
+    const sign = dir === 'asc' ? 1 : -1
+    return [...rows].sort((a, b) => {
+      const av = get(a), bv = get(b)
+      const an = av == null || av === '', bn = bv == null || bv === ''
+      if (an && bn) return 0
+      if (an) return 1
+      if (bn) return -1
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sign
+      return String(av).localeCompare(String(bv), undefined, { numeric: true }) * sign
+    })
+  }
+  return { key, dir, onSort, sortRows }
+}
+
+// SortHeader is a <th> whose label toggles the sort; the arrow shows the active column/direction.
+export function SortHeader({
+  label, active, dir, onClick, className = '',
+}: {
+  label: string; active: boolean; dir: SortDir; onClick: () => void; className?: string
+}) {
+  return (
+    <th className={className}>
+      <button
+        onClick={onClick}
+        aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        className="inline-flex items-center gap-1 font-medium uppercase tracking-wider transition-colors hover:text-fg"
+      >
+        <span>{label}</span>
+        <Icon name={active && dir === 'desc' ? 'down' : 'up'} size={12} className={active ? 'text-fg' : 'opacity-30'} />
+      </button>
+    </th>
+  )
+}
+
+// ── CSV export ──────────────────────────────────────────────────────────────
+// exportCSV turns rows already on screen into a downloaded file, so "send this to someone" stops
+// meaning a screenshot. Leads with a UTF-8 BOM so Excel reads accented text correctly.
+export function exportCSV(filename: string, headers: string[], rows: (string | number | null | undefined)[][]) {
+  const esc = (v: string | number | null | undefined) => {
+    const s = v == null ? '' : String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const csv = '﻿' + [headers, ...rows].map((r) => r.map(esc).join(',')).join('\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename.endsWith('.csv') ? filename : `${filename}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ── Icon ────────────────────────────────────────────────────────────────────
 // Inline action icons, same pattern as Sidebar's NavIcon (stroke paths on a 0 0 24 24 viewBox,
 // currentColor so they inherit the button's colour). No icon package, the app must run offline.

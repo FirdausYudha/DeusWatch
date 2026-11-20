@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Page, Pagination, usePaged } from '../components/ui'
+import { Page, Pagination, usePaged, Button, SortHeader, useSort, exportCSV } from '../components/ui'
 import { useConfirm } from '../components/feedback'
 import {
   fetchUsers,
@@ -189,7 +189,26 @@ export default function Users({ me }: { me: Me }) {
     }
   }
 
-  const paged = usePaged(users)
+  const sort = useSort<'username' | 'role' | 'status' | 'created'>('username')
+  const sorted = sort.sortRows(users, {
+    username: (u) => u.username.toLowerCase(),
+    role: (u) => u.role,
+    status: (u) => (u.disabled ? 'disabled' : 'active'),
+    created: (u) => u.created_at,
+  })
+  const paged = usePaged(sorted)
+  const doExport = () =>
+    exportCSV(
+      'users',
+      ['Username', 'Role', 'Access', 'Status', 'Created'],
+      sorted.map((u) => [
+        u.username,
+        u.role,
+        u.permissions === null ? 'role default' : `custom (${u.permissions.length} perms)`,
+        u.disabled ? 'disabled' : 'active',
+        new Date(u.created_at).toISOString(),
+      ]),
+    )
   return (
     <Page>
       <header className="mb-8">
@@ -255,15 +274,20 @@ export default function Users({ me }: { me: Me }) {
         {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
       </section>
 
+      {users.length > 0 && (
+        <div className="mb-2 flex justify-end">
+          <Button variant="secondary" onClick={doExport} title="Download the table as CSV">Export CSV</Button>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-[12px] border border-border">
         <table className="w-full min-w-[56rem] text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
-              <th className="px-4 py-2 font-medium">Username</th>
-              <th className="px-4 py-2 font-medium">Role</th>
+              <SortHeader label="Username" active={sort.key === 'username'} dir={sort.dir} onClick={() => sort.onSort('username')} className="px-4 py-2 text-left" />
+              <SortHeader label="Role" active={sort.key === 'role'} dir={sort.dir} onClick={() => sort.onSort('role')} className="px-4 py-2 text-left" />
               <th className="px-4 py-2 font-medium">Access</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Created</th>
+              <SortHeader label="Status" active={sort.key === 'status'} dir={sort.dir} onClick={() => sort.onSort('status')} className="px-4 py-2 text-left" />
+              <SortHeader label="Created" active={sort.key === 'created'} dir={sort.dir} onClick={() => sort.onSort('created')} className="px-4 py-2 text-left" />
               <th className="px-4 py-2 font-medium"></th>
             </tr>
           </thead>

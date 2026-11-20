@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TimeRange } from '../lib/api'
+import Segmented, { segPillClass, type SegOption } from './Segmented'
 
 // TimeRangePicker is the shared window selector for the performance charts (host Performance and the
 // SNMP Network board). Presets go down to one minute; "Custom" reveals two datetime-local inputs.
@@ -38,28 +39,24 @@ export default function TimeRangePicker({ value, onChange }: { value: TimeRange;
     onChange({ from: fd.toISOString(), to: td.toISOString() })
   }
 
+  const options: SegOption[] = RANGE_PRESETS.map((r) => ({ key: String(r.minutes), label: r.label }))
+  const activeKey = !showCustom && 'minutes' in value ? String(value.minutes) : null
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex rounded-[8px] border border-border p-0.5 text-[13px]">
-        {RANGE_PRESETS.map((r) => {
-          const active = !showCustom && 'minutes' in value && value.minutes === r.minutes
-          return (
-            <button
-              key={r.minutes}
-              onClick={() => { setCustom(false); onChange({ minutes: r.minutes }) }}
-              className={`rounded-md px-2.5 py-1 transition-colors ${active ? 'bg-accent-soft font-medium text-accent' : 'text-muted hover:text-fg'}`}
-            >
-              {r.label}
-            </button>
-          )
-        })}
-        <button
-          onClick={() => { setCustom(true); applyCustom(from, to) }}
-          className={`rounded-md px-2.5 py-1 transition-colors ${showCustom ? 'bg-accent-soft font-medium text-accent' : 'text-muted hover:text-fg'}`}
-        >
-          Custom
-        </button>
-      </div>
+      <Segmented
+        options={options}
+        activeKey={activeKey}
+        onSelect={(key) => { setCustom(false); onChange({ minutes: Number(key) }) }}
+        trailing={
+          <button
+            onClick={() => { setCustom(true); applyCustom(from, to) }}
+            className={segPillClass(showCustom)}
+          >
+            Custom
+          </button>
+        }
+      />
       {showCustom && (
         <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted">
           <input
