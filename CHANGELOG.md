@@ -13,6 +13,14 @@ Requires migration **000089**.
 
 ### Added
 
+- **Table density toggle.** A control in the top bar switches every table between comfortable and
+  compact rows, so long NOC tables fit more on screen. Remembered per browser.
+
+- **Consistent loading and freshness.** A shared table skeleton replaces bare "Loading…" text while
+  a board fetches, and a shared "updated HH:MM:SS" stamp reads the same on the auto-refreshing
+  boards. Copy buttons confirm with a proper check (not a stray glyph) and raise a toast if the
+  clipboard is blocked instead of failing silently.
+
 - **Sortable, exportable tables.** Shared `useSort` / `SortHeader` / `exportCSV` helpers: click a
   column to sort, and download the rows (as sorted on screen) to CSV. Wired into Agent Monitoring and
   Users so far; the helpers are ready to roll onto the other data tables.

@@ -4,7 +4,7 @@ import {
   agentDisplayStatus,
   type AgentInfo, type DisplayStatus, type HostMetricLatest, type VulnSummary, type SCASummary, type BenchmarkSummary,
 } from '../lib/api'
-import { Page, Card, StatCard, EmptyState, ErrorText, Button, SortHeader, useSort, exportCSV } from '../components/ui'
+import { Page, Card, StatCard, EmptyState, ErrorText, Button, SortHeader, useSort, exportCSV, TableSkeleton } from '../components/ui'
 import DocLink from '../components/DocLink'
 
 // Fleet is the agent-monitoring dashboard: one row per endpoint pulling together every per-agent
@@ -190,7 +190,7 @@ export default function Fleet() {
         }
       >
         {rows === null ? (
-          <p className="px-4 py-8 text-center text-[13px] text-dim">Loading…</p>
+          <TableSkeleton rows={6} cols={10} />
         ) : rows.length === 0 ? (
           <EmptyState title="No agents enrolled yet" hint="Enroll an agent from the Agents page; it appears here once it checks in." />
         ) : (

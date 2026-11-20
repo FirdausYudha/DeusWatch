@@ -119,6 +119,15 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
+/* Compact density: tighten every table's cell padding so long NOC tables fit more rows on screen.
+   Driven by data-density on the app root (see App.tsx); comfortable is the default and needs no
+   rule. The attribute + descendant + :is() selector outweighs the Tailwind py-* utilities on the
+   cells, so it overrides them without !important. */
+[data-density="compact"] table :is(td, th) {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
 /* Keyboard focus is always visible and always the accent: never the browser default. */
 :focus-visible {
   outline: 2px solid var(--dw-accent);

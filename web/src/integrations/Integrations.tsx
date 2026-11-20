@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Page, Pagination, usePaged } from '../components/ui'
-import { useConfirm } from '../components/feedback'
+import { Icon, Page, Pagination, usePaged } from '../components/ui'
+import { useConfirm, useToast } from '../components/feedback'
 import {
   fetchIntegrationTypes,
   fetchIntegrations,
@@ -95,6 +95,7 @@ function FieldInput({
 // manage_integrations, and the endpoints are protected the same way.
 function IngestWebhookPanel() {
   const confirm = useConfirm()
+  const toast = useToast()
   const [token, setToken] = useState('')
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -137,7 +138,7 @@ function IngestWebhookPanel() {
     finally { setBusy(false) }
   }
   const copy = async () => {
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { /* ignore */ }
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch { toast.error('Could not copy to clipboard') }
   }
 
   return (
@@ -160,7 +161,7 @@ function IngestWebhookPanel() {
           <div className="flex flex-wrap items-center gap-2">
             <input readOnly value={url} onFocus={(e) => e.currentTarget.select()}
               className="min-w-0 flex-1 rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[12.5px] text-fg outline-none" />
-            <button onClick={copy} className="rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg hover:bg-surface-2">{copied ? 'Copied ✓' : 'Copy'}</button>
+            <button onClick={copy} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-3 py-2 text-[13.5px] text-fg hover:bg-surface-2">{copied ? <><Icon name="check" size={13} /> Copied</> : 'Copy'}</button>
             <button onClick={regenerate} disabled={busy}
               className="rounded-[8px] border border-amber-700/60 px-3 py-2 text-[13.5px] text-amber-300 hover:bg-amber-500/10 disabled:opacity-50">
               {busy ? 'Regenerating…' : 'Regenerate'}

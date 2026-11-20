@@ -11,7 +11,7 @@ import { StatWidget, BarList, DonutChart, LineChart, TableWidget, AttackMap, Ris
 import AttackGeoMap from './geo/AttackGeoMap'
 import DocLink from '../components/DocLink'
 import type { View } from '../components/Sidebar'
-import { PageHeader, Icon, Page, Pagination, usePaged, Button } from '../components/ui'
+import { PageHeader, Icon, Page, Pagination, usePaged, Button, LastUpdated } from '../components/ui'
 import { useConfirm } from '../components/feedback'
 import { usePersistedState } from '../lib/usePersistedState'
 import { localInput, type DashRangeState } from '../lib/range'
@@ -553,6 +553,7 @@ export default function Dashboard({
                 Loading…
               </span>
             )}
+            {!loading && <LastUpdated at={updated} />}
             <span
               className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium ${
                 allReady ? 'border-success/30 bg-success/10 text-success' : 'border-medium/30 bg-medium/10 text-medium'

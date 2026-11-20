@@ -47,11 +47,15 @@ export default function Topbar({
   view,
   onMenu,
   range,
+  density,
+  onToggleDensity,
 }: {
   view: View
   onMenu?: () => void
   /** Only the dashboard is time-scoped, so the picker appears only there. */
   range?: DashRangeState
+  density?: 'comfortable' | 'compact'
+  onToggleDensity?: () => void
 }) {
   const [theme, toggle] = useTheme()
   const meta = PAGE_META[view] ?? PAGE_META.dashboard
@@ -81,6 +85,24 @@ export default function Topbar({
         <Clock />
         <WorkspaceSwitcher />
         {(view === 'dashboard' || view === 'fim') && range && <RangePicker range={range} />}
+        {onToggleDensity && (
+          <button
+            onClick={onToggleDensity}
+            title={density === 'compact' ? 'Switch to comfortable rows' : 'Switch to compact rows'}
+            aria-label={density === 'compact' ? 'Switch to comfortable rows' : 'Switch to compact rows'}
+            aria-pressed={density === 'compact'}
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-border text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+          >
+            {/* Comfortable = wide rows (2 lines); compact = tight rows (3 lines). */}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              {density === 'compact' ? (
+                <path d="M4 5h16M4 9h16M4 15h16M4 19h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              ) : (
+                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              )}
+            </svg>
+          </button>
+        )}
         <button
           onClick={toggle}
           title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}

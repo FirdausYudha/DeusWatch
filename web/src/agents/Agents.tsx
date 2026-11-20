@@ -25,7 +25,7 @@ import {
 } from '../lib/api'
 import DocLink from '../components/DocLink'
 import { Button, Icon, Page, Pagination, usePaged } from '../components/ui'
-import { useConfirm } from '../components/feedback'
+import { useConfirm, useToast } from '../components/feedback'
 import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry', 'rootcheck', 'sca']
@@ -560,22 +560,23 @@ function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => vo
 // Copyable shows a command in a code block with a copy-to-clipboard button.
 function Copyable({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
+  const toast = useToast()
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      /* clipboard unavailable */
+      toast.error('Could not copy to clipboard')
     }
   }
   return (
     <div className="relative">
       <button
         onClick={copy}
-        className="absolute right-2 top-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-accent hover:bg-surface-2"
+        className="absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-accent hover:bg-surface-2"
       >
-        {copied ? 'copied ✓' : 'copy'}
+        {copied ? <><Icon name="check" size={12} /> copied</> : 'copy'}
       </button>
       <code className="block whitespace-pre-wrap break-all rounded-[8px] border border-border bg-bg px-3 py-2 pr-14 text-[12.5px] text-emerald-300">
         {text}

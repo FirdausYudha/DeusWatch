@@ -139,6 +139,8 @@ const ICON_PATHS: Record<string, string> = {
   download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
   upload: 'M12 21V9M7 14l5-5 5 5M5 3h14',
   external: 'M7 17L17 7M8 7h9v9',
+  check: 'M20 6L9 17l-5-5',
+  copy: 'M9 9h10v10H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
 }
 export function Icon({ name, size = 16, className = '' }: { name: keyof typeof ICON_PATHS; size?: number; className?: string }) {
   return (
@@ -357,6 +359,30 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
 
 export function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse rounded-[8px] bg-surface-2 ${className}`} />
+}
+
+// TableSkeleton is the standard "loading a table" placeholder: a few shimmering rows, so a slow
+// fetch shows the shape of what is coming instead of a bare "Loading…" line that then jumps into a
+// full table. Pass the column count so the width roughly matches the real table.
+export function TableSkeleton({ rows = 6, cols = 4 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="space-y-2 p-4" aria-busy="true" aria-live="polite">
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex gap-3">
+          {Array.from({ length: cols }).map((_, c) => (
+            <Skeleton key={c} className={`h-5 ${c === 0 ? 'w-[22%]' : 'flex-1'}`} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// LastUpdated is the one freshness stamp every auto-refreshing board shows, so "updated 14:03:22"
+// reads the same everywhere. Null (not fetched yet) renders nothing.
+export function LastUpdated({ at, className = '' }: { at: Date | null; className?: string }) {
+  if (!at) return null
+  return <span className={`text-[12px] text-dim ${className}`}>updated {at.toLocaleTimeString()}</span>
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {

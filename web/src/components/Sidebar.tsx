@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { logout, can, type Me } from '../lib/api'
 import { usePersistedState } from '../lib/usePersistedState'
 import SupportModal from './SupportModal'
@@ -124,6 +124,27 @@ export default function Sidebar({
   // because below `lg` the sidebar is already a slide-over that takes no width when shut.
   const [rail, setRail] = usePersistedState('nav.rail', false)
 
+  // Easter egg: the eye logo blinks on its own every ~45-75s. A quick vertical squash via the Web
+  // Animations API (no CSS file, no dependency). Skipped entirely when the viewer prefers reduced
+  // motion, so it never fights an accessibility setting.
+  const eyeRef = useRef<HTMLImageElement>(null)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const blink = () => {
+      const el = eyeRef.current
+      if (el && typeof el.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        el.animate(
+          [{ transform: 'scaleY(1)' }, { transform: 'scaleY(0.08)' }, { transform: 'scaleY(1)' }],
+          { duration: 220, easing: 'ease-in-out' },
+        )
+      }
+      schedule()
+    }
+    const schedule = () => { timer = setTimeout(blink, 45000 + Math.random() * 30000) }
+    schedule()
+    return () => clearTimeout(timer)
+  }, [])
+
   const handleLogout = async () => {
     await logout()
     onLogout()
@@ -157,9 +178,11 @@ export default function Sidebar({
           and the control you need to get back out must never be the thing that got squeezed. */}
       <div className={`flex h-[60px] items-center gap-2.5 px-[18px] ${rail ? 'lg:justify-center lg:px-0' : ''}`}>
         <img
+          ref={eyeRef}
           src="/deuswatch-eye.png"
           alt=""
           aria-hidden="true"
+          style={{ transformOrigin: 'center' }}
           className={`h-7 w-auto shrink-0 ${rail ? 'lg:hidden' : ''}`}
         />
         <span className={`text-[16px] font-bold tracking-tight text-fg ${rail ? 'lg:hidden' : ''}`}>DeusWatch</span>

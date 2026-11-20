@@ -30,6 +30,7 @@ import ServiceHealthBanner from './components/ServiceHealthBanner'
 import KeyboardShortcuts from './components/shortcuts'
 import { fetchMe, getToken, can, type Me, type NewTicketInput } from './lib/api'
 import { useDashRange } from './lib/range'
+import { usePersistedState } from './lib/usePersistedState'
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
@@ -41,6 +42,8 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false)
   // Owned here because the Topbar renders the picker while the Dashboard fetches the data.
   const range = useDashRange()
+  // Table density (comfortable | compact) applied app-wide via data-density; the Topbar toggles it.
+  const [density, setDensity] = usePersistedState<'comfortable' | 'compact'>('density', 'comfortable')
 
   // Triggered from an alert ("Create ticket"), jump to Tickets with the form prefilled.
   const createTicketFrom = (prefill: NewTicketInput) => {
@@ -74,7 +77,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg text-fg">
+    <div className="flex h-screen overflow-hidden bg-bg text-fg" data-density={density}>
       <Sidebar
         me={me}
         view={view}
@@ -86,7 +89,13 @@ export default function App() {
       {/* Column so the topbar stays a fixed 60px band and only the page content scrolls
           underneath it, the prototype's shell. */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar view={view} onMenu={() => setNavOpen(true)} range={range} />
+        <Topbar
+          view={view}
+          onMenu={() => setNavOpen(true)}
+          range={range}
+          density={density}
+          onToggleDensity={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')}
+        />
         <main className="flex-1 overflow-y-auto">
         {/* Above the page content on every view: a dead worker stops detection everywhere, so
             this must not be something you only see if you happen to open the Dashboard. */}
