@@ -13,7 +13,8 @@ import {
   type TicketStatus,
   type NewTicketInput,
 } from '../lib/api'
-import { Page, Pagination, usePaged, Select } from '../components/ui'
+import { Page, Pagination, usePaged, Select, Button, SortHeader, useSort, exportCSV } from '../components/ui'
+import Modal from '../components/Modal'
 import Scorecard from './Scorecard'
 
 const STATUSES: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed']
@@ -43,6 +44,25 @@ function duration(fromISO: string, toISO: string): string {
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ${m % 60}m`
   return `${Math.floor(h / 24)}d ${h % 24}h`
+}
+
+// elapsedMs is the numeric form of duration() for sorting; null when the end time is missing so
+// those rows sort last.
+function elapsedMs(fromISO: string, toISO?: string | null): number | null {
+  if (!toISO) return null
+  const ms = new Date(toISO).getTime() - new Date(fromISO).getTime()
+  return ms >= 0 ? ms : null
+}
+
+type TicketSortKey = 'title' | 'severity' | 'status' | 'assignee' | 'created' | 'response' | 'resolve'
+const TICKET_ACCESSORS: Record<TicketSortKey, (t: Ticket) => string | number | null> = {
+  title: (t) => t.title.toLowerCase(),
+  severity: (t) => t.severity,
+  status: (t) => STATUSES.indexOf(t.status),
+  assignee: (t) => t.assignee || '',
+  created: (t) => t.created_at,
+  response: (t) => elapsedMs(t.created_at, t.acked_at),
+  resolve: (t) => elapsedMs(t.created_at, t.resolved_at),
 }
 
 export default function Tickets({
@@ -96,24 +116,45 @@ export default function Tickets({
     return acc
   }, {})
 
-  const paged = usePaged(tickets)
+  const sort = useSort<TicketSortKey>('created', 'desc')
+  const sorted = sort.sortRows(tickets, TICKET_ACCESSORS)
+  const paged = usePaged(sorted)
+  const doExport = () =>
+    exportCSV(
+      'tickets',
+      ['Title', 'Severity', 'Status', 'Assignee', 'Created', 'Response', 'Resolve time'],
+      sorted.map((t) => [
+        t.title,
+        SEVERITY[t.severity]?.label ?? String(t.severity),
+        STATUS_LABEL[t.status],
+        t.assignee || '',
+        new Date(t.created_at).toISOString(),
+        t.acked_at ? duration(t.created_at, t.acked_at) : '',
+        t.resolved_at ? duration(t.created_at, t.resolved_at) : '',
+      ]),
+    )
   return (
     <Page>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="mt-0.5 text-[13px] text-muted">Tier-2 DFIR case management · open → in progress → resolved → closed</p>
         </div>
-        {canManage && (
-          <button
-            onClick={() => {
-              setNewInput({ title: '', description: '', severity: 2 })
-              setShowNew(true)
-            }}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90"
-          >
-            + New ticket
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {tickets.length > 0 && (
+            <Button variant="secondary" onClick={doExport} title="Download the tickets as CSV">Export CSV</Button>
+          )}
+          {canManage && (
+            <button
+              onClick={() => {
+                setNewInput({ title: '', description: '', severity: 2 })
+                setShowNew(true)
+              }}
+              className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:opacity-90"
+            >
+              + New ticket
+            </button>
+          )}
+        </div>
       </header>
 
       {/* How fast the queue is picked up and finished — the half of the picture the table below
@@ -138,13 +179,13 @@ export default function Tickets({
         <table className="w-full min-w-[56rem] text-left text-sm">
           <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
             <tr>
-              <th className="px-4 py-2 font-medium">Title</th>
-              <th className="px-4 py-2 font-medium">Severity</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Assignee</th>
-              <th className="px-4 py-2 font-medium">Created</th>
-              <th className="px-4 py-2 font-medium" title="Time from opening until somebody picked it up">Response</th>
-              <th className="px-4 py-2 font-medium">Resolve time</th>
+              <SortHeader label="Title" active={sort.key === 'title'} dir={sort.dir} onClick={() => sort.onSort('title')} className="px-4 py-2 text-left" />
+              <SortHeader label="Severity" active={sort.key === 'severity'} dir={sort.dir} onClick={() => sort.onSort('severity')} className="px-4 py-2 text-left" />
+              <SortHeader label="Status" active={sort.key === 'status'} dir={sort.dir} onClick={() => sort.onSort('status')} className="px-4 py-2 text-left" />
+              <SortHeader label="Assignee" active={sort.key === 'assignee'} dir={sort.dir} onClick={() => sort.onSort('assignee')} className="px-4 py-2 text-left" />
+              <SortHeader label="Created" active={sort.key === 'created'} dir={sort.dir} onClick={() => sort.onSort('created')} className="px-4 py-2 text-left" />
+              <SortHeader label="Response" active={sort.key === 'response'} dir={sort.dir} onClick={() => sort.onSort('response')} className="px-4 py-2 text-left" />
+              <SortHeader label="Resolve time" active={sort.key === 'resolve'} dir={sort.dir} onClick={() => sort.onSort('resolve')} className="px-4 py-2 text-left" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border bg-surface">
@@ -243,9 +284,17 @@ function NewTicketModal({
     setBusy(false)
   }
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-4 text-[16px] font-semibold text-fg">New ticket</h2>
+    <Modal
+      title="New ticket"
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Cancel</button>
+          <button onClick={submit} disabled={busy || !value.title} className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">{busy ? 'Creating…' : 'Create ticket'}</button>
+        </>
+      }
+    >
         <div className="space-y-3">
           <input
             value={value.title}
@@ -287,20 +336,7 @@ function NewTicketModal({
             </label>
           </div>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={busy || !value.title}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {busy ? 'Creating…' : 'Create ticket'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -356,20 +392,11 @@ function TicketDetail({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal title={ticket?.title ?? 'Ticket'} onClose={onClose} size="lg">
         {!ticket ? (
           <p className="text-dim">Loading…</p>
         ) : (
           <>
-            <div className="mb-3 flex items-start justify-between gap-4">
-              <h2 className="text-[16px] font-semibold text-fg">{ticket.title}</h2>
-              <button onClick={onClose} className="text-dim hover:text-fg">✕</button>
-            </div>
-
             <div className="mb-4 flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
               <span className={`rounded px-1.5 py-0.5 font-medium ${STATUS_BADGE[ticket.status]}`}>{STATUS_LABEL[ticket.status]}</span>
               <SeverityBadge sev={ticket.severity} />
@@ -481,7 +508,6 @@ function TicketDetail({
             {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

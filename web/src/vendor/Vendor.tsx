@@ -10,6 +10,7 @@ import {
 } from '../lib/api'
 import { Button, EmptyState, ErrorText, Input, Page, PageHeader } from '../components/ui'
 import { useConfirm } from '../components/feedback'
+import Modal from '../components/Modal'
 
 const DAYS = [
   { n: 1, label: 'Mon' },
@@ -197,14 +198,11 @@ function VendorForm({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">
-          {initial ? `Edit ${initial.account}` : 'Add vendor account'}
-        </h2>
+    <Modal
+      title={initial ? `Edit ${initial.account}` : 'Add vendor account'}
+      onClose={onClose}
+      size="lg"
+    >
         <p className="mb-4 text-[12.5px] text-dim">
           A login by this account outside the window raises a high-severity alert within a minute.
         </p>
@@ -282,7 +280,6 @@ function VendorForm({
             {busy ? 'Saving…' : 'Save'}
           </Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

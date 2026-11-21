@@ -22,7 +22,7 @@ export default function Modal({
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -52,7 +52,7 @@ export default function Modal({
     }
   }, [onClose])
 
-  const maxW = size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : 'max-w-md'
+  const maxW = size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : size === 'xl' ? 'max-w-4xl' : 'max-w-md'
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4" onClick={onClose}>
       <div
@@ -61,18 +61,18 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className={`w-full ${maxW} overflow-hidden rounded-[12px] border border-border bg-surface shadow-xl outline-none`}
+        className={`flex max-h-[90vh] w-full ${maxW} flex-col overflow-hidden rounded-[12px] border border-border bg-surface shadow-xl outline-none`}
       >
         {title != null && (
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+          <div className="flex flex-none items-center justify-between gap-3 border-b border-border px-5 py-3">
             <h2 className="text-[15px] font-bold text-fg">{title}</h2>
             <button onClick={onClose} aria-label="Close" className="rounded p-0.5 text-dim transition-colors hover:text-fg">
               <Icon name="close" size={16} />
             </button>
           </div>
         )}
-        {children ? <div className="p-5">{children}</div> : null}
-        {footer && <div className="flex justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>}
+        {children ? <div className="flex-1 overflow-y-auto p-5">{children}</div> : null}
+        {footer && <div className="flex flex-none justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>}
       </div>
     </div>
   )

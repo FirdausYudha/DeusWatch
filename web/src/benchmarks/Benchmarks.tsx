@@ -9,7 +9,19 @@ import {
 } from '../lib/api'
 import PolicyManager from './PolicyManager'
 import DocLink from '../components/DocLink'
-import { Page } from '../components/ui'
+import Modal from '../components/Modal'
+import { Page, Button, SortHeader, useSort, exportCSV } from '../components/ui'
+
+type BenchSortKey = 'agent' | 'policy' | 'score' | 'passed' | 'failed' | 'skipped' | 'assessed'
+const BENCH_ACCESSORS: Record<BenchSortKey, (r: BenchmarkSummary) => string | number> = {
+  agent: (r) => r.agent_name.toLowerCase(),
+  policy: (r) => (r.policy_name || r.policy_id).toLowerCase(),
+  score: (r) => r.score,
+  passed: (r) => r.passed,
+  failed: (r) => r.failed,
+  skipped: (r) => r.not_applicable,
+  assessed: (r) => r.assessed_at,
+}
 
 // scoreTone keeps the colour tied to the number rather than to a judgement about it. A CIS
 // benchmark on a host nobody has hardened yet lands in the 40s, and painting that red on day one
@@ -27,6 +39,8 @@ export default function Benchmarks({ me }: { me: Me }) {
   const [loaded, setLoaded] = useState(false)
   const [open, setOpen] = useState<BenchmarkSummary | null>(null)
   const [policies, setPolicies] = useState(false)
+  const sort = useSort<BenchSortKey>('agent')
+  const sorted = sort.sortRows(rows, BENCH_ACCESSORS)
 
   useEffect(() => {
     fetchBenchmarks()
@@ -35,6 +49,13 @@ export default function Benchmarks({ me }: { me: Me }) {
       .finally(() => setLoaded(true))
   }, [])
 
+  const doExport = () =>
+    exportCSV(
+      'cis-benchmarks',
+      ['Agent', 'Policy ID', 'Policy', 'Score %', 'Passed', 'Failed', 'Skipped', 'Assessed'],
+      sorted.map((r) => [r.agent_name, r.policy_id, r.policy_name || '', r.score, r.passed, r.failed, r.not_applicable, new Date(r.assessed_at).toISOString()]),
+    )
+
   return (
     <Page>
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -42,13 +63,18 @@ export default function Benchmarks({ me }: { me: Me }) {
           <DocLink file="benchmarks.md" label="Setting up policies" />
           <DocLink file="agent-groups.md" label="Agent groups" />
         </div>
-        <button
-          onClick={() => setPolicies(true)}
-          className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] font-medium text-fg transition-colors hover:bg-surface-2"
-          title="Upload a CIS policy once; every agent fetches it"
-        >
-          Policies
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {rows.length > 0 && (
+            <Button variant="secondary" onClick={doExport} title="Download the assessments as CSV">Export CSV</Button>
+          )}
+          <button
+            onClick={() => setPolicies(true)}
+            className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] font-medium text-fg transition-colors hover:bg-surface-2"
+            title="Upload a CIS policy once; every agent fetches it"
+          >
+            Policies
+          </button>
+        </div>
       </header>
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
@@ -70,18 +96,18 @@ export default function Benchmarks({ me }: { me: Me }) {
           <table className="w-full text-left text-[13.5px]">
             <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
               <tr>
-                <th className="px-4 py-2 font-medium">Agent</th>
-                <th className="px-4 py-2 font-medium">Policy</th>
-                <th className="px-4 py-2 font-medium">Score</th>
-                <th className="px-4 py-2 font-medium">Passed</th>
-                <th className="px-4 py-2 font-medium">Failed</th>
-                <th className="px-4 py-2 font-medium">Skipped</th>
-                <th className="px-4 py-2 font-medium">Assessed</th>
+                <SortHeader label="Agent" active={sort.key === 'agent'} dir={sort.dir} onClick={() => sort.onSort('agent')} className="px-4 py-2 text-left" />
+                <SortHeader label="Policy" active={sort.key === 'policy'} dir={sort.dir} onClick={() => sort.onSort('policy')} className="px-4 py-2 text-left" />
+                <SortHeader label="Score" active={sort.key === 'score'} dir={sort.dir} onClick={() => sort.onSort('score')} className="px-4 py-2 text-left" />
+                <SortHeader label="Passed" active={sort.key === 'passed'} dir={sort.dir} onClick={() => sort.onSort('passed')} className="px-4 py-2 text-left" />
+                <SortHeader label="Failed" active={sort.key === 'failed'} dir={sort.dir} onClick={() => sort.onSort('failed')} className="px-4 py-2 text-left" />
+                <SortHeader label="Skipped" active={sort.key === 'skipped'} dir={sort.dir} onClick={() => sort.onSort('skipped')} className="px-4 py-2 text-left" />
+                <SortHeader label="Assessed" active={sort.key === 'assessed'} dir={sort.dir} onClick={() => sort.onSort('assessed')} className="px-4 py-2 text-left" />
                 <th className="px-4 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {sorted.map((r) => (
                 <tr key={`${r.agent_name}:${r.policy_id}`} className="border-t border-border">
                   <td className="px-4 py-2 text-fg">{r.agent_name}</td>
                   <td className="px-4 py-2 text-muted">
@@ -143,14 +169,12 @@ function ControlList({ row, onClose }: { row: BenchmarkSummary; onClose: () => v
   }, [row.agent_name, row.policy_id, failedOnly])
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">
-          {row.policy_name || row.policy_id}
-        </h2>
+    <Modal
+      title={row.policy_name || row.policy_id}
+      onClose={onClose}
+      size="lg"
+      footer={<button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Close</button>}
+    >
         <p className="mb-4 text-[12.5px] text-dim">
           {row.agent_name} · {row.passed} passed, {row.failed} failed, {row.not_applicable} skipped
         </p>
@@ -206,15 +230,6 @@ function ControlList({ row, onClose }: { row: BenchmarkSummary; onClose: () => v
           ))}
         </div>
 
-        <div className="mt-5 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

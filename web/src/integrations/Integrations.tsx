@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon, Page, Pagination, usePaged } from '../components/ui'
 import { useConfirm, useToast } from '../components/feedback'
+import Modal from '../components/Modal'
 import {
   fetchIntegrationTypes,
   fetchIntegrations,
@@ -460,18 +461,17 @@ export default function Integrations() {
 
       {/* Edit modal */}
       {editing && editType && (
-        <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditing(null)}>
-          <div
-            className="w-full max-w-xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-[13.5px] font-semibold text-fg">
-                Edit, <span className="text-accent">{editing.name}</span>
-                <span className="ml-2 text-[12.5px] font-normal text-dim">{editType.label}</span>
-              </h3>
-              {editType.doc && <DocLink file={editType.doc} className="shrink-0" />}
-            </div>
+        <Modal
+          title={
+            <span className="flex items-center gap-2">
+              <span>Edit, <span className="text-accent">{editing.name}</span></span>
+              <span className="text-[12.5px] font-normal text-dim">{editType.label}</span>
+              {editType.doc && <DocLink file={editType.doc} />}
+            </span>
+          }
+          onClose={() => setEditing(null)}
+          size="lg"
+        >
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-[12.5px] font-medium text-muted">Name</span>
@@ -515,8 +515,7 @@ export default function Integrations() {
                 {editBusy ? 'Saving…' : 'Save'}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </Page>
   )

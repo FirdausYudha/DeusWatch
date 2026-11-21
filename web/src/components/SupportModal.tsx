@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { QRCodeSVG } from 'qrcode.react'
+import Modal from './Modal'
 
 // Support / donation modal. Saweria is wired now; Ko-fi can be added later once a
 // slug is available (leave KOFI_PAGE empty to hide its button).
@@ -18,28 +19,7 @@ const KOFI_PAGE = 'https://ko-fi.com/firdausyudha'
 // transforms, overflow or stacking context a future caller happens to sit in.
 export default function SupportModal({ onClose }: { onClose: () => void }) {
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-[16px] font-semibold text-fg">
-            <span className="text-rose-400">♥</span> Support DeusWatch
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-md px-2 py-1 text-dim hover:bg-surface-2 hover:text-fg"
-          >
-            ✕
-          </button>
-        </div>
+    <Modal title={<><span className="text-rose-400">♥</span> Support DeusWatch</>} onClose={onClose} size="sm">
         <p className="mb-5 text-[13.5px] text-muted">
           DeusWatch is free &amp; open. If it helps you, a small donation keeps it going, thank you! 🙏
         </p>
@@ -71,8 +51,7 @@ export default function SupportModal({ onClose }: { onClose: () => void }) {
             <QRCodeSVG value={SAWERIA_PAGE} size={200} level="M" />
           </div>
         </div>
-      </div>
-    </div>,
+    </Modal>,
     document.body,
   )
 }

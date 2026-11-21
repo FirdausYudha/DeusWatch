@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon, Page, Pagination, usePaged } from '../components/ui'
 import { useConfirm } from '../components/feedback'
+import Modal from '../components/Modal'
 import {
   fetchRules, createRule, updateRule, deleteRule,
   fetchRulePacks, toggleRulePack, installRulePack, uninstallRulePack,
@@ -515,9 +516,17 @@ function RuleEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">{title}</h2>
+    <Modal
+      title={title}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Cancel</button>
+          <button onClick={save} disabled={busy || !yaml.trim()} className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">{busy ? 'Saving…' : 'Save'}</button>
+        </>
+      }
+    >
         <p className="mb-3 text-[12.5px] text-dim">
           Sigma YAML. An aggregation condition (e.g. <code className="text-fg">selection | count() by source.ip &gt; 10</code>)
           makes it an aggregation rule (banlist/brute-force); otherwise it is single-event.
@@ -533,22 +542,9 @@ function RuleEditor({
           onChange={(e) => setYaml(e.target.value)}
           spellCheck={false}
           rows={16}
-          className="w-full flex-1 rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[12.5px] text-fg outline-none focus:border-accent"
+          className="w-full rounded-[8px] border border-border bg-bg px-3 py-2 font-mono text-[12.5px] text-fg outline-none focus:border-accent"
         />
         {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
-            Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={busy || !yaml.trim()}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {busy ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

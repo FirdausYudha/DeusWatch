@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useConfirm } from '../components/feedback'
+import Modal from '../components/Modal'
 import {
   fetchSCAPolicies,
   uploadSCAPolicy,
@@ -99,12 +100,12 @@ export default function PolicyManager({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">Benchmark policies</h2>
+    <Modal
+      title="Benchmark policies"
+      onClose={onClose}
+      size="lg"
+      footer={<button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Close</button>}
+    >
         <p className="mb-4 text-[12.5px] text-dim">
           Upload a CIS policy once and every agent with an <code className="text-fg">sca</code> source
           fetches it. These are Wazuh SCA policy files, used as they are. A policy placed directly on
@@ -236,15 +237,6 @@ export default function PolicyManager({
           </div>
         )}
 
-        <div className="mt-5 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

@@ -567,7 +567,7 @@ export default function Assistant({ me, onEditPersona }: { me: Me; onEditPersona
               aria-label="Close assistant"
               className="rounded-[8px] px-2 py-1 text-dim transition-colors hover:bg-surface-2 hover:text-fg"
             >
-              ✕
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
             </button>
             </div>
           </header>

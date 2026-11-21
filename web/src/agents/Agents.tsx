@@ -24,8 +24,9 @@ import {
   type Me,
 } from '../lib/api'
 import DocLink from '../components/DocLink'
-import { Button, Icon, Page, Pagination, usePaged } from '../components/ui'
+import { Button, Icon, Page, Pagination, usePaged, LastUpdated, TableSkeleton } from '../components/ui'
 import { useConfirm, useToast } from '../components/feedback'
+import Modal from '../components/Modal'
 import SnapshotBrowser from '../snapshots/SnapshotBrowser'
 
 const SOURCE_TYPES = ['file', 'journald', 'wineventlog', 'fim', 'registry', 'rootcheck', 'sca']
@@ -72,6 +73,8 @@ export default function Agents({ me }: { me: Me }) {
   const confirm = useConfirm()
   const isAdmin = can(me, 'manage_agents')
   const [agents, setAgents] = useState<AgentInfo[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<AgentInfo | null>(null)
   const [snapshotsFor, setSnapshotsFor] = useState<AgentInfo | null>(null)
@@ -114,6 +117,7 @@ export default function Agents({ me }: { me: Me }) {
     fetchAgents()
       .then((rows) => {
         setAgents(rows)
+        setUpdatedAt(new Date())
         // Drop selections for agents that no longer exist (e.g. reaped or deleted elsewhere).
         setSelected((cur) => {
           const live = new Set(rows.map((r) => r.id))
@@ -122,6 +126,7 @@ export default function Agents({ me }: { me: Me }) {
         })
       })
       .catch((e) => setError((e as Error).message))
+      .finally(() => setLoaded(true))
   }
   useEffect(() => {
     load()
@@ -236,7 +241,9 @@ export default function Agents({ me }: { me: Me }) {
             <DocLink file="clickhouse.md" label="ClickHouse analytics" />
           </div>
         </div>
-        {isAdmin && (
+        <div className="flex items-center gap-3">
+          <LastUpdated at={updatedAt} />
+          {isAdmin && (
           <div className="flex gap-2">
             <button
               onClick={() => setGroupsOpen(true)}
@@ -252,7 +259,8 @@ export default function Agents({ me }: { me: Me }) {
               + Add agent
             </button>
           </div>
-        )}
+          )}
+        </div>
       </header>
 
       {error && <p className="mb-4 text-[13.5px] text-rose-400">{error}</p>}
@@ -330,9 +338,16 @@ export default function Agents({ me }: { me: Me }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border bg-surface">
-            {agents.length === 0 && (
+            {!loaded && (
               <tr>
-                <td colSpan={isAdmin ? 8 : 6} className="px-4 py-8 text-center text-dim">
+                <td colSpan={isAdmin ? 9 : 7} className="p-0">
+                  <TableSkeleton rows={5} cols={isAdmin ? 8 : 6} />
+                </td>
+              </tr>
+            )}
+            {loaded && agents.length === 0 && (
+              <tr>
+                <td colSpan={isAdmin ? 9 : 7} className="px-4 py-8 text-center text-dim">
                   No agents yet. Click “Add agent” to enroll one.
                 </td>
               </tr>
@@ -532,12 +547,17 @@ function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => vo
   ].join('\n')
 
   return (
-    <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-1 text-[13.5px] font-semibold text-fg">
-          Uninstall agent, <span className="text-accent">{agent.name}</span>
-          <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[11px] uppercase text-muted">{agent.os || 'linux'}</span>
-        </h3>
+    <Modal
+      title={
+        <span className="flex items-center gap-2">
+          <span>Uninstall agent, <span className="text-accent">{agent.name}</span></span>
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] uppercase text-muted">{agent.os || 'linux'}</span>
+        </span>
+      }
+      onClose={onClose}
+      size="lg"
+      footer={<button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Close</button>}
+    >
         <p className="mb-4 text-[12.5px] text-dim">
           Cleanest way: <span className="text-fg">Revoke</span> this agent, it self-uninstalls on its
           next heartbeat. Run the commands below on the endpoint for a manual or forced cleanup.
@@ -549,11 +569,7 @@ function UninstallHelp({ agent, onClose }: { agent: AgentInfo; onClose: () => vo
         <p className="mt-3 text-[12.5px] text-dim">
           Removing the certs de-enrolls the host; re-installing later issues a fresh certificate.
         </p>
-        <div className="mt-5 flex justify-end">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Close</button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -656,12 +672,17 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
   }, [])
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">Add agent</h2>
+    <Modal
+      title="Add agent"
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Close</button>
+          <button onClick={() => gen()} disabled={busy} className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">{busy ? 'Generating…' : token ? 'Regenerate token' : 'Generate token'}</button>
+        </>
+      }
+    >
         <p className="mb-4 text-[12.5px] text-dim">Pick the endpoint’s platform, then run the generated command on it.</p>
 
         <div className="grid grid-cols-2 gap-3">
@@ -763,21 +784,7 @@ function EnrollWizard({ onClose }: { onClose: () => void }) {
         </div>
 
         {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
-            Close
-          </button>
-          <button
-            onClick={() => gen()}
-            disabled={busy}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {busy ? 'Generating…' : token ? 'Regenerate token' : 'Generate token'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -840,12 +847,17 @@ function ConfigEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">{title}</h2>
+    <Modal
+      title={title}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Cancel</button>
+          <button onClick={save} disabled={busy} className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50">{busy ? 'Saving…' : 'Save & push'}</button>
+        </>
+      }
+    >
         <p className="mb-4 text-[12.5px] text-dim">{blurb}</p>
 
         <div className="space-y-2">
@@ -978,20 +990,7 @@ function ConfigEditor({
         </button>
 
         {error && <p className="mt-3 text-[13.5px] text-rose-400">{error}</p>}
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
-            Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={busy}
-            className="rounded-[8px] bg-accent px-4 py-2 text-[13.5px] font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {busy ? 'Saving…' : 'Save & push'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1003,24 +1002,22 @@ function ConfigEditor({
 // snapshots/Snapshots.tsx) so the timeline, diff and destructive actions have one implementation.
 function SnapshotViewer({ agent, me, onClose }: { agent: AgentInfo; me: Me; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-1 flex items-center justify-between gap-3">
-          <h2 className="text-[16px] font-semibold text-fg">FIM snapshots, {agent.name}</h2>
-          <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" className="shrink-0" />
-        </div>
+    <Modal
+      title={
+        <span className="flex items-center gap-2">
+          <span>FIM snapshots, {agent.name}</span>
+          <DocLink file="adr/0002-versioned-fim-snapshots.md" label="About snapshots" />
+        </span>
+      }
+      onClose={onClose}
+      size="xl"
+      footer={<Button onClick={onClose}>Close</Button>}
+    >
         <p className="mb-3 text-[12.5px] text-dim">
           Dated version timeline of watched files. Expand a version to see the old-vs-new diff.
         </p>
         <SnapshotBrowser agentName={agent.name} me={me} />
-        <div className="mt-5 flex justify-end">
-          <Button onClick={onClose}>Close</Button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1083,12 +1080,12 @@ function GroupsPanel({ onClose, onChanged }: { onClose: () => void; onChanged: (
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="mb-1 text-[16px] font-semibold text-fg">Agent groups</h2>
+    <Modal
+      title="Agent groups"
+      onClose={onClose}
+      size="lg"
+      footer={<button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">Close</button>}
+    >
         <p className="mb-4 text-[12.5px] text-dim">
           One collection policy shared by many agents. Editing a group reaches every member on its next
           poll. An agent that has a policy of its own ignores its group until you clear it.
@@ -1150,12 +1147,6 @@ function GroupsPanel({ onClose, onChanged }: { onClose: () => void; onChanged: (
           </div>
         </div>
 
-        <div className="mt-5 flex justify-end">
-          <button onClick={onClose} className="rounded-[8px] border border-border px-4 py-2 text-[13.5px] text-fg hover:bg-surface-2">
-            Close
-          </button>
-        </div>
-
         {editing && (
           <ConfigEditor
             title={`Sources, ${editing.name}`}
@@ -1179,7 +1170,6 @@ function GroupsPanel({ onClose, onChanged }: { onClose: () => void; onChanged: (
             }}
           />
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Icon, Page, Pagination, usePaged } from '../components/ui'
+import { Icon, Page, Pagination, usePaged, LastUpdated } from '../components/ui'
 import { useConfirm, useToast } from '../components/feedback'
 import {
   fetchResponses,
@@ -87,15 +87,16 @@ export default function Response({ me }: { me: Me }) {
   const [busy, setBusy] = useState('')
   const [banIpInput, setBanIpInput] = useState('')
   const [banMins, setBanMins] = useState('')
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
 
   const load = () => {
     if (view === 'ip') {
       fetchOffenders()
-        .then(setOffenders)
+        .then((o) => { setOffenders(o); setUpdatedAt(new Date()) })
         .catch((e) => setError((e as Error).message))
     } else {
       fetchResponses(filter, search)
-        .then(setActions)
+        .then((a) => { setActions(a); setUpdatedAt(new Date()) })
         .catch((e) => setError((e as Error).message))
     }
   }
@@ -224,18 +225,21 @@ export default function Response({ me }: { me: Me }) {
             {pending > 0 && <span className="ml-2 text-amber-300">{pending} awaiting approval</span>}
           </p>
         </div>
-        <div className="flex rounded-[8px] border border-border p-0.5 text-sm">
-          {(['ip', 'events'] as View[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`rounded-md px-3 py-1 transition-colors ${
-                view === v ? 'bg-accent-soft font-medium text-accent' : 'text-muted hover:text-fg'
-              }`}
-            >
-              {v === 'ip' ? 'By IP' : 'Events'}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <LastUpdated at={updatedAt} />
+          <div className="flex rounded-[8px] border border-border p-0.5 text-sm">
+            {(['ip', 'events'] as View[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`rounded-md px-3 py-1 transition-colors ${
+                  view === v ? 'bg-accent-soft font-medium text-accent' : 'text-muted hover:text-fg'
+                }`}
+              >
+                {v === 'ip' ? 'By IP' : 'Events'}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 

@@ -16,21 +16,24 @@ Requires migration **000089**.
 - **Command palette.** Press Ctrl/Cmd+K anywhere to search every page and jump to it (arrows +
   Enter), instead of hunting through the sidebar's groups. Only shows pages you have access to.
 
-- **Shared modal shell.** One `Modal` component now backs the app's dialogs (Escape to close,
-  click-outside, focus trap, scroll lock, focus restored on close), so confirmations and the
-  shortcuts help behave identically and page dialogs can reuse it.
+- **Shared modal shell.** One `Modal` component now backs every dialog in the app (Escape to close,
+  click-outside, focus trap, scroll lock, focus restored on close), so confirmations, the shortcuts
+  help and the page dialogs (agent enrollment, config push, groups, uninstall help, snapshots, new
+  and open ticket, benchmark controls, rule/decoder/playbook/integration/vendor/user edit, policy
+  manager, support) all behave the same instead of each re-implementing an overlay.
 
 - **Table density toggle.** A control in the top bar switches every table between comfortable and
   compact rows, so long NOC tables fit more on screen. Remembered per browser.
 
 - **Consistent loading and freshness.** A shared table skeleton replaces bare "Loading…" text while
-  a board fetches, and a shared "updated HH:MM:SS" stamp reads the same on the auto-refreshing
-  boards. Copy buttons confirm with a proper check (not a stray glyph) and raise a toast if the
-  clipboard is blocked instead of failing silently.
+  a board fetches (Agent Monitoring, Agents, Service Health, Network), and a shared "updated
+  HH:MM:SS" stamp reads the same across the auto-refreshing boards (Dashboard, Agent Monitoring,
+  Agents, Response, Service Health, Network). Copy buttons confirm with a proper check (not a stray
+  glyph) and raise a toast if the clipboard is blocked instead of failing silently.
 
 - **Sortable, exportable tables.** Shared `useSort` / `SortHeader` / `exportCSV` helpers: click a
-  column to sort, and download the rows (as sorted on screen) to CSV. Wired into Agent Monitoring and
-  Users so far; the helpers are ready to roll onto the other data tables.
+  column to sort, and download the rows (as sorted on screen) to CSV. Wired into Agent Monitoring,
+  Users, Vulnerability Assessment (CVE findings and packages), CIS Benchmarks, and Tickets.
 
 - **First-run onboarding.** A fresh install with no agents enrolled now shows a "start here" card on
   the Dashboard that jumps to agent enrollment, instead of a wall of empty panels.

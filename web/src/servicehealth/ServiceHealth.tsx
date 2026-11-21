@@ -12,7 +12,7 @@ import {
   type ServiceCheckInput,
   type ServiceCheckPoint,
 } from '../lib/api'
-import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, StatCard } from '../components/ui'
+import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, StatCard, LastUpdated, TableSkeleton } from '../components/ui'
 import { useConfirm, useToast } from '../components/feedback'
 
 // Service & API Health.
@@ -61,6 +61,7 @@ export default function ServiceHealth({ me }: { me: Me }) {
   const [checks, setChecks] = useState<ServiceCheck[]>([])
   const [error, setError] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [editing, setEditing] = useState<ServiceCheck | 'new' | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -71,6 +72,7 @@ export default function ServiceHealth({ me }: { me: Me }) {
       .then((cs) => {
         setChecks(cs)
         setError('')
+        setUpdatedAt(new Date())
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoaded(true))
@@ -105,15 +107,20 @@ export default function ServiceHealth({ me }: { me: Me }) {
       <PageHeader
         subtitle="Probes the endpoints your workflows depend on, not just whether the host answers a ping"
         actions={
-          canManage && (
-            <Button variant="primary" onClick={() => setEditing('new')}>
-              Add check
-            </Button>
-          )
+          <>
+            <LastUpdated at={updatedAt} />
+            {canManage && (
+              <Button variant="primary" onClick={() => setEditing('new')}>
+                Add check
+              </Button>
+            )}
+          </>
         }
       />
 
       {error && <ErrorText>{error}</ErrorText>}
+
+      {!loaded && <div className="overflow-hidden rounded-[12px] border border-border"><TableSkeleton rows={5} cols={3} /></div>}
 
       {editing && (
         <CheckForm

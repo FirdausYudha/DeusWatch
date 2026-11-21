@@ -17,7 +17,7 @@ import {
   type SNMPSeries,
   type TimeRange,
 } from '../lib/api'
-import { Button, Card, EmptyState, ErrorText, Input, Page, PageHeader, Select, StatCard } from '../components/ui'
+import { Button, Card, EmptyState, ErrorText, Icon, Input, Page, PageHeader, Select, StatCard, LastUpdated, TableSkeleton } from '../components/ui'
 import { useConfirm, useToast } from '../components/feedback'
 import TimeChart, { humanBps } from '../components/TimeChart'
 import TimeRangePicker from '../components/TimeRangePicker'
@@ -89,6 +89,7 @@ export default function Network({ me }: { me: Me }) {
   const [devices, setDevices] = useState<SNMPDevice[]>([])
   const [error, setError] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [editing, setEditing] = useState<SNMPDevice | 'new' | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -99,6 +100,7 @@ export default function Network({ me }: { me: Me }) {
       .then((d) => {
         setDevices(d)
         setError('')
+        setUpdatedAt(new Date())
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoaded(true))
@@ -127,15 +129,20 @@ export default function Network({ me }: { me: Me }) {
       <PageHeader
         subtitle="Switches, access points and routers over SNMP, one board instead of three tools"
         actions={
-          canManage && (
-            <Button variant="primary" onClick={() => setEditing('new')}>
-              Add device
-            </Button>
-          )
+          <>
+            <LastUpdated at={updatedAt} />
+            {canManage && (
+              <Button variant="primary" onClick={() => setEditing('new')}>
+                Add device
+              </Button>
+            )}
+          </>
         }
       />
 
       {error && <ErrorText>{error}</ErrorText>}
+
+      {!loaded && <div className="overflow-hidden rounded-[12px] border border-border"><TableSkeleton rows={5} cols={3} /></div>}
 
       {editing && (
         <DeviceForm
@@ -648,8 +655,9 @@ function DeviceForm({
               variant="ghost"
               onClick={() => setF((cur) => ({ ...cur, sensors: cur.sensors.filter((_, j) => j !== i) }))}
               title="Remove this sensor"
+              aria-label="Remove this sensor"
             >
-              ✕
+              <Icon name="close" size={14} />
             </Button>
           </div>
           <div className="sm:col-span-6">

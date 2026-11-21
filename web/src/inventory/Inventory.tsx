@@ -16,7 +16,7 @@ import {
   type ScanStatus,
   type Me,
 } from '../lib/api'
-import { PageHeader, Page, Pagination, usePaged } from '../components/ui'
+import { PageHeader, Page, Pagination, usePaged, Button, SortHeader, useSort, exportCSV } from '../components/ui'
 import DocLink from '../components/DocLink'
 import { DonutChart } from '../dashboard/widgets'
 
@@ -356,6 +356,28 @@ const SEV_COLOR: Record<string, string> = {
 }
 const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'negligible', 'unknown'] as const
 
+// sevRank sorts severities by danger (critical first), not alphabetically. Unknown ranks last.
+function sevRank(sev: string): number {
+  const i = (SEV_ORDER as readonly string[]).indexOf(sev || 'unknown')
+  return i < 0 ? SEV_ORDER.length : i
+}
+
+type VulnSortKey = 'severity' | 'cvss' | 'cve' | 'package'
+const VULN_ACCESSORS: Record<VulnSortKey, (v: VulnFinding) => string | number | null> = {
+  severity: (v) => sevRank(v.severity),
+  cvss: (v) => (v.cvss > 0 ? v.cvss : null),
+  cve: (v) => v.cve,
+  package: (v) => v.package.toLowerCase(),
+}
+
+type PkgSortKey = 'name' | 'version' | 'arch' | 'source'
+const PKG_ACCESSORS: Record<PkgSortKey, (p: Package) => string | number | null> = {
+  name: (p) => p.name.toLowerCase(),
+  version: (p) => p.version,
+  arch: (p) => p.arch ?? null,
+  source: (p) => p.source ?? null,
+}
+
 // ScanStatusBanner surfaces why a Trivy scan produced nothing / stale data, so an all-"unknown"
 // donut or an empty SCA list is explained (e.g. Trivy could not download its DB) rather than looking
 // like a silent bug. Renders nothing until a scan has run at least once.
@@ -450,8 +472,16 @@ function VulnList({ agent }: { agent: string }) {
     return c
   }, [rows])
   const filtered = useMemo(() => (filter ? rows.filter((r) => (r.severity || 'unknown') === filter) : rows), [rows, filter])
+  const sort = useSort<VulnSortKey>('severity')
+  const sorted = sort.sortRows(filtered, VULN_ACCESSORS)
   // usePaged must run before any early return (rules of hooks).
-  const paged = usePaged(filtered)
+  const paged = usePaged(sorted)
+  const doExport = () =>
+    exportCSV(
+      `vulnerabilities-${agent}`,
+      ['Severity', 'CVSS', 'CVE', 'Package', 'Installed', 'Fixed', 'Source'],
+      sorted.map((v) => [v.severity || 'unknown', v.cvss > 0 ? v.cvss : '', v.cve, v.package, v.installed_version || '', v.fixed_version || '', v.source || '']),
+    )
 
   if (loading) return <p className="px-4 py-6 text-center text-[13px] text-dim">loading…</p>
   if (error) return <p className="px-4 py-2 text-[13.5px] text-rose-400">{error}</p>
@@ -468,10 +498,10 @@ function VulnList({ agent }: { agent: string }) {
       <table className="w-full text-left text-sm">
         <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
           <tr>
-            <th className="px-4 py-2 font-medium">Severity</th>
-            <th className="px-4 py-2 font-medium">CVSS</th>
-            <th className="px-4 py-2 font-medium">CVE</th>
-            <th className="px-4 py-2 font-medium">Package</th>
+            <SortHeader label="Severity" active={sort.key === 'severity'} dir={sort.dir} onClick={() => sort.onSort('severity')} className="px-4 py-2 text-left" />
+            <SortHeader label="CVSS" active={sort.key === 'cvss'} dir={sort.dir} onClick={() => sort.onSort('cvss')} className="px-4 py-2 text-left" />
+            <SortHeader label="CVE" active={sort.key === 'cve'} dir={sort.dir} onClick={() => sort.onSort('cve')} className="px-4 py-2 text-left" />
+            <SortHeader label="Package" active={sort.key === 'package'} dir={sort.dir} onClick={() => sort.onSort('package')} className="px-4 py-2 text-left" />
             <th className="px-4 py-2 font-medium">Installed → Fixed</th>
           </tr>
         </thead>
@@ -519,8 +549,9 @@ function VulnList({ agent }: { agent: string }) {
       <div className="border-t border-border px-4">
         <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
       </div>
-      <div className="border-t border-border px-4 py-2 text-[12.5px] text-dim">
-        {filter ? `${filtered.length} of ${rows.length}` : rows.length} finding{rows.length === 1 ? '' : 's'} · fix by upgrading the listed package to its fixed version
+      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2 text-[12.5px] text-dim">
+        <span>{filter ? `${filtered.length} of ${rows.length}` : rows.length} finding{rows.length === 1 ? '' : 's'} · fix by upgrading the listed package to its fixed version</span>
+        <Button variant="secondary" onClick={doExport} title="Download these findings as CSV">Export CSV</Button>
       </div>
     </div>
   )
@@ -590,16 +621,25 @@ function PackageList({ agent }: { agent: string }) {
     return () => clearTimeout(t)
   }, [agent, q])
 
-  const paged = usePaged(pkgs)
+  const sort = useSort<PkgSortKey>('name')
+  const sorted = sort.sortRows(pkgs, PKG_ACCESSORS)
+  const paged = usePaged(sorted)
+  const doExport = () =>
+    exportCSV(
+      `packages-${agent}`,
+      ['Package', 'Version', 'Arch', 'Source'],
+      sorted.map((p) => [p.name, p.version, p.arch || '', p.source || '']),
+    )
   return (
     <div>
-      <div className="flex items-center justify-end border-b border-border px-4 py-2">
+      <div className="flex items-center justify-end gap-2 border-b border-border px-4 py-2">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Filter by package or source…"
           className="w-64 rounded-[8px] border border-border bg-bg px-2.5 py-1 text-[13px] text-fg outline-none focus:border-accent"
         />
+        {pkgs.length > 0 && <Button variant="secondary" onClick={doExport} title="Download these packages as CSV">Export CSV</Button>}
       </div>
       {error && <p className="px-4 py-2 text-[13.5px] text-rose-400">{error}</p>}
       {loading ? (
@@ -613,10 +653,10 @@ function PackageList({ agent }: { agent: string }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-surface text-[12.5px] uppercase tracking-wider text-dim">
               <tr>
-                <th className="px-4 py-2 font-medium">Package</th>
-                <th className="px-4 py-2 font-medium">Version</th>
-                <th className="px-4 py-2 font-medium">Arch</th>
-                <th className="px-4 py-2 font-medium">Source</th>
+                <SortHeader label="Package" active={sort.key === 'name'} dir={sort.dir} onClick={() => sort.onSort('name')} className="px-4 py-2 text-left" />
+                <SortHeader label="Version" active={sort.key === 'version'} dir={sort.dir} onClick={() => sort.onSort('version')} className="px-4 py-2 text-left" />
+                <SortHeader label="Arch" active={sort.key === 'arch'} dir={sort.dir} onClick={() => sort.onSort('arch')} className="px-4 py-2 text-left" />
+                <SortHeader label="Source" active={sort.key === 'source'} dir={sort.dir} onClick={() => sort.onSort('source')} className="px-4 py-2 text-left" />
               </tr>
             </thead>
             <tbody>

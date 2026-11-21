@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Page, Pagination, usePaged, Button, SortHeader, useSort, exportCSV } from '../components/ui'
 import { useConfirm } from '../components/feedback'
+import Modal from '../components/Modal'
 import {
   fetchUsers,
   createUser,
@@ -335,14 +336,11 @@ export default function Users({ me }: { me: Me }) {
       <Pagination page={paged.page} pages={paged.pages} total={paged.total} perPage={paged.perPage} onPage={paged.setPage} />
 
       {editId && (
-        <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4" onClick={() => setEditId(null)}>
-          <div
-            className="w-full max-w-2xl rounded-[12px] border border-border bg-surface p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="mb-4 text-[13.5px] font-semibold text-fg">
-              Edit access, <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span>
-            </h3>
+        <Modal
+          title={<>Edit access, <span className="text-accent">{users.find((u) => u.id === editId)?.username}</span></>}
+          onClose={() => setEditId(null)}
+          size="lg"
+        >
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <select
                 value={editRole}
@@ -387,8 +385,7 @@ export default function Users({ me }: { me: Me }) {
                 {editBusy ? 'Saving…' : 'Save'}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </Page>
   )
