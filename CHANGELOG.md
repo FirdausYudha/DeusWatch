@@ -13,6 +13,13 @@ Requires migration **000089**.
 
 ### Added
 
+- **Command palette.** Press Ctrl/Cmd+K anywhere to search every page and jump to it (arrows +
+  Enter), instead of hunting through the sidebar's groups. Only shows pages you have access to.
+
+- **Shared modal shell.** One `Modal` component now backs the app's dialogs (Escape to close,
+  click-outside, focus trap, scroll lock, focus restored on close), so confirmations and the
+  shortcuts help behave identically and page dialogs can reuse it.
+
 - **Table density toggle.** A control in the top bar switches every table between comfortable and
   compact rows, so long NOC tables fit more on screen. Remembered per browser.
 

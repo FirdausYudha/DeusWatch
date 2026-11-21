@@ -28,6 +28,7 @@ import Settings from './settings/Settings'
 import Login from './components/Login'
 import ServiceHealthBanner from './components/ServiceHealthBanner'
 import KeyboardShortcuts from './components/shortcuts'
+import CommandPalette from './components/CommandPalette'
 import { fetchMe, getToken, can, type Me, type NewTicketInput } from './lib/api'
 import { useDashRange } from './lib/range'
 import { usePersistedState } from './lib/usePersistedState'
@@ -153,6 +154,8 @@ export default function App() {
       <Assistant me={me} onEditPersona={() => setView('settings')} />
       {/* Global keyboard shortcuts (press "?" for the list). Renders only the help overlay, when open. */}
       <KeyboardShortcuts me={me} onNavigate={setView} />
+      {/* Command palette: Ctrl/Cmd+K to search and jump to any page. */}
+      <CommandPalette me={me} onNavigate={setView} />
     </div>
   )
 }

@@ -5,14 +5,16 @@ import SupportModal from './SupportModal'
 
 export type View = 'dashboard' | 'fleet' | 'agents' | 'fim' | 'snapshots' | 'response' | 'report' | 'scorecard' | 'servicehealth' | 'network' | 'vendor' | 'tickets' | 'rules' | 'decoders' | 'playbooks' | 'inventory' | 'benchmarks' | 'agenthealth' | 'integrations' | 'users' | 'workspaces' | 'tenants' | 'settings'
 
-type NavItem = { id: string; label: string; view?: View; perm?: string }
+export type NavItem = { id: string; label: string; view?: View; perm?: string }
 
 type NavGroup = {
   group: string
   items: NavItem[]
 }
 
-const NAV: NavGroup[] = [
+// Exported so the command palette (components/CommandPalette.tsx) offers the same destinations as
+// the sidebar, from one source of truth, instead of a second hand-kept list drifting out of sync.
+export const NAV: NavGroup[] = [
   {
     group: 'Monitoring & Operations',
     items: [

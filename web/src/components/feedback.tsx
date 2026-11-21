@@ -13,6 +13,7 @@
 // One <FeedbackProvider> wraps the app (see main.tsx); both hooks read the same context.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, Icon } from './ui'
+import Modal from './Modal'
 
 type ToastKind = 'success' | 'error' | 'info'
 type ToastItem = { id: number; kind: ToastKind; message: string }
@@ -121,39 +122,29 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 function ConfirmDialog({ opts, onResolve }: { opts: ConfirmOptions; onResolve: (ok: boolean) => void }) {
   const confirmRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
+    // Focus the confirm button (after Modal's own first-focusable focus runs) and wire Enter to it.
+    // Escape, click-outside, scroll lock and the focus trap come from Modal.
     confirmRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onResolve(false)
-      else if (e.key === 'Enter') onResolve(true)
-    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter') onResolve(true) }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onResolve])
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4"
-      onClick={() => onResolve(false)}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={opts.title}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-[12px] border border-border bg-surface p-5 shadow-xl"
-      >
-        <h2 className="text-[15px] font-bold text-fg">{opts.title}</h2>
-        {opts.body && <div className="mt-2 text-[13px] leading-relaxed text-muted">{opts.body}</div>}
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => onResolve(false)}>
-            {opts.cancelLabel ?? 'Cancel'}
-          </Button>
+    <Modal
+      title={opts.title}
+      onClose={() => onResolve(false)}
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onResolve(false)}>{opts.cancelLabel ?? 'Cancel'}</Button>
           <Button ref={confirmRef} variant={opts.danger ? 'danger' : 'primary'} onClick={() => onResolve(true)}>
             {opts.confirmLabel ?? (opts.danger ? 'Delete' : 'Confirm')}
           </Button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {opts.body ? <div className="text-[13px] leading-relaxed text-muted">{opts.body}</div> : null}
+    </Modal>
   )
 }
 

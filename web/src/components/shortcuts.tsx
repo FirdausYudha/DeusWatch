@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { can, type Me } from '../lib/api'
 import type { View } from './Sidebar'
-import { Icon } from './ui'
+import Modal from './Modal'
 
 type Shortcut = { chord: string; view: View; label: string; perm?: string }
 
@@ -51,34 +51,24 @@ export default function KeyboardShortcuts({ me, onNavigate }: { me: Me; onNaviga
 
   if (!helpOpen) return null
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4" onClick={() => setHelpOpen(false)}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Keyboard shortcuts"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-[12px] border border-border bg-surface p-5 shadow-xl"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[15px] font-bold text-fg">Keyboard shortcuts</h2>
-          <button onClick={() => setHelpOpen(false)} aria-label="Close" className="rounded p-0.5 text-dim hover:text-fg">
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-        <ul className="space-y-1.5">
-          {items.map((s) => (
-            <li key={s.chord} className="flex items-center justify-between gap-3 text-[13px]">
-              <span className="text-muted">Go to {s.label}</span>
-              <Keys chord={s.chord} />
-            </li>
-          ))}
-          <li className="flex items-center justify-between gap-3 border-t border-border pt-2 text-[13px]">
-            <span className="text-muted">Show / hide this help</span>
-            <Keys chord="?" />
+    <Modal title="Keyboard shortcuts" onClose={() => setHelpOpen(false)} size="sm">
+      <ul className="space-y-1.5">
+        <li className="flex items-center justify-between gap-3 text-[13px]">
+          <span className="text-muted">Command palette (search &amp; jump)</span>
+          <Keys chord="Ctrl K" />
+        </li>
+        {items.map((s) => (
+          <li key={s.chord} className="flex items-center justify-between gap-3 text-[13px]">
+            <span className="text-muted">Go to {s.label}</span>
+            <Keys chord={s.chord} />
           </li>
-        </ul>
-      </div>
-    </div>
+        ))}
+        <li className="flex items-center justify-between gap-3 border-t border-border pt-2 text-[13px]">
+          <span className="text-muted">Show / hide this help</span>
+          <Keys chord="?" />
+        </li>
+      </ul>
+    </Modal>
   )
 }
 
