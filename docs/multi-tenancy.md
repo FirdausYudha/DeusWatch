@@ -70,6 +70,22 @@ worker's per-tenant scorers still `GROUP BY tenant_id`.
 - **Switching view**: users in more than one workspace get a workspace switcher in the top bar. It
   sends `X-Workspace-ID` on every request, narrowing their scope to that workspace's tenants.
 
+### Dashboard layouts are per-workspace, with a personal override
+
+The dashboard is arrangeable (Edit layout: drag panels, set widths). What is saved resolves in three
+levels, most specific first:
+
+1. **Your personal layout** ("Save (personal)") - only you see it.
+2. **The workspace default** ("Save as workspace default") - the shared layout every member of the
+   active workspace falls back to when they have no personal one. Editing it needs `manage_settings`
+   (the "edit system" permission); other members only see it.
+3. The coded default panel order, when neither of the above is set.
+
+So each workspace gets its own dashboard: members of Workspace A share Workspace A's default, members
+of Workspace B share B's, and any individual can still tailor their own view on top. The active
+workspace is the one selected in the top-bar switcher (`X-Workspace-ID`); "Reset mine" drops your
+personal layout back to the workspace default, "Reset shared" clears the workspace default itself.
+
 ### New users land in Default
 
 A user created in the UI joins the **Default** workspace automatically, so a new colleague signs in

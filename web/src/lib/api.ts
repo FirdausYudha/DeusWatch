@@ -1673,7 +1673,13 @@ export type DashWidget = { id: string; kind: WidgetKind; source: string; title: 
 // v2.14.0 added `spans`, a per-panel column-width override (1/2/3) that the Edit-mode UI writes
 // diff-only vs coded defaults, so any future PANELS default-span change automatically propagates
 // to untouched panels.
-export type DashLayout = { v?: number; order?: string[]; spans?: Record<string, 1 | 2 | 3>; widgets?: DashWidget[] }
+// `scope` is set by the server on GET: "user" = the operator's personal layout, "workspace" = the
+// shared default inherited from their active workspace. The Edit UI uses it to label what's shown.
+export type DashLayout = { v?: number; order?: string[]; spans?: Record<string, 1 | 2 | 3>; widgets?: DashWidget[]; scope?: 'user' | 'workspace' }
+
+// LayoutScope targets a save/delete: 'user' (personal override, default) or 'workspace' (the shared
+// default, requires manage_settings). The active workspace is resolved server-side from X-Workspace-ID.
+export type LayoutScope = 'user' | 'workspace'
 
 export async function fetchLayout(): Promise<DashLayout | null> {
   const res = await authFetch('/api/dashboard/layout')
@@ -1681,8 +1687,9 @@ export async function fetchLayout(): Promise<DashLayout | null> {
   return res.json()
 }
 
-export async function saveLayout(layout: DashLayout): Promise<void> {
-  const res = await authFetch('/api/dashboard/layout', {
+export async function saveLayout(layout: DashLayout, scope: LayoutScope = 'user'): Promise<void> {
+  const q = scope === 'workspace' ? '?scope=workspace' : ''
+  const res = await authFetch(`/api/dashboard/layout${q}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(layout),
@@ -1690,10 +1697,11 @@ export async function saveLayout(layout: DashLayout): Promise<void> {
   if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 
-// deleteLayout removes the operator's saved dashboard layout, so the dashboard falls back to the
-// default panel order. Used by the "Reset layout" button in edit mode.
-export async function deleteLayout(): Promise<void> {
-  const res = await authFetch('/api/dashboard/layout', { method: 'DELETE' })
+// deleteLayout removes a saved dashboard layout, so it falls back to the next level down (personal
+// -> workspace default -> coded default). Used by the "Reset layout" buttons in edit mode.
+export async function deleteLayout(scope: LayoutScope = 'user'): Promise<void> {
+  const q = scope === 'workspace' ? '?scope=workspace' : ''
+  const res = await authFetch(`/api/dashboard/layout${q}`, { method: 'DELETE' })
   if (!res.ok && res.status !== 404) throw new Error((await res.text()) || `HTTP ${res.status}`)
 }
 

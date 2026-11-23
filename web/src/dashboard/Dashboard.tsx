@@ -355,6 +355,9 @@ export default function Dashboard({
   // reconciled saved order once fetchLayout resolves. Reconciler tolerates historical shapes so a
   // pre-v2.0 saved layout still lands cleanly (see reconcileOrder + DashLayout in lib/api.ts).
   const [panels, setPanels] = useState<Panel[]>(PANELS) // reset in load useEffect to effectivePanels
+  // Where the currently-shown layout came from: 'user' = this operator's personal override,
+  // 'workspace' = the shared default inherited from their workspace, 'default' = coded PANELS.
+  const [layoutScope, setLayoutScope] = useState<'user' | 'workspace' | 'default'>('default')
   const [edit, setEdit] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
@@ -367,10 +370,14 @@ export default function Dashboard({
     ? [...PANELS, { kind: 'tenant_lines' as WidgetKind, source: 'tenant_lines', title: 'Event trend by tenant', color: '#a3e635', span: 3 } as Panel]
     : PANELS
 
-  useEffect(() => {
+  // loadLayout fetches the effective layout (personal override -> workspace default -> coded) and
+  // applies it. Reused on mount and after any save/reset so the view reflects the new fallback level
+  // (e.g. resetting a personal override should reveal the workspace default underneath, not PANELS).
+  const loadLayout = () => {
     fetchLayout()
       .then((l) => {
-        if (!l) return
+        if (!l) { setLayoutScope('default'); setPanels(effectivePanels); return }
+        setLayoutScope(l.scope ?? 'user')
         // v2 shape: {v:2, order:string[], spans?:{...}}. v1 shape: {widgets:[{source,kind,...}]}.
         // Both collapse to a list of stable ids we can hand to reconcileOrder.
         const ids: string[] | undefined =
@@ -389,6 +396,10 @@ export default function Dashboard({
         setPanels(withSpans)
       })
       .catch(() => { /* no saved layout, no problem, stick with defaults */ })
+  }
+
+  useEffect(() => {
+    loadLayout()
     // Ensure the tenant-lines panel appears on first mount for superadmin even before a saved layout
     // reconciles (or when there is no saved layout at all).
     setPanels((cur) => (cur === PANELS ? effectivePanels : cur))
@@ -431,35 +442,60 @@ export default function Dashboard({
     setSaveMsg('')
   }
   const clearDrag = () => { setDragId(null); setOverId(null) }
+  // buildPayload turns the current panel order + widths into the persisted shape. Spans are diff-only
+  // vs the coded default, so a future change to PANELS' default spans propagates to untouched panels.
+  const buildPayload = () => {
+    const defaultSpan = new Map(effectivePanels.map((p) => [panelId(p), p.span]))
+    const spans: Record<string, 1 | 2 | 3> = {}
+    for (const p of panels) {
+      const id = panelId(p)
+      if (defaultSpan.get(id) !== p.span) spans[id] = p.span
+    }
+    const payload: { v: number; order: string[]; spans?: Record<string, 1 | 2 | 3> } = {
+      v: 2, order: panels.map(panelId),
+    }
+    if (Object.keys(spans).length > 0) payload.spans = spans
+    return payload
+  }
+  const flash = (msg: string) => { setSaveMsg(msg); setTimeout(() => setSaveMsg(''), 2000) }
+  const canEditShared = can(me, 'manage_settings')
+  // Personal override: what this operator sees, shadows the workspace default for them only.
   const saveOrder = async () => {
     try {
-      // Build a diff-only spans map: only include entries that differ from the coded default,
-      // so a future change to PANELS' default spans propagates to untouched panels automatically.
-      const defaultSpan = new Map(effectivePanels.map((p) => [panelId(p), p.span]))
-      const spans: Record<string, 1 | 2 | 3> = {}
-      for (const p of panels) {
-        const id = panelId(p)
-        if (defaultSpan.get(id) !== p.span) spans[id] = p.span
-      }
-      const payload: { v: number; order: string[]; spans?: Record<string, 1 | 2 | 3> } = {
-        v: 2, order: panels.map(panelId),
-      }
-      if (Object.keys(spans).length > 0) payload.spans = spans
-      await saveLayout(payload)
+      await saveLayout(buildPayload(), 'user')
+      setLayoutScope('user')
       setDirty(false)
-      setSaveMsg('Saved.')
-      setTimeout(() => setSaveMsg(''), 2000)
+      flash('Saved (personal).')
     } catch (e) {
       setSaveMsg(String((e as Error).message))
     }
   }
   const resetOrder = async () => {
     try {
-      await deleteLayout()
-      setPanels(PANELS)
+      await deleteLayout('user')
       setDirty(false)
-      setSaveMsg('Reset to default.')
-      setTimeout(() => setSaveMsg(''), 2000)
+      loadLayout() // reveal the workspace default underneath, if any
+      flash('Personal layout cleared.')
+    } catch (e) {
+      setSaveMsg(String((e as Error).message))
+    }
+  }
+  // Shared workspace default (manage_settings): the fallback every member without a personal layout sees.
+  const saveWorkspaceDefault = async () => {
+    try {
+      await saveLayout(buildPayload(), 'workspace')
+      setDirty(false)
+      flash('Saved as workspace default.')
+    } catch (e) {
+      setSaveMsg(String((e as Error).message))
+    }
+  }
+  const resetWorkspaceDefault = async () => {
+    try {
+      await deleteLayout('workspace')
+      setDirty(false)
+      loadLayout()
+      flash('Workspace default cleared.')
     } catch (e) {
       setSaveMsg(String((e as Error).message))
     }
@@ -520,18 +556,49 @@ export default function Dashboard({
                 <button
                   onClick={resetOrder}
                   className="rounded-[8px] border border-border px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
-                  title="Discard your saved layout and restore the default panel order"
+                  title="Clear your personal layout and fall back to the workspace default"
                 >
-                  Reset
+                  Reset mine
                 </button>
                 <button
                   onClick={saveOrder}
                   disabled={!dirty}
                   className="rounded-[8px] bg-accent px-3 py-1.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                  title="Save this arrangement as YOUR personal layout (only you see it)"
                 >
-                  {dirty ? 'Save layout' : 'Saved'}
+                  {dirty ? 'Save (personal)' : 'Saved'}
                 </button>
+                {/* manage_settings ("edit system") can set the shared default every member of this
+                    workspace falls back to. Not gated on `dirty`, so an admin can promote the
+                    current arrangement as-is. */}
+                {canEditShared && (
+                  <>
+                    <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+                    <button
+                      onClick={resetWorkspaceDefault}
+                      className="rounded-[8px] border border-border px-3 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                      title="Delete this workspace's shared default layout"
+                    >
+                      Reset shared
+                    </button>
+                    <button
+                      onClick={saveWorkspaceDefault}
+                      className="rounded-[8px] border border-accent bg-accent-soft px-3 py-1.5 text-[13px] font-semibold text-accent transition-opacity hover:opacity-90"
+                      title="Save this arrangement as the default for everyone in this workspace"
+                    >
+                      Save as workspace default
+                    </button>
+                  </>
+                )}
               </>
+            )}
+            {!edit && layoutScope === 'workspace' && (
+              <span
+                className="rounded-full border border-border px-2.5 py-1 text-[11.5px] text-dim"
+                title="You're viewing your workspace's shared default layout. Use Edit layout to make your own."
+              >
+                shared layout
+              </span>
             )}
             <button
               onClick={() => { setEdit((e) => !e); clearDrag() }}

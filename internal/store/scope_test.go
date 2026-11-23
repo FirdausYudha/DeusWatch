@@ -109,6 +109,71 @@ func TestResolveUserScope(t *testing.T) {
 	}
 }
 
+// TestActiveWorkspaceID proves the single-workspace resolver used by the shared dashboard layout:
+// a valid X-Workspace-ID (the user is a member) is honoured; a forged one (non-member) is ignored
+// and falls back to the user's first workspace by name; and a user in no workspace resolves to "".
+func TestActiveWorkspaceID(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	st, err := Connect(ctx, dsn())
+	if err != nil {
+		t.Skipf("Postgres unavailable, skipping: %v", err)
+	}
+	defer st.Close()
+
+	var userID, otherUser, wsA, wsB, wsOut string
+	cleanup := func() {
+		for _, ws := range []string{wsA, wsB, wsOut} {
+			if ws != "" {
+				_, _ = st.pool.Exec(ctx, `DELETE FROM workspaces WHERE id=$1`, ws)
+			}
+		}
+		for _, u := range []string{userID, otherUser} {
+			if u != "" {
+				_, _ = st.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, u)
+			}
+		}
+	}
+	cleanup()
+	defer cleanup()
+
+	mk := func(sql string, args ...any) string {
+		var id string
+		if err := st.pool.QueryRow(ctx, sql, args...).Scan(&id); err != nil {
+			t.Fatalf("setup (%s): %v", sql, err)
+		}
+		return id
+	}
+	uniq := time.Now().UnixNano()
+	userID = mk(`INSERT INTO users (username, password_hash) VALUES ('awsuser', 'x') RETURNING id`)
+	otherUser = mk(`INSERT INTO users (username, password_hash) VALUES ('awsother', 'x') RETURNING id`)
+	// Names drive ListUserWorkspaces' ORDER BY, so "AA" sorts first → the fallback workspace.
+	wsA = mk(`INSERT INTO workspaces (name, slug) VALUES ('AA', 'aa-` + itoa(uniq) + `') RETURNING id`)
+	wsB = mk(`INSERT INTO workspaces (name, slug) VALUES ('BB', 'bb-` + itoa(uniq) + `') RETURNING id`)
+	wsOut = mk(`INSERT INTO workspaces (name, slug) VALUES ('ZZ', 'zz-` + itoa(uniq) + `') RETURNING id`)
+	if _, err := st.pool.Exec(ctx,
+		`INSERT INTO workspace_members (workspace_id, user_id) VALUES ($1,$3),($2,$3)`, wsA, wsB, userID); err != nil {
+		t.Fatalf("setup member: %v", err)
+	}
+
+	// No header → first workspace by name (wsA).
+	if got, _ := st.ActiveWorkspaceID(ctx, userID, ""); got != wsA {
+		t.Fatalf("no-header should resolve to first workspace %s, got %s", wsA, got)
+	}
+	// Valid member header → honoured.
+	if got, _ := st.ActiveWorkspaceID(ctx, userID, wsB); got != wsB {
+		t.Fatalf("valid member header should be honoured, want %s got %s", wsB, got)
+	}
+	// Forged header (not a member of wsOut) → ignored, falls back to wsA.
+	if got, _ := st.ActiveWorkspaceID(ctx, userID, wsOut); got != wsA {
+		t.Fatalf("forged non-member header must be ignored, want fallback %s got %s", wsA, got)
+	}
+	// User in no workspace → "".
+	if got, _ := st.ActiveWorkspaceID(ctx, otherUser, ""); got != "" {
+		t.Fatalf("user with no workspace must resolve to empty, got %s", got)
+	}
+}
+
 func itoa(n int64) string {
 	// small helper to keep slugs unique without importing strconv into the test's top matter
 	const digits = "0123456789"

@@ -35,3 +35,25 @@ func (s *Store) ResolveUserScope(ctx context.Context, userID, workspaceID string
 	}
 	return out, rows.Err()
 }
+
+// ActiveWorkspaceID resolves which single workspace a request belongs to, for features scoped to one
+// workspace (e.g. the shared dashboard layout). It honours the X-Workspace-ID header when the user is
+// actually a member of that workspace (a forged header cannot pick a workspace they're not in),
+// otherwise falls back to their first workspace by name. Returns "" when the user belongs to none.
+func (s *Store) ActiveWorkspaceID(ctx context.Context, userID, headerWorkspaceID string) (string, error) {
+	wss, err := s.ListUserWorkspaces(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if len(wss) == 0 {
+		return "", nil
+	}
+	if headerWorkspaceID != "" {
+		for _, w := range wss {
+			if w.ID == headerWorkspaceID {
+				return headerWorkspaceID, nil
+			}
+		}
+	}
+	return wss[0].ID, nil
+}

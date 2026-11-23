@@ -574,3 +574,39 @@ func (s *Store) DeleteDashboardLayout(ctx context.Context, userID string) error 
 	}
 	return nil
 }
+
+// GetWorkspaceDashboardLayout returns the shared default layout for a workspace (nil if none). Every
+// member of the workspace falls back to this when they have no personal layout of their own.
+func (s *Store) GetWorkspaceDashboardLayout(ctx context.Context, workspaceID string) ([]byte, error) {
+	var raw []byte
+	err := s.q(ctx).QueryRow(ctx, `SELECT layout FROM workspace_dashboards WHERE workspace_id=$1`, workspaceID).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store: get workspace dashboard layout: %w", err)
+	}
+	return raw, nil
+}
+
+// SaveWorkspaceDashboardLayout upserts a workspace's shared default layout JSON. The caller gates
+// this on manage_settings; it changes what every member of the workspace sees by default.
+func (s *Store) SaveWorkspaceDashboardLayout(ctx context.Context, workspaceID string, layout []byte) error {
+	_, err := s.q(ctx).Exec(ctx,
+		`INSERT INTO workspace_dashboards (workspace_id, layout) VALUES ($1,$2)
+		 ON CONFLICT (workspace_id) DO UPDATE SET layout=$2, updated_at=now()`, workspaceID, layout)
+	if err != nil {
+		return fmt.Errorf("store: save workspace dashboard layout: %w", err)
+	}
+	return nil
+}
+
+// DeleteWorkspaceDashboardLayout removes a workspace's shared default layout, so members fall back
+// to the coded PANELS order (unless they have a personal layout). Idempotent.
+func (s *Store) DeleteWorkspaceDashboardLayout(ctx context.Context, workspaceID string) error {
+	_, err := s.q(ctx).Exec(ctx, `DELETE FROM workspace_dashboards WHERE workspace_id=$1`, workspaceID)
+	if err != nil {
+		return fmt.Errorf("store: delete workspace dashboard layout: %w", err)
+	}
+	return nil
+}

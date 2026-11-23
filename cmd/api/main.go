@@ -1872,6 +1872,9 @@ func parseTime(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// getLayoutHandler returns the EFFECTIVE dashboard layout: the user's personal override when they
+// have one, otherwise their active workspace's shared default, otherwise null (coded PANELS). A
+// `scope` field is injected so the UI can tell whether it is showing a personal or a shared layout.
 func getLayoutHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, _ := auth.UserFrom(r.Context())
@@ -1884,15 +1887,42 @@ func getLayoutHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		scope := "user"
+		if raw == nil {
+			wsID, werr := st.ActiveWorkspaceID(r.Context(), u.ID, r.Header.Get("X-Workspace-ID"))
+			if werr != nil {
+				http.Error(w, werr.Error(), http.StatusInternalServerError)
+				return
+			}
+			if wsID != "" {
+				if raw, err = st.GetWorkspaceDashboardLayout(r.Context(), wsID); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				scope = "workspace"
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		if raw == nil {
 			_, _ = w.Write([]byte("null"))
 			return
 		}
+		// Tag the layout with where it came from so the UI can label "shared workspace default" vs a
+		// personal layout. Best-effort: if it somehow isn't an object, return it untouched.
+		var obj map[string]any
+		if json.Unmarshal(raw, &obj) == nil {
+			obj["scope"] = scope
+			if tagged, merr := json.Marshal(obj); merr == nil {
+				raw = tagged
+			}
+		}
 		_, _ = w.Write(raw)
 	}
 }
 
+// saveLayoutHandler upserts a dashboard layout. Default target is the caller's personal override.
+// With ?scope=workspace it writes the active workspace's shared default instead, which requires
+// manage_settings (the "edit system" permission) because it changes every member's default view.
 func saveLayoutHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, _ := auth.UserFrom(r.Context())
@@ -1909,6 +1939,27 @@ func saveLayoutHandler(st *store.Store) http.HandlerFunc {
 			http.Error(w, "invalid JSON layout", http.StatusBadRequest)
 			return
 		}
+		if r.URL.Query().Get("scope") == "workspace" {
+			if !u.Can(auth.PermManageSettings) {
+				http.Error(w, "forbidden: manage_settings required to edit the workspace default", http.StatusForbidden)
+				return
+			}
+			wsID, werr := st.ActiveWorkspaceID(r.Context(), u.ID, r.Header.Get("X-Workspace-ID"))
+			if werr != nil {
+				http.Error(w, werr.Error(), http.StatusInternalServerError)
+				return
+			}
+			if wsID == "" {
+				http.Error(w, "no active workspace", http.StatusBadRequest)
+				return
+			}
+			if err := st.SaveWorkspaceDashboardLayout(r.Context(), wsID, body); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "saved", "scope": "workspace"})
+			return
+		}
 		if err := st.SaveDashboardLayout(r.Context(), u.ID, body); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1917,13 +1968,35 @@ func saveLayoutHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
-// deleteLayoutHandler removes the user's saved dashboard layout so the dashboard renders the
-// default PANELS order again. Behaves like a reset button; idempotent.
+// deleteLayoutHandler removes a saved dashboard layout so the dashboard falls back to the next level
+// down. ?scope=workspace deletes the shared default (manage_settings); otherwise it resets the
+// caller's personal override. Behaves like a reset button; idempotent.
 func deleteLayoutHandler(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, _ := auth.UserFrom(r.Context())
 		if u == nil {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Query().Get("scope") == "workspace" {
+			if !u.Can(auth.PermManageSettings) {
+				http.Error(w, "forbidden: manage_settings required to edit the workspace default", http.StatusForbidden)
+				return
+			}
+			wsID, werr := st.ActiveWorkspaceID(r.Context(), u.ID, r.Header.Get("X-Workspace-ID"))
+			if werr != nil {
+				http.Error(w, werr.Error(), http.StatusInternalServerError)
+				return
+			}
+			if wsID == "" {
+				http.Error(w, "no active workspace", http.StatusBadRequest)
+				return
+			}
+			if err := st.DeleteWorkspaceDashboardLayout(r.Context(), wsID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if err := st.DeleteDashboardLayout(r.Context(), u.ID); err != nil {
