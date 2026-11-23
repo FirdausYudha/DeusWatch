@@ -384,8 +384,10 @@ func insertEventsSQL(rows int) string {
 }
 
 // eventArgs flattens an event into the eventColumns bind parameters. Pure, so the single-row
-// and batch inserts cannot drift apart.
-func eventArgs(e *ingest.Event) []any {
+// and batch inserts cannot drift apart. resolvedTenant, when non-nil, is the tenant_id the caller
+// already looked up for this event's agent; it lets the INSERT skip the per-row agent->tenant
+// subquery. An explicit per-event tenant (ingest webhook) still wins over it.
+func eventArgs(e *ingest.Event, resolvedTenant any) []any {
 	var (
 		srcIP, srcPort, srcGeoCountry any = nil, nil, nil
 		srcGeoCity                    any = nil
@@ -493,7 +495,13 @@ func eventArgs(e *ingest.Event) []any {
 		dwOTX = int(*e.DeusWatch.Enrichment.OTXPulseCount)
 	}
 	dwEscalatedBy = strOrNil(e.DeusWatch.Severity.EscalatedBy)
-	tenantOverride := strOrNil(e.DeusWatch.TenantID)
+	// Explicit per-event tenant (ingest webhook) wins; otherwise the tenant the caller resolved for
+	// the agent. A nil here lets the INSERT's SQL fall back to the per-row agent lookup, then the
+	// default sentinel, so correctness never depends on resolution having succeeded.
+	tenant := strOrNil(e.DeusWatch.TenantID)
+	if tenant == nil {
+		tenant = resolvedTenant
+	}
 
 	return []any{
 		e.Timestamp, strOrNil(e.Event.Category), strOrNil(e.Event.Action),
@@ -516,7 +524,7 @@ func eventArgs(e *ingest.Event) []any {
 		fileDiff,
 		procName, procPID,
 		httpMethod, httpURI, httpStatus, httpHost,
-		tenantOverride,
+		tenant,
 		srcASNNum, srcASNOrg,
 		userEffective,
 	}
@@ -525,10 +533,63 @@ func eventArgs(e *ingest.Event) []any {
 // InsertEvent writes one DCS event into the events hypertable. Unset fields are
 // left NULL/default.
 func (s *Store) InsertEvent(ctx context.Context, e *ingest.Event) error {
-	if _, err := s.q(ctx).Exec(ctx, insertEventsSQL(1), eventArgs(e)...); err != nil {
+	// Single inserts are rare (not the detect hot path), so they skip the batch tenant lookup and
+	// let the INSERT's own per-row subquery resolve the tenant.
+	if _, err := s.q(ctx).Exec(ctx, insertEventsSQL(1), eventArgs(e, nil)...); err != nil {
 		return fmt.Errorf("store: insert event: %w", err)
 	}
 	return nil
+}
+
+// agentName returns the agent identity an event is keyed on (matches agents.name), or "".
+func agentName(e *ingest.Event) string {
+	if e.Agent != nil {
+		return e.Agent.ID
+	}
+	return ""
+}
+
+// resolveAgentTenants looks up tenant_id for the distinct agent names in one batch with a SINGLE
+// query, so the per-row `(SELECT tenant_id FROM agents WHERE name = ...)` subquery baked into the
+// multi-row INSERT is skipped for every event whose agent it finds. It is best-effort: on any error,
+// or for an agent not in the table, it simply returns no entry and eventArgs passes nil, so the
+// INSERT's own SQL fallback still resolves the tenant (the agent lookup, then the default sentinel).
+// Resolution is fresh per batch, so an agent moved between tenants is reflected on the next batch -
+// there is no stale-tenant window, which keeps RLS isolation exact.
+func (s *Store) resolveAgentTenants(ctx context.Context, evs []*ingest.Event) map[string]string {
+	names := make([]string, 0, len(evs))
+	seen := make(map[string]struct{}, len(evs))
+	for _, e := range evs {
+		if e.DeusWatch.TenantID != "" {
+			continue // explicit override; no lookup needed
+		}
+		n := agentName(e)
+		if n == "" {
+			continue
+		}
+		if _, ok := seen[n]; ok {
+			continue
+		}
+		seen[n] = struct{}{}
+		names = append(names, n)
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	rows, err := s.q(ctx).Query(ctx, `SELECT name, tenant_id FROM agents WHERE name = ANY($1)`, names)
+	if err != nil {
+		return nil // fall back to the per-row SQL subquery
+	}
+	defer rows.Close()
+	out := make(map[string]string, len(names))
+	for rows.Next() {
+		var name, tid string
+		if err := rows.Scan(&name, &tid); err != nil {
+			return out
+		}
+		out[name] = tid
+	}
+	return out
 }
 
 // InsertEvents writes many events in as few statements as possible: one multi-row INSERT per
@@ -548,9 +609,19 @@ func (s *Store) InsertEvents(ctx context.Context, evs []*ingest.Event) error {
 	q := s.q(ctx)
 	for len(evs) > 0 {
 		n := min(len(evs), maxEventsPerInsert)
+		chunk := evs[:n]
+		// One lookup resolves the tenant for every agent in this chunk, replacing n per-row
+		// subqueries inside the INSERT with a single indexed query over the distinct agent names.
+		tenants := s.resolveAgentTenants(ctx, chunk)
 		args := make([]any, 0, n*eventColumnCnt)
-		for _, e := range evs[:n] {
-			args = append(args, eventArgs(e)...)
+		for _, e := range chunk {
+			var rt any
+			if name := agentName(e); name != "" {
+				if tid, ok := tenants[name]; ok {
+					rt = tid
+				}
+			}
+			args = append(args, eventArgs(e, rt)...)
 		}
 		if _, err := q.Exec(ctx, insertEventsSQL(n), args...); err != nil {
 			return fmt.Errorf("store: insert %d events: %w", n, err)

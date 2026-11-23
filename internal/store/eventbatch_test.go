@@ -18,7 +18,7 @@ func TestEventColumnsMatchArgs(t *testing.T) {
 	if len(eventColumns) != eventColumnCnt {
 		t.Fatalf("eventColumns has %d entries, eventColumnCnt is %d", len(eventColumns), eventColumnCnt)
 	}
-	n := len(eventArgs(&ingest.Event{}))
+	n := len(eventArgs(&ingest.Event{}, nil))
 	if n != eventColumnCnt {
 		t.Fatalf("eventArgs returned %d values, eventColumns has %d", n, eventColumnCnt)
 	}
@@ -62,6 +62,25 @@ func TestInsertEventsSQLOffsets(t *testing.T) {
 		if strings.Contains(sql, "$0") {
 			t.Errorf("rows=%d: emitted $0, parameters are 1-based", rows)
 		}
+	}
+}
+
+// TestEventArgsTenantPrecedence pins the tenant slot's precedence: an explicit per-event override
+// wins, otherwise the caller-resolved tenant, otherwise nil (so the INSERT's own subquery resolves
+// it). Getting this wrong is a cross-tenant leak, so it is verified without needing a database.
+func TestEventArgsTenantPrecedence(t *testing.T) {
+	tenantSlot := func(args []any) any { return args[colTenantID-1] }
+
+	if got := tenantSlot(eventArgs(&ingest.Event{}, nil)); got != nil {
+		t.Errorf("no override/resolved: tenant slot = %v, want nil", got)
+	}
+	if got := tenantSlot(eventArgs(&ingest.Event{}, "resolved-uuid")); got != "resolved-uuid" {
+		t.Errorf("resolved: tenant slot = %v, want resolved-uuid", got)
+	}
+	e := &ingest.Event{}
+	e.DeusWatch.TenantID = "override-uuid"
+	if got := tenantSlot(eventArgs(e, "resolved-uuid")); got != "override-uuid" {
+		t.Errorf("override must win: tenant slot = %v, want override-uuid", got)
 	}
 }
 

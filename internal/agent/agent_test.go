@@ -33,6 +33,15 @@ func (c *capturePub) Publish(_ context.Context, _ string, data []byte) error {
 	return nil
 }
 
+func (c *capturePub) PublishBatch(ctx context.Context, subject string, payloads [][]byte) error {
+	for _, data := range payloads {
+		if err := c.Publish(ctx, subject, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *capturePub) count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()

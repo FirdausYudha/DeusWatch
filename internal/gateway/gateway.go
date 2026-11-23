@@ -54,9 +54,12 @@ func logUnknownAgent(cn string) {
 		"development bundle instead of an enrolled identity).", cn, "deuswatch-agent")
 }
 
-// Publisher publishes a payload to a subject (satisfied by *bus.Bus).
+// Publisher publishes a payload to a subject (satisfied by *bus.Bus). PublishBatch sends many
+// payloads to one subject in a single pipelined round of async publishes, waiting for every ack
+// before returning - the same durability as Publish in a loop, without a round trip per message.
 type Publisher interface {
 	Publish(ctx context.Context, subject string, data []byte) error
+	PublishBatch(ctx context.Context, subject string, payloads [][]byte) error
 }
 
 // RevokedFunc reports whether a presented client certificate must be rejected -
@@ -655,7 +658,12 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 				return
 			}
 		}
-		accepted := 0
+		// Normalize every line first, then publish the whole batch in one pipelined round. The old
+		// path published and waited for a JetStream ack per line, so one POST of 64 lines cost 64
+		// serial round trips - the ingest throughput ceiling once there are many agents. Collecting
+		// the payloads and handing them to PublishBatch keeps the same at-least-once durability (we
+		// still only answer 200 after every ack) while turning those 64 round trips into one wait.
+		payloads := make([][]byte, 0, len(raws))
 		for _, raw := range raws {
 			if raw.Message == "" {
 				continue // validation: message is required
@@ -668,15 +676,17 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 			if err != nil {
 				continue
 			}
-			if err := pub.Publish(ctx, bus.SubjectLogsNormalized, data); err != nil {
-				http.Error(w, "publish failed", http.StatusServiceUnavailable)
-				return
-			}
-			accepted++
+			payloads = append(payloads, data)
+		}
+		if err := pub.PublishBatch(ctx, bus.SubjectLogsNormalized, payloads); err != nil {
+			// Any ack failure fails the whole batch: the agent buffers and retries it, so nothing is
+			// lost (a retry may duplicate already-stored lines, exactly as the per-line path did).
+			http.Error(w, "publish failed", http.StatusServiceUnavailable)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]int{"accepted": accepted})
+		_ = json.NewEncoder(w).Encode(map[string]int{"accepted": len(payloads)})
 	}
 }
 

@@ -31,6 +31,11 @@ const (
 	StreamAlerts = "ALERTS"
 )
 
+// asyncMaxPending bounds how many async publishes may be awaiting an ack at once. PublishAsync
+// blocks past this, so PublishBatch pipelines a request's messages without letting an unbounded
+// number pile up in memory (a single large POST is still capped by the gateway's body limit).
+const asyncMaxPending = 4096
+
 // Bus wraps the NATS connection + JetStream handle.
 type Bus struct {
 	nc *nats.Conn
@@ -50,7 +55,7 @@ func Connect(ctx context.Context, url string) (*Bus, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bus: connect NATS: %w", err)
 	}
-	js, err := jetstream.New(nc)
+	js, err := jetstream.New(nc, jetstream.WithPublishAsyncMaxPending(asyncMaxPending))
 	if err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("bus: jetstream: %w", err)
@@ -94,6 +99,42 @@ func (b *Bus) ensureStreams(ctx context.Context) error {
 func (b *Bus) Publish(ctx context.Context, subject string, data []byte) error {
 	if _, err := b.js.Publish(ctx, subject, data); err != nil {
 		return fmt.Errorf("bus: publish %s: %w", subject, err)
+	}
+	return nil
+}
+
+// PublishBatch publishes many payloads to one subject with pipelined async JetStream publishes,
+// then waits for EVERY ack before returning. It returns nil only once all messages are durably
+// stored, so a caller may safely report success to the sender; any error means the whole batch
+// should be retried. The durability guarantee is identical to calling Publish in a loop (at-least-
+// once: an error can leave some messages stored, so a retry may duplicate) - this only removes the
+// per-message round trip, which was the one-POST-per-agent throughput ceiling.
+//
+// Order is preserved: the messages go out on one ordered connection, so the stream stores them in
+// call order even though their acks may come back out of order.
+func (b *Bus) PublishBatch(ctx context.Context, subject string, payloads [][]byte) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+	futures := make([]jetstream.PubAckFuture, 0, len(payloads))
+	for _, data := range payloads {
+		// PublishAsync self-throttles at asyncMaxPending: it blocks here until the background ack
+		// handler drains one, so memory stays bounded without us polling. Acks keep arriving while
+		// we are still sending, so this never deadlocks.
+		f, err := b.js.PublishAsync(subject, data)
+		if err != nil {
+			return fmt.Errorf("bus: publish async %s: %w", subject, err)
+		}
+		futures = append(futures, f)
+	}
+	for _, f := range futures {
+		select {
+		case <-f.Ok():
+		case err := <-f.Err():
+			return fmt.Errorf("bus: publish ack %s: %w", subject, err)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	return nil
 }

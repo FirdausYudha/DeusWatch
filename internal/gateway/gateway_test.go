@@ -226,6 +226,15 @@ func (f *fakePublisher) Publish(_ context.Context, _ string, data []byte) error 
 	return nil
 }
 
+func (f *fakePublisher) PublishBatch(_ context.Context, _ string, payloads [][]byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, data := range payloads {
+		f.msgs = append(f.msgs, append([]byte(nil), data...))
+	}
+	return nil
+}
+
 // TestGatewayMTLSIngest proves the 5.3 chain: a certificated agent POSTs raw logs
 // over mTLS -> gateway normalizes to DCS -> publish; and a client without a
 // certificate is rejected. Self-contained (no NATS/Postgres).

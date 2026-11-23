@@ -13,6 +13,20 @@ Requires migration **000089**.
 
 ### Added
 
+- **Cheaper event inserts at fleet scale.** The multi-row INSERT carried a per-row
+  `(SELECT tenant_id FROM agents WHERE name = ...)` subquery to stamp each event's tenant (needed
+  because events write through the RLS security-barrier view). The worker now resolves the tenant for
+  every agent in a batch with one indexed lookup and binds it, so that subquery is skipped per row.
+  Resolution is fresh per batch, so an agent moved between tenants is reflected immediately - no
+  stale-tenant window, isolation stays exact. The ingest-webhook tenant override still wins.
+
+- **Faster log ingest at fleet scale.** The gateway published every log line to NATS one at a time,
+  waiting for a JetStream ack per line, so a single agent POST of 64 lines cost 64 serial round
+  trips - the ingest ceiling once there are many agents. It now normalizes the whole batch and
+  publishes it in one pipelined round (`PublishBatch`), still waiting for every ack before it
+  answers 200, so durability is unchanged (at-least-once: a failure fails the whole batch and the
+  agent retries it). Nothing to configure.
+
 - **Command palette.** Press Ctrl/Cmd+K anywhere to search every page and jump to it (arrows +
   Enter), instead of hunting through the sidebar's groups. Only shows pages you have access to.
 
