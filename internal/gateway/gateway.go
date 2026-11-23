@@ -3,6 +3,7 @@
 package gateway
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,7 +21,41 @@ import (
 	"deuswatch/internal/signing"
 )
 
-const maxBodyBytes = 8 << 20 // 8 MiB per batch
+const maxBodyBytes = 8 << 20 // 8 MiB per batch (compressed, on the wire)
+
+// maxDecompressedBytes caps a gzip body AFTER decompression. The wire read is already bounded by
+// maxBodyBytes, but a small compressed payload can expand enormously; this bound stops a
+// decompression bomb from exhausting memory. Generous (4x the wire cap) so legitimate batches,
+// which are far smaller, are never rejected.
+const maxDecompressedBytes = 32 << 20
+
+// readIngestBody reads a request body, transparently decompressing a `Content-Encoding: gzip` body
+// (agents gzip larger log batches; older agents send plain and are unaffected). It enforces both the
+// wire cap and, for gzip, the decompressed cap. On any problem it writes the HTTP error itself and
+// returns ok=false.
+func readIngestBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	limited := http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	var reader io.Reader = limited
+	if strings.EqualFold(r.Header.Get("Content-Encoding"), "gzip") {
+		gz, err := gzip.NewReader(limited)
+		if err != nil {
+			http.Error(w, "invalid gzip body", http.StatusBadRequest)
+			return nil, false
+		}
+		defer gz.Close()
+		reader = io.LimitReader(gz, maxDecompressedBytes+1)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return nil, false
+	}
+	if len(body) > maxDecompressedBytes {
+		http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+		return nil, false
+	}
+	return body, true
+}
 
 // ErrUnknownAgent is what a heartbeat writer returns when the presented certificate CN is
 // not an enrolled agent. This package talks to the store only through func types (no
@@ -631,9 +666,8 @@ func LogsHandler(pub Publisher, revoked RevokedFunc) http.HandlerFunc {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
-		if err != nil {
-			http.Error(w, "failed to read body", http.StatusBadRequest)
+		body, ok := readIngestBody(w, r)
+		if !ok {
 			return
 		}
 		var raws []ingest.RawLog

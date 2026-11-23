@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -19,6 +21,31 @@ import (
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/mtls"
 )
+
+// TestReadIngestBodyGzip proves the gateway decodes a gzip body transparently and still accepts a
+// plain one (backward compatible with agents that do not compress).
+func TestReadIngestBodyGzip(t *testing.T) {
+	plain := []byte(`[{"message":"hello"}]`)
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write(plain); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+
+	r := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(buf.Bytes()))
+	r.Header.Set("Content-Encoding", "gzip")
+	if got, ok := readIngestBody(httptest.NewRecorder(), r); !ok || !bytes.Equal(got, plain) {
+		t.Fatalf("gzip decode: ok=%v got=%q want=%q", ok, got, plain)
+	}
+
+	r2 := httptest.NewRequest(http.MethodPost, "/v1/logs", bytes.NewReader(plain))
+	if got, ok := readIngestBody(httptest.NewRecorder(), r2); !ok || !bytes.Equal(got, plain) {
+		t.Fatalf("plain passthrough: ok=%v got=%q want=%q", ok, got, plain)
+	}
+}
 
 func TestSnapshotHandler(t *testing.T) {
 	withBody := func(cn, body string) *http.Request {

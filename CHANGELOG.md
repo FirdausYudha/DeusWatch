@@ -13,6 +13,20 @@ Requires migration **000089**.
 
 ### Added
 
+- **Scaling and mirroring guides.** `docs/scaling.md` covers handling thousands of agents: the ingest
+  path, the worker/DB/NATS tuning knobs (now also in `deploy/.env.example`), horizontal scale-out of
+  the stateless gateway, and the one real ceiling (the in-memory detect stage) with the options for
+  it. `docs/mirroring.md` covers keeping a second copy of your logs: mirroring the raw compressed
+  archive to a NAS or offsite with rsync, Syncthing, restic, an NFS mount or ZFS/btrfs replication,
+  and the right way to replicate the queryable database (not a file copy).
+
+- **Agents compress log batches (gzip).** The agent now gzips a log POST when it is worth it and
+  sends `Content-Encoding: gzip`; the gateway decodes it transparently and still accepts plain bodies
+  from older agents. Big bandwidth saving across many agents. The gateway bounds the decompressed
+  size so a compressed payload cannot expand into a memory bomb. Safe by deploy order: an agent only
+  gets the gzip-sending binary via self-update from an already-updated manager, so rebuild the
+  manager (gateway) before agents update.
+
 - **Cheaper event inserts at fleet scale.** The multi-row INSERT carried a per-row
   `(SELECT tenant_id FROM agents WHERE name = ...)` subquery to stamp each event's tenant (needed
   because events write through the RLS security-barrier view). The worker now resolves the tenant for

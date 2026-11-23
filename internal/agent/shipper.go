@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,25 @@ import (
 	"deuswatch/internal/ingest"
 	"deuswatch/internal/mtls"
 )
+
+// gzipThreshold is the smallest body worth compressing. Below it the gzip header overhead can make
+// the payload larger, and the bandwidth saved is trivial anyway. A real log batch is well past this.
+const gzipThreshold = 1024
+
+// gzipBytes compresses b with gzip. Returns the compressed bytes, or an error the caller treats as
+// "send it uncompressed" rather than failing the whole send.
+func gzipBytes(b []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write(b); err != nil {
+		_ = zw.Close()
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
 
 // ErrRevoked is returned when the manager reports this agent as revoked (HTTP 410 Gone).
 // The agent reacts by self-uninstalling.
@@ -51,11 +71,24 @@ func (s *Shipper) Send(ctx context.Context, batch []ingest.RawLog) error {
 // SendRaw sends an already-marshaled JSON body (also used for batches from the disk
 // buffer).
 func (s *Shipper) SendRaw(ctx context.Context, body []byte) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/logs", bytes.NewReader(body))
+	// Compress larger batches. The gateway decodes Content-Encoding: gzip transparently and still
+	// accepts plain bodies, so this is safe as long as the gateway is updated first (an agent only
+	// gets this binary via self-update from an already-updated manager). Only use gzip when it
+	// actually shrinks the body, so an incompressible payload is never sent larger.
+	reqBody, encoding := body, ""
+	if len(body) >= gzipThreshold {
+		if gz, err := gzipBytes(body); err == nil && len(gz) < len(body) {
+			reqBody, encoding = gz, "gzip"
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url+"/v1/logs", bytes.NewReader(reqBody))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if encoding != "" {
+		req.Header.Set("Content-Encoding", encoding)
+	}
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("agent: send to gateway: %w", err)

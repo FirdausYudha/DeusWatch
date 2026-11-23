@@ -58,3 +58,5 @@ zstdgrep 'id "942' /archive/opnsense-a/modsecurity/2026-07-17.log.zst
   last unsynced buffer: never a whole file.
 - Source/dataset names are sanitized into safe path segments (no traversal), so an attacker
   can't steer a write outside `ARCHIVE_DIR` via a crafted agent name.
+- To keep a second copy of this archive on a NAS or offsite (rsync, Syncthing, restic, NFS mount,
+  ZFS/btrfs replication), see `docs/mirroring.md`.
