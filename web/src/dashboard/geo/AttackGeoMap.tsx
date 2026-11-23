@@ -171,8 +171,13 @@ export default function AttackGeoMap({ range }: { range: DashRange | null }) {
         .catch((e) => setErr(String((e as Error).message ?? e)))
     }
     load()
-    // Refresh every 30 s so newly-alerting IPs show up without a full dashboard reload.
-    const t = setInterval(load, 30_000)
+    // Refresh every 10 s so a newly-banned IP flips from red to green (and newly-alerting IPs show
+    // up) close to real time. The `blocked` flag comes from the same ActiveBlocks the NFTables feed
+    // pulls, so a ban reflects here within one tick. Was 30 s, which felt stale after an operator
+    // banned an IP and watched the map. The endpoint aggregates at most 200 origins over the window
+    // plus one small active-blocks query, cheap enough at this cadence for a panel only polled while
+    // the dashboard is open.
+    const t = setInterval(load, 10_000)
     return () => clearInterval(t)
   }, [range])
 
