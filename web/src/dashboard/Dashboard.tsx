@@ -320,6 +320,33 @@ function WidgetBody({ w, data, geoRange, geoEnabled }: { w: Panel; data: Dashboa
   }
 }
 
+// Timeline bucket options, each with its width in seconds. Kept in sync with the server's
+// allowedBuckets (internal/store/dashboard.go). The server also clamps, this just stops the
+// operator picking a width that is far too fine for the window (e.g. 1-minute over 30 days =
+// ~43k points, which hangs the tab before the server's fallback is even seen).
+const TIMELINE_BUCKETS: { value: TimelineBucket; label: string; secs: number }[] = [
+  { value: '', label: 'auto', secs: 0 },
+  { value: '1min', label: '1 min', secs: 60 },
+  { value: '5min', label: '5 min', secs: 300 },
+  { value: '15min', label: '15 min', secs: 900 },
+  { value: '30min', label: '30 min', secs: 1800 },
+  { value: '1h', label: '1 h', secs: 3600 },
+  { value: '6h', label: '6 h', secs: 21600 },
+  { value: '1d', label: '1 d', secs: 86400 },
+]
+// Same cap as the server's maxTimelineBuckets.
+const MAX_TIMELINE_BUCKETS = 1500
+function rangeSpanSeconds(r: DashRange | null): number {
+  if (!r) return 0
+  if (typeof r.hours === 'number') return r.hours * 3600
+  if (r.from && r.to) return Math.max(0, (r.to.getTime() - r.from.getTime()) / 1000)
+  return 0
+}
+// bucketTooFine: true when this bucket width would produce more than the cap over the span.
+function bucketTooFine(secs: number, spanSecs: number): boolean {
+  return secs > 0 && spanSecs > 0 && spanSecs / secs > MAX_TIMELINE_BUCKETS
+}
+
 export default function Dashboard({
   range,
   me,
@@ -349,6 +376,14 @@ export default function Dashboard({
   // Operator override for the incident timeline's bucket width; '' = server auto-picks based
   // on the selected window. Persisted per-browser so a wide/short zoom preference sticks.
   const [timelineBucket, setTimelineBucket] = usePersistedState<TimelineBucket>('dashboard.timeline_bucket', '')
+  // Snap a too-fine bucket back to auto when the range makes it so (e.g. a persisted "1 min" after
+  // the operator switches to 30 days). Keeps the chart readable and matches the server's own clamp,
+  // and stops the tab hanging on a 43k-point render.
+  const spanSecs = rangeSpanSeconds(range.resolved)
+  useEffect(() => {
+    const opt = TIMELINE_BUCKETS.find((o) => o.value === timelineBucket)
+    if (opt && bucketTooFine(opt.secs, spanSecs)) setTimelineBucket('')
+  }, [spanSecs, timelineBucket, setTimelineBucket])
 
   // Layout customization: operator can enter edit mode, drag panels to reorder, save or reset.
   // `panels` is the effective render order, starts as the default PANELS, replaced with the
@@ -752,16 +787,13 @@ export default function Dashboard({
                     onMouseDown={(e) => e.stopPropagation()}
                     onDragStart={(e) => e.preventDefault()}
                     className={`${edit ? '' : 'ml-auto'} rounded-[6px] border border-border bg-surface-2 px-1.5 py-0.5 text-[11.5px] font-medium text-muted outline-none transition-colors hover:text-fg`}
-                    title="Bucket width for the timeline"
+                    title="Bucket width for the timeline (options too fine for the current range are disabled)"
                   >
-                    <option value="">auto</option>
-                    <option value="1min">1 min</option>
-                    <option value="5min">5 min</option>
-                    <option value="15min">15 min</option>
-                    <option value="30min">30 min</option>
-                    <option value="1h">1 h</option>
-                    <option value="6h">6 h</option>
-                    <option value="1d">1 d</option>
+                    {TIMELINE_BUCKETS.map((o) => (
+                      <option key={o.value || 'auto'} value={o.value} disabled={bucketTooFine(o.secs, spanSecs)}>
+                        {o.label}
+                      </option>
+                    ))}
                   </select>
                 )}
               </h2>

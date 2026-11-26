@@ -347,10 +347,7 @@ func (s *Store) TenantTimelines(ctx context.Context, since, until time.Time, buc
 	if since.IsZero() || !since.Before(until) {
 		since = until.Add(-24 * time.Hour)
 	}
-	bucket := bucketFor(until.Sub(since))
-	if b, ok := allowedBuckets[bucketOverride]; ok {
-		bucket = b
-	}
+	bucket := resolveBucket(until.Sub(since), bucketOverride)
 	// One gap-filled series per tenant, resolved via LEFT JOIN so tenants with zero events in
 	// the window still surface (as a flat line at 0) rather than disappearing. The tenant list
 	// is intersected against tenants that have events in the WHOLE table (not just the window)
@@ -503,16 +500,41 @@ func bucketFor(span time.Duration) string {
 	}
 }
 
+// bucketSeconds is the width, in seconds, of every interval bucketFor / allowedBuckets can produce.
+// Used to bound the point count before running the gap-filled timeline query.
+var bucketSeconds = map[string]float64{
+	"1 minute": 60, "5 minutes": 300, "10 minutes": 600, "15 minutes": 900,
+	"30 minutes": 1800, "1 hour": 3600, "6 hours": 21600, "1 day": 86400,
+}
+
+// maxTimelineBuckets caps how many buckets a timeline query may generate. A 30-day window at a
+// 1-minute bucket is ~43,200 points; generate_series emits a row per bucket and the browser then
+// has to render that many x5 severity series, which hangs the tab. Anything over this cap is a
+// resolution no one can read on a line chart anyway.
+const maxTimelineBuckets = 1500
+
+// resolveBucket chooses the timeline bucket: the operator's override when it keeps the point count
+// within maxTimelineBuckets for this span, otherwise the automatic width for the span. This is the
+// single guard that stops a too-fine override (e.g. 1-minute over 30 days) from hanging the client
+// and hammering the DB, no matter what a caller sends on ?bucket=.
+func resolveBucket(span time.Duration, override string) string {
+	bucket := bucketFor(span)
+	if b, ok := allowedBuckets[override]; ok {
+		if secs := bucketSeconds[b]; secs > 0 && span.Seconds()/secs <= maxTimelineBuckets {
+			bucket = b
+		}
+		// else: the override is too fine for this span, keep the auto pick so the chart stays sane.
+	}
+	return bucket
+}
+
 // dashTimeline returns a gap-filled series: every bucket across [since, until]
 // is present (zero where there were no events) so the line renders continuously
 // even when activity is sparse or confined to a single bucket. `bucketOverride`
 // forces a specific TimescaleDB interval literal ("1 minute", "5 minutes", …);
 // unrecognized values (or "") fall back to bucketFor(span).
 func (s *Store) dashTimeline(ctx context.Context, since, until time.Time, bucketOverride string) ([]TimePoint, error) {
-	bucket := bucketFor(until.Sub(since))
-	if b, ok := allowedBuckets[bucketOverride]; ok {
-		bucket = b
-	}
+	bucket := resolveBucket(until.Sub(since), bucketOverride)
 	rows, err := s.q(ctx).Query(ctx,
 		`SELECT g AS bucket, COALESCE(e.cnt, 0),
 		        COALESCE(e.crit, 0), COALESCE(e.high, 0), COALESCE(e.med, 0), COALESCE(e.low, 0)
