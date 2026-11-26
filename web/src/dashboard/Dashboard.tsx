@@ -573,9 +573,13 @@ export default function Dashboard({
       }
     }
     void tick(true)
-    const id = setInterval(() => void tick(false), 5000)
+    // Scale the refresh cadence to the window: a 30-day view is expensive to assemble and barely
+    // changes second to second, so polling it every 5s just piled slow pulls on the DB. Wide ranges
+    // refresh slowly, short ranges stay snappy. (The server also caches the payload for ~30s.)
+    const pollMs = spanSecs >= 7 * 86400 ? 60_000 : spanSecs >= 24 * 3600 ? 30_000 : 5_000
+    const id = setInterval(() => void tick(false), pollMs)
     return () => { active = false; clearInterval(id) }
-  }, [range.preset, range.from, range.to, timelineBucket])
+  }, [range.preset, range.from, range.to, timelineBucket, spanSecs])
 
   // One-shot agent-count check for the onboarding card (not part of the polled dashboard data).
   useEffect(() => {

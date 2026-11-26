@@ -202,6 +202,11 @@ func main() {
 			log.Printf("api: self-registration disabled (set REGISTRATION_ENABLED=1 to enable)")
 		}
 
+		// Short-TTL cache for the assembled dashboard payload (see dashboardCache). Shared across all
+		// dashboard requests, keyed by tenant scope + window so the 5s UI poll on a heavy 30-day view
+		// doesn't re-run ~15 aggregations every tick.
+		dashCache := newDashboardCache(30 * time.Second)
+
 		// withScope opens the request's tenant scope: it resolves the user's accessible tenants
 		// (union across their workspaces, optionally narrowed by the X-Workspace-ID header) and runs
 		// the handler inside a store transaction carrying that scope, so Postgres RLS (enabled in a
@@ -231,11 +236,22 @@ func main() {
 				// after the handler already wrote a full response. Answering in the second case
 				// would be a second WriteHeader on the same response: Go logs "superfluous" and
 				// the client gets a body with an error glued to the end of its payload.
+				// Scope key for caches that must stay tenant-isolated (e.g. the dashboard cache). A
+				// platform super-admin spans all tenants, so they share one "super" bucket; everyone
+				// else keys on their sorted tenant set, so two users with the same tenants share a
+				// cache entry and users with different tenants never can.
+				super := u.Can(auth.PermManageTenants)
+				scopeKey := "super"
+				if !super {
+					sorted := append([]string(nil), tenantIDs...)
+					sort.Strings(sorted)
+					scopeKey = strings.Join(sorted, ",")
+				}
 				ran := false
-				if serr := st.WithTenantScope(r.Context(), tenantIDs, u.Can(auth.PermManageTenants),
+				if serr := st.WithTenantScope(r.Context(), tenantIDs, super,
 					func(sctx context.Context) error {
 						ran = true
-						next.ServeHTTP(w, r.WithContext(sctx))
+						next.ServeHTTP(w, r.WithContext(withScopeKey(sctx, scopeKey)))
 						return nil
 					}); serr != nil {
 					log.Printf("api: request scope transaction failed (handler ran=%v): %v", ran, serr)
@@ -496,7 +512,7 @@ func main() {
 		mux.Handle("POST /api/config/import", protect(auth.PermManageSettings, configImportHandler(st)))
 
 		// Customizable dashboard: aggregated series + per-user widget layout.
-		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st)))
+		mux.Handle("GET /api/dashboard", protect(auth.PermViewDashboard, dashboardDataHandler(st, dashCache)))
 		mux.Handle("GET /api/dashboard/attacks/geo", protect(auth.PermViewDashboard, attackGeoHandler(st, respStore)))
 		mux.Handle("GET /api/dashboard/timeline-by-tenant", protect(auth.PermManageTenants, dashboardTenantTimelineHandler(st)))
 		mux.Handle("GET /api/dashboard/layout", protect(auth.PermViewDashboard, getLayoutHandler(st)))
@@ -1779,16 +1795,98 @@ func configImportHandler(st *store.Store) http.HandlerFunc {
 	}
 }
 
-func dashboardDataHandler(st *store.Store) http.HandlerFunc {
+// scopeKeyCtx carries a string that uniquely identifies the request's tenant scope, set by
+// withScope. The dashboard cache keys on it so one tenant's payload can never be served to another.
+type scopeKeyCtx struct{}
+
+func withScopeKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, scopeKeyCtx{}, key)
+}
+func scopeKeyFrom(ctx context.Context) string {
+	s, _ := ctx.Value(scopeKeyCtx{}).(string)
+	return s
+}
+
+// dashboardCache memoises the assembled dashboard payload for a short TTL, keyed by tenant scope +
+// window + bucket. The 30-day view runs ~15 aggregations over compressed chunks; without this the
+// 5s UI poll re-ran all of them every tick and slow pulls piled up on the DB. Cached bytes (not the
+// struct) so there is nothing shared-mutable to race on.
+type dashboardCache struct {
+	ttl time.Duration
+	mu  sync.Mutex
+	m   map[string]dashCacheEntry
+}
+type dashCacheEntry struct {
+	body []byte
+	exp  time.Time
+}
+
+func newDashboardCache(ttl time.Duration) *dashboardCache {
+	return &dashboardCache{ttl: ttl, m: map[string]dashCacheEntry{}}
+}
+func (c *dashboardCache) get(key string) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.m[key]
+	if !ok || time.Now().After(e.exp) {
+		return nil, false
+	}
+	return e.body, true
+}
+func (c *dashboardCache) put(key string, body []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.m) > 256 { // opportunistic prune so the map can't grow unbounded
+		now := time.Now()
+		for k, e := range c.m {
+			if now.After(e.exp) {
+				delete(c.m, k)
+			}
+		}
+	}
+	c.m[key] = dashCacheEntry{body: body, exp: time.Now().Add(c.ttl)}
+}
+
+func dashboardDataHandler(st *store.Store, cache *dashboardCache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		since, until := dashboardWindow(r)
 		bucket := strings.TrimSpace(r.URL.Query().Get("bucket"))
+		// Only cache the wide, expensive windows. Short ranges (1h/6h/24h) are cheap to assemble and
+		// the UI polls them every 5s expecting a near-live view, so a 30s cache there would just make
+		// them feel stale. 24h+ is where the aggregations get heavy and the client already slows its
+		// poll, so caching pays off without a visible staleness cost.
+		cacheable := until.Sub(since) >= 24*time.Hour
+		var key string
+		if cacheable {
+			// Round the window to the TTL so repeated polls within one TTL share a key and hit the
+			// cache (otherwise `until = now()` makes every request unique). A sub-TTL shift of the
+			// window is invisible on a multi-day range.
+			since = since.Truncate(cache.ttl)
+			until = until.Truncate(cache.ttl)
+			key = fmt.Sprintf("%s|%d|%d|%s", scopeKeyFrom(r.Context()), since.Unix(), until.Unix(), bucket)
+			if body, ok := cache.get(key); ok {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write(body)
+				return
+			}
+		}
 		d, err := st.Dashboard(r.Context(), since, until, bucket)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, http.StatusOK, d)
+		if !cacheable {
+			writeJSON(w, http.StatusOK, d)
+			return
+		}
+		body, err := json.Marshal(d)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		cache.put(key, body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
 	}
 }
 
