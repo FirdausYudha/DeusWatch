@@ -346,6 +346,17 @@ function rangeSpanSeconds(r: DashRange | null): number {
 function bucketTooFine(secs: number, spanSecs: number): boolean {
   return secs > 0 && spanSecs > 0 && spanSecs / secs > MAX_TIMELINE_BUCKETS
 }
+// autoBucketLabel mirrors the server's bucketFor (internal/store/dashboard.go): the width the
+// server falls back to when the chosen bucket is too fine. Display-only, for the "scaled to X"
+// note (Wazuh/Kibana-style). The server stays the source of truth for the data itself.
+function autoBucketLabel(spanSecs: number): string {
+  const h = spanSecs / 3600
+  if (h <= 2) return '1 min'
+  if (h <= 12) return '10 min'
+  if (h <= 72) return '1 h'
+  if (h <= 504) return '6 h' // 21 days
+  return '1 d'
+}
 
 export default function Dashboard({
   range,
@@ -376,14 +387,14 @@ export default function Dashboard({
   // Operator override for the incident timeline's bucket width; '' = server auto-picks based
   // on the selected window. Persisted per-browser so a wide/short zoom preference sticks.
   const [timelineBucket, setTimelineBucket] = usePersistedState<TimelineBucket>('dashboard.timeline_bucket', '')
-  // Snap a too-fine bucket back to auto when the range makes it so (e.g. a persisted "1 min" after
-  // the operator switches to 30 days). Keeps the chart readable and matches the server's own clamp,
-  // and stops the tab hanging on a 43k-point render.
+  // Span of the current range, used to tell when the chosen bucket is finer than the point budget so
+  // the server will auto-scale it (Wazuh/Kibana-style). We keep the operator's choice and just note
+  // the scaling, rather than blocking it.
   const spanSecs = rangeSpanSeconds(range.resolved)
-  useEffect(() => {
+  const bucketScaled = (() => {
     const opt = TIMELINE_BUCKETS.find((o) => o.value === timelineBucket)
-    if (opt && bucketTooFine(opt.secs, spanSecs)) setTimelineBucket('')
-  }, [spanSecs, timelineBucket, setTimelineBucket])
+    return !!opt && bucketTooFine(opt.secs, spanSecs)
+  })()
 
   // Layout customization: operator can enter edit mode, drag panels to reorder, save or reset.
   // `panels` is the effective render order, starts as the default PANELS, replaced with the
@@ -779,22 +790,32 @@ export default function Dashboard({
                       : <span className="inline-flex items-center gap-1"><Icon name="list" size={13} />list</span>}
                   </button>
                 )}
-                {/* Timeline bucket picker on the "Events over time" panel, '' = server auto-picks. */}
+                {/* Timeline bucket picker on the "Events over time" panel, '' = server auto-picks.
+                    Any width is selectable; when the pick is finer than the point budget the server
+                    auto-scales it and we show a "scaled to X" note (Wazuh/Kibana behaviour). */}
                 {w.kind === 'line' && w.source === 'timeline' && (
-                  <select
-                    value={timelineBucket}
-                    onChange={(e) => setTimelineBucket(e.target.value as TimelineBucket)}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onDragStart={(e) => e.preventDefault()}
-                    className={`${edit ? '' : 'ml-auto'} rounded-[6px] border border-border bg-surface-2 px-1.5 py-0.5 text-[11.5px] font-medium text-muted outline-none transition-colors hover:text-fg`}
-                    title="Bucket width for the timeline (options too fine for the current range are disabled)"
-                  >
-                    {TIMELINE_BUCKETS.map((o) => (
-                      <option key={o.value || 'auto'} value={o.value} disabled={bucketTooFine(o.secs, spanSecs)}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                  <span className={`${edit ? '' : 'ml-auto'} inline-flex items-center gap-1`}>
+                    {bucketScaled && (
+                      <span
+                        className="text-[11px] text-dim"
+                        title="Too many points for this range to draw at the chosen width, so the chart is aggregated to a coarser bucket (same as Wazuh/Kibana auto-scaling)."
+                      >
+                        scaled to {autoBucketLabel(spanSecs)}
+                      </span>
+                    )}
+                    <select
+                      value={timelineBucket}
+                      onChange={(e) => setTimelineBucket(e.target.value as TimelineBucket)}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onDragStart={(e) => e.preventDefault()}
+                      className="rounded-[6px] border border-border bg-surface-2 px-1.5 py-0.5 text-[11.5px] font-medium text-muted outline-none transition-colors hover:text-fg"
+                      title="Bucket width for the timeline"
+                    >
+                      {TIMELINE_BUCKETS.map((o) => (
+                        <option key={o.value || 'auto'} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </span>
                 )}
               </h2>
               <WidgetBody w={w} data={data} geoRange={range.resolved} geoEnabled={geoEnabled} />
